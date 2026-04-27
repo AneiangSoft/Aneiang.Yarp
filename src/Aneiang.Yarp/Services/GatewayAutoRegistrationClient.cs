@@ -9,15 +9,16 @@ using Microsoft.Extensions.Options;
 namespace Aneiang.Yarp.Services
 {
     /// <summary>
-    /// 网关自动注册客户端。
-    /// 用于本地服务（如本机调试的单体服务）向远程网关注册路由，
-    /// 使流量经过网关的中间件管道后转发到本地服务。
+    /// Gateway auto-registration client.
+    /// Used by local services (e.g. a monolith running locally for debugging) to register routes
+    /// with a remote gateway, so traffic flows through the gateway's middleware pipeline before
+    /// being forwarded to the local service.
     /// <para>
-    /// 配置方式（优先级从高到低）：
+    /// Configuration priority (high to low):
     /// <list type="number">
-    /// <item>代码：<c>AddAneiangYarpClient(o => o.GatewayUrl = "...")</c></item>
-    /// <item>环境变量：<c>GatewayRegistration__GatewayUrl</c></item>
-    /// <item>配置文件：<c>appsettings.json</c></item>
+    /// <item>Code: <c>AddAneiangYarpClient(o => o.GatewayUrl = "...")</c></item>
+    /// <item>Environment variables: <c>GatewayRegistration__GatewayUrl</c></item>
+    /// <item>Config file: <c>appsettings.json</c></item>
     /// </list>
     /// </para>
     /// </summary>
@@ -29,7 +30,7 @@ namespace Aneiang.Yarp.Services
         private readonly ILogger<GatewayAutoRegistrationClient> _logger;
 
         /// <summary>
-        /// 创建网关自动注册客户端。
+        /// Creates a new GatewayAutoRegistrationClient.
         /// </summary>
         public GatewayAutoRegistrationClient(
             IHttpClientFactory httpClientFactory,
@@ -44,13 +45,13 @@ namespace Aneiang.Yarp.Services
         }
 
         /// <summary>
-        /// 向网关注册当前服务路由。
+        /// Register the current service route with the gateway.
         /// </summary>
         public async Task<bool> RegisterAsync(CancellationToken cancellationToken = default)
         {
             if (!_options.IsEnabled)
             {
-                _logger.LogInformation("网关自动注册已禁用（未配置 GatewayUrl）");
+                _logger.LogInformation("Gateway auto-registration disabled (GatewayUrl not configured)");
                 return false;
             }
 
@@ -64,14 +65,14 @@ namespace Aneiang.Yarp.Services
             if (string.IsNullOrWhiteSpace(gatewayUrl) ||
                 string.IsNullOrWhiteSpace(destinationAddress))
             {
-                _logger.LogWarning("网关注册信息不完整（GatewayUrl/DestinationAddress 缺失），跳过注册");
+                _logger.LogWarning("Registration info incomplete (missing GatewayUrl/DestinationAddress), skipping");
                 return false;
             }
 
-            _logger.LogInformation("注册信息: Route={RouteName}, Match={MatchPath}, Dest={DestAddress}, Gateway={GatewayUrl}",
+            _logger.LogInformation("Registration info: Route={RouteName}, Match={MatchPath}, Dest={DestAddress}, Gateway={GatewayUrl}",
                 routeName, matchPath, destinationAddress, gatewayUrl);
 
-            // 自动将 localhost 解析为本机内网 IP
+            // Automatically resolve localhost to local LAN IP
             if (_options.GetAutoResolveIp())
                 destinationAddress = ResolveLocalAddress(destinationAddress);
 
@@ -97,7 +98,7 @@ namespace Aneiang.Yarp.Services
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
                 var registerUrl = $"{gatewayUrl.TrimEnd('/')}/api/gateway/register-route";
 
-                _logger.LogInformation("向网关注册路由 [{RouteName}] {MatchPath} → {Address}",
+                _logger.LogInformation("Registering route [{RouteName}] {MatchPath} \u2192 {Address}",
                     routeName, matchPath, destinationAddress);
 
                 var response = await httpClient.PostAsync(registerUrl, content, cancellationToken)
@@ -107,32 +108,32 @@ namespace Aneiang.Yarp.Services
 
                 if (response.IsSuccessStatusCode)
                 {
-                    _logger.LogInformation("注册成功 ✓ {Body}", body);
+                    _logger.LogInformation("Registration successful {Body}", body);
                     return true;
                 }
 
-                _logger.LogWarning("注册失败 ({StatusCode}): {Body}", (int)response.StatusCode, body);
+                _logger.LogWarning("Registration failed ({StatusCode}): {Body}", (int)response.StatusCode, body);
                 return false;
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogWarning(ex, "网关不可达（{GatewayUrl}），跳过注册", gatewayUrl);
+                _logger.LogWarning(ex, "Gateway unreachable ({GatewayUrl}), skipping registration", gatewayUrl);
                 return false;
             }
             catch (TaskCanceledException)
             {
-                _logger.LogWarning("网关请求超时（{GatewayUrl}），跳过注册", gatewayUrl);
+                _logger.LogWarning("Gateway request timed out ({GatewayUrl}), skipping registration", gatewayUrl);
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "注册请求出现异常");
+                _logger.LogError(ex, "Unexpected error during registration");
                 return false;
             }
         }
 
         /// <summary>
-        /// 从网关注销当前路由。
+        /// Unregister the current route from the gateway.
         /// </summary>
         public async Task<bool> UnregisterAsync(CancellationToken cancellationToken = default)
         {
@@ -141,7 +142,7 @@ namespace Aneiang.Yarp.Services
 
             if (string.IsNullOrWhiteSpace(gatewayUrl))
             {
-                _logger.LogWarning("未配置 GatewayUrl，跳过注销");
+                _logger.LogWarning("GatewayUrl not configured, skipping unregistration");
                 return false;
             }
 
@@ -152,7 +153,7 @@ namespace Aneiang.Yarp.Services
 
                 var deleteUrl = $"{gatewayUrl.TrimEnd('/')}/api/gateway/{routeName}";
 
-                _logger.LogInformation("向网关注销路由 [{RouteName}]", routeName);
+                _logger.LogInformation("Unregistering route [{RouteName}]", routeName);
                 var response = await httpClient.DeleteAsync(deleteUrl, cancellationToken)
                     .ConfigureAwait(false);
 
@@ -160,39 +161,39 @@ namespace Aneiang.Yarp.Services
                 {
                     var body = await response.Content.ReadAsStringAsync(cancellationToken)
                         .ConfigureAwait(false);
-                    _logger.LogInformation("注销成功 ✓ {Body}", body);
+                    _logger.LogInformation("Unregistration successful {Body}", body);
                     return true;
                 }
 
                 if (response.StatusCode == HttpStatusCode.NotFound)
                 {
-                    _logger.LogInformation("路由 [{RouteName}] 已不存在，忽略", routeName);
+                    _logger.LogInformation("Route [{RouteName}] no longer exists, ignoring", routeName);
                     return true;
                 }
 
-                _logger.LogWarning("注销失败 ({StatusCode})", (int)response.StatusCode);
+                _logger.LogWarning("Unregistration failed ({StatusCode})", (int)response.StatusCode);
                 return false;
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogWarning(ex, "网关不可达，跳过注销");
+                _logger.LogWarning(ex, "Gateway unreachable, skipping unregistration");
                 return false;
             }
             catch (TaskCanceledException)
             {
-                _logger.LogWarning("注销请求超时，跳过注销");
+                _logger.LogWarning("Unregistration request timed out, skipping");
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "注销请求出现异常");
+                _logger.LogError(ex, "Unexpected error during unregistration");
                 return false;
             }
         }
 
         /// <summary>
-        /// 将 destinationAddress 中的 localhost / 127.0.0.1 / 0.0.0.0
-        /// 解析为本机内网 IP 地址（使内网网关可以访问本机）。
+        /// Resolve localhost / 127.0.0.1 / 0.0.0.0 in the destination address
+        /// to the local LAN IPv4 address (so the gateway can reach this machine).
         /// </summary>
         private static string ResolveLocalAddress(string address)
         {
@@ -217,7 +218,7 @@ namespace Aneiang.Yarp.Services
             }
             catch (UriFormatException)
             {
-                // 如果 address 不是有效 URI，直接原样返回
+                // If address is not a valid URI, return as-is
             }
 
             return address;

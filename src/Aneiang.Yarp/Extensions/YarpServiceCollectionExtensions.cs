@@ -9,27 +9,27 @@ using Yarp.ReverseProxy.Configuration;
 namespace Aneiang.Yarp.Extensions
 {
     /// <summary>
-    /// Aneiang.Yarp 服务注册扩展。
-    /// <para>提供三种级别的 API：</para>
+    /// Aneiang.Yarp service registration extensions.
+    /// <para>Provides three API levels:</para>
     /// <list type="bullet">
-    /// <item><b>一键式</b>：<c>AddAneiangYarpGateway()</c> / <c>AddAneiangYarpClient()</c> → 一行搞定</item>
-    /// <item><b>可定制</b>：<c>AddAneiangYarpGateway(options => ...)</c> → 一键式 + 自定义</item>
-    /// <item><b>精细化</b>：<c>AddAneiangYarp()</c> / <c>AddAneiangYarpGatewayClient()</c> → 完全控制</item>
+    /// <item><b>One-liner</b>: <c>AddAneiangYarpGateway()</c> / <c>AddAneiangYarpClient()</c></item>
+    /// <item><b>Customizable</b>: <c>AddAneiangYarpGateway(options => ...)</c></item>
+    /// <item><b>Component-level</b>: <c>AddAneiangYarp()</c> / <c>AddAneiangYarpGatewayClient()</c></item>
     /// </list>
     /// </summary>
     public static class YarpServiceCollectionExtensions
     {
-        // ════════════════════════════════════════════════════════
-        //  一键式 API：网关角色（最少代码）
-        // ════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════
+        //  One-liner API: Gateway role (minimum code)
+        // ═══════════════════════════════════════════
 
         /// <summary>
-        /// ⭐【一键式 - 网关角色】注册网关所需的全部服务。
-        /// <para>自动包含：AddReverseProxy + AddAneiangYarp + AddControllersWithViews + AddHttpClient</para>
+        /// [One-liner — Gateway] Register all services needed for a gateway.
+        /// <para>Includes: AddReverseProxy + AddAneiangYarp + AddControllersWithViews + AddHttpClient</para>
         /// </summary>
         /// <example>
         /// <code>
-        /// // Program.cs — 一行搞定网关：
+        /// // Program.cs — one-liner gateway setup:
         /// builder.Services.AddAneiangYarpGateway();
         /// </code>
         /// </example>
@@ -39,15 +39,15 @@ namespace Aneiang.Yarp.Extensions
         }
 
         /// <summary>
-        /// ⭐【一键式 + 可定制 - 网关角色】注册网关服务并自定义选项。
+        /// [One-liner + Customizable — Gateway] Register gateway services with custom options.
         /// </summary>
         /// <param name="services"></param>
-        /// <param name="configureOptions">自定义网关注册选项（如配置 GatewayUrl 以便本网关也能注册到上级网关）</param>
+        /// <param name="configureOptions">Customize gateway registration options (e.g. set GatewayUrl to register with an upstream gateway).</param>
         /// <example>
         /// <code>
         /// builder.Services.AddAneiangYarpGateway(options =>
         /// {
-        ///     options.GatewayUrl = "http://upstream-gateway:5000";  // 可选：连到上级网关
+        ///     options.GatewayUrl = "http://upstream-gateway:5000";  // Optional: connect to upstream gateway
         /// });
         /// </code>
         /// </example>
@@ -55,34 +55,34 @@ namespace Aneiang.Yarp.Extensions
             this IServiceCollection services,
             Action<GatewayRegistrationOptions>? configureOptions)
         {
-            // ── 自动注册基础服务 ──
+            // Automatically register base services
             services.AddReverseProxy();
-            services.AddAneiangYarp();                     // 组件级：动态路由 + Controller
+            services.AddAneiangYarp();
             services.AddControllersWithViews();
             services.AddHttpClient();
 
-            // ── 可选：配置自动注册选项（网关也能连到上级网关） ──
+            // Optional: configure auto-registration options (gateway can also register with upstream gateway)
             ConfigureGatewayRegistrationOptions(services, configureOptions);
 
             return services;
         }
 
-        // ════════════════════════════════════════════════════════
-        //  一键式 API：客户端角色（最少代码）
-        // ════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════
+        //  One-liner API: Client role (minimum code)
+        // ═══════════════════════════════════════════
 
         /// <summary>
-        /// ⭐【一键式 - 客户端角色】注册客户端服务并启用自动注册/注销。
-        /// <para>自动包含：AddHttpClient + GatewayAutoRegistrationClient + GatewayRegistrationHostedService</para>
-        /// <para>应用启动时自动注册 → 网关；应用关闭时自动注销 ← 网关。</para>
-        /// <para><b>唯一必须配置：</b>GatewayUrl（可在代码或配置文件中设置）</para>
+        /// [One-liner — Client] Register client services with auto-registration/unregistration.
+        /// <para>Includes: AddHttpClient + GatewayAutoRegistrationClient + GatewayRegistrationHostedService</para>
+        /// <para>Auto-registers with gateway on startup; auto-unregisters on shutdown.</para>
+        /// <para><b>Only mandatory config:</b> GatewayUrl (can be set in code or config file).</para>
         /// </summary>
         /// <example>
         /// <code>
-        /// // Program.cs — 一行搞定客户端：
+        /// // Program.cs — one-liner client setup:
         /// builder.Services.AddAneiangYarpClient();
         ///
-        /// // appsettings.json — 最少只需配置一行：
+        /// // appsettings.json — only one line required:
         /// // { "GatewayRegistration": { "GatewayUrl": "http://192.168.1.100:5000" } }
         /// </code>
         /// </example>
@@ -92,17 +92,17 @@ namespace Aneiang.Yarp.Extensions
         }
 
         /// <summary>
-        /// ⭐【一键式 + 可定制 - 客户端角色】注册客户端服务并自定义选项。
+        /// [One-liner + Customizable — Client] Register client services with custom options.
         /// </summary>
         /// <param name="services"></param>
-        /// <param name="configureOptions">自定义选项（优先级高于配置文件）</param>
+        /// <param name="configureOptions">Custom options (higher priority than config file).</param>
         /// <example>
         /// <code>
         /// builder.Services.AddAneiangYarpClient(options =>
         /// {
         ///     options.GatewayUrl = "http://192.168.1.100:5000";
-        ///     options.MatchPath = "/api/users/{**catch-all}";    // 只转发特定路径
-        ///     options.Order = 10;                                  // 高优先级
+        ///     options.MatchPath = "/api/users/{**catch-all}";
+        ///     options.Order = 10;
         /// });
         /// </code>
         /// </example>
@@ -110,39 +110,39 @@ namespace Aneiang.Yarp.Extensions
             this IServiceCollection services,
             Action<GatewayRegistrationOptions>? configureOptions)
         {
-            // ── 自动注册 HttpClient ──
+            // Automatically register HttpClient
             services.AddHttpClient();
 
-            // ── 配置选项 ──
+            // Configure options
             ConfigureGatewayRegistrationOptions(services, configureOptions);
 
-            // ── 注册客户端服务 ──
+            // Register the client service
             services.AddSingleton<GatewayAutoRegistrationClient>();
 
-            // ── 注册托管服务（自动：启动注册 + 关闭注销） ──
+            // Register the hosted service (auto: register on start + unregister on stop)
             services.AddHostedService<GatewayRegistrationHostedService>();
 
             return services;
         }
 
-        // ════════════════════════════════════════════════════════
-        //  精细化 API：组件级别（完全控制）
-        // ════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════
+        //  Component-level API: Full control
+        // ═══════════════════════════════════════════
 
         /// <summary>
-        /// 🔧【精细化 - 网关组件】注册 Aneiang.Yarp 核心服务。
+        /// [Component-level — Gateway] Register Aneiang.Yarp core services.
         /// <list type="bullet">
-        /// <item>InMemoryConfigProvider（从 IConfiguration 加载初始路由/集群）</item>
-        /// <item>IProxyConfigProvider（指向同一实例）</item>
-        /// <item>DynamicYarpConfigService（动态路由管理）</item>
-        /// <item>GatewayConfigController（API：注册/注销/查询路由）</item>
-        /// <item>GatewayAutoRegistrationClient（可选连接上级网关）</item>
+        /// <item>InMemoryConfigProvider (loads initial routes/clusters from IConfiguration)</item>
+        /// <item>IProxyConfigProvider (pointing to the same InMemoryConfigProvider instance)</item>
+        /// <item>DynamicYarpConfigService (dynamic route management)</item>
+        /// <item>GatewayConfigController (API: register/unregister/query routes)</item>
+        /// <item>GatewayAutoRegistrationClient (optional connection to upstream gateway)</item>
         /// </list>
-        /// <para>⚠ 调用前需手动注册 services.AddReverseProxy() 和 services.AddHttpClient()</para>
+        /// <para>! Requires manual registration of services.AddReverseProxy() and services.AddHttpClient() before calling.</para>
         /// </summary>
         public static IServiceCollection AddAneiangYarp(this IServiceCollection services)
         {
-            // 注册 InMemoryConfigProvider，从 IConfiguration 中读取初始路由和集群配置
+            // Register InMemoryConfigProvider — load initial routes and clusters from IConfiguration
             services.AddSingleton<InMemoryConfigProvider>(sp =>
             {
                 var configuration = sp.GetRequiredService<IConfiguration>();
@@ -154,25 +154,25 @@ namespace Aneiang.Yarp.Extensions
                 return new InMemoryConfigProvider(routes, clusters);
             });
 
-            // 注册为 IProxyConfigProvider，指向同一个 InMemoryConfigProvider 实例
+            // Register as IProxyConfigProvider, pointing to the same InMemoryConfigProvider instance
             services.AddSingleton<IProxyConfigProvider>(sp =>
                 sp.GetRequiredService<InMemoryConfigProvider>());
 
             services.AddSingleton<DynamicYarpConfigService>();
 
-            // 添加 Controller 所在程序集，使 MVC 可发现本类库中的控制器
+            // Add the controller assembly so MVC can discover controllers in this library
             services.AddMvcCore().AddApplicationPart(typeof(GatewayConfigController).Assembly);
 
-            // 注册网关自动注册客户端（当前网关也可以作为客户端注册到上级网关）
+            // Register the gateway auto-registration client (this gateway can also register with an upstream gateway)
             services.AddSingleton<GatewayAutoRegistrationClient>();
 
             return services;
         }
 
         /// <summary>
-        /// 🔧【精细化 - 客户端组件】仅注册 GatewayAutoRegistrationClient。
-        /// <para>适用于：需要完全控制 DI 注册顺序的高级场景。</para>
-        /// <para>如需自动注册/注销，请使用 <see cref="AddAneiangYarpClient(IServiceCollection, Action{GatewayRegistrationOptions}?)"/></para>
+        /// [Component-level — Client] Register only GatewayAutoRegistrationClient.
+        /// <para>Use this when you need full control over DI registration order.</para>
+        /// <para>For auto-registration/unregistration, use <see cref="AddAneiangYarpClient(IServiceCollection, Action{GatewayRegistrationOptions}?)"/> instead.</para>
         /// </summary>
         public static IServiceCollection AddAneiangYarpGatewayClient(this IServiceCollection services)
         {
@@ -180,9 +180,9 @@ namespace Aneiang.Yarp.Extensions
             return services;
         }
 
-        // ════════════════════════════════════════════════════════
-        //  内部：选项配置
-        // ════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════
+        //  Internal: Option configuration
+        // ═══════════════════════════════════════════
 
         private static void ConfigureGatewayRegistrationOptions(
             IServiceCollection services,
@@ -197,20 +197,20 @@ namespace Aneiang.Yarp.Extensions
             if (configureOptions != null)
                 services.Configure(configureOptions);
 
-            // 注册选项类型以便后续注入 IOptions<T>
+            // Register option type for later injection via IOptions<T>
             services.AddSingleton<IValidateOptions<GatewayRegistrationOptions>, ValidateNothing>();
         }
 
-        // 占位验证器（不验证，静默忽略缺失的配置项）
+        // Placeholder validator (does not validate — silently ignores missing config)
         private sealed class ValidateNothing : IValidateOptions<GatewayRegistrationOptions>
         {
             public ValidateOptionsResult Validate(string? name, GatewayRegistrationOptions options)
                 => ValidateOptionsResult.Skip;
         }
 
-        // ════════════════════════════════════════════════════════
-        //  内部：配置解析
-        // ════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════
+        //  Internal: Config parsing
+        // ═══════════════════════════════════════════
 
         private static List<RouteConfig> ParseRoutesFromConfig(IConfigurationSection routesSection)
         {

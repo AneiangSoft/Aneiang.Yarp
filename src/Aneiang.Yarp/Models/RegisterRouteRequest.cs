@@ -3,41 +3,41 @@ using System.ComponentModel.DataAnnotations;
 namespace Aneiang.Yarp.Models
 {
     /// <summary>
-    /// 路由注册请求
+    /// Route registration request.
     /// </summary>
     public class RegisterRouteRequest
     {
         /// <summary>
-        /// 路由名称（唯一标识），例如 "my-service-route"
+        /// Route name (unique identifier), e.g. "my-service-route"
         /// </summary>
-        [Required(ErrorMessage = "路由名称不能为空")]
+        [Required(ErrorMessage = "Route name is required")]
         [StringLength(200, MinimumLength = 1)]
         public string RouteName { get; set; } = string.Empty;
 
         /// <summary>
-        /// 集群名称，例如 "MyServiceCluster"
+        /// Cluster name, e.g. "MyServiceCluster"
         /// </summary>
-        [Required(ErrorMessage = "集群名称不能为空")]
+        [Required(ErrorMessage = "Cluster name is required")]
         [StringLength(200, MinimumLength = 1)]
         public string ClusterName { get; set; } = string.Empty;
 
         /// <summary>
-        /// 匹配路径模板，例如 /api/my-service/{**catchAll}
+        /// Match path template, e.g. /api/my-service/{**catchAll}
         /// </summary>
-        [Required(ErrorMessage = "匹配路径不能为空")]
+        [Required(ErrorMessage = "Match path is required")]
         public string MatchPath { get; set; } = string.Empty;
 
         /// <summary>
-        /// 目标地址，例如 http://localhost:5000
+        /// Destination address, e.g. http://localhost:5000
         /// </summary>
-        [Required(ErrorMessage = "目标地址不能为空")]
-        [Url(ErrorMessage = "目标地址必须是有效的 URL")]
+        [Required(ErrorMessage = "Destination address is required")]
+        [Url(ErrorMessage = "Destination address must be a valid URL")]
         public string DestinationAddress { get; set; } = string.Empty;
 
         /// <summary>
-        /// 路由优先级（可选，默认 50），数值越小越优先
+        /// Route priority (optional, default 50). Lower values take precedence.
         /// </summary>
-        [Range(0, int.MaxValue, ErrorMessage = "优先级必须大于等于 0")]
+        [Range(0, int.MaxValue, ErrorMessage = "Priority must be >= 0")]
         public int? Order { get; set; }
     }
 }

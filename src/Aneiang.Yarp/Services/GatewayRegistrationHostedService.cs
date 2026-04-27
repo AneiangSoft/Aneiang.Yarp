@@ -4,10 +4,10 @@ using Microsoft.Extensions.Logging;
 namespace Aneiang.Yarp.Services
 {
     /// <summary>
-    /// 网关自动注册托管服务。
-    /// 在应用启动时自动向远程网关注册当前服务的路由，
-    /// 在应用停止时自动注销路由。
-    /// <para>无需手动调用任何 API，注册为 IHostedService 后自动运行。</para>
+    /// Gateway auto-registration hosted service.
+    /// Automatically registers the current service route with the remote gateway on startup,
+    /// and unregisters on shutdown.
+    /// <para>No manual API calls needed — runs automatically as an IHostedService.</para>
     /// </summary>
     internal sealed class GatewayRegistrationHostedService : IHostedService
     {
@@ -24,31 +24,31 @@ namespace Aneiang.Yarp.Services
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            _logger.LogInformation("开始网关自动注册...");
+            _logger.LogInformation("Starting gateway auto-registration...");
             try
             {
                 var result = await _client.RegisterAsync(cancellationToken).ConfigureAwait(false);
                 if (result)
-                    _logger.LogInformation("网关自动注册完成 ✓");
+                    _logger.LogInformation("Gateway auto-registration complete");
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "网关自动注册阶段异常，不影响服务本身运行");
+                _logger.LogWarning(ex, "Exception during gateway auto-registration, service continues running");
             }
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)
         {
-            _logger.LogInformation("开始网关自动注销...");
+            _logger.LogInformation("Starting gateway auto-unregistration...");
             try
             {
                 var result = await _client.UnregisterAsync(cancellationToken).ConfigureAwait(false);
                 if (result)
-                    _logger.LogInformation("网关自动注销完成 ✓");
+                    _logger.LogInformation("Gateway auto-unregistration complete");
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "网关自动注销阶段异常，不影响服务本身关闭");
+                _logger.LogWarning(ex, "Exception during gateway auto-unregistration, service shuts down normally");
             }
         }
     }

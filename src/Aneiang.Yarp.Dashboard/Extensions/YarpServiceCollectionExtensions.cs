@@ -4,20 +4,20 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Aneiang.Yarp.Dashboard.Extensions
 {
     /// <summary>
-    /// Aneiang.Yarp.Dashboard 服务注册扩展方法
+    /// Aneiang.Yarp.Dashboard service registration extensions.
     /// </summary>
     public static class YarpServiceCollectionExtensions
     {
         /// <summary>
-        /// 注册 Aneiang.Yarp.Dashboard 所需的服务：
+        /// Register Aneiang.Yarp.Dashboard services:
         /// <list type="bullet">
-        ///   <item>DashboardController 所在程序集加入 ApplicationParts</item>
+        ///   <item>Adds the DashboardController assembly to ApplicationParts for MVC discovery</item>
         /// </list>
-        /// <para>注意：调用此方法前必须先注册 YARP（services.AddReverseProxy()）和 Aneiang.Yarp（services.AddAneiangYarp()）</para>
+        /// <para>Note: AddReverseProxy() and AddAneiangYarp() must be called before this method.</para>
         /// </summary>
         public static IServiceCollection AddAneiangYarpDashboard(this IServiceCollection services)
         {
-            // 添加 Controller 所在程序集，使 MVC 可发现本类库中的控制器
+            // Add the controller assembly so MVC can discover controllers in this library
             services.AddMvcCore().AddApplicationPart(typeof(DashboardController).Assembly);
 
             return services;

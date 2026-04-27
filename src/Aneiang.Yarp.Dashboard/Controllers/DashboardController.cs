@@ -7,7 +7,7 @@ using Yarp.ReverseProxy;
 namespace Aneiang.Yarp.Dashboard.Controllers
 {
     /// <summary>
-    /// 网关维护仪表盘
+    /// Gateway maintenance dashboard.
     /// </summary>
     [Route("apigateway")]
     public class DashboardController : Controller
@@ -15,11 +15,11 @@ namespace Aneiang.Yarp.Dashboard.Controllers
         private readonly IProxyStateLookup _proxyState;
         private readonly IWebHostEnvironment _env;
 
-        // 记录进程启动时间（UTC）
+        // Record process start time (UTC)
         private static readonly DateTime _startTime = DateTime.UtcNow;
 
         /// <summary>
-        /// 创建仪表盘控制器
+        /// Creates the dashboard controller.
         /// </summary>
         public DashboardController(
             IProxyStateLookup proxyState,
@@ -30,7 +30,7 @@ namespace Aneiang.Yarp.Dashboard.Controllers
         }
 
         /// <summary>
-        /// 仪表盘首页
+        /// Dashboard home page.
         /// </summary>
         [HttpGet("")]
         public IActionResult Index()
@@ -39,13 +39,13 @@ namespace Aneiang.Yarp.Dashboard.Controllers
         }
 
         /// <summary>
-        /// 获取网关基本信息
+        /// Get gateway basic information.
         /// </summary>
         [HttpGet("/apigateway/info")]
         public IActionResult GetInfo()
         {
             var process = Process.GetCurrentProcess();
-            var assemblyVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "未知";
+            var assemblyVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
             var assemblyLocation = Assembly.GetExecutingAssembly().Location;
             var fileVersion = !string.IsNullOrEmpty(assemblyLocation)
                 ? FileVersionInfo.GetVersionInfo(assemblyLocation).ProductVersion ?? assemblyVersion
@@ -70,7 +70,7 @@ namespace Aneiang.Yarp.Dashboard.Controllers
         }
 
         /// <summary>
-        /// 获取 YARP 集群状态
+        /// Get YARP cluster status.
         /// </summary>
         [HttpGet("/apigateway/clusters")]
         public IActionResult GetClusters()
@@ -101,7 +101,7 @@ namespace Aneiang.Yarp.Dashboard.Controllers
         }
 
         /// <summary>
-        /// 获取 YARP 路由配置
+        /// Get YARP route configuration.
         /// </summary>
         [HttpGet("/apigateway/routes")]
         public IActionResult GetRoutes()

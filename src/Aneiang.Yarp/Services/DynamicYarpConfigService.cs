@@ -5,8 +5,9 @@ using Yarp.ReverseProxy.Configuration;
 namespace Aneiang.Yarp.Services
 {
     /// <summary>
-    /// 动态 YARP 配置管理服务
-    /// 支持增量添加路由和集群，如果路由名已存在则更新，不存在则新增
+    /// Dynamic YARP configuration management service.
+    /// Supports incremental route and cluster updates — updates the route if the name exists,
+    /// creates a new one otherwise.
     /// </summary>
     public class DynamicYarpConfigService
     {
@@ -15,7 +16,7 @@ namespace Aneiang.Yarp.Services
         private readonly object _lock = new();
 
         /// <summary>
-        /// 创建动态配置服务
+        /// Creates the dynamic configuration service.
         /// </summary>
         public DynamicYarpConfigService(
             InMemoryConfigProvider configProvider,
@@ -26,7 +27,8 @@ namespace Aneiang.Yarp.Services
         }
 
         /// <summary>
-        /// 添加或更新路由，如果路由名称已存在则更新，不存在则新增
+        /// Add or update a route. Updates the route if the name already exists,
+        /// creates a new one otherwise.
         /// </summary>
         public (bool Success, string Message) TryAddRoute(RegisterRouteRequest request)
         {
@@ -41,7 +43,7 @@ namespace Aneiang.Yarp.Services
 
                 var isNew = false;
 
-                // 检查路由名是否已存在
+                // Check if the route name already exists
                 var existingRouteIndex = routes.FindIndex(r =>
                     string.Equals(r.RouteId, request.RouteName, StringComparison.OrdinalIgnoreCase));
 
@@ -54,7 +56,7 @@ namespace Aneiang.Yarp.Services
                         Match = new RouteMatch { Path = request.MatchPath },
                         Order = request.Order ?? 50,
                     };
-                    _logger.LogInformation("路由 '{RouteName}' 已存在，更新配置", request.RouteName);
+                    _logger.LogInformation("Route '{RouteName}' already exists, updating config", request.RouteName);
                 }
                 else
                 {
@@ -66,10 +68,10 @@ namespace Aneiang.Yarp.Services
                         Order = request.Order ?? 50,
                     });
                     isNew = true;
-                    _logger.LogInformation("路由 '{RouteName}' 不存在，新增路由", request.RouteName);
+                    _logger.LogInformation("Route '{RouteName}' does not exist, adding new route", request.RouteName);
                 }
 
-                // 检查集群是否已存在，不存在则新建；存在则更新目标地址
+                // Check if the cluster already exists; update its destination if so, create if not
                 var existingClusterIndex = newClusters.FindIndex(c =>
                     string.Equals(c.ClusterId, request.ClusterName, StringComparison.OrdinalIgnoreCase));
 
@@ -83,7 +85,7 @@ namespace Aneiang.Yarp.Services
                             ["d1"] = new DestinationConfig { Address = request.DestinationAddress }
                         }
                     };
-                    _logger.LogInformation("更新集群 '{ClusterName}' 目标地址 -> {Address}",
+                    _logger.LogInformation("Updating cluster '{ClusterName}' destination -> {Address}",
                         request.ClusterName, request.DestinationAddress);
                 }
                 else
@@ -96,26 +98,27 @@ namespace Aneiang.Yarp.Services
                             ["d1"] = new DestinationConfig { Address = request.DestinationAddress }
                         }
                     });
-                    _logger.LogInformation("新增集群 '{ClusterName}' -> {Address}",
+                    _logger.LogInformation("Adding new cluster '{ClusterName}' -> {Address}",
                         request.ClusterName, request.DestinationAddress);
                 }
 
                 _configProvider.Update(newRoutes, newClusters);
 
-                var action = isNew ? "注册" : "更新";
-                _logger.LogInformation("路由 '{RouteName}' {Action}成功 ({MatchPath} -> {Address})",
+                var action = isNew ? "Register" : "Update";
+                _logger.LogInformation("Route '{RouteName}' {Action} success ({MatchPath} -> {Address})",
                     request.RouteName, action, request.MatchPath, request.DestinationAddress);
-                return (true, $"路由 '{request.RouteName}' {action}成功");
+                return (true, $"Route '{request.RouteName}' {action} success");
             }
         }
 
         /// <summary>
-        /// 删除路由。如果删除后集群不再被任何路由引用，则同时清理集群。
+        /// Delete a route. If the associated cluster is no longer referenced by any route,
+        /// it will also be cleaned up.
         /// </summary>
         public (bool Success, string Message) TryRemoveRoute(string routeName)
         {
             if (string.IsNullOrWhiteSpace(routeName))
-                return (false, "路由名称不能为空");
+                return (false, "Route name cannot be empty");
 
             lock (_lock)
             {
@@ -127,23 +130,23 @@ namespace Aneiang.Yarp.Services
                     string.Equals(r.RouteId, routeName, StringComparison.OrdinalIgnoreCase));
 
                 if (route == null)
-                    return (false, $"路由 '{routeName}' 不存在");
+                    return (false, $"Route '{routeName}' does not exist");
 
                 var clusterId = route.ClusterId;
                 var newRoutes = routes.Where(r =>
                     !string.Equals(r.RouteId, routeName, StringComparison.OrdinalIgnoreCase)).ToList();
 
-                // 检查该集群是否还被其他路由引用
+                // Check if the cluster is still referenced by other routes
                 var isClusterReferenced = newRoutes.Any(r =>
                     string.Equals(r.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
 
                 List<ClusterConfig> newClusters;
                 if (!isClusterReferenced && clusterId != null)
                 {
-                    // 无其他路由引用该集群，一并清理
+                    // No remaining routes reference this cluster — remove it too
                     newClusters = clusters.Where(c =>
                         !string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase)).ToList();
-                    _logger.LogInformation("集群 '{ClusterId}' 已无关联路由，一并清理", clusterId);
+                    _logger.LogInformation("Cluster '{ClusterId}' has no referenced routes, cleaning up", clusterId);
                 }
                 else
                 {
@@ -151,13 +154,13 @@ namespace Aneiang.Yarp.Services
                 }
 
                 _configProvider.Update(newRoutes, newClusters);
-                _logger.LogInformation("路由 '{RouteName}' 删除成功", routeName);
-                return (true, $"路由 '{routeName}' 删除成功");
+                _logger.LogInformation("Route '{RouteName}' deleted successfully", routeName);
+                return (true, $"Route '{routeName}' deleted successfully");
             }
         }
 
         /// <summary>
-        /// 获取所有已注册的路由配置
+        /// Get all registered route configurations.
         /// </summary>
         public IReadOnlyList<RouteConfig> GetRoutes()
         {
@@ -166,7 +169,7 @@ namespace Aneiang.Yarp.Services
         }
 
         /// <summary>
-        /// 获取所有已注册的集群配置
+        /// Get all registered cluster configurations.
         /// </summary>
         public IReadOnlyList<ClusterConfig> GetClusters()
         {

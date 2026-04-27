@@ -6,107 +6,108 @@ using Microsoft.Extensions.Hosting;
 namespace Aneiang.Yarp.Models
 {
     /// <summary>
-    /// 网关自动注册配置选项。
+    /// Gateway auto-registration configuration options.
     /// <para>
-    /// 支持三种配置方式（优先级从高到低）：
+    /// Supports three configuration sources (priority high to low):
     /// <list type="number">
-    /// <item>代码：<c>builder.Services.AddAneiangYarpClient(o => o.GatewayUrl = "...")</c></item>
-    /// <item>环境变量：<c>GatewayRegistration__GatewayUrl</c></item>
-    /// <item>配置文件：<c>appsettings.json → GatewayRegistration</c></item>
+    /// <item>Code: <c>builder.Services.AddAneiangYarpClient(o => o.GatewayUrl = "...")</c></item>
+    /// <item>Environment variables: <c>GatewayRegistration__GatewayUrl</c></item>
+    /// <item>Config file: <c>appsettings.json -> GatewayRegistration</c></item>
     /// </list>
     /// </para>
     /// </summary>
     public class GatewayRegistrationOptions
     {
         /// <summary>
-        /// JSON 配置节名称
+        /// JSON config section name.
         /// </summary>
         public const string SectionName = "GatewayRegistration";
 
         /// <summary>
-        /// 是否启用自动注册。
-        /// <para>智能默认：如果设置了 <see cref="GatewayUrl"/> 则自动启用；否则禁用。</para>
+        /// Whether auto-registration is enabled.
+        /// <para>Smart default: auto-enabled when <see cref="GatewayUrl"/> is set; otherwise disabled.</para>
         /// </summary>
         public bool? Enabled { get; set; }
 
         /// <summary>
-        /// 网关服务地址，例如 http://192.168.1.100:5000
-        /// <para><b>必填（唯一必须配置的字段）。</b></para>
+        /// Gateway service URL, e.g. http://192.168.1.100:5000
+        /// <para><b>Required (the only mandatory field).</b></para>
         /// </summary>
         public string? GatewayUrl { get; set; }
 
         /// <summary>
-        /// 路由名称（在网关上的唯一标识）。
-        /// <para>默认：使用入口程序集名称（如 "MyService"）。</para>
+        /// Route name (unique identifier on the gateway).
+        /// <para>Default: entry assembly name (e.g. "MyService").</para>
         /// </summary>
         public string? RouteName { get; set; }
 
         /// <summary>
-        /// 集群名称。
-        /// <para>默认：与 <see cref="RouteName"/> 相同。</para>
+        /// Cluster name.
+        /// <para>Default: same as <see cref="RouteName"/>.</para>
         /// </summary>
         public string? ClusterName { get; set; }
 
         /// <summary>
-        /// 匹配路径模板，如 /api/my-service/{**catch-all}
-        /// <para>默认："/{**catch-all}"（转发所有路径）。</para>
+        /// Match path template, e.g. /api/my-service/{**catch-all}
+        /// <para>Default: "/{**catch-all}" (forwards all paths).</para>
         /// </summary>
         public string? MatchPath { get; set; }
 
         /// <summary>
-        /// 本机目标地址，如 http://localhost:5001
+        /// Local destination address, e.g. http://localhost:5001
         /// <para>
-        /// 默认：自动从 Kestrel 绑定的第一个地址获取。
-        /// 如果默认值为 localhost/127.0.0.1，会在注册时<b>自动解析为本机内网 IP</b>。
+        /// Default: auto-detected from the first Kestrel binding address.
+        /// If the value contains localhost/127.0.0.1, it is <b>automatically resolved to the local LAN IP</b> during registration.
         /// </para>
         /// </summary>
         public string? DestinationAddress { get; set; }
 
         /// <summary>
-        /// 路由优先级，数值越小越优先。
-        /// <para>默认：50。</para>
+        /// Route priority — lower values take precedence.
+        /// <para>Default: 50.</para>
         /// </summary>
         public int? Order { get; set; }
 
         /// <summary>
-        /// 在注册前自动将 localhost/127.0.0.1/0.0.0.0 解析为本机内网 IPv4。
-        /// <para>默认：true。</para>
+        /// Automatically resolve localhost/127.0.0.1/0.0.0.0 to the local LAN IPv4 before registration.
+        /// <para>Default: true.</para>
         /// </summary>
         public bool? AutoResolveIp { get; set; }
 
         /// <summary>
-        /// HTTP 超时（秒）。<para>默认：5。</para>
+        /// HTTP timeout (seconds).<para>Default: 5.</para>
         /// </summary>
         public int? TimeoutSeconds { get; set; }
 
         /// <summary>
-        /// 启用实例隔离模式（多人调试同一服务时使用）。
+        /// Enable instance isolation mode (for multi-developer debugging of the same service).
         /// <para>
-        /// 开启后自动在本机标识到路由和路径中，多人同时调试互不影响：
+        /// When enabled, a machine-specific identifier is embedded into the route name and path,
+        /// so multiple instances do not interfere with each other:
         /// </para>
         /// <list type="bullet">
-        /// <item>routeName → "{routeName}-{instanceId}"</item>
-        /// <item>clusterName → "{clusterName}-{instanceId}"</item>
-        /// <item>matchPath → "/{instanceId}{matchPath}"（路径级别隔离）</item>
+        /// <item>routeName -> "{routeName}-{instanceId}"</item>
+        /// <item>clusterName -> "{clusterName}-{instanceId}"</item>
+        /// <item>matchPath -> "/{instanceId}{matchPath}" (path-level isolation)</item>
         /// </list>
-        /// <para><b>默认：true</b></para>
+        /// <para><b>Default: true</b></para>
         /// </summary>
         public bool? InstanceIsolation { get; set; }
 
         /// <summary>
-        /// 自定义实例标识符（仅 <see cref="InstanceIsolation"/>=true 时生效）。
-        /// <para>默认：本机主机名（Environment.MachineName）</para>
+        /// Custom instance identifier (only effective when <see cref="InstanceIsolation"/>=true).
+        /// <para>Default: local machine name (Environment.MachineName).</para>
         /// </summary>
         public string? InstanceId { get; set; }
 
         /// <summary>
-        /// 实例隔离的路径前缀格式。
-        /// <para>可用占位符：{instanceId}、{machineName}、{userName}</para>
-        /// <para>默认："{instanceId}"</para>
+        /// Format template for the instance isolation path prefix.
+        /// <para>Available placeholders: {instanceId}, {machineName}, {userName}</para>
+        /// <para>Default: "{instanceId}"</para>
         /// </summary>
         public string? InstancePrefixFormat { get; set; }
 
-        // ── 智能默认值解析 ──
+        // ── Smart defaults ──
 
         internal bool IsEnabled => Enabled ?? !string.IsNullOrWhiteSpace(GatewayUrl);
 
@@ -165,7 +166,7 @@ namespace Aneiang.Yarp.Models
             if (string.IsNullOrEmpty(prefix))
                 return path;
 
-            // 确保 path 以 / 开头
+            // Ensure path starts with /
             if (!path.StartsWith("/"))
                 path = "/" + path;
 
@@ -183,19 +184,19 @@ namespace Aneiang.Yarp.Models
             if (!string.IsNullOrWhiteSpace(DestinationAddress))
                 return DestinationAddress;
 
-            // 自动从 Kestrel 绑定地址获取
+            // Auto-detect from Kestrel binding addresses
             var config = sp.GetRequiredService<IConfiguration>();
             var urls = config["urls"] ?? config["Urls"];
 
             if (!string.IsNullOrWhiteSpace(urls))
             {
-                // 取第一个地址（去掉分号分隔的多个地址）
+                // Take the first address (strip semicolon-separated multiple addresses)
                 var firstUrl = urls.Split(';')[0].Trim();
                 if (firstUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                     return firstUrl;
             }
 
-            // 兜底：常见的 ASP.NET Core 默认地址
+            // Fallback: common ASP.NET Core default addresses
             var env = sp.GetRequiredService<IHostEnvironment>();
             var defaultPort = env.IsDevelopment() ? "5001" : "5000";
             return $"http://localhost:{defaultPort}";
