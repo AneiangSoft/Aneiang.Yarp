@@ -1,0 +1,384 @@
+@{
+    ViewData["Title"] = "总览";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+    var seqServerUrl = ViewBag.SeqServerUrl as string ?? "";
+    var seqDefaultFilter = ViewBag.SeqDefaultFilter as string ?? "";
+}
+
+<!-- ========== 统计卡片（所有 Tab 均可见）========== -->
+<div id="stat-bar" class="row g-3 mb-4">
+    <!-- 网关信息 -->
+    <div class="col-12 mb-1">
+        <div class="card-panel px-4 py-3 d-flex flex-wrap gap-4 align-items-center" style="font-size:13px;color:#475569;">
+            <span><i class="bi bi-cpu me-1"></i>版本：<strong id="info-version">-</strong></span>
+            <span><i class="bi bi-cloud me-1"></i>环境：<strong id="info-env">-</strong></span>
+            <span><i class="bi bi-play-circle me-1"></i>启动：<strong id="info-start">-</strong></span>
+            <span><i class="bi bi-clock-history me-1"></i>运行：<strong id="info-uptime">-</strong></span>
+            <span><i class="bi bi-memory me-1"></i>内存：<strong id="info-memory">-</strong></span>
+            <span><i class="bi bi-pc-display me-1"></i>主机：<strong id="info-machine">-</strong></span>
+            <span class="ms-auto">
+                <button class="btn btn-sm btn-outline-primary" onclick="manualRefresh(this)">
+                    <i class="bi bi-arrow-clockwise me-1"></i>刷新
+                </button>
+            </span>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="stat-card">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value" id="stat-clusters">-</div>
+                    <div class="stat-label">服务集群</div>
+                </div>
+                <div class="stat-icon" style="background:#eff6ff;color:#3b82f6;"><i class="bi bi-diagram-3"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="stat-card">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value" id="stat-healthy" style="color:#22c55e;">-</div>
+                    <div class="stat-label">健康 / 未知 / 异常</div>
+                </div>
+                <div class="stat-icon" style="background:#f0fdf4;color:#22c55e;"><i class="bi bi-heart-pulse"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="stat-card">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value" id="stat-routes">-</div>
+                    <div class="stat-label">路由规则</div>
+                </div>
+                <div class="stat-icon" style="background:#fefce8;color:#eab308;"><i class="bi bi-signpost-split"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="stat-card">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value" id="stat-errors" style="color:#ef4444;">-</div>
+                    <div class="stat-label">近期错误（100条内）</div>
+                </div>
+                <div class="stat-icon" style="background:#fef2f2;color:#ef4444;"><i class="bi bi-exclamation-triangle"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== 服务集群面板 ========== -->
+<div id="cluster-panel" class="card-panel mb-4" style="display:none;">
+    <div class="card-header">
+        <span><i class="bi bi-hdd-stack me-2"></i>集群 &amp; 目标节点状态</span>
+        <div class="d-flex align-items-center gap-3">
+            <span class="refresh-badge" id="cluster-refresh-time"></span>
+            <button class="btn btn-sm btn-outline-secondary" onclick="manualRefresh(this)">
+                <i class="bi bi-arrow-clockwise me-1"></i>刷新
+            </button>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th style="width:22%">集群名称</th>
+                    <th style="width:12%">节点名</th>
+                    <th style="width:28%">目标地址</th>
+                    <th style="width:14%">主动健康</th>
+                    <th style="width:14%">被动健康</th>
+                    <th style="width:10%">均衡策略</th>
+                </tr>
+            </thead>
+            <tbody id="cluster-tbody">
+                <tr><td colspan="6" class="text-center text-muted py-4">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ========== 路由配置面板 ========== -->
+<div id="route-panel" class="card-panel mb-4" style="display:none;">
+    <div class="card-header">
+        <span><i class="bi bi-signpost-split me-2"></i>路由规则列表</span>
+        <div class="d-flex align-items-center gap-3">
+            <span class="refresh-badge" id="route-refresh-time"></span>
+            <button class="btn btn-sm btn-outline-secondary" onclick="manualRefresh(this)">
+                <i class="bi bi-arrow-clockwise me-1"></i>刷新
+            </button>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th style="width:8%">优先级</th>
+                    <th style="width:22%">路由名称</th>
+                    <th style="width:35%">匹配路径</th>
+                    <th style="width:20%">关联集群</th>
+                    <th style="width:15%">允许方法</th>
+                </tr>
+            </thead>
+            <tbody id="route-tbody">
+                <tr><td colspan="5" class="text-center text-muted py-4">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ========== 错误日志面板 ========== -->
+<div id="error-panel" class="card-panel mb-4" style="display:none;">
+    <div class="card-header">
+        <span><i class="bi bi-exclamation-octagon me-2" style="color:#ef4444;"></i>最近 5 条错误日志</span>
+        <div class="d-flex align-items-center gap-3">
+            <span class="refresh-badge" id="error-refresh-time"></span>
+            <button class="btn btn-sm btn-outline-secondary" onclick="manualRefresh(this)">
+                <i class="bi bi-arrow-clockwise me-1"></i>刷新
+            </button>
+        </div>
+    </div>
+    <div id="error-list">
+        <div class="error-item text-center text-muted py-4">加载中...</div>
+    </div>
+</div>
+
+<!-- ========== Seq 跳转面板 ========== -->
+<div id="seq-panel" class="card-panel mb-4" style="display:none;">
+    <div class="card-header">
+        <span><i class="bi bi-terminal me-2"></i>Seq 日志中心</span>
+    </div>
+    @if (!string.IsNullOrEmpty(seqServerUrl))
+    {
+        var seqEmbedUrl = $"{seqServerUrl}/#/events?filter={Uri.EscapeDataString(seqDefaultFilter)}";
+        var seqAllUrl = $"{seqServerUrl}/#/events";
+        <div class="p-4">
+            <p class="text-muted mb-3" style="font-size:14px;">
+                <i class="bi bi-info-circle me-1"></i>点击下方按钮，在新标签页中打开 Seq 日志查看器。
+            </p>
+            <div class="d-flex gap-3 flex-wrap">
+                <a href="@seqEmbedUrl" target="_blank" class="btn btn-primary">
+                    <i class="bi bi-terminal me-2"></i>打开网关日志（已过滤）
+                </a>
+                <a href="@seqAllUrl" target="_blank" class="btn btn-outline-secondary">
+                    <i class="bi bi-journals me-2"></i>打开所有日志
+                </a>
+                <a href="@seqServerUrl" target="_blank" class="btn btn-outline-secondary">
+                    <i class="bi bi-house me-2"></i>Seq 首页
+                </a>
+            </div>
+            <div class="mt-3 p-3 rounded" style="background:#f8fafc;font-size:13px;color:#64748b;">
+                <div><span class="fw-bold">服务地址：</span>@seqServerUrl</div>
+                <div class="mt-1"><span class="fw-bold">默认过滤条件：</span><code>@seqDefaultFilter</code></div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="p-4 text-center text-muted">
+            <i class="bi bi-info-circle me-1"></i>Seq 服务地址未配置，请在 appsettings.json 中配置 Dashboard:SeqServerUrl
+        </div>
+    }
+</div>
+
+@section Scripts {
+<script>
+    // ===== Tab 对应显示的面板（stat-bar 始终显示）=====
+    const tabPanels = {
+        overview: [],
+        services: ['cluster-panel'],
+        routes:   ['route-panel'],
+        logs:     ['error-panel'],
+        seq:      ['seq-panel']
+    };
+    const allPanels = ['cluster-panel', 'route-panel', 'error-panel', 'seq-panel'];
+
+    function switchTab(tabName) {
+        // 更新侧边栏激活状态
+        document.querySelectorAll('.sidebar .nav-link[data-tab]').forEach(l => {
+            l.classList.toggle('active', l.dataset.tab === tabName);
+        });
+        // 显示/隐藏面板
+        allPanels.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = (tabPanels[tabName] || []).includes(id) ? '' : 'none';
+        });
+    }
+
+    document.querySelectorAll('.sidebar .nav-link[data-tab]').forEach(link => {
+        link.addEventListener('click', e => {
+            e.preventDefault();
+            switchTab(link.dataset.tab);
+        });
+    });
+
+    // ===== 工具函数 =====
+    function timeStr() {
+        return new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    }
+
+    function healthDot(status) {
+        const s = (status || '').toLowerCase();
+        if (s === 'healthy')   return '<span class="health-dot healthy"></span><span style="color:#22c55e;">Healthy</span>';
+        if (s === 'unhealthy') return '<span class="health-dot unhealthy"></span><span style="color:#ef4444;">Unhealthy</span>';
+        return '<span class="health-dot unknown"></span><span style="color:#f59e0b;">Unknown</span>';
+    }
+
+    // ===== 加载网关基本信息 =====
+    async function loadInfo() {
+        try {
+            const res  = await fetch('/apigateway/info');
+            const json = await res.json();
+            if (json.code !== 200) return;
+            const d = json.data;
+            document.getElementById('info-version').textContent = d.version;
+            document.getElementById('info-env').textContent     = d.environment;
+            document.getElementById('info-start').textContent   = d.startTime;
+            document.getElementById('info-uptime').textContent  = d.uptime;
+            document.getElementById('info-memory').textContent  = d.memoryMb + ' MB';
+            document.getElementById('info-machine').textContent = d.machineName;
+        } catch (e) { console.error('加载网关信息失败', e); }
+    }
+
+    // ===== 加载集群数据 =====
+    async function loadClusters() {
+        try {
+            const res  = await fetch('/apigateway/clusters');
+            const json = await res.json();
+            if (json.code !== 200) return;
+            const clusters = json.data;
+
+            let totalHealthy = 0, totalUnknown = 0, totalUnhealthy = 0;
+            let html = '';
+            clusters.forEach(c => {
+                totalHealthy   += c.healthyCount   || 0;
+                totalUnknown   += c.unknownCount   || 0;
+                totalUnhealthy += c.unhealthyCount || 0;
+
+                const rowspan = c.destinations.length || 1;
+                c.destinations.forEach((d, i) => {
+                    html += '<tr>';
+                    if (i === 0) {
+                        html += `<td rowspan="${rowspan}" style="font-weight:600;vertical-align:middle;">${c.clusterId}</td>`;
+                    }
+                    html += `<td><code>${d.name}</code></td>`;
+                    html += `<td><a href="${d.address}" target="_blank" class="text-decoration-none">${d.address}</a></td>`;
+                    html += `<td>${healthDot(d.health)}</td>`;
+                    html += `<td>${healthDot(d.passive)}</td>`;
+                    if (i === 0) {
+                        html += `<td rowspan="${rowspan}" style="vertical-align:middle;"><span class="badge bg-secondary">${c.loadBalancingPolicy}</span></td>`;
+                    }
+                    html += '</tr>';
+                });
+            });
+
+            document.getElementById('cluster-tbody').innerHTML =
+                html || '<tr><td colspan="6" class="text-center text-muted py-4">暂无集群数据</td></tr>';
+            document.getElementById('cluster-refresh-time').textContent = '更新于 ' + timeStr();
+
+            // 更新统计卡片
+            document.getElementById('stat-clusters').textContent = clusters.length;
+            const healthLabel = totalUnhealthy > 0
+                ? `<span style="color:#22c55e;">${totalHealthy}</span> / <span style="color:#f59e0b;">${totalUnknown}</span> / <span style="color:#ef4444;">${totalUnhealthy}</span>`
+                : `<span style="color:#22c55e;">${totalHealthy}</span> / <span style="color:#f59e0b;">${totalUnknown}</span> / 0`;
+            document.getElementById('stat-healthy').innerHTML = healthLabel;
+        } catch (e) { console.error('加载集群数据失败', e); }
+    }
+
+    // ===== 加载路由数据 =====
+    async function loadRoutes() {
+        try {
+            const res  = await fetch('/apigateway/routes');
+            const json = await res.json();
+            if (json.code !== 200) return;
+            const routes = json.data;
+
+            let html = '';
+            routes.forEach(r => {
+                const orderColor = r.order <= 5 ? 'bg-primary' : r.order <= 20 ? 'bg-info' : 'bg-secondary';
+                const methods    = r.methods ? r.methods.join(', ') : '<span class="text-muted">All</span>';
+                html += `<tr>
+                    <td><span class="badge ${orderColor} badge-order">${r.order ?? '-'}</span></td>
+                    <td style="font-weight:600;">${r.routeId}</td>
+                    <td><code style="color:#7c3aed;">${r.path || '-'}</code></td>
+                    <td>${r.clusterId}</td>
+                    <td>${methods}</td>
+                </tr>`;
+            });
+
+            document.getElementById('route-tbody').innerHTML =
+                html || '<tr><td colspan="5" class="text-center text-muted py-4">暂无路由数据</td></tr>';
+            document.getElementById('route-refresh-time').textContent = '更新于 ' + timeStr();
+            document.getElementById('stat-routes').textContent = routes.length;
+        } catch (e) { console.error('加载路由数据失败', e); }
+    }
+
+    // ===== 加载 Seq 摘要 =====
+    async function loadSeqSummary() {
+        try {
+            const res  = await fetch('/apigateway/seq-summary');
+            const json = await res.json();
+            if (json.code !== 200) {
+                document.getElementById('error-list').innerHTML =
+                    `<div class="error-item text-muted text-center py-4">${json.info || '加载失败'}</div>`;
+                return;
+            }
+            const data = json.data;
+            const errVal = data.errorCount >= 100 ? '100+' : String(data.errorCount);
+            document.getElementById('stat-errors').textContent = errVal;
+
+            if (data.recentErrors.length === 0) {
+                document.getElementById('error-list').innerHTML =
+                    '<div class="error-item text-center py-4" style="color:#22c55e;"><i class="bi bi-check-circle me-1"></i>暂无错误日志</div>';
+            } else {
+                let html = '';
+                data.recentErrors.forEach(e => {
+                    const t = e.timestamp ? new Date(e.timestamp).toLocaleString('zh-CN') : '';
+                    html += `<div class="error-item">
+                        <div class="error-time"><i class="bi bi-clock me-1"></i>${t}</div>
+                        <div class="error-msg mt-1">${escapeHtml(e.message || '')}</div>
+                    </div>`;
+                });
+                document.getElementById('error-list').innerHTML = html;
+            }
+            document.getElementById('error-refresh-time').textContent = '更新于 ' + timeStr();
+        } catch (e) {
+            document.getElementById('error-list').innerHTML =
+                '<div class="error-item text-muted text-center py-4">Seq 连接失败</div>';
+            document.getElementById('stat-errors').textContent = '?';
+        }
+    }
+
+    function escapeHtml(text) {
+        const d = document.createElement('div');
+        d.textContent = text;
+        return d.innerHTML;
+    }
+
+    // ===== 手动刷新（带旋转动画）=====
+    async function manualRefresh(btn) {
+        if (btn) {
+            btn.disabled = true;
+            btn.querySelector('i')?.classList.add('spin');
+        }
+        await refreshAll();
+        if (btn) {
+            btn.disabled = false;
+            btn.querySelector('i')?.classList.remove('spin');
+        }
+    }
+
+    // ===== 全量刷新 =====
+    async function refreshAll() {
+        await Promise.all([loadInfo(), loadClusters(), loadRoutes(), loadSeqSummary()]);
+    }
+
+    refreshAll();
+    setInterval(refreshAll, 30000);
+</script>
+<style>
+@@keyframes spin { to { transform: rotate(360deg); } }
+.spin { display:inline-block; animation: spin .6s linear infinite; }
+</style>
+}
