@@ -1,8 +1,6 @@
 @{
     ViewData["Title"] = "总览";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
-    var seqServerUrl = ViewBag.SeqServerUrl as string ?? "";
-    var seqDefaultFilter = ViewBag.SeqDefaultFilter as string ?? "";
 }
 
 <!-- ========== 统计卡片（所有 Tab 均可见）========== -->
@@ -23,7 +21,7 @@
             </span>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6">
+    <div class="col-md-4 col-sm-6">
         <div class="stat-card">
             <div class="d-flex align-items-center justify-content-between">
                 <div>
@@ -34,7 +32,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6">
+    <div class="col-md-4 col-sm-6">
         <div class="stat-card">
             <div class="d-flex align-items-center justify-content-between">
                 <div>
@@ -45,7 +43,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6">
+    <div class="col-md-4 col-sm-6">
         <div class="stat-card">
             <div class="d-flex align-items-center justify-content-between">
                 <div>
@@ -53,17 +51,6 @@
                     <div class="stat-label">路由规则</div>
                 </div>
                 <div class="stat-icon" style="background:#fefce8;color:#eab308;"><i class="bi bi-signpost-split"></i></div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3 col-sm-6">
-        <div class="stat-card">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <div class="stat-value" id="stat-errors" style="color:#ef4444;">-</div>
-                    <div class="stat-label">近期错误（100条内）</div>
-                </div>
-                <div class="stat-icon" style="background:#fef2f2;color:#ef4444;"><i class="bi bi-exclamation-triangle"></i></div>
             </div>
         </div>
     </div>
@@ -128,71 +115,15 @@
     </div>
 </div>
 
-<!-- ========== 错误日志面板 ========== -->
-<div id="error-panel" class="card-panel mb-4" style="display:none;">
-    <div class="card-header">
-        <span><i class="bi bi-exclamation-octagon me-2" style="color:#ef4444;"></i>最近 5 条错误日志</span>
-        <div class="d-flex align-items-center gap-3">
-            <span class="refresh-badge" id="error-refresh-time"></span>
-            <button class="btn btn-sm btn-outline-secondary" onclick="manualRefresh(this)">
-                <i class="bi bi-arrow-clockwise me-1"></i>刷新
-            </button>
-        </div>
-    </div>
-    <div id="error-list">
-        <div class="error-item text-center text-muted py-4">加载中...</div>
-    </div>
-</div>
-
-<!-- ========== Seq 跳转面板 ========== -->
-<div id="seq-panel" class="card-panel mb-4" style="display:none;">
-    <div class="card-header">
-        <span><i class="bi bi-terminal me-2"></i>Seq 日志中心</span>
-    </div>
-    @if (!string.IsNullOrEmpty(seqServerUrl))
-    {
-        var seqEmbedUrl = $"{seqServerUrl}/#/events?filter={Uri.EscapeDataString(seqDefaultFilter)}";
-        var seqAllUrl = $"{seqServerUrl}/#/events";
-        <div class="p-4">
-            <p class="text-muted mb-3" style="font-size:14px;">
-                <i class="bi bi-info-circle me-1"></i>点击下方按钮，在新标签页中打开 Seq 日志查看器。
-            </p>
-            <div class="d-flex gap-3 flex-wrap">
-                <a href="@seqEmbedUrl" target="_blank" class="btn btn-primary">
-                    <i class="bi bi-terminal me-2"></i>打开网关日志（已过滤）
-                </a>
-                <a href="@seqAllUrl" target="_blank" class="btn btn-outline-secondary">
-                    <i class="bi bi-journals me-2"></i>打开所有日志
-                </a>
-                <a href="@seqServerUrl" target="_blank" class="btn btn-outline-secondary">
-                    <i class="bi bi-house me-2"></i>Seq 首页
-                </a>
-            </div>
-            <div class="mt-3 p-3 rounded" style="background:#f8fafc;font-size:13px;color:#64748b;">
-                <div><span class="fw-bold">服务地址：</span>@seqServerUrl</div>
-                <div class="mt-1"><span class="fw-bold">默认过滤条件：</span><code>@seqDefaultFilter</code></div>
-            </div>
-        </div>
-    }
-    else
-    {
-        <div class="p-4 text-center text-muted">
-            <i class="bi bi-info-circle me-1"></i>Seq 服务地址未配置，请在 appsettings.json 中配置 Dashboard:SeqServerUrl
-        </div>
-    }
-</div>
-
 @section Scripts {
 <script>
     // ===== Tab 对应显示的面板（stat-bar 始终显示）=====
     const tabPanels = {
         overview: [],
         services: ['cluster-panel'],
-        routes:   ['route-panel'],
-        logs:     ['error-panel'],
-        seq:      ['seq-panel']
+        routes:   ['route-panel']
     };
-    const allPanels = ['cluster-panel', 'route-panel', 'error-panel', 'seq-panel'];
+    const allPanels = ['cluster-panel', 'route-panel'];
 
     function switchTab(tabName) {
         // 更新侧边栏激活状态
@@ -314,48 +245,6 @@
         } catch (e) { console.error('加载路由数据失败', e); }
     }
 
-    // ===== 加载 Seq 摘要 =====
-    async function loadSeqSummary() {
-        try {
-            const res  = await fetch('/apigateway/seq-summary');
-            const json = await res.json();
-            if (json.code !== 200) {
-                document.getElementById('error-list').innerHTML =
-                    `<div class="error-item text-muted text-center py-4">${json.info || '加载失败'}</div>`;
-                return;
-            }
-            const data = json.data;
-            const errVal = data.errorCount >= 100 ? '100+' : String(data.errorCount);
-            document.getElementById('stat-errors').textContent = errVal;
-
-            if (data.recentErrors.length === 0) {
-                document.getElementById('error-list').innerHTML =
-                    '<div class="error-item text-center py-4" style="color:#22c55e;"><i class="bi bi-check-circle me-1"></i>暂无错误日志</div>';
-            } else {
-                let html = '';
-                data.recentErrors.forEach(e => {
-                    const t = e.timestamp ? new Date(e.timestamp).toLocaleString('zh-CN') : '';
-                    html += `<div class="error-item">
-                        <div class="error-time"><i class="bi bi-clock me-1"></i>${t}</div>
-                        <div class="error-msg mt-1">${escapeHtml(e.message || '')}</div>
-                    </div>`;
-                });
-                document.getElementById('error-list').innerHTML = html;
-            }
-            document.getElementById('error-refresh-time').textContent = '更新于 ' + timeStr();
-        } catch (e) {
-            document.getElementById('error-list').innerHTML =
-                '<div class="error-item text-muted text-center py-4">Seq 连接失败</div>';
-            document.getElementById('stat-errors').textContent = '?';
-        }
-    }
-
-    function escapeHtml(text) {
-        const d = document.createElement('div');
-        d.textContent = text;
-        return d.innerHTML;
-    }
-
     // ===== 手动刷新（带旋转动画）=====
     async function manualRefresh(btn) {
         if (btn) {
@@ -371,7 +260,7 @@
 
     // ===== 全量刷新 =====
     async function refreshAll() {
-        await Promise.all([loadInfo(), loadClusters(), loadRoutes(), loadSeqSummary()]);
+        await Promise.all([loadInfo(), loadClusters(), loadRoutes()]);
     }
 
     refreshAll();
