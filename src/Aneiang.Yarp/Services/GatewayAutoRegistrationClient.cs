@@ -24,6 +24,11 @@ namespace Aneiang.Yarp.Services
     /// </summary>
     public class GatewayAutoRegistrationClient
     {
+        private static readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly GatewayRegistrationOptions _options;
         private readonly IServiceProvider _serviceProvider;
@@ -90,10 +95,7 @@ namespace Aneiang.Yarp.Services
                     order
                 };
 
-                var json = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                });
+                var json = JsonSerializer.Serialize(requestBody, _jsonOptions);
 
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
                 var registerUrl = $"{gatewayUrl.TrimEnd('/')}/api/gateway/register-route";
