@@ -165,7 +165,7 @@ namespace Aneiang.Yarp.Services
         public IReadOnlyList<RouteConfig> GetRoutes()
         {
             var config = _configProvider.GetConfig();
-            return config.Routes?.ToList().AsReadOnly() ?? new List<RouteConfig>().AsReadOnly();
+            return config.Routes ?? Array.Empty<RouteConfig>();
         }
 
         /// <summary>
@@ -174,7 +174,7 @@ namespace Aneiang.Yarp.Services
         public IReadOnlyList<ClusterConfig> GetClusters()
         {
             var config = _configProvider.GetConfig();
-            return config.Clusters?.ToList().AsReadOnly() ?? new List<ClusterConfig>().AsReadOnly();
+            return config.Clusters ?? Array.Empty<ClusterConfig>();
         }
     }
 }
