@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Aneiang.Yarp.Dashboard.Extensions;
@@ -48,9 +47,10 @@ public static class YarpServiceCollectionExtensions
         // Register MVC controllers from this assembly
         services.AddMvcCore().AddApplicationPart(typeof(DashboardController).Assembly);
 
-        // In-memory YARP log capture
+        // In-memory YARP log capture via EventSource listener (works with all logging frameworks)
         services.AddSingleton<ProxyLogStore>();
-        services.AddSingleton<ILoggerProvider, ProxyLogProvider>();
+        services.AddSingleton<YarpEventSourceListener>();
+        services.AddHostedService<YarpEventSourceListenerStartupService>();
 
         // Route prefix + auth conventions
         services.AddSingleton<IConfigureOptions<MvcOptions>>(sp =>
