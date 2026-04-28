@@ -1,95 +1,59 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 
-namespace Aneiang.Yarp.Dashboard.Models
+namespace Aneiang.Yarp.Dashboard.Models;
+
+/// <summary>Dashboard authorization mode / Dashboard 授权模式.</summary>
+public enum DashboardAuthMode
 {
-    /// <summary>
-    /// Dashboard authorization mode.
-    /// </summary>
-    public enum DashboardAuthMode
-    {
-        /// <summary>No authorization.</summary>
-        None,
-        /// <summary>Authenticate via API key (header or query parameter).</summary>
-        ApiKey,
-        /// <summary>Authenticate via JWT with custom username and password (both configurable).</summary>
-        CustomJwt,
-        /// <summary>Authenticate via JWT with fixed username "admin" and configurable password.</summary>
-        DefaultJwt
-    }
+    /// <summary>No authorization / 无授权.</summary>
+    None,
 
-    /// <summary>
-    /// Options for configuring the Aneiang.Yarp.Dashboard.
-    /// </summary>
-    public class DashboardOptions
-    {
-        /// <summary>
-        /// Configuration section name for binding from config files.
-        /// </summary>
-        public const string SectionName = "Gateway:Dashboard";
+    /// <summary>API key via header or query / API Key 认证.</summary>
+    ApiKey,
 
-        /// <summary>
-        /// Route prefix for all dashboard pages and APIs.
-        /// <para>Default: <c>"apigateway"</c></para>
-        /// </summary>
-        public string RoutePrefix { get; set; } = "apigateway";
+    /// <summary>JWT with custom username + password / JWT 认证（自定义用户名+密码）.</summary>
+    CustomJwt,
 
-        /// <summary>
-        /// Authorization mode.
-        /// <para>Default: <see cref="DashboardAuthMode.None"/></para>
-        /// </summary>
-        public DashboardAuthMode AuthMode { get; set; } = DashboardAuthMode.None;
+    /// <summary>JWT with fixed username "admin" + password / JWT 认证（固定用户名 admin+密码）.</summary>
+    DefaultJwt
+}
 
-        // ─── API Key mode ─────────────────────────────────────
+/// <summary>
+/// Dashboard options. Binds from <c>Gateway:Dashboard</c> config section.
+/// Dashboard 配置选项，绑定自 <c>Gateway:Dashboard</c>.
+/// </summary>
+public class DashboardOptions
+{
+    /// <summary>Config section name / 配置节点.</summary>
+    public const string SectionName = "Gateway:Dashboard";
 
-        /// <summary>
-        /// API key value. Only used when <see cref="AuthMode"/> is <see cref="DashboardAuthMode.ApiKey"/>.
-        /// <para>Clients can pass the key via header (default: <c>X-Api-Key</c>) or query parameter <c>api-key</c>.</para>
-        /// </summary>
-        public string? ApiKey { get; set; }
+    /// <summary>Route prefix for all dashboard pages. Default: "apigateway" / 路由前缀.</summary>
+    public string RoutePrefix { get; set; } = "apigateway";
 
-        /// <summary>
-        /// Header name for API key authentication.
-        /// <para>Default: <c>"X-Api-Key"</c></para>
-        /// </summary>
-        public string ApiKeyHeaderName { get; set; } = "X-Api-Key";
+    /// <summary>Auth mode. Default: None / 授权模式.</summary>
+    public DashboardAuthMode AuthMode { get; set; } = DashboardAuthMode.None;
 
-        // ─── JWT mode (CustomJwt / DefaultJwt) ────────────────
+    // ─── API Key mode / API Key 模式 ───────────────────────
 
-        /// <summary>
-        /// Secret key for signing JWT tokens.
-        /// <para>If not set, a random key is auto-generated (tokens invalidated on restart).</para>
-        /// </summary>
-        public string? JwtSecret { get; set; }
+    /// <summary>API key value. Clients pass via header (default: X-Api-Key) or query param <c>api-key</c> / API 密钥值.</summary>
+    public string? ApiKey { get; set; }
 
-        /// <summary>
-        /// Username for <see cref="DashboardAuthMode.CustomJwt"/> mode.
-        /// <para>Not used in <see cref="DashboardAuthMode.DefaultJwt"/> mode (username is fixed to <c>"admin"</c>).</para>
-        /// </summary>
-        public string? JwtUsername { get; set; }
+    /// <summary>Header name for ApiKey mode. Default: X-Api-Key / API Key 请求头名称.</summary>
+    public string ApiKeyHeaderName { get; set; } = "X-Api-Key";
 
-        /// <summary>
-        /// Password for JWT login. Required for both <see cref="DashboardAuthMode.CustomJwt"/> and <see cref="DashboardAuthMode.DefaultJwt"/>.
-        /// </summary>
-        public string? JwtPassword { get; set; }
+    // ─── JWT mode / JWT 模式 ──────────────────────────────
 
-        // ─── Fully custom delegate (highest priority) ─────────
+    /// <summary>JWT signing secret. Auto-generated if not set (invalidated on restart) / JWT 签名密钥.</summary>
+    public string? JwtSecret { get; set; }
 
-        /// <summary>
-        /// Fully custom authorization delegate. If set, takes precedence over all other auth modes.
-        /// </summary>
-        public Func<HttpContext, Task<bool>>? AuthorizeRequest { get; set; }
+    /// <summary>Username for CustomJwt mode / CustomJwt 模式的用户名.</summary>
+    public string? JwtUsername { get; set; }
 
-        // ─── Standard ASP.NET Core policy (lowest priority) ──
+    /// <summary>Password for JWT login (required for both CustomJwt and DefaultJwt) / JWT 登录密码.</summary>
+    public string? JwtPassword { get; set; }
 
-        /// <summary>
-        /// Callback to build a standard ASP.NET Core authorization policy.
-        /// </summary>
-        public Action<AuthorizationPolicyBuilder>? ConfigurePolicy { get; set; }
+    // ─── Custom delegate (highest priority) / 自定义委托（最高优先级） ──
 
-        /// <summary>
-        /// Convenience role restriction.
-        /// </summary>
-        public string[]? AllowedRoles { get; set; }
-    }
+    /// <summary>Custom auth delegate. If set, takes precedence over all other auth modes / 自定义认证委托.</summary>
+    public Func<HttpContext, Task<bool>>? AuthorizeRequest { get; set; }
 }
