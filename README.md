@@ -1,6 +1,6 @@
 # Aneiang.Yarp
 
-基于 [YARP (Yet Another Reverse Proxy)](https://github.com/microsoft/reverse-proxy) 的**动态路由网关库**，专注于解决内网微服务调试场景——让本机单体服务通过内网网关的中间件管道后转发到本机，实现"调试即内网互通"。
+基于 [YARP (Yet Another Reverse Proxy)](https://github.com/microsoft/reverse-proxy) 的**动态路由网关管理库**，提供动态路由注册、服务自动发现、实时监控仪表盘，同时完整保留 YARP 反向代理的全部能力（负载均衡、健康检查、路由转换、会话保持等）。
 
 ### 核心能力
 
@@ -11,23 +11,8 @@
 | **一键式 API** | `AddAneiangYarpGateway()` / `AddAneiangYarpClient()` 一行搭建网关或客户端 |
 | **实例隔离** | 多人调试同一服务时自动隔离 routing 命名空间，互不干扰 |
 | **高度可定制** | 支持配置优先级：代码 > 环境变量 > 配置文件；组件级 API 精细控制 |
-| **仪表盘（可选）** | 实时查看集群、路由、健康状态、Seq 日志摘要 |
+| **仪表盘（可选）** | 实时查看集群、路由、健康状态、YARP 日志摘要 |
 | **智能默认值** | `routeName` 取程序集名、`matchPath` 默认全路径转发、`destinationAddress` 自动从 Kestrel 获取，`localhost` 自动解析为内网 IP |
-
-### 场景示意
-
-```
-外网 client ──→ 内网网关 [ 中间件(Auth/Logging/限流) → YARP 转发 ]
-                                      ▲                         │
-                                      │ POST /register-route    │ 转发
-                                      │                         ▼
-                              ┌─ 本机调试服务 ─────────────────┐
-                              │  AddAneiangYarpClient()         │
-                              │  → 启动注册 / 关闭注销           │
-                              └────────────────────────────────┘
-```
-
----
 
 ## 项目结构
 
@@ -52,9 +37,17 @@ Aneiang.Yarp/
 │       ├── Controllers/
 │       │   └── DashboardController.cs     # 仪表盘 API
 │       ├── Views/
-│       │   └── Dashboard/Index.cshtml     # 仪表盘 UI
+│       │   ├── Dashboard/Index.cshtml     # 仪表盘 UI
+│       │   ├── Dashboard/Login.cshtml      # 登录页面
+│       │   └── Shared/_DashboardLayout.cshtml # 布局页
+│       ├── Services/
+│       │   ├── ProxyLogStore.cs            # 日志环形缓冲区
+│       │   └── ProxyLogProvider.cs         # YARP 日志捕获
+│       ├── Models/
+│       │   ├── DashboardOptions.cs         # 仪表盘配置选项
+│       │   └── LogEntry.cs                 # 日志条目模型
 │       └── Extensions/
-│           └── YarpServiceCollectionExtensions.cs
+│           └── YarpServiceCollectionExtensions.cs  # DI 注册扩展
 │
 └── samples/
     ├── SampleGateway/          # 网关项目示例
@@ -144,8 +137,10 @@ app.Run();
 
 ```json
 {
-  "GatewayRegistration": {
-    "GatewayUrl": "http://192.168.1.100:5000"
+  "Gateway": {
+    "Registration": {
+      "GatewayUrl": "http://192.168.1.100:5000"
+    }
   }
 }
 ```
@@ -228,23 +223,25 @@ app.UseAneiangYarpGateway();
 
 ## 配置参考
 
-### `GatewayRegistration` 节
+### `Gateway:Registration` 节
 
 所有字段均为可选（除 `GatewayUrl` 外），缺失时使用智能默认值。
 
 ```json
 {
-  "GatewayRegistration": {
-    "GatewayUrl": "http://192.168.1.100:5000",
-    "RouteName": "my-service",
-    "ClusterName": "my-service-cluster",
-    "MatchPath": "/api/my-service/{**catch-all}",
-    "DestinationAddress": "http://localhost:5001",
-    "Order": 50,
-    "AutoResolveIp": true,
-    "TimeoutSeconds": 10,
-    "InstanceIsolation": true,
-    "InstanceId": "john"
+  "Gateway": {
+    "Registration": {
+      "GatewayUrl": "http://192.168.1.100:5000",
+      "RouteName": "my-service",
+      "ClusterName": "my-service-cluster",
+      "MatchPath": "/api/my-service/{**catch-all}",
+      "DestinationAddress": "http://localhost:5001",
+      "Order": 50,
+      "AutoResolveIp": true,
+      "TimeoutSeconds": 10,
+      "InstanceIsolation": true,
+      "InstanceId": "john"
+    }
   }
 }
 ```
@@ -264,7 +261,45 @@ app.UseAneiangYarpGateway();
 | `InstanceId` | `string` | — | `Environment.MachineName` | 自定义实例标识 |
 | `InstancePrefixFormat` | `string` | — | `{instanceId}` | 路径前缀格式模板 |
 
-**配置优先级：代码 `options => {}` > 环境变量 `GatewayRegistration__GatewayUrl` > 配置文件 `appsettings.json`**
+**配置优先级：代码 `options => {}` > 环境变量 `Gateway__Registration__GatewayUrl` > 配置文件 `appsettings.json`**
+
+### `Gateway:Dashboard` 节
+
+仪表盘配置，绑定配置节 `"Gateway": { "Dashboard": { ... } }`。
+
+```json
+{
+  "Gateway": {
+    "Dashboard": {
+      "AuthMode": "DefaultJwt",
+      "JwtPassword": "demo123",
+      "RoutePrefix": "apigateway"
+    }
+  }
+}
+```
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `AuthMode` | `string` | — | `None` | 鉴权模式：`None` / `ApiKey` / `CustomJwt` / `DefaultJwt` |
+| `ApiKey` | `string` | — | — | API Key 值（仅 `ApiKey` 模式） |
+| `ApiKeyHeaderName` | `string` | — | `X-Api-Key` | API Key 请求头名称 |
+| `JwtSecret` | `string` | — | 随机生成 | JWT 签名密钥（不设置则重启后令牌失效） |
+| `JwtUsername` | `string` | — | — | 登录用户名（仅 `CustomJwt` 模式） |
+| `JwtPassword` | `string` | — | — | 登录密码（`CustomJwt` / `DefaultJwt` 均需设置） |
+| `RoutePrefix` | `string` | — | `apigateway` | 仪表盘路由前缀 |
+| `AllowedRoles` | `string[]` | — | — | ASP.NET Core 角色白名单 |
+
+**鉴权模式说明：**
+
+| 模式 | 验证方式 | 适用场景 |
+|------|----------|----------|
+| `None` | 不验证 | 内网调试、开发环境 |
+| `ApiKey` | 请求头 `X-Api-Key` 或查询参数 `api-key` | 服务间调用、自动化工具 |
+| `CustomJwt` | 自定义用户名+密码 → JWT token | 生产环境、多用户管理 |
+| `DefaultJwt` | 固定用户名 `admin` + 配置文件密码 → JWT token | 快速启用安全访问 |
+
+JWT 令牌默认有效期 **8 小时**，通过 `POST /apigateway/login` 获取，支持 `Authorization: Bearer` 请求头或 `dashboard_token` Cookie。
 
 ### `ReverseProxy` 节
 
@@ -303,7 +338,7 @@ app.UseAneiangYarpGateway();
 
 | 端点 | 方法 | 说明 |
 |------|------|------|
-| `/api/gateway/register-route` | `POST` | 注册/更新路由（含数据验证） |
+| `/api/gateway/register-route` | `POST` | 注册/更新路由（含数据验证，支持 Transforms） |
 | `/api/gateway/{routeName}` | `DELETE` | 注销路由（无关联路由时自动清理集群） |
 | `/api/gateway/routes` | `GET` | 查询所有已注册路由 |
 | `/api/gateway/ping` | `GET` | 健康检查 |
@@ -316,7 +351,11 @@ app.UseAneiangYarpGateway();
   "clusterName": "my-service-cluster",
   "matchPath": "/api/my-service/{**catch-all}",
   "destinationAddress": "http://192.168.1.101:5001",
-  "order": 50
+  "order": 50,
+  "transforms": [
+    { "PathSet": "/api/backend/{**catch-all}" },
+    { "RequestHeader": "X-Forwarded-By", "Set": "gateway" }
+  ]
 }
 ```
 
@@ -327,6 +366,7 @@ app.UseAneiangYarpGateway();
 | `matchPath` | `string` | ✅ | 路径匹配模板 |
 | `destinationAddress` | `string` | ✅ | 目标 URL |
 | `order` | `int` | — | 优先级（默认 50） |
+| `transforms` | `array` | — | 路由转换规则（见下方示例） |
 
 **响应格式（所有端点统一）：**
 
@@ -346,9 +386,13 @@ app.UseAneiangYarpGateway();
 | 端点 | 说明 |
 |------|------|
 | `GET /apigateway` | 仪表盘首页（HTML） |
+| `GET /apigateway/login` | 登录页面（HTML） |
+| `POST /apigateway/login` | 登录接口（返回 JWT token） |
 | `GET /apigateway/info` | 网关运行信息（版本/环境/运行时间/内存） |
 | `GET /apigateway/clusters` | 集群状态（目标列表/健康/不健康/未知） |
-| `GET /apigateway/routes` | 路由配置列表（路径/方法/优先级） |
+| `GET /apigateway/routes` | 路由配置列表（路径/方法/优先级/Transforms） |
+| `GET /apigateway/logs` | 最近 YARP 代理日志 |
+| `DELETE /apigateway/logs` | 清空日志缓冲区 |
 
 ### 扩展方法
 
@@ -362,6 +406,7 @@ app.UseAneiangYarpGateway();
 | `Aneiang.Yarp.Extensions` | `AddAneiangYarpGatewayClient()` | 🔧 客户端组件 |
 | `Aneiang.Yarp.Extensions` | `UseAneiangYarpGateway()` | 手动控制注册/注销时机 |
 | `Aneiang.Yarp.Dashboard.Extensions` | `AddAneiangYarpDashboard()` | 仪表盘 |
+| `Aneiang.Yarp.Dashboard.Extensions` | `AddAneiangYarpDashboard(Action<DashboardOptions>)` | 仪表盘 + 自定义选项 |
 
 ---
 
@@ -403,16 +448,20 @@ app.MapReverseProxy();         // YARP 必须放最后
 ```json
 // appsettings.Development.json
 {
-  "GatewayRegistration": {
-    "GatewayUrl": "http://localhost:5000",
-    "MatchPath": "/api/dev/{**catch-all}"
+  "Gateway": {
+    "Registration": {
+      "GatewayUrl": "http://localhost:5000",
+      "MatchPath": "/api/dev/{**catch-all}"
+    }
   }
 }
 
 // appsettings.Production.json
 {
-  "GatewayRegistration": {
-    "GatewayUrl": "http://gateway.internal:5000"
+  "Gateway": {
+    "Registration": {
+      "GatewayUrl": "http://gateway.internal:5000"
+    }
   }
 }
 ```
@@ -487,7 +536,7 @@ builder.Services.AddAneiangYarpClient(options =>
 });
 
 // 方式 2：配置文件（适合同项目不同人，各自改 appsettings）
-// { "GatewayRegistration": { "InstanceId": "dev-john" } }
+// { "Gateway": { "Registration": { "InstanceId": "dev-john" } } }
 ```
 
 #### 路径前缀格式化
@@ -504,9 +553,11 @@ builder.Services.AddAneiangYarpClient(options =>
 
 ```json
 {
-  "GatewayRegistration": {
-    "InstanceId": "john",
-    "InstancePrefixFormat": "dev-{userName}"
+  "Gateway": {
+    "Registration": {
+      "InstanceId": "john",
+      "InstancePrefixFormat": "dev-{userName}"
+    }
   }
 }
 ```

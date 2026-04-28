@@ -5,26 +5,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
-    <!-- NuGet 包元数据 -->
+    <!-- NuGet 包元数据（部分属性继承自 src/Directory.Build.props） -->
     <PackageId>Aneiang.Yarp</PackageId>
-    <Version>1.0.0</Version>
-    <Authors>Aneiang Team</Authors>
-    <Company>Aneiang</Company>
     <Description>Aneiang YARP base library. Provides dynamic route registration, gateway auto-registration and YARP configuration management.</Description>
-    <Copyright>Copyright © Aneiang $([System.DateTime]::Now.Year)</Copyright>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/aneiang/Aneiang.Yarp</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/aneiang/Aneiang.Yarp</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <PackageTags>yarp;reverse-proxy;gateway;api-gateway;dotnet</PackageTags>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <DebugType>portable</DebugType>
-    <PackageOutputPath>$(MSBuildThisFileDirectory)..\artifacts\nupkg</PackageOutputPath>
   </PropertyGroup>
 
   <ItemGroup>

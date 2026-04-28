@@ -33,8 +33,8 @@ namespace Aneiang.Yarp.Dashboard.Controllers
         private readonly ProxyLogStore _logStore;
         private readonly DynamicYarpConfigService _dynamicConfig;
 
-        // Record process start time (UTC) and cache assembly version
-        private static readonly DateTime _startTime = DateTime.UtcNow;
+        // Record process start time and cache assembly version
+        private static readonly DateTime _startTime = DateTime.Now;
         private static readonly string _fileVersion;
 
         static DashboardController()
@@ -123,7 +123,7 @@ namespace Aneiang.Yarp.Dashboard.Controllers
         public IActionResult GetInfo()
         {
             var process = Process.GetCurrentProcess();
-            var uptime = DateTime.UtcNow - _startTime;
+            var uptime = DateTime.Now - _startTime;
             var memoryMb = Math.Round(process.WorkingSet64 / 1024.0 / 1024.0, 1);
 
             return Json(new
@@ -133,7 +133,7 @@ namespace Aneiang.Yarp.Dashboard.Controllers
                 {
                     version = _fileVersion,
                     environment = _env.EnvironmentName,
-                    startTime = _startTime.ToString("yyyy-MM-dd HH:mm:ss") + " (UTC)",
+                    startTime = _startTime.ToString("yyyy-MM-dd HH:mm:ss"),
                     uptime = $"{(int)uptime.TotalHours}h {uptime.Minutes}m {uptime.Seconds}s",
                     memoryMb,
                     machineName = Environment.MachineName,

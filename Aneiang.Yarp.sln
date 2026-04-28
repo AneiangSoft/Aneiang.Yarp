@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.4.11626.88 stable
+VisualStudioVersion = 18.4.11626.88
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aneiang.Yarp.Dashboard", "src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj", "{27DF9A79-7032-3600-016B-A3CF77739CC4}"
 EndProject
@@ -10,6 +10,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampleGateway", "samples\SampleGateway\SampleGateway.csproj", "{E5F6A7B8-C9D0-1234-5678-90ABCDEF1234}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampleLocalService", "samples\SampleLocalService\SampleLocalService.csproj", "{D7E8F9A0-B1C2-3456-7890-ABCDEF123456}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{9B6CB266-A584-4BF6-A116-ECC6DACC8228}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{AB1B021E-18FC-421C-A60B-BC2A27ECEC36}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -36,6 +40,12 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{27DF9A79-7032-3600-016B-A3CF77739CC4} = {9B6CB266-A584-4BF6-A116-ECC6DACC8228}
+		{A1B2C3D4-5678-90AB-CDEF-1234567890AB} = {9B6CB266-A584-4BF6-A116-ECC6DACC8228}
+		{E5F6A7B8-C9D0-1234-5678-90ABCDEF1234} = {AB1B021E-18FC-421C-A60B-BC2A27ECEC36}
+		{D7E8F9A0-B1C2-3456-7890-ABCDEF123456} = {AB1B021E-18FC-421C-A60B-BC2A27ECEC36}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2298A573-1066-4805-A90A-F81617EB2FFA}
