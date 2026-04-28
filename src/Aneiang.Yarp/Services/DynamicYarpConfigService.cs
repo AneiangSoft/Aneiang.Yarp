@@ -55,6 +55,8 @@ namespace Aneiang.Yarp.Services
                         ClusterId = request.ClusterName,
                         Match = new RouteMatch { Path = request.MatchPath },
                         Order = request.Order ?? 50,
+                        Transforms = request.Transforms?
+                            .Select(t => (IReadOnlyDictionary<string, string>)t).ToList(),
                     };
                     _logger.LogInformation("Route '{RouteName}' already exists, updating config", request.RouteName);
                 }
@@ -66,6 +68,8 @@ namespace Aneiang.Yarp.Services
                         ClusterId = request.ClusterName,
                         Match = new RouteMatch { Path = request.MatchPath },
                         Order = request.Order ?? 50,
+                        Transforms = request.Transforms?
+                            .Select(t => (IReadOnlyDictionary<string, string>)t).ToList(),
                     });
                     isNew = true;
                     _logger.LogInformation("Route '{RouteName}' does not exist, adding new route", request.RouteName);

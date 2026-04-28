@@ -21,7 +21,7 @@ namespace Aneiang.Yarp.Models
         /// <summary>
         /// JSON config section name.
         /// </summary>
-        public const string SectionName = "GatewayRegistration";
+        public const string SectionName = "Gateway:Registration";
 
         /// <summary>
         /// Whether auto-registration is enabled.
