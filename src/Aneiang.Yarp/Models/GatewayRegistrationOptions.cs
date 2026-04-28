@@ -3,203 +3,141 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace Aneiang.Yarp.Models
+namespace Aneiang.Yarp.Models;
+
+/// <summary>
+/// Gateway auto-registration options / 网关自动注册配置.
+/// Config sources (priority high to low): code > env vars > appsettings.json.
+/// 配置来源（优先级从高到低）：代码 > 环境变量 > appsettings.json.
+/// </summary>
+public class GatewayRegistrationOptions
 {
+    /// <summary>JSON config section name / JSON 配置节点.</summary>
+    public const string SectionName = "Gateway:Registration";
+
+    /// <summary>Auto-enabled when <see cref="GatewayUrl"/> is set / 设置 GatewayUrl 时自动启用.</summary>
+    public bool? Enabled { get; set; }
+
+    /// <summary>Gateway URL, e.g. http://192.168.1.100:5000. Required field / 网关地址，必填.</summary>
+    public string? GatewayUrl { get; set; }
+
+    /// <summary>Route name (default: entry assembly name) / 路由名称（默认：入口程序集名）.</summary>
+    public string? RouteName { get; set; }
+
+    /// <summary>Cluster name (default: same as RouteName) / 集群名称（默认：同 RouteName）.</summary>
+    public string? ClusterName { get; set; }
+
+    /// <summary>Match path template, e.g. /api/my-service/{**catch-all}. Default: /{**catch-all} / 匹配路径模板.</summary>
+    public string? MatchPath { get; set; }
+
     /// <summary>
-    /// Gateway auto-registration configuration options.
-    /// <para>
-    /// Supports three configuration sources (priority high to low):
-    /// <list type="number">
-    /// <item>Code: <c>builder.Services.AddAneiangYarpClient(o => o.GatewayUrl = "...")</c></item>
-    /// <item>Environment variables: <c>GatewayRegistration__GatewayUrl</c></item>
-    /// <item>Config file: <c>appsettings.json -> GatewayRegistration</c></item>
-    /// </list>
-    /// </para>
+    /// Destination address, e.g. http://localhost:5001.
+    /// Default: auto-detected from Kestrel binding; localhost is auto-resolved to LAN IP.
+    /// 目标地址（默认：自动从 Kestrel 绑定地址获取，localhost 自动替换为局域网 IP）.
     /// </summary>
-    public class GatewayRegistrationOptions
+    public string? DestinationAddress { get; set; }
+
+    /// <summary>Route priority — lower = higher precedence. Default: 50 / 路由优先级，越小越优先.</summary>
+    public int? Order { get; set; }
+
+    /// <summary>Auto-resolve localhost/127.0.0.1/0.0.0.0 to LAN IPv4. Default: true / 自动解析本地地址为局域网 IP.</summary>
+    public bool? AutoResolveIp { get; set; }
+
+    /// <summary>HTTP timeout in seconds. Default: 5 / HTTP 超时（秒）.</summary>
+    public int? TimeoutSeconds { get; set; }
+
+    /// <summary>
+    /// Instance isolation for multi-developer debugging.
+    /// Embeds machine name into route/cluster/path so instances don't conflict. Default: true.
+    /// 多开发者实例隔离模式：将机器名嵌入路由/集群/路径以区分实例.
+    /// </summary>
+    public bool? InstanceIsolation { get; set; }
+
+    /// <summary>Custom instance ID (default: Environment.MachineName) / 自定义实例 ID.</summary>
+    public string? InstanceId { get; set; }
+
+    /// <summary>
+    /// Instance prefix format. Placeholders: {instanceId}, {machineName}, {userName}. Default: "{instanceId}".
+    /// 实例前缀模板.
+    /// </summary>
+    public string? InstancePrefixFormat { get; set; }
+
+    /// <summary>Bearer token for gateway API auth / Bearer 令牌.</summary>
+    public string? AuthToken { get; set; }
+
+    /// <summary>API Key for gateway API auth. Sent as X-Api-Key header / API 密钥.</summary>
+    public string? ApiKey { get; set; }
+
+    /// <summary>Basic auth username. Must pair with <see cref="BasicAuthPassword"/> / Basic 认证用户名.</summary>
+    public string? BasicAuthUsername { get; set; }
+
+    /// <summary>Basic auth password. Must pair with <see cref="BasicAuthUsername"/> / Basic 认证密码.</summary>
+    public string? BasicAuthPassword { get; set; }
+
+    // ── Smart defaults / 智能默认值 ─────────────────────────
+
+    internal bool IsEnabled => Enabled ?? !string.IsNullOrWhiteSpace(GatewayUrl);
+
+    private bool IsInstanceIsolation() => InstanceIsolation != false;
+
+    private string ResolveInstanceId() =>
+        !string.IsNullOrWhiteSpace(InstanceId) ? InstanceId : Environment.MachineName;
+
+    private string GetPrefix()
     {
-        /// <summary>
-        /// JSON config section name.
-        /// </summary>
-        public const string SectionName = "Gateway:Registration";
+        if (!IsInstanceIsolation()) return string.Empty;
+        var fmt = !string.IsNullOrWhiteSpace(InstancePrefixFormat) ? InstancePrefixFormat : "{instanceId}";
+        var id = ResolveInstanceId();
+        return fmt.Replace("{instanceId}", id)
+                  .Replace("{machineName}", Environment.MachineName)
+                  .Replace("{userName}", Environment.UserName);
+    }
 
-        /// <summary>
-        /// Whether auto-registration is enabled.
-        /// <para>Smart default: auto-enabled when <see cref="GatewayUrl"/> is set; otherwise disabled.</para>
-        /// </summary>
-        public bool? Enabled { get; set; }
+    internal string GetRouteName()
+    {
+        var prefix = GetPrefix();
+        var name = !string.IsNullOrWhiteSpace(RouteName)
+            ? RouteName : Assembly.GetEntryAssembly()?.GetName().Name ?? "my-service";
+        return !string.IsNullOrEmpty(prefix) ? $"{name}-{prefix}" : name;
+    }
 
-        /// <summary>
-        /// Gateway service URL, e.g. http://192.168.1.100:5000
-        /// <para><b>Required (the only mandatory field).</b></para>
-        /// </summary>
-        public string? GatewayUrl { get; set; }
+    internal string GetClusterName()
+    {
+        var prefix = GetPrefix();
+        // Use RouteName as base (without prefix), then append prefix once
+        var baseName = !string.IsNullOrWhiteSpace(ClusterName)
+            ? ClusterName
+            : (!string.IsNullOrWhiteSpace(RouteName) ? RouteName : Assembly.GetEntryAssembly()?.GetName().Name ?? "my-service");
+        return !string.IsNullOrEmpty(prefix) ? $"{baseName}-cluster-{prefix}" : baseName;
+    }
 
-        /// <summary>
-        /// Route name (unique identifier on the gateway).
-        /// <para>Default: entry assembly name (e.g. "MyService").</para>
-        /// </summary>
-        public string? RouteName { get; set; }
+    internal string GetMatchPath()
+    {
+        var path = !string.IsNullOrWhiteSpace(MatchPath) ? MatchPath : "/{**catch-all}";
+        if (!path.StartsWith("/")) path = "/" + path;
+        var prefix = GetPrefix();
+        return !string.IsNullOrEmpty(prefix) ? $"/{prefix}{path}" : path;
+    }
 
-        /// <summary>
-        /// Cluster name.
-        /// <para>Default: same as <see cref="RouteName"/>.</para>
-        /// </summary>
-        public string? ClusterName { get; set; }
+    internal int GetOrder() => Order ?? 50;
+    internal bool GetAutoResolveIp() => AutoResolveIp ?? true;
+    internal int GetTimeoutSeconds() => TimeoutSeconds ?? 5;
 
-        /// <summary>
-        /// Match path template, e.g. /api/my-service/{**catch-all}
-        /// <para>Default: "/{**catch-all}" (forwards all paths).</para>
-        /// </summary>
-        public string? MatchPath { get; set; }
+    internal string? GetDestinationAddress(IServiceProvider sp)
+    {
+        if (!string.IsNullOrWhiteSpace(DestinationAddress)) return DestinationAddress;
 
-        /// <summary>
-        /// Local destination address, e.g. http://localhost:5001
-        /// <para>
-        /// Default: auto-detected from the first Kestrel binding address.
-        /// If the value contains localhost/127.0.0.1, it is <b>automatically resolved to the local LAN IP</b> during registration.
-        /// </para>
-        /// </summary>
-        public string? DestinationAddress { get; set; }
-
-        /// <summary>
-        /// Route priority — lower values take precedence.
-        /// <para>Default: 50.</para>
-        /// </summary>
-        public int? Order { get; set; }
-
-        /// <summary>
-        /// Automatically resolve localhost/127.0.0.1/0.0.0.0 to the local LAN IPv4 before registration.
-        /// <para>Default: true.</para>
-        /// </summary>
-        public bool? AutoResolveIp { get; set; }
-
-        /// <summary>
-        /// HTTP timeout (seconds).<para>Default: 5.</para>
-        /// </summary>
-        public int? TimeoutSeconds { get; set; }
-
-        /// <summary>
-        /// Enable instance isolation mode (for multi-developer debugging of the same service).
-        /// <para>
-        /// When enabled, a machine-specific identifier is embedded into the route name and path,
-        /// so multiple instances do not interfere with each other:
-        /// </para>
-        /// <list type="bullet">
-        /// <item>routeName -> "{routeName}-{instanceId}"</item>
-        /// <item>clusterName -> "{clusterName}-{instanceId}"</item>
-        /// <item>matchPath -> "/{instanceId}{matchPath}" (path-level isolation)</item>
-        /// </list>
-        /// <para><b>Default: true</b></para>
-        /// </summary>
-        public bool? InstanceIsolation { get; set; }
-
-        /// <summary>
-        /// Custom instance identifier (only effective when <see cref="InstanceIsolation"/>=true).
-        /// <para>Default: local machine name (Environment.MachineName).</para>
-        /// </summary>
-        public string? InstanceId { get; set; }
-
-        /// <summary>
-        /// Format template for the instance isolation path prefix.
-        /// <para>Available placeholders: {instanceId}, {machineName}, {userName}</para>
-        /// <para>Default: "{instanceId}"</para>
-        /// </summary>
-        public string? InstancePrefixFormat { get; set; }
-
-        // ── Smart defaults ──
-
-        internal bool IsEnabled => Enabled ?? !string.IsNullOrWhiteSpace(GatewayUrl);
-
-        private bool IsInstanceIsolation() => InstanceIsolation != false;
-
-        private string ResolveInstanceId()
+        // Auto-detect from Kestrel urls / 自动检测 Kestrel 绑定地址
+        var config = sp.GetRequiredService<IConfiguration>();
+        var urls = config["urls"] ?? config["Urls"];
+        if (!string.IsNullOrWhiteSpace(urls))
         {
-            if (!string.IsNullOrWhiteSpace(InstanceId))
-                return InstanceId;
-            return Environment.MachineName;
+            var first = urls.Split(';')[0].Trim();
+            if (first.StartsWith("http", StringComparison.OrdinalIgnoreCase)) return first;
         }
 
-        private string GetPrefix()
-        {
-            if (!IsInstanceIsolation())
-                return string.Empty;
-
-            var format = !string.IsNullOrWhiteSpace(InstancePrefixFormat)
-                ? InstancePrefixFormat
-                : "{instanceId}";
-
-            var instanceId = ResolveInstanceId();
-            return format
-                .Replace("{instanceId}", instanceId)
-                .Replace("{machineName}", Environment.MachineName)
-                .Replace("{userName}", Environment.UserName);
-        }
-
-        internal string GetRouteName()
-        {
-            var name = RouteName;
-            if (string.IsNullOrWhiteSpace(name))
-                name = Assembly.GetEntryAssembly()?.GetName().Name ?? "my-service";
-
-            var prefix = GetPrefix();
-            return !string.IsNullOrEmpty(prefix) ? $"{name}-{prefix}" : name;
-        }
-
-        internal string GetClusterName()
-        {
-            var name = ClusterName;
-            if (string.IsNullOrWhiteSpace(name))
-                return GetRouteName();
-
-            var prefix = GetPrefix();
-            return !string.IsNullOrEmpty(prefix) ? $"{name}-{prefix}" : name;
-        }
-
-        internal string GetMatchPath()
-        {
-            var path = MatchPath;
-            if (string.IsNullOrWhiteSpace(path))
-                path = "/{**catch-all}";
-
-            var prefix = GetPrefix();
-            if (string.IsNullOrEmpty(prefix))
-                return path;
-
-            // Ensure path starts with /
-            if (!path.StartsWith("/"))
-                path = "/" + path;
-
-            return $"/{prefix}{path}";
-        }
-
-        internal int GetOrder() => Order ?? 50;
-
-        internal bool GetAutoResolveIp() => AutoResolveIp ?? true;
-
-        internal int GetTimeoutSeconds() => TimeoutSeconds ?? 5;
-
-        internal string? GetDestinationAddress(IServiceProvider sp)
-        {
-            if (!string.IsNullOrWhiteSpace(DestinationAddress))
-                return DestinationAddress;
-
-            // Auto-detect from Kestrel binding addresses
-            var config = sp.GetRequiredService<IConfiguration>();
-            var urls = config["urls"] ?? config["Urls"];
-
-            if (!string.IsNullOrWhiteSpace(urls))
-            {
-                // Take the first address (strip semicolon-separated multiple addresses)
-                var firstUrl = urls.Split(';')[0].Trim();
-                if (firstUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                    return firstUrl;
-            }
-
-            // Fallback: common ASP.NET Core default addresses
-            var env = sp.GetRequiredService<IHostEnvironment>();
-            var defaultPort = env.IsDevelopment() ? "5001" : "5000";
-            return $"http://localhost:{defaultPort}";
-        }
+        var env = sp.GetRequiredService<IHostEnvironment>();
+        var port = env.IsDevelopment() ? "5001" : "5000";
+        return $"http://localhost:{port}";
     }
 }

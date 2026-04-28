@@ -3,17 +3,14 @@ using Aneiang.Yarp.Dashboard.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ═══════════════════════════════════════════════════════════
-// Gateway role - one-liner registration of all required services
-// ═══════════════════════════════════════════════════════════
-builder.Services.AddAneiangYarpGateway();
+// Gateway: one-liner — auto-loads ReverseProxy routes/clusters + dynamic config
+builder.Services.AddAneiangYarp();
 
-// Dashboard with JWT authorization (DefaultJwt: username=admin, password from config)
-builder.Services.AddAneiangYarpDashboard();   // Config in appsettings.json
+// Dashboard with JWT auth (DefaultJwt: username=admin, password from config)
+builder.Services.AddAneiangYarpDashboard();
 
 var app = builder.Build();
 
-// Gateway middleware pipeline
 app.UseStaticFiles();
 app.UseRouting();
 app.MapControllers();
