@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace SampleLocalService.Controllers;
 
 [ApiController]
-[Route("api/local-service/[action]")]
+[Route("/ANEIANG/api/local-service/[action]")]
 public class LocalServiceController : ControllerBase
 {
     [HttpGet]
