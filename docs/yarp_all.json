@@ -1,0 +1,501 @@
+﻿{
+  // ============================================================================
+  // 反向代理根配置
+  // ============================================================================
+  "ReverseProxy": {
+    // --------------------------------------------------------------------------
+    // 路由配置（Routes）：定义请求匹配规则和转发目标
+    // 路由匹配顺序由 Order 属性决定，数值越小越优先
+    // --------------------------------------------------------------------------
+    "Routes": {
+      // 示例路由 1：Auth 服务路由 - 展示完整匹配条件 + 路径重写
+      "AuthServiceRoute": {
+        // 指向的集群名称（必填），必须与 Clusters 中定义的集群名一致
+        "ClusterId": "AuthServiceCluster",
+
+        // 路由优先级，数值越小越优先。用于解决多路由匹配冲突
+        "Order": 1,
+
+        // 最大请求体大小（字节），限制客户端上传大小
+        "MaxRequestBodySize": 10485760,
+
+        // 授权策略名称（default = 需要认证，anonymous = 无需认证）
+        "AuthorizationPolicy": "default",
+
+        // 限流策略名称，对应 AddRateLimiter 中定义的策略
+        "RateLimiterPolicy": "fixed",
+
+        // 输出缓存策略名称
+        "OutputCachePolicy": "default",
+
+        // 路由级超时时间，格式 hh:mm:ss。与 TimeoutPolicy 互斥
+        "Timeout": "00:00:30",
+
+        // CORS 策略名称（default / Disable）
+        "CorsPolicy": "default",
+
+        // 请求匹配条件（必填）
+        "Match": {
+          // 路径匹配模板，支持 ASP.NET 路由语法
+          // 示例匹配：/api/auth/login、/api/auth/user/profile
+          "Path": "/api/auth/{**catchAll}",
+
+          // Host 头匹配列表，支持通配符和端口
+          "Hosts": [
+            "api.example.com",
+            "localhost:5000"
+          ],
+
+          // 允许的 HTTP 方法列表
+          "Methods": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE"
+          ],
+
+          // 请求头匹配条件
+          "Headers": [
+            {
+              "Name": "X-Client-Type",
+              "Values": [ "web", "mobile" ],
+              "Mode": "ExactHeader", // 精确匹配 | Contains | NotContains | Exists | NotExists
+              "IsCaseSensitive": false
+            },
+            {
+              "Name": "X-Debug-Token",
+              "Mode": "Exists",
+              "IsCaseSensitive": true
+            }
+          ],
+
+          // 查询参数匹配条件
+          "QueryParameters": [
+            {
+              "Name": "version",
+              "Values": [ "v1", "v2" ],
+              "Mode": "Exact", // Exact | Contains | NotContains | Prefix | Exists
+              "IsCaseSensitive": false
+            }
+          ]
+        },
+
+        // 自定义元数据，可用于扩展路由逻辑或供 Transform 动态引用
+        "Metadata": {
+          "ServiceName": "AuthService",
+          "TimeoutInSeconds": 30,
+          "EnableLogging": true,
+          "Version": "v1"
+        },
+
+        // ======================================================================
+        // 请求/响应变换配置（Transforms）
+        // 用于在转发前后修改路径、Header、Query 等
+        // ======================================================================
+        "Transforms": [
+          // ---------- 路径操作 ----------
+          // 1. 移除路径前缀：将 /api/auth/xxx → /xxx
+          // 如果你的后端服务不需要 /api/auth 前缀，可使用此变换
+          { "PathRemovePrefix": "/api/auth" },
+
+          // 2. 添加路径前缀：将 /xxx → /prefix/xxx
+          // { "PathPrefix": "/api/v2" },
+
+          // 3. 完整替换路径：将整个路径替换为指定值
+          // { "PathSet": "/fixed/endpoint" },
+
+          // 4. 模式替换路径：将匹配的路径重写为模板指定格式
+          // 例如将 /api/legacy/users/123 → /v2/users/123
+          // { "PathPattern": "/api/v2/{**catchAll}" },
+
+          // ---------- 请求头操作 ----------
+          // 5. 设置请求头
+          {
+            "RequestHeader": "X-Forwarded-Service",
+            "Set": "AuthService"
+          },
+          // 6. 追加请求头（值会附加到现有值后，用逗号分隔）
+          {
+            "RequestHeader": "X-Correlation-ID",
+            "Append": "auth-gateway"
+          },
+          // 7. 移除请求头
+          { "RequestHeaderRemove": "X-Internal-Secret" },
+
+          // 8. 从路由值设置请求头（将 {catchAll} 捕获的值放入 Header）
+          // {
+          //   "RequestHeaderRouteValue": "X-Original-Path",
+          //   "Set": "catchAll"
+          // },
+
+          // 9. 保留原始 Host 头（默认会使用目标服务器的 Host）
+          { "RequestHeaderOriginalHost": true },
+
+          // 10. 复制所有请求头（默认行为，false 则禁止复制）
+          // { "RequestHeadersCopy": false },
+
+          // 11. 白名单模式：仅允许指定请求头通过
+          // { "RequestHeadersAllowed": "Accept;Authorization;Content-Type;User-Agent" },
+
+          // ---------- 查询字符串操作 ----------
+          // 12. 设置查询参数（替换已存在的同名参数）
+          {
+            "QueryValueParameter": "api_key",
+            "Set": "internal-service-key"
+          },
+          // 13. 追加查询参数值
+          {
+            "QueryValueParameter": "trace_id",
+            "Append": "yarp-proxy"
+          },
+          // 14. 从路由值设置查询参数
+          // {
+          //   "QueryRouteParameter": "user_id",
+          //   "Set": "userIdFromRoute"
+          // },
+          // 15. 移除查询参数
+          // { "QueryRemoveParameter": "client_secret" },
+
+          // ---------- HTTP 方法变更 ----------
+          // 16. 修改请求方法（例如将 POST 改为 GET）
+          // {
+          //   "HttpMethodChange": "POST",
+          //   "Set": "GET"
+          // },
+
+          // ---------- 转发头配置（X-Forwarded-*）----------
+          // 17. 添加标准 X-Forwarded 系列头部
+          {
+            "X-Forwarded": "Set",
+            "For": "Append",
+            "Proto": "Set",
+            "Host": "Set",
+            "Prefix": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+
+          // 18. 添加 RFC 7239 Forwarded 头部
+          // {
+          //   "Forwarded": "for,proto,host",
+          //   "ForFormat": "IpAndPort",
+          //   "ByFormat": "IpAndPort",
+          //   "Action": "Set"
+          // },
+
+          // ---------- 客户端证书 ----------
+          // 19. 转发客户端证书（适用于 mTLS 场景）
+          // { "ClientCert": "X-Client-Cert" },
+
+          // ---------- 响应头操作 ----------
+          // 20. 设置响应头（支持条件设置）
+          {
+            "ResponseHeader": "X-Proxy-Server",
+            "Set": "YARP/2.0",
+            "When": "Always" // Success | Always | Failure
+          },
+          // 21. 追加响应头
+          {
+            "ResponseHeader": "Cache-Control",
+            "Append": "no-cache",
+            "When": "Always"
+          }
+          // 22. 移除响应头
+          // {
+          //   "ResponseHeaderRemove": "Server",
+          //   "When": "Always"
+          // },
+          // 23. 复制所有响应头
+          // { "ResponseHeadersCopy": true },
+          // 24. 白名单模式：仅允许指定响应头通过
+          // { "ResponseHeadersAllowed": "Content-Type;Content-Length;Cache-Control" },
+
+          // ---------- 响应尾部操作（Trailers，通常用于 HTTP/2 gRPC）----------
+          // 25. 设置响应尾部
+          // {
+          //   "ResponseTrailer": "X-Processing-Time",
+          //   "Set": "150ms",
+          //   "When": "Always"
+          // },
+          // 26. 复制所有响应尾部
+          // { "ResponseTrailersCopy": true }
+        ]
+      },
+
+      // 示例路由 2：静态资源服务（匿名访问，无变换）
+      "StaticAssetsRoute": {
+        "ClusterId": "StaticServiceCluster",
+        "Order": 2,
+        "AuthorizationPolicy": "anonymous",
+        "Match": {
+          "Path": "/static/{**catchAll}",
+          "Hosts": [ "cdn.example.com" ]
+        }
+      },
+
+      // 示例路由 3：HRP30 服务（高优先级，路径不变）
+      "HRP30ServiceRoute": {
+        "ClusterId": "HRP30ServiceCluster",
+        "Order": 0, // 最高优先级，确保优先匹配
+        "Match": {
+          "Path": "/api/hrp30/{**catchAll}"
+        }
+      },
+
+      // 示例路由 4：兜底路由（最低优先级，匹配所有剩余请求）
+      "FallbackRoute": {
+        "ClusterId": "DefaultServiceCluster",
+        "Order": 100,
+        "Match": {
+          "Path": "/{**catchAll}"
+        },
+        "Transforms": [
+          // 可选：添加路径前缀
+          { "PathPrefix": "/api/default" }
+        ]
+      }
+    },
+
+    // --------------------------------------------------------------------------
+    // 集群配置（Clusters）：定义后端目标服务器和转发行为
+    // --------------------------------------------------------------------------
+    "Clusters": {
+      // ========================================================================
+      // 集群 1：Auth 服务集群 - 展示完整配置
+      // ========================================================================
+      "AuthServiceCluster": {
+        // 目标服务器定义（必填）
+        "Destinations": {
+          "auth-node-1": {
+            // 目标地址（必填），必须包含协议（http/https）
+            "Address": "http://192.168.16.16:11000",
+
+            // 主动健康检查探针专用地址（可选，覆盖集群级别的 Path）
+            "Health": "http://192.168.16.16:11000/health/live",
+
+            // 请求 Host 头的备选值（若未通过 Transform 指定）
+            "Host": "auth.internal.local",
+
+            // 目标节点自定义元数据
+            "Metadata": {
+              "Region": "cn-east",
+              "Weight": 100,
+              "MaxConcurrentRequests": 200
+            }
+          },
+          "auth-node-2": {
+            "Address": "http://192.168.16.17:11000",
+            "Health": "http://192.168.16.17:11000/health/live",
+            "Host": "auth.internal.local",
+            "Metadata": {
+              "Region": "cn-north",
+              "Weight": 80
+            }
+          }
+        },
+
+        // ----------------------------------------------------------------------
+        // 负载均衡策略
+        // 可选值：PowerOfTwoChoices | FirstAlphabetical | Random | RoundRobin | LeastRequests
+        // ----------------------------------------------------------------------
+        "LoadBalancingPolicy": "RoundRobin",
+
+        // ----------------------------------------------------------------------
+        // 会话亲和性（Sticky Session / 粘性会话）
+        // 确保同一客户端的请求始终转发到同一后端节点
+        // ----------------------------------------------------------------------
+        "SessionAffinity": {
+          // 是否启用会话亲和性
+          "Enabled": true,
+
+          // 会话亲和性策略：HashCookie | ArrCookie | Cookie | CustomHeader
+          // HashCookie：基于 Cookie 值的哈希分配（默认）
+          // ArrCookie：与 Azure ARR 兼容的 Cookie 格式
+          // Cookie：简单 Cookie 存储
+          // CustomHeader：基于自定义请求头分配
+          "Policy": "HashCookie",
+
+          // 亲和性失败时的处理策略：Redistribute（重新分配）| Return503Error（返回 503）
+          "FailurePolicy": "Redistribute",
+
+          // 亲和性标识的存储字段名（Cookie 名或 Header 名）
+          "AffinityKeyName": ".Yarp.Affinity",
+
+          // Cookie 详细配置（当 Policy 使用 Cookie 系列时生效）
+          "Cookie": {
+            "Domain": ".example.com",
+            "Path": "/",
+            "Expiration": "03:00:00", // 过期时间（3 小时），格式 hh:mm:ss
+            "MaxAge": "1.00:00:00", // 最大存活时间（1 天）
+            "SecurePolicy": "SameAsRequest", // Always | None | SameAsRequest
+            "HttpOnly": true,
+            "SameSite": "Lax", // Lax | None | Strict | Unspecified
+            "IsEssential": true
+          }
+        },
+
+        // ----------------------------------------------------------------------
+        // 健康检查配置
+        // ----------------------------------------------------------------------
+        "HealthCheck": {
+          // 主动健康检查：定期发送探测请求
+          "Active": {
+            "Enabled": true,
+            "Interval": "00:00:10", // 探测间隔 10 秒
+            "Timeout": "00:00:05", // 探测超时 5 秒
+            "Policy": "ConsecutiveFailures", // 健康判定策略（目前仅此一种）
+            "Path": "/health", // 健康检查端点路径
+            "Query": "?format=json" // 附加查询字符串（含 ? 前缀）
+          },
+
+          // 被动健康检查：基于实际请求的响应观测
+          "Passive": {
+            "Enabled": true,
+            "Policy": "TransportFailureRate", // 基于传输失败率判定
+            "ReactivationPeriod": "00:00:30" // 不健康节点恢复为未知状态前的等待时间
+          },
+
+          // 可用目标选取策略
+          // HealthyAndUnknown：仅选取健康或未知状态的节点
+          // HealthyOrPanic：健康节点不足时，使用未知节点兜底
+          "AvailableDestinationsPolicy": "HealthyAndUnknown"
+        },
+
+        // ----------------------------------------------------------------------
+        // HttpClient 配置：控制出站 HTTP 连接行为
+        // ----------------------------------------------------------------------
+        "HttpClient": {
+          // SSL/TLS 协议版本列表
+          "SslProtocols": [ "Tls12", "Tls13" ],
+
+          // 是否接受任何服务器证书（跳过证书验证，仅限开发环境）
+          "DangerousAcceptAnyServerCertificate": false,
+
+          // 每个服务器的最大并发连接数
+          "MaxConnectionsPerServer": 100,
+
+          // 是否启用多个 HTTP/2 连接（默认 true）
+          "EnableMultipleHttp2Connections": true,
+
+          // 请求头编码（默认 utf-8）
+          "RequestHeaderEncoding": "utf-8",
+
+          // 响应头编码（默认 utf-8）
+          "ResponseHeaderEncoding": "utf-8",
+
+          // Web 代理配置（用于通过企业代理访问外网）
+          "WebProxy": {
+            "Address": "http://proxy.example.com:8080",
+            "BypassOnLocal": true,
+            "UseDefaultCredentials": false
+          }
+        },
+
+        // ----------------------------------------------------------------------
+        // HttpRequest 配置：控制单次请求的转发行为
+        // ----------------------------------------------------------------------
+        "HttpRequest": {
+          // 活动超时时间：请求允许的最大空闲时间（默认 1 分 40 秒）
+          "ActivityTimeout": "00:01:40",
+
+          // 出站请求使用的 HTTP 版本（默认 2.0）
+          "Version": "2.0",
+
+          // 版本选择策略
+          // RequestVersionExact：强制使用指定版本
+          // RequestVersionOrLower：允许降级到更低版本（默认）
+          // RequestVersionOrHigher：允许升级到更高版本
+          "VersionPolicy": "RequestVersionOrLower",
+
+          // 是否允许响应缓冲
+          "AllowResponseBuffering": true
+        },
+
+        // 集群自定义元数据
+        "Metadata": {
+          "Environment": "production",
+          "Team": "platform-engineering",
+          "Criticality": "high"
+        }
+      },
+
+      // ========================================================================
+      // 集群 2：静态资源服务集群（精简配置示例）
+      // ========================================================================
+      "StaticServiceCluster": {
+        "Destinations": {
+          "cdn-primary": {
+            "Address": "http://192.168.16.20:8080"
+          }
+        },
+        "LoadBalancingPolicy": "Random",
+        "HealthCheck": {
+          "Active": {
+            "Enabled": true,
+            "Interval": "00:00:30",
+            "Timeout": "00:00:10",
+            "Policy": "ConsecutiveFailures",
+            "Path": "/health"
+          }
+        },
+        "HttpClient": {
+          "MaxConnectionsPerServer": 50,
+          "DangerousAcceptAnyServerCertificate": false
+        }
+      },
+
+      // ========================================================================
+      // 集群 3：HRP30 服务集群
+      // ========================================================================
+      "HRP30ServiceCluster": {
+        "Destinations": {
+          "hrp30-node-1": {
+            "Address": "http://192.168.16.16:14000"
+          },
+          "hrp30-node-2": {
+            "Address": "http://192.168.16.17:14000"
+          }
+        },
+        "LoadBalancingPolicy": "LeastRequests", // 最小请求数策略
+        "HealthCheck": {
+          "Active": {
+            "Enabled": true,
+            "Interval": "00:00:10",
+            "Timeout": "00:00:05",
+            "Policy": "ConsecutiveFailures",
+            "Path": "/health"
+          },
+          "Passive": {
+            "Enabled": true,
+            "Policy": "TransportFailureRate",
+            "ReactivationPeriod": "00:00:30"
+          }
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:00:30",
+          "Version": "2.0"
+        }
+      },
+
+      // ========================================================================
+      // 集群 4：默认兜底服务集群
+      // ========================================================================
+      "DefaultServiceCluster": {
+        "Destinations": {
+          "default-node": {
+            "Address": "http://192.168.16.16:13000"
+          }
+        },
+        "LoadBalancingPolicy": "RoundRobin",
+        "HealthCheck": {
+          "Active": {
+            "Enabled": true,
+            "Interval": "00:00:15",
+            "Timeout": "00:00:05",
+            "Policy": "ConsecutiveFailures",
+            "Path": "/health"
+          }
+        }
+      }
+    }
+  }
+}

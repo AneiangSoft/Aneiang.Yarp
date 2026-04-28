@@ -26,7 +26,7 @@ namespace Aneiang.Yarp.Dashboard.Models
         /// <summary>
         /// Configuration section name for binding from config files.
         /// </summary>
-        public const string SectionName = "Dashboard";
+        public const string SectionName = "Gateway:Dashboard";
 
         /// <summary>
         /// Route prefix for all dashboard pages and APIs.

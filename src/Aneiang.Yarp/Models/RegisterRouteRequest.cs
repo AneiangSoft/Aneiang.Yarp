@@ -39,5 +39,11 @@ namespace Aneiang.Yarp.Models
         /// </summary>
         [Range(0, int.MaxValue, ErrorMessage = "Priority must be >= 0")]
         public int? Order { get; set; }
+
+        /// <summary>
+        /// Route transforms (optional), e.g. [{"PathSet": "/api/backend/..."}, {"RequestHeader": "...", "Set": "..."}]
+        /// Each transform is a dictionary of key-value pairs.
+        /// </summary>
+        public List<Dictionary<string, string>>? Transforms { get; set; }
     }
 }

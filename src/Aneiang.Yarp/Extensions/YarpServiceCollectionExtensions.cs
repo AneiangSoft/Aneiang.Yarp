@@ -220,12 +220,32 @@ namespace Aneiang.Yarp.Extensions
             {
                 var match = ParseRouteMatch(child.GetSection("Match"));
 
+                // Parse Transforms from config (e.g. [{"PathSet": "/api/auth/..."}, ...])
+                List<Dictionary<string, string>>? transforms = null;
+                var transformsSection = child.GetSection("Transforms");
+                if (transformsSection.Exists())
+                {
+                    transforms = new List<Dictionary<string, string>>();
+                    foreach (var t in transformsSection.GetChildren())
+                    {
+                        var dict = new Dictionary<string, string>();
+                        foreach (var entry in t.GetChildren())
+                        {
+                            if (entry.Value != null)
+                                dict[entry.Key] = entry.Value;
+                        }
+                        if (dict.Count > 0)
+                            transforms.Add(dict);
+                    }
+                }
+
                 routes.Add(new RouteConfig
                 {
                     RouteId = child.Key,
                     ClusterId = child["ClusterId"]!,
                     Match = match!,
                     Order = child["Order"] is { Length: > 0 } o && int.TryParse(o, out var order) ? order : null,
+                    Transforms = transforms?.Select(d => (IReadOnlyDictionary<string, string>)d).ToList(),
                 });
             }
 
