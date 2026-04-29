@@ -60,6 +60,7 @@ public class GatewayAutoRegistrationClient
         var matchPath = _options.GetMatchPath();
         var destinationAddress = _options.GetDestinationAddress(_serviceProvider);
         var order = _options.GetOrder();
+        var transforms = _options.GetTransforms();
 
         if (string.IsNullOrWhiteSpace(gatewayUrl) || string.IsNullOrWhiteSpace(destinationAddress))
         {
@@ -69,6 +70,9 @@ public class GatewayAutoRegistrationClient
 
         _logger.LogInformation("Registering: Route={RouteName}, Match={MatchPath}, Dest={DestAddress}, GW={GatewayUrl}",
             routeName, matchPath, destinationAddress, gatewayUrl);
+
+        if (transforms != null && transforms.Count > 0)
+            _logger.LogDebug("Transforms: {Transforms}", JsonSerializer.Serialize(transforms));
 
         // Auto-resolve localhost to LAN IP
         if (_options.GetAutoResolveIp())
@@ -82,7 +86,12 @@ public class GatewayAutoRegistrationClient
 
             var json = JsonSerializer.Serialize(new
             {
-                routeName, clusterName, matchPath, destinationAddress, order
+                routeName,
+                clusterName,
+                matchPath,
+                destinationAddress,
+                order,
+                transforms
             }, _jsonOptions);
 
             var content = new StringContent(json, Encoding.UTF8, "application/json");

@@ -1,6 +1,6 @@
 namespace Aneiang.Yarp.Dashboard.Models;
 
-/// <summary>Lightweight log entry stored in ring buffer (value type) / 存储在环形缓冲区中的轻量日志条目.</summary>
+/// <summary>Lightweight log entry stored in ring buffer / 存储在环形缓冲区中的轻量日志条目.</summary>
 public readonly record struct LogEntry
 {
     /// <summary>UTC timestamp / UTC 时间戳.</summary>
@@ -12,8 +12,11 @@ public readonly record struct LogEntry
     /// <summary>Logger category, e.g. Yarp.ReverseProxy.* / 日志类别.</summary>
     public string Category { get; init; }
 
-    /// <summary>Log message / 日志消息.</summary>
+    /// <summary>Log message (brief, shown in list) / 日志消息（简要，列表展示）.</summary>
     public string Message { get; init; }
+
+    /// <summary>Detailed content shown in expand panel (request/response body, etc.) / 展开面板中显示的详情（请求/响应体等）.</summary>
+    public string? Details { get; init; }
 
     /// <summary>Exception details (stack trace), null if none / 异常详情.</summary>
     public string? Exception { get; init; }

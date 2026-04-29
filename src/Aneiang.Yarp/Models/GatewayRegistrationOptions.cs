@@ -74,6 +74,26 @@ public class GatewayRegistrationOptions
     /// <summary>Basic auth password. Must pair with <see cref="BasicAuthUsername"/> / Basic 认证密码.</summary>
     public string? BasicAuthPassword { get; set; }
 
+    /// <summary>
+    /// Strip instance prefix from path when forwarding to downstream. Default: true.
+    /// When enabled, automatically adds PathRemovePrefix transform to remove instance prefix.
+    /// 转发到下游时是否移除实例前缀。启用时自动添加 PathRemovePrefix transform.
+    /// </summary>
+    public bool? StripInstancePrefix { get; set; }
+
+    /// <summary>
+    /// Override downstream path prefix. If set, requests will be forwarded to this path prefix.
+    /// Higher priority than StripInstancePrefix.
+    /// 下游路径前缀覆盖。如果设置，请求将转发到此路径前缀。优先级高于 StripInstancePrefix.
+    /// </summary>
+    public string? DownstreamPathPrefix { get; set; }
+
+    /// <summary>
+    /// Custom YARP transforms for fine-grained control. Highest priority.
+    /// 自定义 YARP transforms，用于精细控制。最高优先级.
+    /// </summary>
+    public List<Dictionary<string, string>>? Transforms { get; set; }
+
     // ── Smart defaults / 智能默认值 ─────────────────────────
 
     internal bool IsEnabled => Enabled ?? !string.IsNullOrWhiteSpace(GatewayUrl);
@@ -122,6 +142,45 @@ public class GatewayRegistrationOptions
     internal int GetOrder() => Order ?? 50;
     internal bool GetAutoResolveIp() => AutoResolveIp ?? true;
     internal int GetTimeoutSeconds() => TimeoutSeconds ?? 5;
+    internal bool GetStripInstancePrefix() => StripInstancePrefix ?? true;
+
+    /// <summary>
+    /// Build transforms list based on configuration priority:
+    /// 1. Custom Transforms (highest)
+    /// 2. DownstreamPathPrefix
+    /// 3. StripInstancePrefix (default)
+    /// 根据配置优先级构建 transforms 列表.
+    /// </summary>
+    internal List<Dictionary<string, string>>? GetTransforms()
+    {
+        // Priority 1: User-defined custom transforms
+        if (Transforms != null && Transforms.Count > 0)
+            return Transforms;
+
+        // Priority 2: DownstreamPathPrefix override
+        if (!string.IsNullOrWhiteSpace(DownstreamPathPrefix))
+        {
+            return new List<Dictionary<string, string>>
+            {
+                new() { { "PathSet", DownstreamPathPrefix + "/{**catch-all}" } }
+            };
+        }
+
+        // Priority 3: Auto strip instance prefix (default behavior)
+        if (GetStripInstancePrefix())
+        {
+            var prefix = GetPrefix();
+            if (!string.IsNullOrEmpty(prefix))
+            {
+                return new List<Dictionary<string, string>>
+                {
+                    new() { { "PathRemovePrefix", $"/{prefix}" } }
+                };
+            }
+        }
+
+        return null;
+    }
 
     internal string? GetDestinationAddress(IServiceProvider sp)
     {

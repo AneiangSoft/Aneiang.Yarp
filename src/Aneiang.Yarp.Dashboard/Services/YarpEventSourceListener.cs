@@ -97,30 +97,91 @@ public sealed class YarpEventSourceListener : EventListener
     /// </summary>
     private static string FormatEventMessage(EventWrittenEventArgs eventData)
     {
-        // Build message from event payload
-        var parts = new List<string>();
+        if (eventData.Payload == null || eventData.Payload.Count == 0)
+            return eventData.EventName ?? "Unknown";
 
-        // Add event name
-        if (!string.IsNullOrEmpty(eventData.EventName))
+        var eventName = eventData.EventName ?? "Unknown";
+        
+        // Special formatting for common YARP events
+        return eventName switch
         {
-            parts.Add($"[{eventData.EventName}]");
-        }
+            "ForwarderStart" => FormatForwarderStart(eventData),
+            "ForwarderStop" => FormatForwarderStop(eventData),
+            "ForwarderInvoke" => FormatForwarderInvoke(eventData),
+            "ForwarderStage" => FormatForwarderStage(eventData),
+            "ContentTransferred" => FormatContentTransferred(eventData),
+            _ => FormatDefaultEvent(eventData)
+        };
+    }
 
-        // Add payload data
-        if (eventData.Payload != null && eventData.Payload.Count > 0)
+    private static string FormatForwarderStart(EventWrittenEventArgs eventData)
+    {
+        var destPrefix = GetPayloadValue(eventData, "destinationPrefix");
+        return $"[Forward Start] -> {destPrefix}";
+    }
+
+    private static string FormatForwarderStop(EventWrittenEventArgs eventData)
+    {
+        var statusCode = GetPayloadValue(eventData, "statusCode");
+        return $"[Forward Stop] <- Status: {statusCode}";
+    }
+
+    private static string FormatForwarderInvoke(EventWrittenEventArgs eventData)
+    {
+        var clusterId = GetPayloadValue(eventData, "clusterId");
+        var routeId = GetPayloadValue(eventData, "routeId");
+        var destId = GetPayloadValue(eventData, "destinationId");
+        return $"[Forward Invoke] Route: {routeId}, Cluster: {clusterId}, Dest: {destId}";
+    }
+
+    private static string FormatForwarderStage(EventWrittenEventArgs eventData)
+    {
+        var stage = GetPayloadValue(eventData, "stage");
+        var stageName = stage switch
         {
-            for (int i = 0; i < eventData.Payload.Count; i++)
+            "1" => "SendAsync",
+            "2" => "WaitForResponse",
+            "3" => "ResponseReceived",
+            "4" => "ResponseCompleted",
+            _ => $"Stage {stage}"
+        };
+        return $"[Forward Stage] {stageName}";
+    }
+
+    private static string FormatContentTransferred(EventWrittenEventArgs eventData)
+    {
+        var isRequest = GetPayloadValue(eventData, "isRequest");
+        var contentLength = GetPayloadValue(eventData, "contentLength");
+        var direction = isRequest == "True" ? "Request" : "Response";
+        return $"[Content Transferred] {direction}: {contentLength} bytes";
+    }
+
+    private static string FormatDefaultEvent(EventWrittenEventArgs eventData)
+    {
+        var parts = new List<string> { $"[{eventData.EventName}]" };
+        
+        for (int i = 0; i < eventData.Payload.Count; i++)
+        {
+            var value = eventData.Payload[i];
+            if (value != null)
             {
-                var value = eventData.Payload[i];
-                if (value != null)
-                {
-                    var key = eventData.PayloadNames?.Count > i ? eventData.PayloadNames[i] : $"arg{i}";
-                    parts.Add($"{key}={value}");
-                }
+                var key = eventData.PayloadNames?.Count > i ? eventData.PayloadNames[i] : $"arg{i}";
+                parts.Add($"{key}={value}");
             }
         }
 
         return string.Join(" ", parts);
+    }
+
+    private static string GetPayloadValue(EventWrittenEventArgs eventData, string key)
+    {
+        if (eventData.PayloadNames == null) return "?";
+        
+        var index = eventData.PayloadNames.IndexOf(key);
+        if (index >= 0 && index < eventData.Payload.Count)
+            return eventData.Payload[index]?.ToString() ?? "?";
+        
+        return "?";
     }
 
     /// <summary>

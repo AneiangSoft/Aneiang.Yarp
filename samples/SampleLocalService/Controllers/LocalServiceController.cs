@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace SampleLocalService.Controllers;
 
 [ApiController]
-[Route("/ANEIANG/api/local-service/[action]")]
+[Route("/api/local-service/[action]")]
 public class LocalServiceController : ControllerBase
 {
     [HttpGet]
@@ -25,6 +25,17 @@ public class LocalServiceController : ControllerBase
         {
             code = 200,
             message = message ?? "hello from local service",
+            instance = Environment.MachineName
+        });
+    }
+
+    [HttpPost]
+    public IActionResult EchoPost([FromBody] object? body)
+    {
+        return Ok(new
+        {
+            code = 200,
+            received = body,
             instance = Environment.MachineName
         });
     }
