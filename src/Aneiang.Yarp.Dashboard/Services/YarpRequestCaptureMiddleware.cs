@@ -17,6 +17,7 @@ public sealed class YarpRequestCaptureMiddleware
     private readonly RequestDelegate _next;
     private readonly ProxyLogStore _store;
     private readonly string _dashPrefix;
+    private readonly bool _loggingEnabled;
 
     /// <summary>
     /// Creates the middleware.
@@ -26,6 +27,7 @@ public sealed class YarpRequestCaptureMiddleware
         _next = next;
         _store = store;
         _dashPrefix = "/" + options.Value.RoutePrefix.Trim('/');
+        _loggingEnabled = options.Value.EnableProxyLogging;
     }
 
     /// <summary>
@@ -33,6 +35,12 @@ public sealed class YarpRequestCaptureMiddleware
     /// </summary>
     public async Task InvokeAsync(HttpContext context)
     {
+        if (!_loggingEnabled)
+        {
+            await _next(context);
+            return;
+        }
+
         // Skip Dashboard requests / 跳过 Dashboard 请求
         if (context.Request.Path.StartsWithSegments(_dashPrefix, StringComparison.OrdinalIgnoreCase))
         {

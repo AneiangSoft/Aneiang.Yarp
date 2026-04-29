@@ -27,6 +27,19 @@ public class DashboardOptions
     /// <summary>Config section name / 配置节点.</summary>
     public const string SectionName = "Gateway:Dashboard";
 
+    /// <summary>
+    /// Enable or disable proxy request/response logging.
+    /// When disabled, the middleware skips all capture logic,
+    /// the EventSource listener is not active,
+    /// and the log menu/panel is hidden from the UI.
+    /// Default: true.
+    /// 启用或禁用代理请求/响应日志。
+    /// 禁用时，中间件跳过所有捕获逻辑，EventSource 监听器不工作，
+    /// 且日志菜单和面板在 UI 中隐藏。
+    /// 默认值: true.
+    /// </summary>
+    public bool EnableProxyLogging { get; set; } = true;
+
     /// <summary>Route prefix for all dashboard pages. Default: "apigateway" / 路由前缀.</summary>
     public string RoutePrefix { get; set; } = "apigateway";
 

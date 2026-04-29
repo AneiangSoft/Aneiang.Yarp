@@ -172,14 +172,21 @@
         return res;
     }
 
+   const logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
+
     // ===== Tab 对应显示的面板（stat-bar 始终显示）=====
     const tabPanels = {
         overview: [],
         services: ['cluster-panel'],
-        routes:   ['route-panel'],
-        logs:     ['log-panel']
+        routes:   ['route-panel']
     };
-    const allPanels = ['cluster-panel', 'route-panel', 'log-panel'];
+    if (logPanelEnabled) {
+        tabPanels.logs = ['log-panel'];
+    }
+    const allPanels = ['cluster-panel', 'route-panel'];
+    if (logPanelEnabled) {
+        allPanels.push('log-panel');
+    }
 
     function switchTab(tabName) {
         // 更新侧边栏激活状态
@@ -831,7 +838,9 @@
 
     // ===== 初始化（仅加载一次，不自动刷新） =====
     refreshAll();
-    loadLogs();
+    if (logPanelEnabled) {
+        loadLogs();
+    }
 </script>
 <style>
 @@keyframes spin { to { transform: rotate(360deg); } }
