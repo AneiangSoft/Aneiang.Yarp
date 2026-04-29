@@ -60,6 +60,7 @@ public class DashboardController : Controller
     public IActionResult Index()
     {
         ViewBag.DashboardRoutePrefix = RoutePrefix;
+        ViewBag.EnableProxyLogging = Options.EnableProxyLogging;
         return View();
     }
 
@@ -309,6 +310,9 @@ public class DashboardController : Controller
     [HttpGet("logs")]
     public IActionResult GetLogs([FromQuery] int count = 100)
     {
+        if (!Options.EnableProxyLogging)
+            return Json(new { code = 200, data = new { entries = new List<LogEntry>(), bufferSize = 0, evictedCount = 0L } });
+
         var snapshot = _logStore.GetRecent(count);
         return Json(new { code = 200, data = snapshot });
     }
@@ -317,6 +321,9 @@ public class DashboardController : Controller
     [HttpDelete("logs")]
     public IActionResult ClearLogs()
     {
+        if (!Options.EnableProxyLogging)
+            return Json(new { code = 200 });
+
         _logStore.Clear();
         return Json(new { code = 200, message = "Logs cleared" });
     }
