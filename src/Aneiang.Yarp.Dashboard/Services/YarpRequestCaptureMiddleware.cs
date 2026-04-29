@@ -10,7 +10,6 @@ namespace Aneiang.Yarp.Dashboard.Services;
 /// Captures incoming proxy request/response details before YARP processes the request.
 /// Skips Dashboard requests. Buffers body for parameter capture.
 /// Zero dependency on logging frameworks.
-/// 捕获代理请求/响应详情，跳过 Dashboard 请求，缓冲正文以捕获参数。零日志框架依赖.
 /// </summary>
 public sealed class YarpRequestCaptureMiddleware
 {
@@ -41,45 +40,45 @@ public sealed class YarpRequestCaptureMiddleware
             return;
         }
 
-        // Skip Dashboard requests / 跳过 Dashboard 请求
+        // Skip Dashboard requests
         if (context.Request.Path.StartsWithSegments(_dashPrefix, StringComparison.OrdinalIgnoreCase))
         {
             await _next(context);
             return;
         }
 
-        var timestamp = DateTime.UtcNow;
+        var timestamp = DateTime.Now;
 
-        // Enable request body buffering for capture / 启用请求体缓冲
+        // Enable request body buffering for capture
         context.Request.EnableBuffering();
 
-        // Read request body (non-consuming) / 读取请求体（不消耗流）
+        // Read request body (non-consuming)
         string requestBody = await ReadBodyAsync(context.Request);
 
-        // Capture original response body stream / 捕获原始响应流
+        // Capture original response body stream
         var originalResponseBody = context.Response.Body;
         using var responseBody = new MemoryStream();
         context.Response.Body = responseBody;
 
         await _next(context);
 
-        // Read response body / 读取响应体
+        // Read response body
         string responseBodyText = await ReadStreamAsync(responseBody);
 
-        // Get downstream destination address from YARP proxy feature / 获取 YARP 下游目标地址
+        // Get downstream destination address from YARP proxy feature
         var proxyFeature = context.Features.Get<IReverseProxyFeature>();
         var downstreamUrl = BuildDownstreamUrl(proxyFeature, context.Request);
         var dest = downstreamUrl != null ? " \u2192 " + downstreamUrl : null;
 
-        // Get captured downstream request body (after transforms like encryption) / 获取下游实际请求体
+        // Get captured downstream request body (after transforms like encryption)
         var downstreamBody = GetDownstreamBody(context);
 
-        // Restore original response stream and copy back / 恢复并回写响应流
+        // Restore original response stream and copy back
         responseBody.Seek(0, SeekOrigin.Begin);
         await responseBody.CopyToAsync(originalResponseBody);
         context.Response.Body = originalResponseBody;
 
-       // Build message / 构建日志消息
+        // Build message
         var msg = $"[Request] {context.Request.Method} {context.Request.Path}{context.Request.QueryString}{dest}";
         string? requestDetails = null;
         if (!string.IsNullOrEmpty(requestBody))
@@ -105,7 +104,7 @@ public sealed class YarpRequestCaptureMiddleware
 
         _store.Add(new LogEntry
         {
-            Timestamp = DateTime.UtcNow,
+            Timestamp = DateTime.Now,
             Level = "Information",
             Category = "Gateway",
             Message = respMsg,
@@ -132,10 +131,10 @@ public sealed class YarpRequestCaptureMiddleware
         var downstreamPath = originalPath;
         var matchPath = proxy.Route?.Config?.Match?.Path;
 
-        // Extract catch-all value from the match pattern / 从匹配路径中提取 catch-all 值
+        // Extract catch-all value from the match pattern
         var catchAllValue = ExtractCatchAllValue(originalPath, matchPath);
 
-        // Apply transforms in order / 按顺序应用 Transforms
+        // Apply transforms in order
         var transforms = proxy.Route?.Config?.Transforms;
         if (transforms != null)
         {
@@ -216,18 +215,5 @@ public sealed class YarpRequestCaptureMiddleware
         using var reader = new StreamReader(stream, leaveOpen: true);
         var text = await reader.ReadToEndAsync();
         return text;
-    }
-}
-
-/// <summary>
-/// Extension methods for checking request content type / 检查请求内容类型的扩展方法.
-/// </summary>
-internal static class HttpRequestExtensions
-{
-    public static bool HasJsonContentType(this HttpRequest request)
-    {
-        var ct = request.ContentType;
-        if (string.IsNullOrEmpty(ct)) return false;
-        return ct.StartsWith("application/json", StringComparison.OrdinalIgnoreCase);
     }
 }

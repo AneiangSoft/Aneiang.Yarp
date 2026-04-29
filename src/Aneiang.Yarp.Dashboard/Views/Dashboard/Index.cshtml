@@ -174,7 +174,7 @@
 
    const logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
 
-    // ===== Tab 对应显示的面板（stat-bar 始终显示）=====
+    // ===== Tab panel visibility (stat-bar always visible) =====
     const tabPanels = {
         overview: [],
         services: ['cluster-panel'],
@@ -189,11 +189,11 @@
     }
 
     function switchTab(tabName) {
-        // 更新侧边栏激活状态
+        // Update sidebar active state
         document.querySelectorAll('.sidebar .nav-link[data-tab]').forEach(l => {
             l.classList.toggle('active', l.dataset.tab === tabName);
         });
-        // 显示/隐藏面板
+        // Show/hide panels
         allPanels.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.style.display = (tabPanels[tabName] || []).includes(id) ? '' : 'none';
@@ -207,7 +207,7 @@
         });
     });
 
-    // ===== 工具函数 =====
+    // ===== Utility functions =====
     function timeStr() {
         return new Date().toLocaleTimeString('zh-CN', { hour12: false });
     }
@@ -219,7 +219,7 @@
         return '<span class="health-dot unknown"></span><span style="color:#f59e0b;">Unknown</span>';
     }
 
-    // ===== 加载网关基本信息 =====
+    // ===== Load gateway info =====
     async function loadInfo() {
         try {
             const res  = await authFetch(basePath + '/info');
@@ -232,10 +232,10 @@
             document.getElementById('info-uptime').textContent  = d.uptime;
             document.getElementById('info-memory').textContent  = d.memoryMb + ' MB';
             document.getElementById('info-machine').textContent = d.machineName;
-        } catch (e) { console.error('加载网关信息失败', e); }
+        } catch (e) { console.error('Failed to load gateway info', e); }
     }
 
-    // ===== 加载集群数据 =====
+    // ===== Load cluster data =====
     async function loadClusters() {
         try {
             const res  = await authFetch(basePath + '/clusters');
@@ -415,7 +415,7 @@
                 html || '<tr><td colspan="6" class="text-center text-muted py-4">暂无集群数据</td></tr>';
             document.getElementById('cluster-refresh-time').textContent = '更新于 ' + timeStr();
 
-            // 更新统计卡片
+            // Update stat cards
             document.getElementById('stat-clusters').textContent = clusters.length;
             const healthLabel = totalUnhealthy > 0
                 ? `<span style="color:#22c55e;">${totalHealthy}</span> / <span style="color:#f59e0b;">${totalUnknown}</span> / <span style="color:#ef4444;">${totalUnhealthy}</span>`
@@ -435,10 +435,10 @@
                     }
                 });
             });
-        } catch (e) { console.error('加载集群数据失败', e); }
+        } catch (e) { console.error('Failed to load cluster data', e); }
     }
 
-    // ===== 加载路由数据 =====
+    // ===== Load route data =====
     async function loadRoutes() {
         try {
             const res  = await authFetch(basePath + '/routes');
@@ -583,7 +583,7 @@
                 html || '<tr><td colspan="5" class="text-center text-muted py-4">暂无路由数据</td></tr>';
             document.getElementById('route-refresh-time').textContent = '更新于 ' + timeStr();
             document.getElementById('stat-routes').textContent = routes.length;
-        } catch (e) { console.error('加载路由数据失败', e); }
+        } catch (e) { console.error('Failed to load route data', e); }
     }
 
     // Toggle route detail expansion
@@ -596,7 +596,7 @@
         if (arrow) arrow.textContent = isOpen ? '\u25B6' : '\u25BC';
     }
 
-    // ===== 加载日志数据 =====
+    // ===== Load log data =====
     async function loadLogs() {
         try {
             const res  = await authFetch(basePath + '/logs?count=100');
@@ -751,7 +751,7 @@
         return div.innerHTML;
     }
 
-    // ===== 日志监听控制 =====
+    // ===== Log polling control =====
     function startLogPolling() {
         if (logPollTimer) clearInterval(logPollTimer);
         listeningEnabled = true;
@@ -818,7 +818,7 @@
         return span;
     }
 
-    // ===== 手动刷新（带旋转动画）=====
+    // ===== Manual refresh (with spin animation) =====
     async function manualRefresh(btn) {
         if (btn) {
             btn.disabled = true;
@@ -831,12 +831,12 @@
         }
     }
 
-    // ===== 全量刷新（手动） =====
+    // ===== Full refresh (manual) =====
     async function refreshAll() {
         await Promise.all([loadInfo(), loadClusters(), loadRoutes()]);
     }
 
-    // ===== 初始化（仅加载一次，不自动刷新） =====
+    // ===== Initial load (once, no auto-refresh) =====
     refreshAll();
     if (logPanelEnabled) {
         loadLogs();

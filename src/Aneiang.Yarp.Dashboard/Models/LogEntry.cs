@@ -1,36 +1,57 @@
 namespace Aneiang.Yarp.Dashboard.Models;
 
-/// <summary>Lightweight log entry stored in ring buffer / 存储在环形缓冲区中的轻量日志条目.</summary>
+/// <summary>
+/// Lightweight log entry stored in ring buffer.
+/// Designed for low-allocation, high-throughput logging in gateway scenarios.
+/// </summary>
 public readonly record struct LogEntry
 {
-    /// <summary>UTC timestamp / UTC 时间戳.</summary>
+    /// <summary>Local timestamp when the event occurred.</summary>
     public DateTime Timestamp { get; init; }
 
-    /// <summary>Log level (Information, Warning, Error, etc.) / 日志级别.</summary>
+    /// <summary>
+    /// Log level: Information, Warning, Error, Critical, Debug.
+    /// </summary>
     public string Level { get; init; }
 
-    /// <summary>Logger category, e.g. Yarp.ReverseProxy.* / 日志类别.</summary>
+    /// <summary>
+    /// Logger category, e.g. Yarp.ReverseProxy.*, Gateway.
+    /// </summary>
     public string Category { get; init; }
 
-    /// <summary>Log message (brief, shown in list) / 日志消息（简要，列表展示）.</summary>
+    /// <summary>
+    /// Brief log message shown in the log list.
+    /// </summary>
     public string Message { get; init; }
 
-    /// <summary>Detailed content shown in expand panel (request/response body, etc.) / 展开面板中显示的详情（请求/响应体等）.</summary>
+    /// <summary>
+    /// Detailed content shown in expand panel (request/response body, downstream URL, etc.).
+    /// </summary>
     public string? Details { get; init; }
 
-    /// <summary>Exception details (stack trace), null if none / 异常详情.</summary>
+    /// <summary>
+    /// Exception details (stack trace), null if no exception.
+    /// </summary>
     public string? Exception { get; init; }
 }
 
-/// <summary>Snapshot returned by log store (for UI polling) / 日志快照（供 UI 轮询）.</summary>
+/// <summary>
+/// Snapshot returned by log store for UI polling.
+/// </summary>
 public class ProxyLogStoreSnapshot
 {
-    /// <summary>Entries in reverse chronological order / 条目（倒序）.</summary>
+    /// <summary>
+    /// Log entries in reverse chronological order (newest first).
+    /// </summary>
     public List<LogEntry> Entries { get; set; } = new();
 
-    /// <summary>Total entries discarded / 已丢弃条目总数.</summary>
+    /// <summary>
+    /// Total number of entries that have been evicted from the buffer since startup.
+    /// </summary>
     public long EvictedCount { get; set; }
 
-    /// <summary>Current buffer count / 当前缓冲区条目数.</summary>
+    /// <summary>
+    /// Current number of entries in the buffer.
+    /// </summary>
     public int BufferSize { get; set; }
 }
