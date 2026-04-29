@@ -11,4 +11,8 @@
     <ProjectReference Include="..\..\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+  </ItemGroup>
+
 </Project>

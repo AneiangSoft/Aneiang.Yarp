@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Yarp.ReverseProxy.Transforms.Builder;
 
 namespace Aneiang.Yarp.Dashboard.Extensions;
 
@@ -47,10 +48,16 @@ public static class YarpServiceCollectionExtensions
         // Register MVC controllers from this assembly
         services.AddMvcCore().AddApplicationPart(typeof(DashboardController).Assembly);
 
-        // In-memory YARP log capture via EventSource listener (works with all logging frameworks)
+        // YARP log capture (zero dependency on logging frameworks)
+        // EventSource: captures YARP forwarder events (stages, status, bytes)
+        // Middleware: captures request path/method before YARP processing
         services.AddSingleton<ProxyLogStore>();
         services.AddSingleton<YarpEventSourceListener>();
         services.AddHostedService<YarpEventSourceListenerStartupService>();
+
+        // Register downstream capture transform (runs after all other transforms)
+        // Captures the actual request body YARP sends downstream (encrypted, etc.)
+        services.AddSingleton<ITransformProvider, DownstreamCaptureTransformProvider>();
 
         // Route prefix + auth conventions
         services.AddSingleton<IConfigureOptions<MvcOptions>>(sp =>

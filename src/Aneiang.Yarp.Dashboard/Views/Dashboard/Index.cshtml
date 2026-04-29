@@ -119,12 +119,18 @@
 <div id="log-panel" class="card-panel mb-4" style="display:none;">
     <div class="card-header">
         <span><i class="bi bi-journal-text me-2"></i>YARP 实时日志</span>
-        <div class="d-flex align-items-center gap-3">
+        <div class="d-flex align-items-center flex-wrap" style="gap:6px 16px;">
+            <!-- filter & description -->
+            <label class="mb-0" style="cursor:pointer;user-select:none;">
+                <input type="checkbox" id="log-gateway-only" onchange="onGatewayOnlyChange()" style="margin-right:4px;">
+                <small>仅请求日志</small>
+            </label>
             <span class="refresh-badge" id="log-refresh-time"></span>
+            <span class="refresh-badge">显示 <strong id="log-display-count">0</strong> / <span id="log-total-count">0</span> 条</span>
+            <!-- action buttons -->
             <button class="btn btn-sm btn-outline-success" id="log-listen-btn" onclick="toggleListening()">
                 <i class="bi bi-play-circle me-1"></i>开启监听
             </button>
-            <span class="refresh-badge">显示 <strong id="log-display-count">0</strong> / <span id="log-total-count">0</span> 条</span>
             <button class="btn btn-sm btn-outline-secondary" onclick="loadLogs()">
                 <i class="bi bi-arrow-clockwise me-1"></i>刷新
             </button>
@@ -610,7 +616,11 @@
                 }
             });
 
-            if (entries.length === 0) {
+            // Build render list (apply gateway-only filter if checked)
+            const gatewayOnly = document.getElementById('log-gateway-only').checked;
+            const renderList = gatewayOnly ? entries.filter(e => e.category === 'Gateway') : entries;
+
+            if (renderList.length === 0) {
                 container.innerHTML = '<div class="text-center text-muted py-4">暂无日志</div>';
             } else {
                 // Use DocumentFragment to batch DOM insertion, reducing reflow
@@ -618,8 +628,8 @@
                 const outerDiv = document.createElement('div');
                 outerDiv.style.cssText = 'font-family:Consolas,monospace;font-size:13px;line-height:1.6;';
 
-                for (let i = 0; i < entries.length; i++) {
-                    const e = entries[i];
+                for (let i = 0; i < renderList.length; i++) {
+                    const e = renderList[i];
                     const ts = new Date(e.timestamp).toLocaleTimeString('zh-CN', { hour12: false });
 
                     // --- log-item container ---
@@ -664,6 +674,11 @@
                     dtHtml += '<strong>Category:</strong> ' + (e.category || '') + '</div>';
                     dtHtml += '<div style="color:#334155;margin-bottom:4px;"><strong>Message:</strong><br>';
                     dtHtml += '<span style="color:#475569;word-break:break-all;">' + escapeHtml(e.message || '') + '</span></div>';
+                    if (e.details) {
+                        dtHtml += '<div style="color:#334155;margin-top:6px;"><strong>Details:</strong></div>';
+                        dtHtml += '<pre style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:12px;color:#334155;line-height:1.6;">';
+                        dtHtml += escapeHtml(e.details) + '</pre>';
+                    }
                     if (e.exception) {
                         dtHtml += '<div style="color:#dc2626;margin-top:6px;"><strong>Exception:</strong></div>';
                         dtHtml += '<pre style="background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:11px;color:#991b1b;line-height:1.5;">';
@@ -694,15 +709,15 @@
                 }
             }
 
-            document.getElementById('log-display-count').textContent = entries.length;
+            document.getElementById('log-display-count').textContent = renderList.length;
             document.getElementById('log-total-count').textContent = snap.bufferSize || 0;
             document.getElementById('log-refresh-time').textContent = '更新于 ' + timeStr();
 
-            // Auto-scroll to bottom when listening; preserve position otherwise
+            // Auto-scroll to top when listening (newest first)
             if (listeningEnabled) {
-                scrollEl.scrollTop = scrollEl.scrollHeight;
-            } else if (scrollEl.scrollHeight > 0) {
-                scrollEl.scrollTop = savedScrollTop + (scrollEl.scrollHeight - savedScrollHeight);
+                requestAnimationFrame(() => {
+                    scrollEl.scrollTop = 0;
+                });
             }
         } catch (e) { /* silent */ }
     }
@@ -753,6 +768,10 @@
         } else {
             startLogPolling();
         }
+    }
+
+    function onGatewayOnlyChange() {
+        loadLogs();
     }
 
     function updateListeningUI() {
