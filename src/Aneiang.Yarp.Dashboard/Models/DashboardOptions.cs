@@ -82,6 +82,16 @@ public class DashboardOptions
 
     // ─── Custom delegate (highest priority) ───────────────
 
+    /// <summary>
+    /// Dashboard UI locale. Supported values: "zh-CN", "en-US".
+    /// Users can switch the language on the page at runtime via a toggle button;
+    /// the choice is persisted in localStorage. This option sets the default
+    /// language for first-time visitors. Default: "zh-CN".
+    /// </summary>
+    public string Locale { get; set; } = "zh-CN";
+
+    // ─── Custom delegate (highest priority) ───────────────
+
     /// <summary>Custom auth delegate. If set, takes precedence over all other auth modes.</summary>
     public Func<HttpContext, Task<bool>>? AuthorizeRequest { get; set; }
 }

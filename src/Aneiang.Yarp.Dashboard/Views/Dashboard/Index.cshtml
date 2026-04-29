@@ -1,22 +1,22 @@
 @{
-    ViewData["Title"] = "总览";
+    ViewData["Title"] = (ViewBag.Locale as string) == "en-US" ? "Overview" : "总览";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
-<!-- ========== 统计卡片（所有 Tab 均可见）========== -->
+<!-- Stat cards (visible on all tabs) -->
 <div id="stat-bar" class="row g-3 mb-4">
-    <!-- 网关信息 -->
+    <!-- Gateway info -->
     <div class="col-12 mb-1">
         <div class="card-panel px-4 py-3 d-flex flex-wrap gap-4 align-items-center" style="font-size:13px;color:#475569;">
-            <span><i class="bi bi-cpu me-1"></i>版本：<strong id="info-version">-</strong></span>
-            <span><i class="bi bi-cloud me-1"></i>环境：<strong id="info-env">-</strong></span>
-            <span><i class="bi bi-play-circle me-1"></i>启动：<strong id="info-start">-</strong></span>
-            <span><i class="bi bi-clock-history me-1"></i>运行：<strong id="info-uptime">-</strong></span>
-            <span><i class="bi bi-memory me-1"></i>内存：<strong id="info-memory">-</strong></span>
-            <span><i class="bi bi-pc-display me-1"></i>主机：<strong id="info-machine">-</strong></span>
+            <span><i class="bi bi-cpu me-1"></i><span data-i18n="index.label.version">版本：</span><strong id="info-version">-</strong></span>
+            <span><i class="bi bi-cloud me-1"></i><span data-i18n="index.label.env">环境：</span><strong id="info-env">-</strong></span>
+            <span><i class="bi bi-play-circle me-1"></i><span data-i18n="index.label.start">启动：</span><strong id="info-start">-</strong></span>
+            <span><i class="bi bi-clock-history me-1"></i><span data-i18n="index.label.uptime">运行：</span><strong id="info-uptime">-</strong></span>
+            <span><i class="bi bi-memory me-1"></i><span data-i18n="index.label.memory">内存：</span><strong id="info-memory">-</strong></span>
+            <span><i class="bi bi-pc-display me-1"></i><span data-i18n="index.label.host">主机：</span><strong id="info-machine">-</strong></span>
             <span class="ms-auto">
                 <button class="btn btn-sm btn-outline-primary" onclick="manualRefresh(this)">
-                    <i class="bi bi-arrow-clockwise me-1"></i>刷新
+                    <i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="index.btn.refresh">刷新</span>
                 </button>
             </span>
         </div>
@@ -26,7 +26,7 @@
             <div class="d-flex align-items-center justify-content-between">
                 <div>
                     <div class="stat-value" id="stat-clusters">-</div>
-                    <div class="stat-label">服务集群</div>
+                    <div class="stat-label" data-i18n="index.stat.clusters">服务集群</div>
                 </div>
                 <div class="stat-icon" style="background:#eff6ff;color:#3b82f6;"><i class="bi bi-diagram-3"></i></div>
             </div>
@@ -37,7 +37,7 @@
             <div class="d-flex align-items-center justify-content-between">
                 <div>
                     <div class="stat-value" id="stat-healthy" style="color:#22c55e;">-</div>
-                    <div class="stat-label">健康 / 未知 / 异常</div>
+                    <div class="stat-label" data-i18n="index.stat.health">健康 / 未知 / 异常</div>
                 </div>
                 <div class="stat-icon" style="background:#f0fdf4;color:#22c55e;"><i class="bi bi-heart-pulse"></i></div>
             </div>
@@ -48,7 +48,7 @@
             <div class="d-flex align-items-center justify-content-between">
                 <div>
                     <div class="stat-value" id="stat-routes">-</div>
-                    <div class="stat-label">路由规则</div>
+                    <div class="stat-label" data-i18n="index.stat.routes">路由规则</div>
                 </div>
                 <div class="stat-icon" style="background:#fefce8;color:#eab308;"><i class="bi bi-signpost-split"></i></div>
             </div>
@@ -56,14 +56,14 @@
     </div>
 </div>
 
-<!-- ========== 服务集群面板 ========== -->
+<!-- Cluster panel -->
 <div id="cluster-panel" class="card-panel mb-4" style="display:none;">
     <div class="card-header">
-        <span><i class="bi bi-hdd-stack me-2"></i>集群 &amp; 目标节点状态</span>
+        <span><i class="bi bi-hdd-stack me-2"></i><span data-i18n="index.cluster.title">集群 &amp; 目标节点状态</span></span>
         <div class="d-flex align-items-center gap-3">
             <span class="refresh-badge" id="cluster-refresh-time"></span>
             <button class="btn btn-sm btn-outline-secondary" onclick="manualRefresh(this)">
-                <i class="bi bi-arrow-clockwise me-1"></i>刷新
+                <i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="index.btn.refresh">刷新</span>
             </button>
         </div>
     </div>
@@ -71,29 +71,29 @@
         <table class="table table-hover align-middle">
             <thead>
                 <tr>
-                    <th style="width:22%">集群名称</th>
-                    <th style="width:12%">节点名</th>
-                    <th style="width:28%">目标地址</th>
-                    <th style="width:14%">主动健康</th>
-                    <th style="width:14%">被动健康</th>
-                    <th style="width:10%">均衡策略</th>
+                    <th style="width:22%"><span data-i18n="index.cluster.th.name">集群名称</span></th>
+                    <th style="width:12%"><span data-i18n="index.cluster.th.dest">节点名</span></th>
+                    <th style="width:28%"><span data-i18n="index.cluster.th.address">目标地址</span></th>
+                    <th style="width:14%"><span data-i18n="index.cluster.th.active">主动健康</span></th>
+                    <th style="width:14%"><span data-i18n="index.cluster.th.passive">被动健康</span></th>
+                    <th style="width:10%"><span data-i18n="index.cluster.th.policy">均衡策略</span></th>
                 </tr>
             </thead>
             <tbody id="cluster-tbody">
-                <tr><td colspan="6" class="text-center text-muted py-4">加载中...</td></tr>
+                <tr><td colspan="6" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
 
-<!-- ========== 路由配置面板 ========== -->
+<!-- Route panel -->
 <div id="route-panel" class="card-panel mb-4" style="display:none;">
     <div class="card-header">
-        <span><i class="bi bi-signpost-split me-2"></i>路由规则列表</span>
+        <span><i class="bi bi-signpost-split me-2"></i><span data-i18n="index.route.title">路由规则列表</span></span>
         <div class="d-flex align-items-center gap-3">
             <span class="refresh-badge" id="route-refresh-time"></span>
             <button class="btn btn-sm btn-outline-secondary" onclick="manualRefresh(this)">
-                <i class="bi bi-arrow-clockwise me-1"></i>刷新
+                <i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="index.btn.refresh">刷新</span>
             </button>
         </div>
     </div>
@@ -101,47 +101,47 @@
         <table class="table table-hover align-middle">
             <thead>
                 <tr>
-                    <th style="width:8%">优先级</th>
-                    <th style="width:22%">路由名称</th>
-                    <th style="width:35%">匹配路径</th>
-                    <th style="width:20%">关联集群</th>
-                    <th style="width:15%">允许方法</th>
+                    <th style="width:8%"><span data-i18n="index.route.th.order">优先级</span></th>
+                    <th style="width:22%"><span data-i18n="index.route.th.name">路由名称</span></th>
+                    <th style="width:35%"><span data-i18n="index.route.th.path">匹配路径</span></th>
+                    <th style="width:20%"><span data-i18n="index.route.th.cluster">关联集群</span></th>
+                    <th style="width:15%"><span data-i18n="index.route.th.methods">允许方法</span></th>
                 </tr>
             </thead>
             <tbody id="route-tbody">
-                <tr><td colspan="5" class="text-center text-muted py-4">加载中...</td></tr>
+                <tr><td colspan="5" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
 
-<!-- ========== 日志面板 ========== -->
+<!-- Log panel -->
 <div id="log-panel" class="card-panel mb-4" style="display:none;">
     <div class="card-header">
-        <span><i class="bi bi-journal-text me-2"></i>YARP 实时日志</span>
+        <span><i class="bi bi-journal-text me-2"></i><span data-i18n="index.log.title">YARP 实时日志</span></span>
         <div class="d-flex align-items-center flex-wrap" style="gap:6px 16px;">
-            <!-- filter & description -->
+            <!-- filter -->
             <label class="mb-0" style="cursor:pointer;user-select:none;">
                 <input type="checkbox" id="log-gateway-only" onchange="onGatewayOnlyChange()" style="margin-right:4px;">
-                <small>仅请求日志</small>
+                <small data-i18n="index.log.gatewayOnly">仅请求日志</small>
             </label>
             <span class="refresh-badge" id="log-refresh-time"></span>
-            <span class="refresh-badge">显示 <strong id="log-display-count">0</strong> / <span id="log-total-count">0</span> 条</span>
+            <span class="refresh-badge"><span data-i18n="index.log.showing">显示 </span><strong id="log-display-count">0</strong><span data-i18n="index.log.of"> / </span><span id="log-total-count">0</span><span data-i18n="index.log.entries"> 条</span></span>
             <!-- action buttons -->
             <button class="btn btn-sm btn-outline-success" id="log-listen-btn" onclick="toggleListening()">
-                <i class="bi bi-play-circle me-1"></i>开启监听
+                <i class="bi bi-play-circle me-1"></i><span data-i18n="index.log.startListen">开启监听</span>
             </button>
             <button class="btn btn-sm btn-outline-secondary" onclick="loadLogs()">
-                <i class="bi bi-arrow-clockwise me-1"></i>刷新
+                <i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="index.btn.refresh">刷新</span>
             </button>
             <button class="btn btn-sm btn-outline-danger" onclick="clearLogs()">
-                <i class="bi bi-trash me-1"></i>清空
+                <i class="bi bi-trash me-1"></i><span data-i18n="index.log.clear">清空</span>
             </button>
         </div>
     </div>
     <div style="max-height:600px;overflow-y:auto;" id="log-scroll-container">
         <div id="log-entries" style="padding:0;">
-            <div class="text-center text-muted py-4">暂无日志</div>
+            <div class="text-center text-muted py-4" data-i18n="index.log.empty">暂无日志</div>
         </div>
     </div>
 </div>
@@ -209,14 +209,14 @@
 
     // ===== Utility functions =====
     function timeStr() {
-        return new Date().toLocaleTimeString('zh-CN', { hour12: false });
+        return new Date().toLocaleTimeString(CURRENT_LOCALE === 'en-US' ? 'en-US' : 'zh-CN', { hour12: false });
     }
 
     function healthDot(status) {
         const s = (status || '').toLowerCase();
-        if (s === 'healthy')   return '<span class="health-dot healthy"></span><span style="color:#22c55e;">Healthy</span>';
-        if (s === 'unhealthy') return '<span class="health-dot unhealthy"></span><span style="color:#ef4444;">Unhealthy</span>';
-        return '<span class="health-dot unknown"></span><span style="color:#f59e0b;">Unknown</span>';
+        if (s === 'healthy')   return '<span class="health-dot healthy"></span><span style="color:#22c55e;">' + __('index.health.healthy') + '</span>';
+        if (s === 'unhealthy') return '<span class="health-dot unhealthy"></span><span style="color:#ef4444;">' + __('index.health.unhealthy') + '</span>';
+        return '<span class="health-dot unknown"></span><span style="color:#f59e0b;">' + __('index.health.unknown') + '</span>';
     }
 
     // ===== Load gateway info =====
@@ -232,7 +232,7 @@
             document.getElementById('info-uptime').textContent  = d.uptime;
             document.getElementById('info-memory').textContent  = d.memoryMb + ' MB';
             document.getElementById('info-machine').textContent = d.machineName;
-        } catch (e) { console.error('Failed to load gateway info', e); }
+        } catch (e) { console.error(__('index.js.loadInfoFailed'), e); }
     }
 
     // ===== Load cluster data =====
@@ -280,9 +280,9 @@
 
                 // Destinations detail
                 if (c.destinations && c.destinations.length > 0) {
-                    html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>Destinations (' + c.destinations.length + '):</strong></div>';
+                    html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>' + __('index.detail.destinations') + ' (' + c.destinations.length + '):</strong></div>';
                     html += '<table style="margin:0 0 6px 0;border-collapse:collapse;font-size:12px;width:auto;">';
-                    html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;">Name</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">Address</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">Health URL</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">Host</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">Active</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">Passive</th></tr>';
+                    html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;">' + __('index.detail.name') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">' + __('index.detail.address') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">' + __('index.detail.healthUrl') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">' + __('index.detail.host') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">' + __('index.detail.active') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">' + __('index.detail.passive') + '</th></tr>';
                     c.destinations.forEach(function(d) {
                         html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;"><code>' + escapeHtml(d.name) + '</code></td>';
                         html += '<td style="padding:2px 10px;border:1px solid #e2e8f0;">' + (d.address ? '<a href="' + escapeHtml(d.address) + '" target="_blank">' + escapeHtml(d.address) + '</a>' : '<span class="text-muted">-</span>') + '</td>';
@@ -298,9 +298,9 @@
                         if (d.metadata) {
                             var dmetaKeys = Object.keys(d.metadata);
                             if (dmetaKeys.length > 0) {
-                                html += '<div style="margin-top:4px;margin-bottom:4px;"><strong>Metadata [' + d.name + ']:</strong></div>';
+                                html += '<div style="margin-top:4px;margin-bottom:4px;"><strong>' + __('index.detail.metadata') + ' [' + d.name + ']:</strong></div>';
                                 html += '<table style="margin:0 0 6px 20px;border-collapse:collapse;font-size:12px;width:auto;">';
-                                html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;">Key</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">Value</th></tr>';
+                                html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;">' + __('index.detail.key') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">' + __('index.detail.value') + '</th></tr>';
                                 for (var dmi = 0; dmi < dmetaKeys.length; dmi++) {
                                     var dmk = dmetaKeys[dmi];
                                     html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;"><code>' + escapeHtml(dmk) + '</code></td><td style="padding:2px 10px;border:1px solid #e2e8f0;">' + escapeHtml(d.metadata[dmk]) + '</td></tr>';
@@ -314,9 +314,9 @@
                 // Session Affinity
                 if (c.sessionAffinity) {
                     var sa = c.sessionAffinity;
-                    html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>SessionAffinity:</strong></div>';
+                    html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>' + __('index.detail.sessionAffinity') + '</strong></div>';
                     html += '<table style="margin:0 0 6px 0;border-collapse:collapse;font-size:12px;width:auto;">';
-                    html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;">Property</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">Value</th></tr>';
+                    html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;">' + __('index.detail.property') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">' + __('index.detail.value') + '</th></tr>';
                     html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;">Enabled</td><td style="padding:2px 10px;border:1px solid #e2e8f0;">' + (sa.enabled ? 'true' : 'false') + '</td></tr>';
                     html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;">Policy</td><td style="padding:2px 10px;border:1px solid #e2e8f0;">' + (sa.policy || '-') + '</td></tr>';
                     html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;">FailurePolicy</td><td style="padding:2px 10px;border:1px solid #e2e8f0;">' + (sa.failurePolicy || '-') + '</td></tr>';
@@ -337,9 +337,9 @@
                 // Health Check
                 if (c.healthCheck) {
                     var hc = c.healthCheck;
-                    html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>HealthCheck:</strong></div>';
+                    html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>' + __('index.detail.healthCheck') + '</strong></div>';
                     html += '<table style="margin:0 0 6px 0;border-collapse:collapse;font-size:12px;width:auto;">';
-                    html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;">Property</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">Value</th></tr>';
+                    html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;">' + __('index.detail.property') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">' + __('index.detail.value') + '</th></tr>';
                     html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;">AvailableDestinationsPolicy</td><td style="padding:2px 10px;border:1px solid #e2e8f0;">' + (hc.availableDestinationsPolicy || '-') + '</td></tr>';
                     if (hc.active) {
                         html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;">Active.Enabled</td><td style="padding:2px 10px;border:1px solid #e2e8f0;">' + (hc.active.enabled ? 'true' : 'false') + '</td></tr>';
@@ -361,9 +361,9 @@
                 // HttpClient
                 if (c.httpClient) {
                     var hcl = c.httpClient;
-                    html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>HttpClient:</strong></div>';
+                    html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>' + __('index.detail.httpClient') + '</strong></div>';
                     html += '<table style="margin:0 0 6px 0;border-collapse:collapse;font-size:12px;width:auto;">';
-                    html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;">Property</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">Value</th></tr>';
+                    html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;">' + __('index.detail.property') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">' + __('index.detail.value') + '</th></tr>';
                     if (hcl.sslProtocols && hcl.sslProtocols.length > 0) html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;">SslProtocols</td><td style="padding:2px 10px;border:1px solid #e2e8f0;">' + hcl.sslProtocols.join(', ') + '</td></tr>';
                     html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;">DangerousAcceptAnyServerCertificate</td><td style="padding:2px 10px;border:1px solid #e2e8f0;">' + (hcl.dangerousAcceptAnyServerCertificate ? 'true' : 'false') + '</td></tr>';
                     if (hcl.maxConnectionsPerServer != null) html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;">MaxConnectionsPerServer</td><td style="padding:2px 10px;border:1px solid #e2e8f0;">' + hcl.maxConnectionsPerServer + '</td></tr>';
@@ -381,9 +381,9 @@
                 // HttpRequest
                 if (c.httpRequest) {
                     var hr = c.httpRequest;
-                    html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>HttpRequest:</strong></div>';
+                    html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>' + __('index.detail.httpRequest') + '</strong></div>';
                     html += '<table style="margin:0 0 6px 0;border-collapse:collapse;font-size:12px;width:auto;">';
-                    html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;">Property</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">Value</th></tr>';
+                    html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;">' + __('index.detail.property') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;">' + __('index.detail.value') + '</th></tr>';
                     if (hr.activityTimeout) html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;">ActivityTimeout</td><td style="padding:2px 10px;border:1px solid #e2e8f0;">' + hr.activityTimeout + '</td></tr>';
                     if (hr.version) html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;">Version</td><td style="padding:2px 10px;border:1px solid #e2e8f0;">' + escapeHtml(hr.version) + '</td></tr>';
                     if (hr.versionPolicy) html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;">VersionPolicy</td><td style="padding:2px 10px;border:1px solid #e2e8f0;">' + escapeHtml(hr.versionPolicy) + '</td></tr>';
@@ -393,11 +393,11 @@
 
                 // Cluster Metadata
                 if (c.metadata) {
-                    html += '<div style="margin-top:6px;"><strong>Cluster Metadata:</strong></div>';
+                    html += '<div style="margin-top:6px;"><strong>' + __('index.detail.clusterMetadata') + '</strong></div>';
                     var cmetaKeys = Object.keys(c.metadata);
                     if (cmetaKeys.length > 0) {
                         html += '<table style="margin:2px 0 0 0;border-collapse:collapse;font-size:12px;width:auto;">';
-                        html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">Key</th><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">Value</th></tr>';
+                        html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">' + __('index.detail.key') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">' + __('index.detail.value') + '</th></tr>';
                         for (var cmi = 0; cmi < cmetaKeys.length; cmi++) {
                             var cmk = cmetaKeys[cmi];
                             html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;"><code>' + escapeHtml(cmk) + '</code></td><td style="padding:2px 10px;border:1px solid #e2e8f0;">' + escapeHtml(c.metadata[cmk]) + '</td></tr>';
@@ -412,8 +412,8 @@
             });
 
             document.getElementById('cluster-tbody').innerHTML =
-                html || '<tr><td colspan="6" class="text-center text-muted py-4">暂无集群数据</td></tr>';
-            document.getElementById('cluster-refresh-time').textContent = '更新于 ' + timeStr();
+                html || '<tr><td colspan="6" class="text-center text-muted py-4">' + __('index.cluster.empty') + '</td></tr>';
+            document.getElementById('cluster-refresh-time').textContent = __('index.cluster.updated') + timeStr();
 
             // Update stat cards
             document.getElementById('stat-clusters').textContent = clusters.length;
@@ -435,7 +435,7 @@
                     }
                 });
             });
-        } catch (e) { console.error('Failed to load cluster data', e); }
+        } catch (e) { console.error(__('index.js.loadClusterFailed'), e); }
     }
 
     // ===== Load route data =====
@@ -449,7 +449,7 @@
             let html = '';
             routes.forEach(r => {
                 const orderColor = r.order <= 5 ? 'bg-primary' : r.order <= 20 ? 'bg-info' : 'bg-secondary';
-                const methods    = r.methods ? r.methods.join(', ') : '<span class="text-muted">All</span>';
+                const methods    = r.methods ? r.methods.join(', ') : '<span class="text-muted">' + __('index.route.allMethods') + '</span>';
 
                 // Clickable data row
                 var rid = escapeHtml(r.routeId || '');
@@ -476,14 +476,14 @@
                 // Row 2: Path, Methods, Hosts, Destinations
                 html += '<div style="display:flex;flex-wrap:wrap;gap:8px 24px;margin-bottom:6px;">';
                 html += '<span><strong>Path:</strong> <code style="color:#7c3aed;">' + escapeHtml(r.path || '-') + '</code></span>';
-                html += '<span><strong>Methods:</strong> ' + (r.methods ? r.methods.join(', ') : '<span class="text-muted">All</span>') + '</span>';
+                html += '<span><strong>Methods:</strong> ' + (r.methods ? r.methods.join(', ') : '<span class="text-muted">' + __('index.route.allMethods') + '</span>') + '</span>';
                 if (r.hosts && r.hosts.length > 0)
                     html += '<span><strong>Hosts:</strong> ' + r.hosts.join(', ') + '</span>';
                 html += '</div>';
 
                 // Destinations (forwarding addresses)
                 if (r.destinations && r.destinations.length > 0) {
-                    html += '<div style="margin-bottom:6px;"><strong>Forward to:</strong></div>';
+                    html += '<div style="margin-bottom:6px;"><strong>' + __('index.detail.forwardTo') + '</strong></div>';
                     r.destinations.forEach(function(d) {
                         html += '<div style="margin-left:16px;margin-bottom:2px;font-size:13px;">';
                         html += '<span style="color:#64748b;font-family:Consolas,monospace;">' + escapeHtml(d.name) + '</span> \u2192 ';
@@ -513,9 +513,9 @@
 
                 // Transforms — show all key-value pairs per transform in sub-table rows
                 if (r.transforms && r.transforms.length > 0) {
-                    html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>Transforms (' + r.transforms.length + '):</strong></div>';
+                    html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>' + __('index.detail.transforms') + ' (' + r.transforms.length + '):</strong></div>';
                     html += '<table style="margin:0 0 6px 0;border-collapse:collapse;font-size:12px;">';
-                    html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">#</th><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">Key</th><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">Value</th></tr>';
+                    html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">#</th><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">' + __('index.detail.key') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">' + __('index.detail.value') + '</th></tr>';
                     r.transforms.forEach(function(t, ti) {
                         var tkeys = Object.keys(t);
                         tkeys.forEach(function(k, ki) {
@@ -534,9 +534,9 @@
                 // Remaining sections (Headers, QueryParameters, Metadata)
                 // Headers
                 if (r.headers && r.headers.length > 0) {
-                    html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>Headers (' + r.headers.length + '):</strong></div>';
+                    html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>' + __('index.detail.headers') + ' (' + r.headers.length + '):</strong></div>';
                     html += '<table style="margin:0 0 6px 0;border-collapse:collapse;font-size:12px;width:auto;">';
-                    html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">Name</th><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">Values</th><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">Mode</th></tr>';
+                    html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">' + __('index.detail.name') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">' + __('index.detail.values') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">' + __('index.detail.mode') + '</th></tr>';
                     r.headers.forEach(function(h) {
                         html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;"><code>' + escapeHtml(h.name) + '</code></td>';
                         html += '<td style="padding:2px 10px;border:1px solid #e2e8f0;">' + (h.values && h.values.length > 0 ? h.values.join(', ') : '<span class="text-muted">*</span>') + '</td>';
@@ -547,9 +547,9 @@
 
                 // Query Parameters
                 if (r.queryParameters && r.queryParameters.length > 0) {
-                    html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>Query Parameters (' + r.queryParameters.length + '):</strong></div>';
+                    html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>' + __('index.detail.queryParams') + ' (' + r.queryParameters.length + '):</strong></div>';
                     html += '<table style="margin:0 0 6px 0;border-collapse:collapse;font-size:12px;width:auto;">';
-                    html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">Name</th><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">Values</th><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">Mode</th></tr>';
+                    html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">' + __('index.detail.name') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">' + __('index.detail.values') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">' + __('index.detail.mode') + '</th></tr>';
                     r.queryParameters.forEach(function(q) {
                         html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;"><code>' + escapeHtml(q.name) + '</code></td>';
                         html += '<td style="padding:2px 10px;border:1px solid #e2e8f0;">' + (q.values && q.values.length > 0 ? q.values.join(', ') : '<span class="text-muted">*</span>') + '</td>';
@@ -560,7 +560,7 @@
 
                 // Metadata
                 if (r.metadata) {
-                    html += '<div style="margin-top:6px;"><strong>Metadata:</strong></div>';
+                    html += '<div style="margin-top:6px;"><strong>' + __('index.detail.metadata') + ':</strong></div>';
                     var metaKeys = Object.keys(r.metadata);
                     if (metaKeys.length > 0) {
                         html += '<table style="margin:2px 0 0 0;border-collapse:collapse;font-size:12px;width:auto;">';
@@ -580,10 +580,10 @@
             });
 
             document.getElementById('route-tbody').innerHTML =
-                html || '<tr><td colspan="5" class="text-center text-muted py-4">暂无路由数据</td></tr>';
-            document.getElementById('route-refresh-time').textContent = '更新于 ' + timeStr();
+                html || '<tr><td colspan="5" class="text-center text-muted py-4">' + __('index.route.empty') + '</td></tr>';
+            document.getElementById('route-refresh-time').textContent = __('index.route.updated') + timeStr();
             document.getElementById('stat-routes').textContent = routes.length;
-        } catch (e) { console.error('Failed to load route data', e); }
+        } catch (e) { console.error(__('index.js.loadRouteFailed'), e); }
     }
 
     // Toggle route detail expansion
@@ -628,7 +628,7 @@
             const renderList = gatewayOnly ? entries.filter(e => e.category === 'Gateway') : entries;
 
             if (renderList.length === 0) {
-                container.innerHTML = '<div class="text-center text-muted py-4">暂无日志</div>';
+                container.innerHTML = '<div class="text-center text-muted py-4">' + __('index.log.empty') + '</div>';
             } else {
                 // Use DocumentFragment to batch DOM insertion, reducing reflow
                 const fragment = document.createDocumentFragment();
@@ -678,16 +678,16 @@
                     detail.style.cssText = 'display:none;padding:8px 16px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:12px;';
 
                     var dtHtml = '<div style="color:#64748b;margin-bottom:4px;">';
-                    dtHtml += '<strong>Category:</strong> ' + (e.category || '') + '</div>';
-                    dtHtml += '<div style="color:#334155;margin-bottom:4px;"><strong>Message:</strong><br>';
+                    dtHtml += '<strong>' + __('index.log.category') + '</strong> ' + (e.category || '') + '</div>';
+                    dtHtml += '<div style="color:#334155;margin-bottom:4px;"><strong>' + __('index.log.message') + '</strong><br>';
                     dtHtml += '<span style="color:#475569;word-break:break-all;">' + escapeHtml(e.message || '') + '</span></div>';
                     if (e.details) {
-                        dtHtml += '<div style="color:#334155;margin-top:6px;"><strong>Details:</strong></div>';
+                        dtHtml += '<div style="color:#334155;margin-top:6px;"><strong>' + __('index.log.details') + '</strong></div>';
                         dtHtml += '<pre style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:12px;color:#334155;line-height:1.6;">';
                         dtHtml += escapeHtml(e.details) + '</pre>';
                     }
                     if (e.exception) {
-                        dtHtml += '<div style="color:#dc2626;margin-top:6px;"><strong>Exception:</strong></div>';
+                        dtHtml += '<div style="color:#dc2626;margin-top:6px;"><strong>' + __('index.log.exception') + '</strong></div>';
                         dtHtml += '<pre style="background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:11px;color:#991b1b;line-height:1.5;">';
                         dtHtml += escapeHtml(e.exception) + '</pre>';
                     }
@@ -718,7 +718,7 @@
 
             document.getElementById('log-display-count').textContent = renderList.length;
             document.getElementById('log-total-count').textContent = snap.bufferSize || 0;
-            document.getElementById('log-refresh-time').textContent = '更新于 ' + timeStr();
+            document.getElementById('log-refresh-time').textContent = __('index.log.updated') + timeStr();
 
             // Auto-scroll to top when listening (newest first)
             if (listeningEnabled) {
@@ -786,16 +786,16 @@
         if (!btn) return;
         if (listeningEnabled) {
             btn.className = 'btn btn-sm btn-outline-warning';
-            btn.innerHTML = '<i class="bi bi-pause-circle me-1"></i>监听中';
+            btn.innerHTML = '<i class="bi bi-pause-circle me-1"></i>' + __('index.log.stopListen');
         } else {
             btn.className = 'btn btn-sm btn-outline-success';
-            btn.innerHTML = '<i class="bi bi-play-circle me-1"></i>开启监听';
+            btn.innerHTML = '<i class="bi bi-play-circle me-1"></i>' + __('index.log.startListen');
         }
     }
 
     function clearLogs() {
         authFetch(basePath + '/logs', { method: 'DELETE' }).catch(() => {});
-        document.getElementById('log-entries').innerHTML = '<div class="text-center text-muted py-4">暂无日志</div>';
+        document.getElementById('log-entries').innerHTML = '<div class="text-center text-muted py-4">' + __('index.log.empty') + '</div>';
         document.getElementById('log-display-count').textContent = '0';
         document.getElementById('log-total-count').textContent = '0';
     }
