@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Aneiang.Yarp.Dashboard.Services;
 
-/// <summary>JWT token generation and validation (zero external dependency) / JWT 令牌生成与验证（零外部依赖）.</summary>
+/// <summary>JWT token generation and validation (zero external dependency).</summary>
 public static class DashboardJwtHelper
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -12,9 +12,9 @@ public static class DashboardJwtHelper
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    /// <summary>Generate a signed JWT token / 生成签名 JWT 令牌.</summary>
-    /// <param name="username">Subject claim / 主体声明.</param>
-    /// <param name="secret">HMAC-SHA256 signing key / HMAC-SHA256 签名密钥.</param>
+    /// <summary>Generate a signed JWT token.</summary>
+    /// <param name="username">Subject claim.</param>
+    /// <param name="secret">HMAC-SHA256 signing key.</param>
     public static string GenerateToken(string username, string secret)
     {
         var header = JsonSerializer.Serialize(new { alg = "HS256", typ = "JWT" }, _jsonOptions);
@@ -38,9 +38,9 @@ public static class DashboardJwtHelper
         return $"{headerB64}.{payloadB64}.{signatureB64}";
     }
 
-    /// <summary>Validate a signed JWT token / 验证签名 JWT 令牌.</summary>
-    /// <param name="token">The JWT string / JWT 字符串.</param>
-    /// <param name="secret">HMAC-SHA256 signing key / HMAC-SHA256 签名密钥.</param>
+    /// <summary>Validate a signed JWT token.</summary>
+    /// <param name="token">The JWT string.</param>
+    /// <param name="secret">HMAC-SHA256 signing key.</param>
     /// <returns>(valid, username) tuple.</returns>
     public static (bool Valid, string? Username) ValidateToken(string token, string secret)
     {
@@ -57,7 +57,7 @@ public static class DashboardJwtHelper
         using var doc = JsonDocument.Parse(payloadBytes);
         var root = doc.RootElement;
 
-        // Check expiry / 检查过期时间
+        // Check expiry
         if (root.TryGetProperty("exp", out var expEl))
         {
             var expTime = DateTimeOffset.FromUnixTimeSeconds(expEl.GetInt64());
@@ -86,7 +86,7 @@ public static class DashboardJwtHelper
         return Convert.FromBase64String(b64);
     }
 
-    /// <summary>Constant-time comparison to prevent timing attacks / 恒定时间比较防止时序攻击.</summary>
+    /// <summary>Constant-time comparison to prevent timing attacks.</summary>
     private static bool ConstantTimeEquals(byte[] a, byte[] b)
     {
         if (a.Length != b.Length) return false;

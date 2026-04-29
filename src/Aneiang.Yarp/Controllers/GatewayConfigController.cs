@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Aneiang.Yarp.Controllers;
 
-/// <summary>Gateway config API: dynamic route register/delete/query / 网关配置管理 API：路由动态注册、删除、查询.</summary>
+/// <summary>Gateway config API: dynamic route registration, deletion, and query.</summary>
 [Route("api/gateway")]
 [ApiController]
 [Produces("application/json")]
@@ -13,11 +13,11 @@ public class GatewayConfigController : ControllerBase
 {
     private readonly DynamicYarpConfigService _dynamicConfig;
 
-    /// <summary>Creates the controller / 构造函数.</summary>
+    /// <summary>Creates a new instance of the controller.</summary>
     public GatewayConfigController(DynamicYarpConfigService dynamicConfig)
         => _dynamicConfig = dynamicConfig;
 
-    /// <summary>Register or update a route and cluster / 注册或更新路由及集群.</summary>
+    /// <summary>Register or update a route and its cluster.</summary>
     [HttpPost("register-route")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -26,26 +26,26 @@ public class GatewayConfigController : ControllerBase
         if (!ModelState.IsValid)
         {
             var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
-            return BadRequest(new { code = 400, info = string.Join("; ", errors) });
+            return BadRequest(new { code = 400, message = string.Join("; ", errors) });
         }
 
-        var (success, message) = _dynamicConfig.TryAddRoute(request);
-        return Ok(new { code = 200, info = message });
+        var result = _dynamicConfig.TryAddRoute(request);
+        return Ok(new { code = 200, message = result.Message });
     }
 
-    /// <summary>Delete a route (and orphaned cluster) / 删除路由（及无引用的集群）.</summary>
+    /// <summary>Delete a route. Also removes the cluster if no remaining routes reference it.</summary>
     [HttpDelete("{routeName}")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
     public IActionResult DeleteRoute(string routeName)
     {
-        var (success, message) = _dynamicConfig.TryRemoveRoute(routeName);
-        return success
-            ? Ok(new { code = 200, info = message })
-            : NotFound(new { code = 404, info = message });
+        var result = _dynamicConfig.TryRemoveRoute(routeName);
+        return result.Success
+            ? Ok(new { code = 200, message = result.Message })
+            : NotFound(new { code = 404, message = result.Message });
     }
 
-    /// <summary>Get all registered routes / 获取所有已注册路由.</summary>
+    /// <summary>Get all registered routes.</summary>
     [HttpGet("routes")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public IActionResult GetRoutes()
@@ -60,8 +60,8 @@ public class GatewayConfigController : ControllerBase
         return Ok(new { code = 200, data });
     }
 
-    /// <summary>Health check / 健康检查.</summary>
+    /// <summary>Health check endpoint.</summary>
     [HttpGet("ping")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
-    public IActionResult Ping() => Ok(new { code = 200, info = "pong" });
+    public IActionResult Ping() => Ok(new { code = 200, message = "pong" });
 }

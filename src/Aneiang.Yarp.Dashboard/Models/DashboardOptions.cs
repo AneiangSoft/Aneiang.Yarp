@@ -2,29 +2,43 @@ using Microsoft.AspNetCore.Http;
 
 namespace Aneiang.Yarp.Dashboard.Models;
 
-/// <summary>Dashboard authorization mode / Dashboard 授权模式.</summary>
+/// <summary>Dashboard authorization mode.</summary>
 public enum DashboardAuthMode
 {
-    /// <summary>No authorization / 无授权.</summary>
+    /// <summary>No authorization.</summary>
     None,
 
-    /// <summary>API key via header or query / API Key 认证.</summary>
+    /// <summary>API key via header or query.</summary>
     ApiKey,
 
-    /// <summary>JWT with custom username + password / JWT 认证（自定义用户名+密码）.</summary>
+    /// <summary>JWT with custom username + password.</summary>
     CustomJwt,
 
-    /// <summary>JWT with fixed username "admin" + password / JWT 认证（固定用户名 admin+密码）.</summary>
+    /// <summary>JWT with fixed username "admin" + password.</summary>
     DefaultJwt
 }
 
 /// <summary>
 /// Dashboard options. Binds from <c>Gateway:Dashboard</c> config section.
-/// Dashboard 配置选项，绑定自 <c>Gateway:Dashboard</c>.
 /// </summary>
+/// <example>
+/// <code>
+/// // appsettings.json:
+/// {
+///   "Gateway": {
+///     "Dashboard": {
+///       "EnableProxyLogging": true,
+///       "RoutePrefix": "apigateway",
+///       "AuthMode": "DefaultJwt",
+///       "JwtPassword": "YourSecurePassword"
+///     }
+///   }
+/// }
+/// </code>
+/// </example>
 public class DashboardOptions
 {
-    /// <summary>Config section name / 配置节点.</summary>
+    /// <summary>Config section name.</summary>
     public const string SectionName = "Gateway:Dashboard";
 
     /// <summary>
@@ -33,40 +47,41 @@ public class DashboardOptions
     /// the EventSource listener is not active,
     /// and the log menu/panel is hidden from the UI.
     /// Default: true.
-    /// 启用或禁用代理请求/响应日志。
-    /// 禁用时，中间件跳过所有捕获逻辑，EventSource 监听器不工作，
-    /// 且日志菜单和面板在 UI 中隐藏。
-    /// 默认值: true.
     /// </summary>
     public bool EnableProxyLogging { get; set; } = true;
 
-    /// <summary>Route prefix for all dashboard pages. Default: "apigateway" / 路由前缀.</summary>
+    /// <summary>
+    /// Route prefix for all dashboard pages. All dashboard URLs will be under /{RoutePrefix}/.
+    /// Default: "apigateway".
+    /// </summary>
     public string RoutePrefix { get; set; } = "apigateway";
 
-    /// <summary>Auth mode. Default: None / 授权模式.</summary>
+    /// <summary>
+    /// Authorization mode for accessing the dashboard.
+    /// </summary>
     public DashboardAuthMode AuthMode { get; set; } = DashboardAuthMode.None;
 
-    // ─── API Key mode / API Key 模式 ───────────────────────
+    // ─── API Key mode ────────────────────────────────────
 
-    /// <summary>API key value. Clients pass via header (default: X-Api-Key) or query param <c>api-key</c> / API 密钥值.</summary>
+    /// <summary>API key value. Clients pass via header (default: X-Api-Key) or query param <c>api-key</c>.</summary>
     public string? ApiKey { get; set; }
 
-    /// <summary>Header name for ApiKey mode. Default: X-Api-Key / API Key 请求头名称.</summary>
+    /// <summary>Header name for ApiKey mode. Default: X-Api-Key.</summary>
     public string ApiKeyHeaderName { get; set; } = "X-Api-Key";
 
-    // ─── JWT mode / JWT 模式 ──────────────────────────────
+    // ─── JWT mode ────────────────────────────────────────
 
-    /// <summary>JWT signing secret. Auto-generated if not set (invalidated on restart) / JWT 签名密钥.</summary>
+    /// <summary>JWT signing secret. Auto-generated if not set (invalidated on restart).</summary>
     public string? JwtSecret { get; set; }
 
-    /// <summary>Username for CustomJwt mode / CustomJwt 模式的用户名.</summary>
+    /// <summary>Username for CustomJwt mode.</summary>
     public string? JwtUsername { get; set; }
 
-    /// <summary>Password for JWT login (required for both CustomJwt and DefaultJwt) / JWT 登录密码.</summary>
+    /// <summary>Password for JWT login (required for both CustomJwt and DefaultJwt).</summary>
     public string? JwtPassword { get; set; }
 
-    // ─── Custom delegate (highest priority) / 自定义委托（最高优先级） ──
+    // ─── Custom delegate (highest priority) ───────────────
 
-    /// <summary>Custom auth delegate. If set, takes precedence over all other auth modes / 自定义认证委托.</summary>
+    /// <summary>Custom auth delegate. If set, takes precedence over all other auth modes.</summary>
     public Func<HttpContext, Task<bool>>? AuthorizeRequest { get; set; }
 }

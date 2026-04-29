@@ -1,30 +1,28 @@
 using System.Diagnostics;
 using System.Reflection;
-using Aneiang.Yarp.Dashboard.Extensions;
 using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Dashboard.Services;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Yarp.ReverseProxy;
 using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Dashboard.Controllers;
 
-/// <summary>Gateway maintenance dashboard / 网关维护仪表盘.</summary>
+/// <summary>Gateway maintenance dashboard.</summary>
 public class DashboardController : Controller
 {
-    /// <summary>Route prefix, set by convention at startup / 路由前缀（启动时由约定设置）.</summary>
+    /// <summary>Route prefix, set by convention at startup.</summary>
     internal static string RoutePrefix { get; set; } = "apigateway";
-
-    /// <summary>Dashboard options, set by convention at startup / Dashboard 配置（启动时由约定设置）.</summary>
-    internal static DashboardOptions Options { get; set; } = new();
 
     private readonly IProxyStateLookup _proxyState;
     private readonly IWebHostEnvironment _env;
     private readonly ProxyLogStore _logStore;
     private readonly DynamicYarpConfigService _dynamicConfig;
+    private readonly DashboardOptions _options;
 
     private static readonly DateTime _startTime = DateTime.Now;
     private static readonly string _fileVersion;
@@ -38,61 +36,64 @@ public class DashboardController : Controller
             : Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
     }
 
-    /// <summary>Initializes a new instance of DashboardController / 初始化实例.</summary>
-    /// <param name="proxyState">YARP proxy state lookup / YARP 代理状态查询.</param>
-    /// <param name="dynamicConfig">Dynamic YARP config service / 动态 YARP 配置服务.</param>
-    /// <param name="env">Web host environment / Web 主机环境.</param>
-    /// <param name="logStore">Proxy log store / 代理日志存储.</param>
+    /// <summary>Initializes a new instance of DashboardController.</summary>
+    /// <param name="proxyState">YARP proxy state lookup.</param>
+    /// <param name="dynamicConfig">Dynamic YARP config service.</param>
+    /// <param name="env">Web host environment.</param>
+    /// <param name="logStore">Proxy log store.</param>
+    /// <param name="options">Dashboard options.</param>
     public DashboardController(
         IProxyStateLookup proxyState,
         DynamicYarpConfigService dynamicConfig,
         IWebHostEnvironment env,
-        ProxyLogStore logStore)
+        ProxyLogStore logStore,
+        IOptions<DashboardOptions> options)
     {
         _proxyState = proxyState;
         _dynamicConfig = dynamicConfig;
         _env = env;
         _logStore = logStore;
+        _options = options.Value;
     }
 
-    /// <summary>Dashboard home page / 仪表盘首页.</summary>
+    /// <summary>Dashboard home page.</summary>
     [HttpGet("")]
     public IActionResult Index()
     {
         ViewBag.DashboardRoutePrefix = RoutePrefix;
-        ViewBag.EnableProxyLogging = Options.EnableProxyLogging;
+        ViewBag.EnableProxyLogging = _options.EnableProxyLogging;
         return View();
     }
 
-    /// <summary>Login page / 登录页.</summary>
+    /// <summary>Login page.</summary>
     [HttpGet("login")]
     public IActionResult Login()
     {
         ViewBag.DashboardRoutePrefix = RoutePrefix;
-        ViewBag.AuthMode = Options.AuthMode;
+        ViewBag.AuthMode = _options.AuthMode;
         return View();
     }
 
-    /// <summary>Login POST — validate credentials and return JWT / 登录提交 — 验证凭据并返回 JWT.</summary>
+    /// <summary>Login POST - validate credentials and return JWT.</summary>
     [HttpPost("login")]
     public IActionResult Login([FromBody] LoginRequest request)
     {
         if (request == null || string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
             return Json(new { code = 400, message = "Username and password are required" });
 
-        bool valid = Options.AuthMode switch
+        bool valid = _options.AuthMode switch
         {
             DashboardAuthMode.CustomJwt =>
-                request.Username == Options.JwtUsername && request.Password == Options.JwtPassword,
+                request.Username == _options.JwtUsername && request.Password == _options.JwtPassword,
             DashboardAuthMode.DefaultJwt =>
-                request.Username == "admin" && request.Password == Options.JwtPassword,
+                request.Username == "admin" && request.Password == _options.JwtPassword,
             _ => false
         };
 
         if (!valid)
             return Json(new { code = 401, message = "Invalid credentials" });
 
-        var token = DashboardJwtHelper.GenerateToken(request.Username, Options.JwtSecret!);
+        var token = DashboardJwtHelper.GenerateToken(request.Username, _options.JwtSecret!);
 
         Response.Cookies.Append("dashboard_token", token, new CookieOptions
         {
@@ -104,7 +105,7 @@ public class DashboardController : Controller
         return Json(new { code = 200, token });
     }
 
-    /// <summary>Gateway basic info / 网关基本信息.</summary>
+    /// <summary>Gateway basic info.</summary>
     [HttpGet("info")]
     public IActionResult GetInfo()
     {
@@ -128,7 +129,7 @@ public class DashboardController : Controller
         });
     }
 
-    /// <summary>Cluster status and config / 集群状态和配置.</summary>
+    /// <summary>Cluster status and config.</summary>
     [HttpGet("clusters")]
     public IActionResult GetClusters()
     {
@@ -233,7 +234,7 @@ public class DashboardController : Controller
         return Json(new { code = 200, data = clusters });
     }
 
-    /// <summary>Route configuration / 路由配置.</summary>
+    /// <summary>Route configuration.</summary>
     [HttpGet("routes")]
     public IActionResult GetRoutes()
     {
@@ -259,7 +260,11 @@ public class DashboardController : Controller
                 }
             }
         }
-        catch { }
+        catch (Exception)
+        {
+            // Log transform extraction failure but continue rendering routes
+            // Log transform extraction failure but continue rendering routes
+        }
 
         var routes = _proxyState.GetRoutes().Select(route =>
         {
@@ -306,35 +311,25 @@ public class DashboardController : Controller
         return Json(new { code = 200, data = routes });
     }
 
-    /// <summary>Recent YARP proxy logs / 最近 YARP 代理日志.</summary>
+    /// <summary>Recent YARP proxy logs.</summary>
     [HttpGet("logs")]
     public IActionResult GetLogs([FromQuery] int count = 100)
     {
-        if (!Options.EnableProxyLogging)
+        if (!_options.EnableProxyLogging)
             return Json(new { code = 200, data = new { entries = new List<LogEntry>(), bufferSize = 0, evictedCount = 0L } });
 
         var snapshot = _logStore.GetRecent(count);
         return Json(new { code = 200, data = snapshot });
     }
 
-    /// <summary>Clear all logs / 清空所有日志.</summary>
+    /// <summary>Clear all logs.</summary>
     [HttpDelete("logs")]
     public IActionResult ClearLogs()
     {
-        if (!Options.EnableProxyLogging)
+        if (!_options.EnableProxyLogging)
             return Json(new { code = 200 });
 
         _logStore.Clear();
         return Json(new { code = 200, message = "Logs cleared" });
     }
-}
-
-/// <summary>Login credentials / 登录凭据.</summary>
-public class LoginRequest
-{
-    /// <summary>Username / 用户名.</summary>
-    public string Username { get; set; } = string.Empty;
-
-    /// <summary>Password / 密码.</summary>
-    public string Password { get; set; } = string.Empty;
 }

@@ -11,10 +11,8 @@ namespace Aneiang.Yarp.Services;
 /// <summary>
 /// Gateway auto-registration client. Local services use this to register routes with a remote gateway,
 /// so traffic goes through the gateway pipeline before forwarding to the local service.
-/// 网关自动注册客户端：本地服务向远程网关注册路由，让流量先经过网关管道再转发到本地服务.
 ///
 /// Config priority (high to low): code > env vars > appsettings.json.
-/// 配置优先级：代码 > 环境变量 > appsettings.json.
 /// </summary>
 public class GatewayAutoRegistrationClient
 {
@@ -28,11 +26,11 @@ public class GatewayAutoRegistrationClient
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<GatewayAutoRegistrationClient> _logger;
 
-    /// <summary>Initializes a new instance of GatewayAutoRegistrationClient / 初始化实例.</summary>
-    /// <param name="httpClientFactory">HTTP client factory / HTTP 客户端工厂.</param>
-    /// <param name="options">Gateway registration options / 网关注册配置.</param>
-    /// <param name="serviceProvider">Service provider / 服务提供程序.</param>
-    /// <param name="logger">Logger instance / 日志记录器.</param>
+    /// <summary>Initializes a new instance of GatewayAutoRegistrationClient.</summary>
+    /// <param name="httpClientFactory">HTTP client factory.</param>
+    /// <param name="options">Gateway registration options.</param>
+    /// <param name="serviceProvider">Service provider.</param>
+    /// <param name="logger">Logger instance.</param>
     public GatewayAutoRegistrationClient(
         IHttpClientFactory httpClientFactory,
         IOptions<GatewayRegistrationOptions> options,
@@ -45,22 +43,22 @@ public class GatewayAutoRegistrationClient
         _logger = logger;
     }
 
-    /// <summary>Register this service's route with the gateway / 向网关注册当前服务的路由.</summary>
+    /// <summary>Register this service's route with the gateway.</summary>
     public async Task<bool> RegisterAsync(CancellationToken ct = default)
     {
-        if (!_options.IsEnabled)
+        if (!RegistrationOptionsResolver.IsEnabled(_options))
         {
             _logger.LogInformation("Auto-registration disabled (no GatewayUrl configured)");
             return false;
         }
 
         var gatewayUrl = _options.GatewayUrl;
-        var routeName = _options.GetRouteName();
-        var clusterName = _options.GetClusterName();
-        var matchPath = _options.GetMatchPath();
-        var destinationAddress = _options.GetDestinationAddress(_serviceProvider);
-        var order = _options.GetOrder();
-        var transforms = _options.GetTransforms();
+        var routeName = RegistrationOptionsResolver.GetRouteName(_options);
+        var clusterName = RegistrationOptionsResolver.GetClusterName(_options);
+        var matchPath = RegistrationOptionsResolver.GetMatchPath(_options);
+        var destinationAddress = RegistrationOptionsResolver.GetDestinationAddress(_options, _serviceProvider);
+        var order = RegistrationOptionsResolver.GetOrder(_options);
+        var transforms = RegistrationOptionsResolver.GetTransforms(_options);
 
         if (string.IsNullOrWhiteSpace(gatewayUrl) || string.IsNullOrWhiteSpace(destinationAddress))
         {
@@ -75,13 +73,13 @@ public class GatewayAutoRegistrationClient
             _logger.LogDebug("Transforms: {Transforms}", JsonSerializer.Serialize(transforms));
 
         // Auto-resolve localhost to LAN IP
-        if (_options.GetAutoResolveIp())
+        if (RegistrationOptionsResolver.GetAutoResolveIp(_options))
             destinationAddress = ResolveLocalAddress(destinationAddress);
 
         try
         {
             using var http = _httpClientFactory.CreateClient();
-            http.Timeout = TimeSpan.FromSeconds(_options.GetTimeoutSeconds());
+            http.Timeout = TimeSpan.FromSeconds(RegistrationOptionsResolver.GetTimeoutSeconds(_options));
             ApplyAuthHeaders(http);
 
             var json = JsonSerializer.Serialize(new
@@ -126,11 +124,11 @@ public class GatewayAutoRegistrationClient
         }
     }
 
-    /// <summary>Unregister this service's route from the gateway / 从网关注销当前服务的路由.</summary>
+    /// <summary>Unregister this service's route from the gateway.</summary>
     public async Task<bool> UnregisterAsync(CancellationToken ct = default)
     {
         var gatewayUrl = _options.GatewayUrl;
-        var routeName = _options.GetRouteName();
+        var routeName = RegistrationOptionsResolver.GetRouteName(_options);
 
         if (string.IsNullOrWhiteSpace(gatewayUrl))
         {
@@ -141,7 +139,7 @@ public class GatewayAutoRegistrationClient
         try
         {
             using var http = _httpClientFactory.CreateClient();
-            http.Timeout = TimeSpan.FromSeconds(_options.GetTimeoutSeconds());
+            http.Timeout = TimeSpan.FromSeconds(RegistrationOptionsResolver.GetTimeoutSeconds(_options));
             ApplyAuthHeaders(http);
 
             var url = $"{gatewayUrl.TrimEnd('/')}/api/gateway/{routeName}";
@@ -204,7 +202,7 @@ public class GatewayAutoRegistrationClient
             http.DefaultRequestHeaders.TryAddWithoutValidation("X-Api-Key", _options.ApiKey);
     }
 
-    /// <summary>Resolve localhost/127.0.0.1/0.0.0.0 in destination to LAN IPv4 / 将本地地址解析为局域网 IP.</summary>
+    /// <summary>Resolve localhost/127.0.0.1/0.0.0.0 in destination to LAN IPv4.</summary>
     private static string ResolveLocalAddress(string address)
     {
         if (string.IsNullOrWhiteSpace(address)) return address;
@@ -231,6 +229,10 @@ public class GatewayAutoRegistrationClient
                 .FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(ip))
                 ?.ToString();
         }
-        catch { return null; }
+        catch (Exception)
+        {
+            // DNS resolution failed, return null to skip IP resolution
+            return null;
+        }
     }
 }

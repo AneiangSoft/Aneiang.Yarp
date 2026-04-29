@@ -6,7 +6,6 @@ namespace Aneiang.Yarp.Dashboard.Services;
 
 /// <summary>
 /// Ensures YarpEventSourceListener is instantiated at startup to begin capturing events.
-/// 确保应用启动时实例化 EventSource 监听器以开始捕获事件.
 /// </summary>
 public sealed class YarpEventSourceListenerStartupService : IHostedService
 {

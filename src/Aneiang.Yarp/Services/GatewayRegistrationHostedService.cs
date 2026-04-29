@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 namespace Aneiang.Yarp.Services;
 
 /// <summary>
-/// Auto-registration hosted service: registers on start, unregisters on stop / 自动注册托管服务：启动时注册，停止时注销.
+/// Auto-registration hosted service: registers on start, unregisters on stop.
 /// </summary>
 internal sealed class GatewayRegistrationHostedService : IHostedService
 {

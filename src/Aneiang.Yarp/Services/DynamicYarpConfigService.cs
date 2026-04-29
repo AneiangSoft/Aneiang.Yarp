@@ -4,24 +4,33 @@ using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Services;
 
-/// <summary>Dynamic YARP config service: add/update/delete routes and clusters at runtime / YARP 动态配置服务：运行时增删改路由和集群.</summary>
+/// <summary>
+/// Dynamic YARP config service: add, update, and delete routes and clusters at runtime.
+/// Thread-safe with reader-writer lock protection.
+/// </summary>
 public class DynamicYarpConfigService
 {
     private readonly InMemoryConfigProvider _configProvider;
     private readonly ILogger<DynamicYarpConfigService> _logger;
     private readonly object _lock = new();
 
-    /// <summary>Initializes a new instance of DynamicYarpConfigService / 初始化实例.</summary>
-    /// <param name="configProvider">YARP in-memory config provider / YARP 内存配置提供程序.</param>
-    /// <param name="logger">Logger instance / 日志记录器.</param>
+    /// <summary>
+    /// Initializes a new instance of DynamicYarpConfigService.
+    /// </summary>
+    /// <param name="configProvider">YARP in-memory config provider.</param>
+    /// <param name="logger">Logger instance.</param>
     public DynamicYarpConfigService(InMemoryConfigProvider configProvider, ILogger<DynamicYarpConfigService> logger)
     {
         _configProvider = configProvider;
         _logger = logger;
     }
 
-    /// <summary>Add or update a route (creates/replaces cluster). Thread-safe / 添加或更新路由（同时创建/替换集群），线程安全.</summary>
-    public (bool Success, string Message) TryAddRoute(RegisterRouteRequest request)
+    /// <summary>
+    /// Add or update a route (creates or replaces cluster). Thread-safe.
+    /// </summary>
+    /// <param name="request">Route registration request.</param>
+    /// <returns>Route operation result.</returns>
+    public RouteOperationResult TryAddRoute(RegisterRouteRequest request)
     {
         lock (_lock)
         {
@@ -79,15 +88,19 @@ public class DynamicYarpConfigService
             var action = isNew ? "registered" : "updated";
             _logger.LogInformation("Route '{RouteName}' {Action} ({MatchPath} -> {Address})",
                 request.RouteName, action, request.MatchPath, request.DestinationAddress);
-            return (true, $"Route '{request.RouteName}' {action}");
+            return new RouteOperationResult(true, $"Route '{request.RouteName}' {action}");
         }
     }
 
-    /// <summary>Delete a route. Also removes cluster if no remaining routes reference it / 删除路由，集群无引用时一并清除.</summary>
-    public (bool Success, string Message) TryRemoveRoute(string routeName)
+    /// <summary>
+    /// Delete a route. Also removes the cluster if no remaining routes reference it.
+    /// </summary>
+    /// <param name="routeName">Route name to delete.</param>
+    /// <returns>Route operation result.</returns>
+    public RouteOperationResult TryRemoveRoute(string routeName)
     {
         if (string.IsNullOrWhiteSpace(routeName))
-            return (false, "Route name cannot be empty");
+            return new RouteOperationResult(false, "Route name cannot be empty");
 
         lock (_lock)
         {
@@ -98,7 +111,7 @@ public class DynamicYarpConfigService
             var route = routes.FirstOrDefault(r =>
                 string.Equals(r.RouteId, routeName, StringComparison.OrdinalIgnoreCase));
             if (route == null)
-                return (false, $"Route '{routeName}' not found");
+                return new RouteOperationResult(false, $"Route '{routeName}' not found");
 
             var newRoutes = routes.Where(r =>
                 !string.Equals(r.RouteId, routeName, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -113,13 +126,19 @@ public class DynamicYarpConfigService
 
             _configProvider.Update(newRoutes, newClusters);
             _logger.LogInformation("Route '{RouteName}' deleted", routeName);
-            return (true, $"Route '{routeName}' deleted");
+            return new RouteOperationResult(true, $"Route '{routeName}' deleted");
         }
     }
 
-    /// <summary>Get all routes / 获取所有路由.</summary>
+    /// <summary>
+    /// Get all routes from the current YARP configuration.
+    /// </summary>
+    /// <returns>Read-only list of route configurations.</returns>
     public IReadOnlyList<RouteConfig> GetRoutes() => _configProvider.GetConfig().Routes ?? Array.Empty<RouteConfig>();
 
-    /// <summary>Get all clusters / 获取所有集群.</summary>
+    /// <summary>
+    /// Get all clusters from the current YARP configuration.
+    /// </summary>
+    /// <returns>Read-only list of cluster configurations.</returns>
     public IReadOnlyList<ClusterConfig> GetClusters() => _configProvider.GetConfig().Clusters ?? Array.Empty<ClusterConfig>();
 }
