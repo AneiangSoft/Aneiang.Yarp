@@ -62,16 +62,29 @@ public class DashboardController : Controller
     {
         ViewBag.DashboardRoutePrefix = RoutePrefix;
         ViewBag.EnableProxyLogging = _options.EnableProxyLogging;
+        ViewBag.Locale = ResolveLocale();
+        ViewBag.AllI18nJson = DashboardI18n.AllAsJson(ViewBag.Locale);
         return View();
     }
 
-    /// <summary>Login page.</summary>
+    /// <summary>Dashboard login page.</summary>
     [HttpGet("login")]
     public IActionResult Login()
     {
         ViewBag.DashboardRoutePrefix = RoutePrefix;
         ViewBag.AuthMode = _options.AuthMode;
+        ViewBag.Locale = ResolveLocale();
+        ViewBag.AllI18nJson = DashboardI18n.AllAsJson(ViewBag.Locale);
         return View();
+    }
+
+    private string ResolveLocale()
+    {
+        // Check cookie first (set by client-side switch), then config default
+        var cookieLocale = Request.Cookies["dashboard_locale"];
+        if (!string.IsNullOrEmpty(cookieLocale))
+            return cookieLocale == "en-US" ? "en-US" : "zh-CN";
+        return _options.Locale == "en-US" ? "en-US" : "zh-CN";
     }
 
     /// <summary>Login POST - validate credentials and return JWT.</summary>
