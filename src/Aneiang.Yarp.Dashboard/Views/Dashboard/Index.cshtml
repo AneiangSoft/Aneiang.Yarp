@@ -608,10 +608,6 @@
             const container = document.getElementById('log-entries');
             const scrollEl = document.getElementById('log-scroll-container');
 
-            // When listening, always snap to bottom; otherwise preserve scroll position
-            const savedScrollTop = scrollEl.scrollTop;
-            const savedScrollHeight = scrollEl.scrollHeight;
-
             // Save expanded state BEFORE DOM rebuild
             const expandedKeys = new Set();
             container.querySelectorAll('.log-item').forEach(function(item) {
@@ -721,7 +717,8 @@
             document.getElementById('log-refresh-time').textContent = __('index.log.updated') + timeStr();
 
             // Auto-scroll to top when listening (newest first)
-            if (listeningEnabled) {
+            // After filtering, always reset scroll position for better UX
+            if (listeningEnabled || document.getElementById('log-gateway-only').checked) {
                 requestAnimationFrame(() => {
                     scrollEl.scrollTop = 0;
                 });
