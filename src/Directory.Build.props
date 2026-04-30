@@ -1,7 +1,7 @@
 <Project>
 
   <PropertyGroup>
-    <Version>2.3.0</Version>
+    <Version>2.3.0.1</Version>
     <Authors>AneiangSoft Team</Authors>
     <Company>AneiangSoft</Company>
     <Copyright>Copyright © AneiangSoft $([System.DateTime]::Now.Year)</Copyright>
