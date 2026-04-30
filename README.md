@@ -18,34 +18,85 @@
 
 A powerful **dynamic routing gateway management library** built on [Microsoft YARP](https://github.com/microsoft/reverse-proxy), providing runtime route registration, automatic service discovery, real-time monitoring dashboard, while preserving all YARP reverse proxy capabilities.
 
-## ✨ Features
+## 📦 Project Architecture: Two Independent NuGet Packages
+
+Aneiang.Yarp uses a **modular design** with core functionality completely decoupled from the dashboard:
+
+```
+┌─────────────────────────────────────────────────┐
+│           Aneiang.Yarp.Dashboard                 │
+│      (Optional: Monitoring & Operations UI)      │
+│  • Cluster/Route visualization                   │
+│  • Real-time request log capture                 │
+│  • JWT login authentication                      │
+└─────────────────────────────────────────────────┘
+                        ▲
+                        │ Optional dependency
+                        │
+┌─────────────────────────────────────────────────┐
+│              Aneiang.Yarp (Core Library)         │
+│     (Independent: Dynamic Gateway Capabilities)  │
+│  • Dynamic routing API                           │
+│  • Auto-registration client                      │
+│  • YARP reverse proxy enhancements               │
+└─────────────────────────────────────────────────┘
+```
+
+**Core Design Principles:**
+- ✅ **Aneiang.Yarp works independently**: Runs fully without Dashboard
+- ✅ **Dashboard is an optional plugin**: Install and use, or skip it entirely
+- ✅ **Flexible combination**: Choose based on your needs
+
+---
+
+## 🎯 Core Library: Aneiang.Yarp
+
+**Aneiang.Yarp** is the core library providing complete dynamic gateway management capabilities. **It can run completely independently without Dashboard.**
+
+### Features
 
 | Feature | Description |
 |---------|-------------|
 | 🚀 **Dynamic Routing** | REST API for runtime route registration/update/unregistration |
-| 🔄 **Auto-Registration** | Services auto-register on startup & unregister on shutdown — **1 line of code** *(requires network connectivity, ideal for debugging)* |
-| 🎯 **One-Line API** | `AddAneiangYarp()` / `AddAneiangYarpClient()` to setup gateway or client |
+| 🔄 **Auto-Registration** | Services auto-register on startup & unregister on shutdown — **1 line of code** |
 | 👥 **Instance Isolation** | Automatic namespace isolation for multi-developer debugging |
-| ⚙️ **Highly Customizable** | Code > Env Vars > Config files priority; fine-grained component control |
-| 📊 **Dashboard (Recommended)** | Real-time clusters, routes, health status & YARP logs viewer |
 | 🧠 **Smart Defaults** | Auto-detect assembly name, Kestrel address, resolve localhost to LAN IP |
+| 🛡️ **API Authorization** | Optional BasicAuth/ApiKey protection for registration APIs |
+| 🚪 **Conditional API Exposure** | Enable/disable registration API via `enableRegistration` parameter |
 
-## 📦 NuGet Packages
+### Quick Start (Core Library Only)
 
-| Package | Description | Link |
-|---------|-------------|------|
-| **Aneiang.Yarp** | Core library: dynamic routing + auto-registration client | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp) |
-| **Aneiang.Yarp.Dashboard** | 🌟 **Recommended**: Dashboard for monitoring & operations | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard) |
+```csharp
+// Program.cs
+using Aneiang.Yarp.Extensions;
 
-**Requirements:**
-- Target Framework: `.NET 8.0` / `.NET 9.0`
-- YARP Version: `2.3.0`
+var builder = WebApplication.CreateBuilder(args);
+
+// ⭐ One-line gateway setup (no Dashboard dependency)
+builder.Services.AddAneiangYarp();
+
+var app = builder.Build();
+app.MapReverseProxy();
+app.Run();
+```
 
 ---
 
-## 🚀 Quick Start
+## 🌟 Optional Plugin: Aneiang.Yarp.Dashboard
 
-### 1️⃣ Setup Gateway
+**Aneiang.Yarp.Dashboard** is the **recommended product** providing a comprehensive monitoring and operations UI. **It's optional — install it for enhanced visibility, or skip it for lightweight deployments.**
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| 📊 **Cluster Status** | Real-time view of all service clusters and health checks |
+| 🛣️ **Route Management** | Visualize route rules with expandable configuration details |
+| 📝 **Real-time Logs** | Capture YARP forwarding logs and request/response details |
+| 🔐 **Multi-Mode Auth** | JWT login, API Key, or custom delegate authentication |
+| 🌐 **i18n Support** | Runtime language switching: English / Chinese |
+
+### Enable Dashboard
 
 ```csharp
 // Program.cs
@@ -54,10 +105,10 @@ using Aneiang.Yarp.Dashboard.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ⭐ One-line gateway setup
+// Enable core gateway
 builder.Services.AddAneiangYarp();
 
-// Optional: Add dashboard
+// Enable monitoring dashboard (optional)
 builder.Services.AddAneiangYarpDashboard();
 
 var app = builder.Build();
@@ -67,7 +118,10 @@ app.MapReverseProxy();
 app.Run();
 ```
 
-### 2️⃣ Connect Client Service
+Access dashboard at: `http://localhost:5000/apigateway`
+---
+
+## 🚀 Client Service: Auto-Registration
 
 > **Note**: Auto-registration requires network connectivity between the client service and gateway. This feature is primarily designed for **development and debugging scenarios**.
 
@@ -104,6 +158,19 @@ That's it! Your service will automatically register to the gateway on startup an
 
 ---
 
+## 📦 NuGet Packages
+
+| Package | Description | Independent? | Link |
+|---------|-------------|--------------|------|
+| **Aneiang.Yarp** | Core library: dynamic routing + auto-registration client | ✅ Yes | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp) |
+| **Aneiang.Yarp.Dashboard** | 🌟 **Recommended**: Dashboard for monitoring & operations | ❌ Requires core | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard) |
+
+**Requirements:**
+- Target Framework: `.NET 8.0` / `.NET 9.0`
+- YARP Version: `2.3.0`
+
+---
+
 ## 📸 Dashboard Screenshots
 
 ### Cluster Status
@@ -137,15 +204,19 @@ builder.Services.AddAneiangYarpClient(o =>
 </details>
 
 <details>
-<summary><b>🛡️ Gateway API Authorization</b></summary>
+<summary><b>🛡️ Gateway API Authorization (Optional)</b></summary>
 
-Protect registration APIs with BasicAuth or ApiKey:
+> **Important**: `AddGatewayApiAuth()` is **optional**. Without it, registration APIs are publicly accessible.
+
+**When to use:**
+- ✅ **Call it**: Production environment, public network, need access control
+- ❌ **Skip it**: Local development, isolated intranet (network-level protection)
 
 ```csharp
-// Auto-detect from Dashboard config
+// Option 1: Auto-detect from Dashboard config (recommended)
 builder.Services.AddGatewayApiAuth();
 
-// Or explicit configuration
+// Option 2: Explicit configuration
 builder.Services.AddGatewayApiAuth(o =>
 {
     o.Mode = GatewayApiAuthMode.BasicAuth;
@@ -167,6 +238,52 @@ Config file:
 }
 ```
 
+**Configuration Priority** (later overrides earlier):
+1. `Gateway:ApiAuth` config section
+2. Auto-detect from `Gateway:Dashboard` (if Dashboard JWT password configured)
+3. `configureOptions` callback (highest precedence)
+
+**Auto-Detection Logic:**
+When `AddGatewayApiAuth()` is called without explicit configuration:
+- If `Gateway:Dashboard:JwtPassword` exists → automatically uses BasicAuth with username `admin` and password from `JwtPassword`
+- This enables zero-config client auto-registration when Dashboard auth is configured
+
+</details>
+
+<details>
+<summary><b>🔐 Auto-Registration Authorization (3 Scenarios)</b></summary>
+
+When clients auto-register to gateway, authentication can be configured in three ways:
+
+| Scenario | Gateway Config | Client Config | Description |
+|----------|---------------|---------------|-------------|
+| **1: Aneiang.Yarp only** | Explicit API auth | Manual credentials | Requires explicit config |
+| **2: Dashboard (auth enabled)** | Dashboard JWT/ApiKey | **Auto-read** from Dashboard config | **Zero-config** (recommended) |
+| **3: Dashboard (no auth)** | No auth configured | No config needed | Local dev only |
+
+**Scenario 2 Example (Recommended):**
+```json
+// Gateway appsettings.json
+{
+  "Gateway": {
+    "Dashboard": {
+      "AuthMode": "DefaultJwt",
+      "JwtPassword": "your-strong-password"
+    }
+  }
+}
+```
+
+```csharp
+// Gateway Program.cs
+builder.Services.AddAneiangYarp();
+builder.Services.AddAneiangYarpDashboard();
+builder.Services.AddGatewayApiAuth();  // Auto-reads Dashboard config
+
+// Client Program.cs - ZERO configuration needed!
+builder.Services.AddAneiangYarpClient();
+```
+
 </details>
 
 <details>
@@ -178,6 +295,11 @@ Config file:
 |-----------|----------------|----------------|
 | routeName | `my-service-PC-JOHN` | `my-service-PC-JANE` |
 | matchPath | `/PC-JOHN/api/{**catch-all}` | `/PC-JANE/api/{**catch-all}` |
+
+**Special Handling:**
+- Automatically detects machine name as instance ID
+- Prevents route conflicts when multiple developers test against same gateway
+- Instance prefix is stripped before forwarding to downstream service
 
 Custom instance ID:
 ```csharp
@@ -205,7 +327,33 @@ Configured:  http://localhost:5001
 Resolved:    http://192.168.1.101:5001  (LAN IP)
 ```
 
+**Special Handling:**
+- Automatically detects local loopback addresses
+- Resolves to first available LAN IP for cross-machine accessibility
+- Critical for auto-registration: other machines can reach the service
+
 Disable: `AutoResolveIp = false`
+
+</details>
+
+<details>
+<summary><b>🚪 Conditional API Exposure (enableRegistration)</b></summary>
+
+Control whether the gateway exposes dynamic route registration APIs:
+
+```csharp
+// Enable registration API (default)
+builder.Services.AddAneiangYarp(enableRegistration: true);
+
+// Disable registration API (security hardening)
+builder.Services.AddAneiangYarp(enableRegistration: false);
+```
+
+**Special Handling:**
+- When `enableRegistration = false`, `GatewayConfigController` is completely removed from MVC application model
+- Returns **404 Not Found** (not 401/403) — no endpoint exists at all
+- Recommended for production gateways that should not accept external route changes
+- Does NOT affect YARP proxy functionality or Dashboard access
 
 </details>
 
@@ -284,7 +432,12 @@ app.MapReverseProxy();  // Must be last
 
 **Auth Modes:** `None` | `ApiKey` | `CustomJwt` | `DefaultJwt`
 
-JWT tokens expire in **8 hours**. Login via `POST /apigateway/login`.
+**Special Handling:**
+- JWT tokens expire in **8 hours** by default
+- Login via `POST /apigateway/login` to get token
+- When `AuthMode` is configured, `AddGatewayApiAuth()` can auto-detect credentials from `JwtPassword`
+- `RoutePrefix` allows customizing the dashboard URL path (default: `apigateway`)
+- `Locale` supports runtime language switching: `en-US` | `zh-CN`
 
 </details>
 

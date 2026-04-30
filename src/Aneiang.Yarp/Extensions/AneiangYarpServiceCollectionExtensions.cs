@@ -4,6 +4,7 @@ using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Yarp.ReverseProxy;
 using Yarp.ReverseProxy.Configuration;
@@ -48,6 +49,16 @@ public static class AneiangYarpServiceCollectionExtensions
 
         // Sole config provider - both static + dynamic
         services.AddSingleton<IProxyConfigProvider>(sp => sp.GetRequiredService<InMemoryConfigProvider>());
+        
+        // Dynamic config persistence service
+        services.AddSingleton<DynamicConfigPersistenceService>(sp =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            var dataDir = config["Gateway:DynamicConfigPath"] ?? "gateway-dynamic.json";
+            var logger = sp.GetRequiredService<ILogger<DynamicConfigPersistenceService>>();
+            return new DynamicConfigPersistenceService(dataDir, logger);
+        });
+        
         services.AddSingleton<DynamicYarpConfigService>();
 
         // Register controllers + views so this library's controllers/MVC are discoverable
@@ -63,6 +74,7 @@ public static class AneiangYarpServiceCollectionExtensions
         }
 
         // Registration client (gateway can itself register with an upstream gateway)
+        services.AddSingleton<KestrelAutoConfigService>();
         services.AddSingleton<GatewayAutoRegistrationClient>();
         services.AddHttpClient();
 
@@ -96,6 +108,7 @@ public static class AneiangYarpServiceCollectionExtensions
         Action<GatewayRegistrationOptions>? configureOptions = null)
     {
         services.AddHttpClient();
+        services.AddSingleton<KestrelAutoConfigService>();
         ConfigureRegistrationOptions(services, configureOptions);
         services.AddSingleton<GatewayAutoRegistrationClient>();
         services.AddHostedService<GatewayRegistrationHostedService>();
