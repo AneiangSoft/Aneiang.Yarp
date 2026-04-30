@@ -25,22 +25,26 @@ public class GatewayAutoRegistrationClient
     private readonly GatewayRegistrationOptions _options;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<GatewayAutoRegistrationClient> _logger;
+    private readonly KestrelAutoConfigService _kestrelConfig;
 
     /// <summary>Initializes a new instance of GatewayAutoRegistrationClient.</summary>
     /// <param name="httpClientFactory">HTTP client factory.</param>
     /// <param name="options">Gateway registration options.</param>
     /// <param name="serviceProvider">Service provider.</param>
     /// <param name="logger">Logger instance.</param>
+    /// <param name="kestrelConfig">Kestrel auto-configuration service.</param>
     public GatewayAutoRegistrationClient(
         IHttpClientFactory httpClientFactory,
         IOptions<GatewayRegistrationOptions> options,
         IServiceProvider serviceProvider,
-        ILogger<GatewayAutoRegistrationClient> logger)
+        ILogger<GatewayAutoRegistrationClient> logger,
+        KestrelAutoConfigService kestrelConfig)
     {
         _httpClientFactory = httpClientFactory;
         _options = options.Value;
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _kestrelConfig = kestrelConfig;
     }
 
     /// <summary>Register this service's route with the gateway.</summary>
@@ -74,7 +78,27 @@ public class GatewayAutoRegistrationClient
 
         // Auto-resolve localhost to LAN IP
         if (RegistrationOptionsResolver.GetAutoResolveIp(_options))
-            destinationAddress = ResolveLocalAddress(destinationAddress);
+        {
+            var (resolvedAddress, warning) = ResolveLocalAddressWithCheck(destinationAddress);
+            destinationAddress = resolvedAddress;
+            
+            // Log warning if any
+            if (!string.IsNullOrWhiteSpace(warning))
+            {
+                _logger.LogWarning(warning);
+            }
+            
+            // Try to auto-configure Kestrel to listen on 0.0.0.0
+            try
+            {
+                var uri = new Uri(destinationAddress);
+                _kestrelConfig.EnsureListeningOnAny(uri.Port);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to auto-configure Kestrel");
+            }
+        }
 
         try
         {
@@ -202,7 +226,79 @@ public class GatewayAutoRegistrationClient
             http.DefaultRequestHeaders.TryAddWithoutValidation("X-Api-Key", _options.ApiKey);
     }
 
-    /// <summary>Resolve localhost/127.0.0.1/0.0.0.0 in destination to LAN IPv4.</summary>
+    /// <summary>Resolve localhost/127.0.0.1/0.0.0.0 in destination to LAN IPv4 with listening check.</summary>
+    /// <returns>Tuple of (resolved address, warning message if any).</returns>
+    private (string address, string? warning) ResolveLocalAddressWithCheck(string address)
+    {
+        if (string.IsNullOrWhiteSpace(address)) return (address, null);
+        
+        try
+        {
+            var uri = new Uri(address);
+            var host = uri.Host;
+            
+            if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                host.Equals("127.0.0.1") || host.Equals("0.0.0.0"))
+            {
+                // Check if service is listening on 0.0.0.0 (all interfaces)
+                bool isListeningOnAny = IsListeningOnAnyAddress(uri.Port);
+                
+                // Always resolve to LAN IP
+                var ip = GetLocalIpv4();
+                if (ip != null)
+                {
+                    var resolved = $"{uri.Scheme}://{ip}:{uri.Port}{uri.PathAndQuery}";
+                    
+                    // If not listening on 0.0.0.0, add warning
+                    if (!isListeningOnAny)
+                    {
+                        var warning = $"Service is listening on localhost only (port {uri.Port}), but registered with LAN IP {ip}. " +
+                            $"Cross-machine access will fail until you configure Kestrel to listen on 0.0.0.0:\n" +
+                            $"  - launchSettings.json: \"applicationUrl\": \"http://0.0.0.0:{uri.Port}\"\n" +
+                            $"  - Or Program.cs: .UseUrls(\"http://0.0.0.0:{uri.Port}\")";
+                        
+                        return (resolved, warning);
+                    }
+                    
+                    return (resolved, null);
+                }
+            }
+        }
+        catch (UriFormatException) { }
+        
+        return (address, null);
+    }
+    
+    /// <summary>Check if the service is listening on 0.0.0.0 (all interfaces) for the given port.</summary>
+    private static bool IsListeningOnAnyAddress(int port)
+    {
+        try
+        {
+            // Check if any TCP listener is on 0.0.0.0:port
+            var listeners = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties()
+                .GetActiveTcpListeners()
+                .Where(l => l.Port == port);
+            
+            foreach (var listener in listeners)
+            {
+                // 0.0.0.0 means listening on all interfaces
+                if (listener.Address.Equals(IPAddress.Any) || 
+                    listener.Address.Equals(IPAddress.IPv6Any))
+                {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        catch
+        {
+            // If we can't check, assume it's listening on 0.0.0.0 (optimistic)
+            return true;
+        }
+    }
+    
+    /// <summary>Resolve localhost/127.0.0.1/0.0.0.0 in destination to LAN IPv4 (legacy).</summary>
     private static string ResolveLocalAddress(string address)
     {
         if (string.IsNullOrWhiteSpace(address)) return address;

@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "lastModified": "2026-04-30T08:15:34.6023836Z",
+  "routes": [
+    {
+      "routeId": "sample-local-service-ANEIANG",
+      "clusterId": "sample-local-service-cluster-ANEIANG",
+      "matchPath": "/ANEIANG/api/local-service/{**catch-all}",
+      "order": 50,
+      "transforms": [
+        {
+          "PathRemovePrefix": "/ANEIANG"
+        }
+      ],
+      "source": "dynamic",
+      "createdAt": "2026-04-30T07:49:52.7987039Z",
+      "createdBy": null
+    }
+  ],
+  "clusters": [
+    {
+      "clusterId": "sample-local-service-cluster-ANEIANG",
+      "destinations": {
+        "d1": "http://192.168.202.66:5001/"
+      },
+      "loadBalancingPolicy": null,
+      "healthCheck": null,
+      "source": "dynamic",
+      "createdAt": "2026-04-30T07:49:52.7993422Z",
+      "createdBy": null
+    }
+  ]
+}
