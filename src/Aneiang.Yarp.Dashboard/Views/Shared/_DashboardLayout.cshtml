@@ -135,6 +135,18 @@
         });
     </script>
     <script src="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- CodeMirror for JSON Editor with Schema Support -->
+    <link rel="stylesheet" href="/_content/Aneiang.Yarp.Dashboard/lib/codemirror/codemirror.min.css" />
+    <link rel="stylesheet" href="/_content/Aneiang.Yarp.Dashboard/lib/codemirror/material-darker.min.css" />
+    <script src="/_content/Aneiang.Yarp.Dashboard/lib/codemirror/codemirror.min.js"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/lib/codemirror/javascript.min.js"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/lib/codemirror/show-hint.min.js"></script>
+    <link rel="stylesheet" href="/_content/Aneiang.Yarp.Dashboard/lib/codemirror/show-hint.min.css" />
+    <!-- Fallback if CodeMirror fails to load -->
+    <script src="/_content/Aneiang.Yarp.Dashboard/lib/codemirror/codemirror-fallback.js"></script>
+    
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/json-editor.js"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

@@ -52,22 +52,26 @@ public static class DashboardI18n
 
         // ── Index – cluster panel ──
         ["index.cluster.title"] = "集群 & 目标节点状态",
+        ["index.cluster.add"] = "新增",
         ["index.cluster.th.name"] = "集群名称",
         ["index.cluster.th.dest"] = "节点名",
         ["index.cluster.th.address"] = "目标地址",
         ["index.cluster.th.active"] = "主动健康",
         ["index.cluster.th.passive"] = "被动健康",
         ["index.cluster.th.policy"] = "均衡策略",
+        ["index.cluster.th.actions"] = "操作",
         ["index.cluster.empty"] = "暂无集群数据",
         ["index.cluster.updated"] = "更新于 ",
 
         // ── Index – route panel ──
         ["index.route.title"] = "路由规则列表",
+        ["index.route.add"] = "新增",
         ["index.route.th.order"] = "优先级",
         ["index.route.th.name"] = "路由名称",
         ["index.route.th.path"] = "匹配路径",
         ["index.route.th.cluster"] = "关联集群",
         ["index.route.th.methods"] = "允许方法",
+        ["index.route.th.actions"] = "操作",
         ["index.route.empty"] = "暂无路由数据",
         ["index.route.updated"] = "更新于 ",
         ["index.route.allMethods"] = "All",
@@ -123,6 +127,29 @@ public static class DashboardI18n
         ["index.js.loadInfoFailed"] = "加载网关信息失败",
         ["index.js.loadClusterFailed"] = "加载集群数据失败",
         ["index.js.loadRouteFailed"] = "加载路由数据失败",
+
+        // ── Modal common ──
+        ["modal.formMode"] = "表单模式",
+        ["modal.jsonMode"] = "JSON 模式",
+        ["modal.format"] = "格式化",
+        ["modal.minify"] = "压缩",
+        ["modal.copy"] = "复制",
+        ["modal.copied"] = "已复制!",
+        ["modal.cancel"] = "取消",
+        ["modal.add"] = "新增",
+        ["modal.edit"] = "编辑",
+        ["modal.save"] = "保存",
+        ["modal.saveChanges"] = "保存更改",
+        ["modal.jsonInput"] = "JSON 输入",
+        ["modal.tabHint"] = "Tab: 插入空格 | 自动验证已启用",
+        ["modal.addNewCluster"] = "新增集群",
+        ["modal.addNewRoute"] = "新增路由",
+        ["modal.editCluster"] = "编辑集群",
+        ["modal.editRoute"] = "编辑路由",
+        ["modal.clusterIdRequired"] = "集群ID和至少一个目标地址为必填项",
+        ["modal.routeRequired"] = "路由的集群ID、匹配路径和目标地址为必填项",
+        ["modal.apiNotImplemented"] = "API尚未实现。请使用 register-route API 来更新目标地址。",
+        ["modal.apiNotImplementedCluster"] = "集群创建API尚未实现。请使用 register-route API，它将自动创建集群。",
     };
 
     /// <summary>English translation dictionary.</summary>
@@ -168,22 +195,26 @@ public static class DashboardI18n
 
         // ── Index – cluster panel ──
         ["index.cluster.title"] = "Cluster & Destination Status",
+        ["index.cluster.add"] = "Add",
         ["index.cluster.th.name"] = "Cluster",
         ["index.cluster.th.dest"] = "Destination",
         ["index.cluster.th.address"] = "Address",
         ["index.cluster.th.active"] = "Active Health",
         ["index.cluster.th.passive"] = "Passive Health",
         ["index.cluster.th.policy"] = "Policy",
+        ["index.cluster.th.actions"] = "Actions",
         ["index.cluster.empty"] = "No cluster data",
         ["index.cluster.updated"] = "Updated at ",
 
         // ── Index – route panel ──
         ["index.route.title"] = "Route Rules",
+        ["index.route.add"] = "Add",
         ["index.route.th.order"] = "Priority",
         ["index.route.th.name"] = "Route",
         ["index.route.th.path"] = "Path",
         ["index.route.th.cluster"] = "Cluster",
         ["index.route.th.methods"] = "Methods",
+        ["index.route.th.actions"] = "Actions",
         ["index.route.empty"] = "No route data",
         ["index.route.updated"] = "Updated at ",
         ["index.route.allMethods"] = "All",
@@ -239,6 +270,29 @@ public static class DashboardI18n
         ["index.js.loadInfoFailed"] = "Failed to load gateway info",
         ["index.js.loadClusterFailed"] = "Failed to load cluster data",
         ["index.js.loadRouteFailed"] = "Failed to load route data",
+
+        // ── Modal common ──
+        ["modal.formMode"] = "Form Mode",
+        ["modal.jsonMode"] = "JSON Mode",
+        ["modal.format"] = "Format",
+        ["modal.minify"] = "Minify",
+        ["modal.copy"] = "Copy",
+        ["modal.copied"] = "Copied!",
+        ["modal.cancel"] = "Cancel",
+        ["modal.add"] = "Add",
+        ["modal.edit"] = "Edit",
+        ["modal.save"] = "Save",
+        ["modal.saveChanges"] = "Save Changes",
+        ["modal.jsonInput"] = "JSON Input",
+        ["modal.tabHint"] = "Tab: insert spaces | Auto-validation enabled",
+        ["modal.addNewCluster"] = "Add New Cluster",
+        ["modal.addNewRoute"] = "Add New Route",
+        ["modal.editCluster"] = "Edit Cluster",
+        ["modal.editRoute"] = "Edit Route",
+        ["modal.clusterIdRequired"] = "ClusterId and at least one destination are required",
+        ["modal.routeRequired"] = "ClusterId, MatchPath, and DestinationAddress are required",
+        ["modal.apiNotImplemented"] = "API not yet implemented. Please use register-route API to update destinations.",
+        ["modal.apiNotImplementedCluster"] = "Cluster creation API not yet implemented. Please use register-route API which will auto-create cluster.",
     };
 
     /// <summary>Returns the translation dictionary for the given locale.</summary>

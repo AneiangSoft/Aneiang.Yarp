@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Http;
@@ -58,6 +59,65 @@ public class GatewayConfigController : ControllerBase
             order = r.Order
         });
         return Ok(new { code = 200, data });
+    }
+
+    /// <summary>Get dynamic configuration (routes and clusters with metadata).</summary>
+    [HttpGet("dynamic-config")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    public IActionResult GetDynamicConfig()
+    {
+        var config = _dynamicConfig.GetDynamicConfig();
+        return Ok(new { code = 200, data = config });
+    }
+
+    /// <summary>Update a route's configuration (JSON format).</summary>
+    [HttpPut("routes/{routeId}")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    public IActionResult UpdateRoute(string routeId, [FromBody] JsonElement config)
+    {
+        try
+        {
+            // Validate required fields
+            if (!config.TryGetProperty("clusterId", out var clusterIdProp) ||
+                !config.TryGetProperty("matchPath", out var matchPathProp))
+            {
+                return BadRequest(new { code = 400, message = "clusterId and matchPath are required" });
+            }
+
+            var request = new RegisterRouteRequest
+            {
+                RouteName = routeId,
+                ClusterName = clusterIdProp.GetString() ?? string.Empty,
+                MatchPath = matchPathProp.GetString() ?? string.Empty,
+                Order = config.TryGetProperty("order", out var orderProp) ? orderProp.GetInt32() : 50,
+                Transforms = config.TryGetProperty("transforms", out var transformsProp)
+                    ? transformsProp.Deserialize<List<Dictionary<string, string>>>()
+                    : null
+            };
+
+            var result = _dynamicConfig.TryAddRoute(request, "dynamic");
+            return result.Success
+                ? Ok(new { code = 200, message = result.Message })
+                : BadRequest(new { code = 400, message = result.Message });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { code = 400, message = $"Invalid JSON: {ex.Message}" });
+        }
+    }
+
+    /// <summary>Delete a cluster (if no routes reference it).</summary>
+    [HttpDelete("clusters/{clusterId}")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public IActionResult DeleteCluster(string clusterId)
+    {
+        var result = _dynamicConfig.TryRemoveCluster(clusterId);
+        return result.Success
+            ? Ok(new { code = 200, message = result.Message })
+            : BadRequest(new { code = 400, message = result.Message });
     }
 
     /// <summary>Health check endpoint.</summary>

@@ -54,11 +54,90 @@ public class DynamicYarpConfigService
                     _dynamicConfig.Routes.Count,
                     _dynamicConfig.Clusters.Count);
             }
+            
+            // Mark static config from appsettings.json as "config" source
+            MarkStaticConfig();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load dynamic config on startup");
             _dynamicConfig = new GatewayDynamicConfig();
+        }
+    }
+    
+    /// <summary>
+    /// Mark routes and clusters from appsettings.json (static config) as "config" source.
+    /// These should not be editable in the Dashboard.
+    /// </summary>
+    private void MarkStaticConfig()
+    {
+        try
+        {
+            EnsureDynamicConfigInitialized();
+            var currentConfig = _configProvider.GetConfig();
+            
+            // Mark static routes
+            if (currentConfig.Routes != null)
+            {
+                foreach (var route in currentConfig.Routes)
+                {
+                    var existingRoute = _dynamicConfig!.Routes.FirstOrDefault(r =>
+                        string.Equals(r.RouteId, route.RouteId, StringComparison.OrdinalIgnoreCase));
+                    
+                    if (existingRoute == null)
+                    {
+                        // This route is from appsettings.json (static config)
+                        _dynamicConfig.Routes.Add(new DynamicRouteConfig
+                        {
+                            RouteId = route.RouteId,
+                            ClusterId = route.ClusterId ?? string.Empty,
+                            MatchPath = route.Match?.Path ?? string.Empty,
+                            Order = route.Order ?? 50,
+                            Transforms = route.Transforms?.Select(t => new Dictionary<string, string>(t)).ToList(),
+                            Source = "config",  // Mark as static config
+                            CreatedAt = DateTime.UtcNow,
+                            CreatedBy = "appsettings.json"
+                        });
+                    }
+                }
+            }
+            
+            // Mark static clusters
+            if (currentConfig.Clusters != null)
+            {
+                foreach (var cluster in currentConfig.Clusters)
+                {
+                    var existingCluster = _dynamicConfig!.Clusters.FirstOrDefault(c =>
+                        string.Equals(c.ClusterId, cluster.ClusterId, StringComparison.OrdinalIgnoreCase));
+                    
+                    if (existingCluster == null)
+                    {
+                        // This cluster is from appsettings.json (static config)
+                        var destinations = cluster.Destinations?.ToDictionary(
+                            d => d.Key,
+                            d => d.Value.Address ?? string.Empty) ?? new Dictionary<string, string>();
+                        
+                        _dynamicConfig.Clusters.Add(new DynamicClusterConfig
+                        {
+                            ClusterId = cluster.ClusterId,
+                            Destinations = destinations,
+                            LoadBalancingPolicy = cluster.LoadBalancingPolicy,
+                            Source = "config",  // Mark as static config
+                            CreatedAt = DateTime.UtcNow,
+                            CreatedBy = "appsettings.json"
+                        });
+                    }
+                }
+            }
+            
+            _logger.LogInformation(
+                "Marked {TotalRoutes} routes and {TotalClusters} clusters (including static config from appsettings.json)",
+                _dynamicConfig?.Routes.Count ?? 0,
+                _dynamicConfig?.Clusters.Count ?? 0);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to mark static config");
         }
     }
     
@@ -304,6 +383,54 @@ public class DynamicYarpConfigService
             
             _logger.LogInformation("Route '{RouteName}' deleted", routeName);
             return new RouteOperationResult(true, $"Route '{routeName}' deleted");
+        }
+    }
+
+    /// <summary>
+    /// Delete a cluster if no routes reference it.
+    /// </summary>
+    /// <param name="clusterId">Cluster ID to delete.</param>
+    /// <returns>Route operation result.</returns>
+    public RouteOperationResult TryRemoveCluster(string clusterId)
+    {
+        if (string.IsNullOrWhiteSpace(clusterId))
+            return new RouteOperationResult(false, "Cluster ID cannot be empty");
+
+        lock (_lock)
+        {
+            var config = _configProvider.GetConfig();
+            var routes = config.Routes?.ToList() ?? new List<RouteConfig>();
+            var clusters = config.Clusters?.ToList() ?? new List<ClusterConfig>();
+
+            // Check if any routes reference this cluster
+            var referencingRoutes = routes.Where(r =>
+                string.Equals(r.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (referencingRoutes.Count > 0)
+            {
+                return new RouteOperationResult(false,
+                    $"Cluster '{clusterId}' is referenced by {referencingRoutes.Count} route(s). Delete routes first.");
+            }
+
+            var cluster = clusters.FirstOrDefault(c =>
+                string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+            if (cluster == null)
+                return new RouteOperationResult(false, $"Cluster '{clusterId}' not found");
+
+            var newClusters = clusters.Where(c =>
+                !string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            _configProvider.Update(routes, newClusters);
+            
+            // Remove from dynamic config
+            EnsureDynamicConfigInitialized();
+            _dynamicConfig!.Clusters.RemoveAll(c => 
+                string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+            
+            SaveDynamicConfig();
+            
+            _logger.LogInformation("Cluster '{ClusterId}' deleted", clusterId);
+            return new RouteOperationResult(true, $"Cluster '{clusterId}' deleted");
         }
     }
 
