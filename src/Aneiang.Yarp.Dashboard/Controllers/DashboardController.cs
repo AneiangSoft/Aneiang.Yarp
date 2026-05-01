@@ -146,41 +146,51 @@ public class DashboardController : Controller
     [HttpGet("clusters")]
     public IActionResult GetClusters()
     {
-        var clusters = _proxyState.GetClusters().Select(cluster =>
-        {
-            var config = cluster.Model?.Config;
-            var destinations = cluster.Destinations.Select(d =>
+        // Get dynamic config for source and created time info
+        var dynConfig = _dynamicConfig.GetDynamicConfig();
+        
+        var clusters = _proxyState.GetClusters()
+            .Select(cluster =>
             {
-                var dc = d.Value.Model?.Config;
+                var config = cluster.Model?.Config;
+                var destinations = cluster.Destinations.Select(d =>
+                {
+                    var dc = d.Value.Model?.Config;
+                    return new
+                    {
+                        name = d.Key,
+                        address = dc?.Address,
+                        health = dc?.Health,
+                        host = dc?.Host,
+                        metadata = dc?.Metadata?.Count > 0
+                            ? dc.Metadata.ToDictionary(kv => kv.Key, kv => kv.Value) : null,
+                        activeHealth = d.Value.Health.Active.ToString(),
+                        passiveHealth = d.Value.Health.Passive.ToString()
+                    };
+                }).ToList();
+
+                // Determine if cluster is editable (not from static config)
+                var isEditable = true;
+                var source = "config"; // Default to config file
+                var createdAt = DateTime.MinValue;
+                
+                var dynCluster = dynConfig?.Clusters.FirstOrDefault(dc => 
+                    string.Equals(dc.ClusterId, cluster.ClusterId, StringComparison.OrdinalIgnoreCase));
+                if (dynCluster != null)
+                {
+                    isEditable = dynCluster.Source != "config";
+                    source = dynCluster.Source;
+                    createdAt = dynCluster.CreatedAt;
+                }
+
                 return new
                 {
-                    name = d.Key,
-                    address = dc?.Address,
-                    health = dc?.Health,
-                    host = dc?.Host,
-                    metadata = dc?.Metadata?.Count > 0
-                        ? dc.Metadata.ToDictionary(kv => kv.Key, kv => kv.Value) : null,
-                    activeHealth = d.Value.Health.Active.ToString(),
-                    passiveHealth = d.Value.Health.Passive.ToString()
-                };
-            }).ToList();
+                    clusterId = cluster.ClusterId,
+                    loadBalancingPolicy = config?.LoadBalancingPolicy ?? "Default",
+                    source = source,
+                    createdAt = createdAt.ToString("yyyy-MM-dd HH:mm:ss"),
 
-            // Determine if cluster is editable (not from static config)
-            var isEditable = true;
-            var dynConfig = _dynamicConfig.GetDynamicConfig();
-            var dynCluster = dynConfig?.Clusters.FirstOrDefault(dc => 
-                string.Equals(dc.ClusterId, cluster.ClusterId, StringComparison.OrdinalIgnoreCase));
-            if (dynCluster != null)
-            {
-                isEditable = dynCluster.Source != "config";
-            }
-
-            return new
-            {
-                clusterId = cluster.ClusterId,
-                loadBalancingPolicy = config?.LoadBalancingPolicy ?? "Default",
-
-                sessionAffinity = config?.SessionAffinity != null ? new
+                    sessionAffinity = config?.SessionAffinity != null ? new
                 {
                     enabled = config.SessionAffinity.Enabled,
                     policy = config.SessionAffinity.Policy?.ToString(),
@@ -253,7 +263,10 @@ public class DashboardController : Controller
                 totalCount = destinations.Count,
                 isEditable = isEditable
             };
-        }).ToList();
+        })
+        .OrderBy(c => c.source == "config" ? 0 : 1) // config first
+        .ThenByDescending(c => DateTime.TryParse(c.createdAt, out var dt) ? dt : DateTime.MinValue)
+        .ToList();
 
         return Json(new { code = 200, data = clusters });
     }
@@ -272,6 +285,7 @@ public class DashboardController : Controller
         // Transforms from DynamicYarpConfigService (covers both file-based and dynamic routes)
         Dictionary<string, List<Dictionary<string, string>>?>? configTransforms = null;
         Dictionary<string, string>? routeSources = null;
+        Dictionary<string, DateTime>? routeCreatedAt = null;
         try
         {
             var dr = _dynamicConfig.GetRoutes();
@@ -279,18 +293,23 @@ public class DashboardController : Controller
             {
                 configTransforms = new(StringComparer.OrdinalIgnoreCase);
                 routeSources = new(StringComparer.OrdinalIgnoreCase);
+                routeCreatedAt = new(StringComparer.OrdinalIgnoreCase);
+                
+                // Get dynamic config for created time
+                var dynConfig = _dynamicConfig.GetDynamicConfig();
+                
                 foreach (var r in dr)
                 {
                     if (r.Transforms?.Count > 0)
                         configTransforms[r.RouteId] = r.Transforms.Select(t => new Dictionary<string, string>(t)).ToList();
                     
-                    // Get route source from dynamic config
-                    var dynConfig = _dynamicConfig.GetDynamicConfig();
-                    var dynRoute = dynConfig?.Routes.FirstOrDefault(dr => 
-                        string.Equals(dr.RouteId, r.RouteId, StringComparison.OrdinalIgnoreCase));
+                    // Get route source and created time from dynamic config
+                    var dynRoute = dynConfig?.Routes.FirstOrDefault(drc => 
+                        string.Equals(drc.RouteId, r.RouteId, StringComparison.OrdinalIgnoreCase));
                     if (dynRoute != null)
                     {
                         routeSources[r.RouteId] = dynRoute.Source;
+                        routeCreatedAt[r.RouteId] = dynRoute.CreatedAt;
                     }
                 }
             }
@@ -317,9 +336,18 @@ public class DashboardController : Controller
 
             // Determine if route is editable (not from static config)
             var isEditable = true;
-            if (routeSources != null && routeSources.TryGetValue(rc.RouteId, out var source))
+            var source = "config"; // Default to config file
+            var createdAt = DateTime.MinValue;
+            
+            if (routeSources != null && routeSources.TryGetValue(rc.RouteId, out var src))
             {
-                isEditable = source != "config";
+                isEditable = src != "config";
+                source = src;
+            }
+            
+            if (routeCreatedAt != null && routeCreatedAt.TryGetValue(rc.RouteId, out var created))
+            {
+                createdAt = created;
             }
 
             return new
@@ -330,6 +358,8 @@ public class DashboardController : Controller
                 methods = match.Methods,
                 hosts = match.Hosts,
                 order = rc.Order,
+                source = source,
+                createdAt = createdAt.ToString("yyyy-MM-dd HH:mm:ss"),
                 authorizationPolicy = rc.AuthorizationPolicy,
                 corsPolicy = rc.CorsPolicy,
                 outputCachePolicy = rc.OutputCachePolicy,
@@ -348,7 +378,11 @@ public class DashboardController : Controller
                     : null,
                 isEditable = isEditable
             };
-        }).OrderBy(r => r.order).ToList();
+        })
+        .OrderBy(r => r.source == "config" ? 0 : 1) // config first
+        .ThenByDescending(r => DateTime.TryParse(r.createdAt, out var dt) ? dt : DateTime.MinValue)
+        .ThenBy(r => r.order)
+        .ToList();
 
         return Json(new { code = 200, data = routes });
     }

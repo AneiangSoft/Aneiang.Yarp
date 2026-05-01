@@ -1,21 +1,7 @@
 {
   "version": 1,
-  "lastModified": "2026-04-30T10:08:16.9617746Z",
+  "lastModified": "2026-05-01T14:25:31.0795376Z",
   "routes": [
-    {
-      "routeId": "sample-local-service-ANEIANG",
-      "clusterId": "sample-local-service-cluster-ANEIANG",
-      "matchPath": "/ANEIANG/api/local-service/{**catch-all}",
-      "order": 50,
-      "transforms": [
-        {
-          "PathRemovePrefix": "/ANEIANG"
-        }
-      ],
-      "source": "dynamic",
-      "createdAt": "2026-04-30T07:49:52.7987039Z",
-      "createdBy": null
-    },
     {
       "routeId": "AuthServiceCancelAccessTokenRoute",
       "clusterId": "AuthServiceCluster",
@@ -27,7 +13,7 @@
         }
       ],
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4853538Z",
+      "createdAt": "2026-05-01T13:36:38.4828648Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -41,7 +27,7 @@
         }
       ],
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4853576Z",
+      "createdAt": "2026-05-01T13:36:38.4831284Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -55,7 +41,7 @@
         }
       ],
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4853589Z",
+      "createdAt": "2026-05-01T13:36:38.4831307Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -69,7 +55,7 @@
         }
       ],
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4853606Z",
+      "createdAt": "2026-05-01T13:36:38.4831331Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -83,7 +69,7 @@
         }
       ],
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4853627Z",
+      "createdAt": "2026-05-01T13:36:38.4831419Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -97,7 +83,7 @@
         }
       ],
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4853721Z",
+      "createdAt": "2026-05-01T13:36:38.4831437Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -111,7 +97,7 @@
         }
       ],
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4853734Z",
+      "createdAt": "2026-05-01T13:36:38.483145Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -129,7 +115,7 @@
         }
       ],
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4853747Z",
+      "createdAt": "2026-05-01T13:36:38.4831464Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -143,7 +129,7 @@
         }
       ],
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4853762Z",
+      "createdAt": "2026-05-01T13:36:38.4831476Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -157,7 +143,7 @@
         }
       ],
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4853772Z",
+      "createdAt": "2026-05-01T13:36:38.4831488Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -171,7 +157,7 @@
         }
       ],
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4853781Z",
+      "createdAt": "2026-05-01T13:36:38.4831499Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -185,7 +171,7 @@
         }
       ],
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4853792Z",
+      "createdAt": "2026-05-01T13:36:38.4831511Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -195,7 +181,7 @@
       "order": 2,
       "transforms": null,
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4853797Z",
+      "createdAt": "2026-05-01T13:36:38.4831518Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -209,7 +195,7 @@
         }
       ],
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4853812Z",
+      "createdAt": "2026-05-01T13:36:38.4831532Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -219,7 +205,7 @@
       "order": 10,
       "transforms": null,
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4853817Z",
+      "createdAt": "2026-05-01T13:36:38.4831538Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -229,32 +215,25 @@
       "order": 100,
       "transforms": null,
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4853824Z",
+      "createdAt": "2026-05-01T13:36:38.4831545Z",
       "createdBy": "appsettings.json"
     },
     {
-      "routeId": "new-route-1777541983207",
-      "clusterId": "qq",
-      "matchPath": "/api/new-route/{**catch-all}",
+      "routeId": "sample-local-service-DESKTOP-1VFQSPD",
+      "clusterId": "sample-local-service-cluster-DESKTOP-1VFQSPD",
+      "matchPath": "/DESKTOP-1VFQSPD/api/local-service/{**catch-all}",
       "order": 50,
-      "transforms": [],
+      "transforms": [
+        {
+          "PathRemovePrefix": "/DESKTOP-1VFQSPD"
+        }
+      ],
       "source": "dynamic",
-      "createdAt": "2026-04-30T09:40:25.5683939Z",
+      "createdAt": "2026-05-01T13:36:38.6303945Z",
       "createdBy": null
     }
   ],
   "clusters": [
-    {
-      "clusterId": "sample-local-service-cluster-ANEIANG",
-      "destinations": {
-        "d1": "http://192.168.202.66:5001/"
-      },
-      "loadBalancingPolicy": null,
-      "healthCheck": null,
-      "source": "dynamic",
-      "createdAt": "2026-04-30T07:49:52.7993422Z",
-      "createdBy": null
-    },
     {
       "clusterId": "AuthServiceCluster",
       "destinations": {
@@ -264,7 +243,7 @@
       "loadBalancingPolicy": null,
       "healthCheck": null,
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4856995Z",
+      "createdAt": "2026-05-01T13:36:38.4845952Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -275,7 +254,7 @@
       "loadBalancingPolicy": null,
       "healthCheck": null,
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4857022Z",
+      "createdAt": "2026-05-01T13:36:38.4850269Z",
       "createdBy": "appsettings.json"
     },
     {
@@ -286,18 +265,29 @@
       "loadBalancingPolicy": null,
       "healthCheck": null,
       "source": "config",
-      "createdAt": "2026-04-30T08:47:35.4857037Z",
+      "createdAt": "2026-05-01T13:36:38.4850422Z",
       "createdBy": "appsettings.json"
     },
     {
-      "clusterId": "qq",
+      "clusterId": "sample-local-service-cluster-DESKTOP-1VFQSPD",
       "destinations": {
-        "d1": "http://localhost:5001"
+        "d1": "http://192.168.31.90:5001/"
       },
       "loadBalancingPolicy": null,
       "healthCheck": null,
       "source": "dynamic",
-      "createdAt": "2026-04-30T09:40:25.5683965Z",
+      "createdAt": "2026-05-01T13:36:38.6304836Z",
+      "createdBy": null
+    },
+    {
+      "clusterId": "cluster-1777640563722",
+      "destinations": {
+        "d1": "http://localhost:5001"
+      },
+      "loadBalancingPolicy": "RoundRobin",
+      "healthCheck": null,
+      "source": "dynamic",
+      "createdAt": "2026-05-01T14:25:18.6488272Z",
       "createdBy": null
     }
   ]

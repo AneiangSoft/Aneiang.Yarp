@@ -269,9 +269,17 @@ public class DynamicYarpConfigService
                 string.Equals(c.ClusterId, request.ClusterName, StringComparison.OrdinalIgnoreCase));
 
             if (existingClusterIdx >= 0)
-                newClusters[existingClusterIdx] = clusterConfig;
+            {
+                // Cluster already exists, log but don't overwrite
+                _logger.LogInformation("Cluster '{ClusterName}' already exists, reusing it for route '{RouteName}'", 
+                    request.ClusterName, request.RouteName);
+            }
             else
+            {
                 newClusters.Add(clusterConfig);
+                _logger.LogInformation("Created new cluster '{ClusterName}' for route '{RouteName}'", 
+                    request.ClusterName, request.RouteName);
+            }
 
             _configProvider.Update(newRoutes, newClusters);
             
@@ -450,6 +458,127 @@ public class DynamicYarpConfigService
     /// Get dynamic configuration metadata.
     /// </summary>
     public GatewayDynamicConfig? GetDynamicConfig() => _dynamicConfig;
+    
+    /// <summary>
+    /// Add a new cluster independently.
+    /// </summary>
+    /// <param name="request">Cluster creation request.</param>
+    /// <param name="source">Configuration source: "dynamic" | "auto-register".</param>
+    /// <param name="createdBy">Who created this cluster (optional).</param>
+    /// <returns>Route operation result.</returns>
+    public RouteOperationResult TryAddCluster(
+        CreateClusterRequest request,
+        string source = "dynamic",
+        string? createdBy = null)
+    {
+        lock (_lock)
+        {
+            var config = _configProvider.GetConfig();
+            var clusters = config.Clusters?.ToList() ?? new List<ClusterConfig>();
+            
+            // Check if cluster already exists
+            if (clusters.Any(c => string.Equals(c.ClusterId, request.ClusterId, StringComparison.OrdinalIgnoreCase)))
+            {
+                return new RouteOperationResult(false, $"Cluster '{request.ClusterId}' already exists. Use update instead.");
+            }
+
+            var clusterConfig = new ClusterConfig
+            {
+                ClusterId = request.ClusterId,
+                Destinations = request.Destinations.ToDictionary(
+                    d => d.Key,
+                    d => new DestinationConfig { Address = d.Value }),
+                LoadBalancingPolicy = request.LoadBalancingPolicy
+            };
+
+            clusters.Add(clusterConfig);
+            _configProvider.Update(config.Routes ?? Array.Empty<RouteConfig>(), clusters);
+
+            // Save to dynamic config
+            EnsureDynamicConfigInitialized();
+            _dynamicConfig!.Clusters.Add(new DynamicClusterConfig
+            {
+                ClusterId = request.ClusterId,
+                Destinations = request.Destinations,
+                LoadBalancingPolicy = request.LoadBalancingPolicy,
+                HealthCheck = request.HealthCheck != null ? new Aneiang.Yarp.Models.HealthCheckConfig
+                {
+                    Active = request.HealthCheck.Active?.Enabled ?? false,
+                    Endpoint = request.HealthCheck.Active?.Path
+                } : null,
+                Source = source,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = createdBy
+            });
+
+            SaveDynamicConfig();
+            _logger.LogInformation("Cluster '{ClusterId}' created with {DestCount} destinations", 
+                request.ClusterId, request.Destinations.Count);
+            return new RouteOperationResult(true, $"Cluster '{request.ClusterId}' created successfully");
+        }
+    }
+
+    /// <summary>
+    /// Update an existing cluster.
+    /// </summary>
+    /// <param name="clusterId">Cluster ID to update.</param>
+    /// <param name="request">Cluster update request.</param>
+    /// <returns>Route operation result.</returns>
+    public RouteOperationResult TryUpdateCluster(string clusterId, UpdateClusterRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(clusterId))
+            return new RouteOperationResult(false, "Cluster ID cannot be empty");
+
+        lock (_lock)
+        {
+            var config = _configProvider.GetConfig();
+            var clusters = config.Clusters?.ToList() ?? new List<ClusterConfig>();
+            
+            var existingIdx = clusters.FindIndex(c => 
+                string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+            
+            if (existingIdx < 0)
+            {
+                return new RouteOperationResult(false, $"Cluster '{clusterId}' not found");
+            }
+
+            var existing = clusters[existingIdx];
+            var updated = new ClusterConfig
+            {
+                ClusterId = existing.ClusterId,
+                Destinations = request.Destinations?.ToDictionary(
+                    d => d.Key,
+                    d => new DestinationConfig { Address = d.Value }) ?? existing.Destinations,
+                LoadBalancingPolicy = request.LoadBalancingPolicy ?? existing.LoadBalancingPolicy
+            };
+
+            clusters[existingIdx] = updated;
+            _configProvider.Update(config.Routes ?? Array.Empty<RouteConfig>(), clusters);
+
+            // Update dynamic config
+            EnsureDynamicConfigInitialized();
+            var dynCluster = _dynamicConfig!.Clusters.FirstOrDefault(c => 
+                string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+            
+            if (dynCluster != null)
+            {
+                if (request.Destinations != null) dynCluster.Destinations = request.Destinations;
+                if (request.LoadBalancingPolicy != null) dynCluster.LoadBalancingPolicy = request.LoadBalancingPolicy;
+                if (request.HealthCheck != null)
+                {
+                    dynCluster.HealthCheck = new Aneiang.Yarp.Models.HealthCheckConfig
+                    {
+                        Active = request.HealthCheck.Active?.Enabled ?? false,
+                        Endpoint = request.HealthCheck.Active?.Path
+                    };
+                }
+            }
+
+            SaveDynamicConfig();
+            _logger.LogInformation("Cluster '{ClusterId}' updated", clusterId);
+            return new RouteOperationResult(true, $"Cluster '{clusterId}' updated successfully");
+        }
+    }
     
     /// <summary>
     /// Ensure dynamic config is initialized.

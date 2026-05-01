@@ -171,6 +171,9 @@
                 html || '<tr><td colspan="7" class="text-center text-muted py-4">' + __('index.cluster.empty') + '</td></tr>';
             document.getElementById('cluster-refresh-time').textContent = __('index.cluster.updated') + window.timeStr();
 
+            // Store clusters for filtering
+            window._allClusters = clusters;
+
             // Update stat cards
             document.getElementById('stat-clusters').textContent = clusters.length;
             var healthLabel = totalUnhealthy > 0
@@ -211,15 +214,32 @@
                 alert('Cluster not found in dynamic config');
                 return;
             }
+            
+            // Prepare cluster data for editing
             var clusterJson = {
-                clusterId: cluster.clusterId,
                 destinations: cluster.destinations || {},
-                loadBalancingPolicy: cluster.loadBalancingPolicy || 'FirstAlone',
-                healthCheck: cluster.healthCheck
+                loadBalancingPolicy: cluster.loadBalancingPolicy || 'RoundRobin'
             };
+            
             var title = __('modal.editCluster') + ': ' + clusterId;
             window.showJsonEditor(title, clusterJson, async function(newJson) {
-                alert(__('modal.apiNotImplemented'));
+                try {
+                    var updateRes = await window.authFetch(d.basePath + '/../api/gateway/clusters/' + encodeURIComponent(clusterId), {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(newJson)
+                    });
+                    var updateJson = await updateRes.json();
+                    if (updateJson.code === 200) {
+                        window.showToast('Cluster updated successfully', 'success');
+                        await window.loadClusters();
+                    } else {
+                        window.showToast('Failed to update cluster: ' + updateJson.message, 'danger');
+                    }
+                } catch (e) {
+                    console.error('Update cluster failed:', e);
+                    alert('Error: ' + e.message);
+                }
             });
         } catch (e) {
             console.error('Edit cluster failed:', e);
@@ -229,43 +249,191 @@
 
     // ===== Delete Cluster =====
     window.deleteCluster = async function(clusterId) {
-        if (!confirm('Are you sure you want to delete cluster: ' + clusterId + '?\n\nWarning: All routes referencing this cluster will be affected.')) return;
-        try {
-            var d = window.__dashboard;
-            var res = await window.authFetch(d.basePath + '/../api/gateway/clusters/' + encodeURIComponent(clusterId), {
-                method: 'DELETE'
-            });
-            var json = await res.json();
-            if (json.code === 200) {
-                alert('Cluster deleted successfully');
-                await window.loadClusters();
-            } else {
-                alert('Failed to delete cluster: ' + json.message);
+        var __ = window.__;
+        window.showConfirm(
+            (__('modal.deleteClusterConfirm') || 'Are you sure you want to delete cluster: {clusterId}?\n\nWarning: All routes referencing this cluster will be affected.')
+                .replace('{clusterId}', clusterId),
+            async function() {
+                try {
+                    var d = window.__dashboard;
+                    var res = await window.authFetch(d.basePath + '/../api/gateway/clusters/' + encodeURIComponent(clusterId), {
+                        method: 'DELETE'
+                    });
+                    var json = await res.json();
+                    if (json.code === 200) {
+                        window.showToast(__('toast.clusterDeleted') || 'Cluster deleted successfully', 'success');
+                        await window.loadClusters();
+                    } else {
+                        window.showToast(__('toast.deleteFailed') + ': ' + json.message, 'danger');
+                    }
+                } catch (e) {
+                    console.error('Delete cluster failed:', e);
+                    window.showToast('Error: ' + e.message, 'danger');
+                }
             }
-        } catch (e) {
-            console.error('Delete cluster failed:', e);
-            alert('Error: ' + e.message);
-        }
+        );
     };
 
     // ===== Show Add Cluster Modal =====
     window.showAddClusterModal = function() {
         var defaultCluster = {
-            clusterId: 'new-cluster-' + Date.now(),
+            clusterId: 'cluster-' + Date.now(),
             destinations: {
                 'd1': 'http://localhost:5001'
             },
-            loadBalancingPolicy: 'RoundRobin',
-            healthCheck: null
+            loadBalancingPolicy: 'RoundRobin'
         };
         var __ = window.__;
+        
         window.showQuickAddModal(__('modal.addNewCluster'), defaultCluster, async function(newData) {
-            if (!newData.clusterId || !newData.destinations || Object.keys(newData.destinations).length === 0) {
+            // Validate required fields
+            if (!newData.clusterId) {
                 alert(__('modal.clusterIdRequired'));
                 return false;
             }
-            alert(__('modal.apiNotImplementedCluster'));
+            
+            // Destinations is now collected as object from KV editor
+            var destinations = newData.destinations || {};
+            
+            if (Object.keys(destinations).length === 0) {
+                alert('At least one destination is required');
+                return false;
+            }
+            
+            var d = window.__dashboard;
+            var request = {
+                clusterId: newData.clusterId,
+                destinations: destinations,
+                loadBalancingPolicy: newData.loadBalancingPolicy || 'RoundRobin'
+            };
+            
+            try {
+                var res = await window.authFetch(d.basePath + '/../api/gateway/clusters', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(request)
+                });
+                var json = await res.json();
+                
+                if (json.code === 200) {
+                    window.showToast(json.message, 'success');
+                    await window.loadClusters();
+                    return true;
+                } else {
+                    window.showToast(json.message || 'Failed to create cluster', 'danger');
+                    return false;
+                }
+            } catch (e) {
+                console.error('Create cluster failed:', e);
+                window.showToast('Error: ' + e.message, 'danger');
+                return false;
+            }
+        }, {
+            fieldTypes: {
+                destinations: 'keyvalue'
+            },
+            requiredFields: ['clusterId', 'destinations']
+        });
+    };
+
+    // ===== Filter Clusters =====
+    window.filterClusters = function(keyword) {
+        var allClusters = window._allClusters || [];
+        if (!keyword || keyword.trim() === '') {
+            // If no keyword, reload all clusters
+            window.loadClusters();
+            return;
+        }
+        
+        var lowerKeyword = keyword.toLowerCase().trim();
+        var filteredClusters = allClusters.filter(function(cluster) {
+            // Search in clusterId
+            if (cluster.clusterId && cluster.clusterId.toLowerCase().includes(lowerKeyword)) {
+                return true;
+            }
+            // Search in destinations (name and address)
+            if (cluster.destinations) {
+                for (var i = 0; i < cluster.destinations.length; i++) {
+                    var dest = cluster.destinations[i];
+                    if ((dest.name && dest.name.toLowerCase().includes(lowerKeyword)) ||
+                        (dest.address && dest.address.toLowerCase().includes(lowerKeyword))) {
+                        return true;
+                    }
+                }
+            }
+            // Search in loadBalancingPolicy
+            if (cluster.loadBalancingPolicy && cluster.loadBalancingPolicy.toLowerCase().includes(lowerKeyword)) {
+                return true;
+            }
             return false;
+        });
+        
+        // Render filtered clusters
+        var __ = window.__;
+        var html = '';
+        
+        filteredClusters.forEach(function(c) {
+            var rowspan = c.destinations.length || 1;
+            c.destinations.forEach(function(dest, i) {
+                html += '<tr class="cluster-row" data-cluster="' + window.escapeHtml(c.clusterId) + '" style="cursor:pointer;">';
+                if (i === 0) {
+                    html += '<td rowspan="' + rowspan + '" style="font-weight:600;vertical-align:middle;"><span class="cluster-expand-icon" style="display:inline-block;width:16px;">\u25B6</span> ' + window.escapeHtml(c.clusterId) + '</td>';
+                }
+                html += '<td><code>' + dest.name + '</code></td>';
+                html += '<td><a href="' + dest.address + '" target="_blank" class="text-decoration-none">' + dest.address + '</a></td>';
+                if (dest.health) html += '<td><span style="color:#64748b;">' + window.escapeHtml(dest.health) + '</span></td>';
+                else html += '<td>' + window.healthDot(dest.activeHealth || 'Unknown') + '</td>';
+                html += '<td>' + window.healthDot(dest.passiveHealth || 'Unknown') + '</td>';
+                if (i === 0) {
+                    html += '<td rowspan="' + rowspan + '" style="vertical-align:middle;"><span class="badge bg-secondary">' + c.loadBalancingPolicy + '</span></td>';
+                    html += '<td rowspan="' + rowspan + '" style="vertical-align:middle;" onclick="event.stopPropagation();">';
+                    if (c.isEditable) {
+                        html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editCluster(\'' + window.escapeHtml(c.clusterId) + '\')" title="Edit">';
+                        html += '<i class="bi bi-pencil"></i></button>';
+                        html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteCluster(\'' + window.escapeHtml(c.clusterId) + '\')" title="Delete">';
+                        html += '<i class="bi bi-trash"></i></button>';
+                    } else {
+                        html += '<span class="text-muted">-</span>';
+                    }
+                    html += '</td>';
+                }
+                html += '</tr>';
+            });
+
+            // Expandable detail row (same as in loadClusters)
+            html += '<tr class="cluster-detail" data-cluster="' + window.escapeHtml(c.clusterId) + '" style="display:none;">';
+            html += '<td colspan="7" style="padding:0;">';
+            html += '<div style="padding:14px 20px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:13px;line-height:1.8;">';
+
+            html += '<div style="display:flex;flex-wrap:wrap;gap:8px 24px;margin-bottom:6px;">';
+            html += '<span><strong>ClusterId:</strong> ' + window.escapeHtml(c.clusterId) + '</span>';
+            html += '<span><strong>LoadBalancingPolicy:</strong> <span class="badge bg-secondary">' + window.escapeHtml(c.loadBalancingPolicy) + '</span></span>';
+            html += '</div>';
+
+            if (c.destinations && c.destinations.length > 0) {
+                html += '<div style="margin-top:6px;margin-bottom:4px;"><strong>' + __('index.detail.destinations') + '</strong></div>';
+                html += '<table style="margin:0 0 6px 0;border-collapse:collapse;font-size:12px;width:auto;">';
+                html += '<tr style="background:#e2e8f0;"><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">' + __('index.detail.node') + '</th><th style="padding:3px 10px;border:1px solid #cbd5e1;text-align:left;">' + __('index.detail.address') + '</th></tr>';
+                c.destinations.forEach(function(dest) {
+                    html += '<tr><td style="padding:2px 10px;border:1px solid #e2e8f0;"><code>' + window.escapeHtml(dest.name) + '</code></td>';
+                    html += '<td style="padding:2px 10px;border:1px solid #e2e8f0;">' + window.escapeHtml(dest.address) + '</td></tr>';
+                });
+                html += '</table>';
+            }
+
+            html += '</div>';
+            html += '</td>';
+            html += '</tr>';
+        });
+
+        document.getElementById('cluster-tbody').innerHTML =
+            html || '<tr><td colspan="7" class="text-center text-muted py-4">未找到匹配的集群</td></tr>';
+        
+        // Re-attach click handlers for cluster expand/collapse
+        document.querySelectorAll('.cluster-row').forEach(function(row) {
+            row.addEventListener('click', function() {
+                window.toggleClusterDetail(this);
+            });
         });
     };
 })();
