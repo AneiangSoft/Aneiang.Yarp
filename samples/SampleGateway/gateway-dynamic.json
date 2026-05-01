@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastModified": "2026-04-30T08:15:34.6023836Z",
+  "lastModified": "2026-04-30T10:08:16.9617746Z",
   "routes": [
     {
       "routeId": "sample-local-service-ANEIANG",
@@ -15,6 +15,232 @@
       "source": "dynamic",
       "createdAt": "2026-04-30T07:49:52.7987039Z",
       "createdBy": null
+    },
+    {
+      "routeId": "AuthServiceCancelAccessTokenRoute",
+      "clusterId": "AuthServiceCluster",
+      "matchPath": "/api/Secret/CancelAccessToken",
+      "order": 1,
+      "transforms": [
+        {
+          "PathSet": "/api/auth-service/Secret/CancelAccessToken"
+        }
+      ],
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4853538Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "routeId": "AuthServiceCaptchaRoute",
+      "clusterId": "AuthServiceCluster",
+      "matchPath": "/api/Anonymous/Captcha",
+      "order": 1,
+      "transforms": [
+        {
+          "PathSet": "/api/auth-service/Anonymous/Captcha"
+        }
+      ],
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4853576Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "routeId": "AuthServiceCaptchaValidateRoute",
+      "clusterId": "AuthServiceCluster",
+      "matchPath": "/api/Anonymous/CaptchaValidate",
+      "order": 1,
+      "transforms": [
+        {
+          "PathSet": "/api/auth-service/Anonymous/CaptchaValidate"
+        }
+      ],
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4853589Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "routeId": "AuthServiceEditPwdRoute",
+      "clusterId": "AuthServiceCluster",
+      "matchPath": "/api/Secret/EditPwd",
+      "order": 1,
+      "transforms": [
+        {
+          "PathSet": "/api/auth-service/Secret/EditPwd"
+        }
+      ],
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4853606Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "routeId": "AuthServiceGetSysConfigRoute",
+      "clusterId": "AuthServiceCluster",
+      "matchPath": "/api/Anonymous/GetSysConfig",
+      "order": 1,
+      "transforms": [
+        {
+          "PathSet": "/api/auth-service/Anonymous/GetSysConfig"
+        }
+      ],
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4853627Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "routeId": "AuthServiceGetSystemSwitchRoute",
+      "clusterId": "AuthServiceCluster",
+      "matchPath": "/api/Anonymous/GetSystemSwitch",
+      "order": 1,
+      "transforms": [
+        {
+          "PathSet": "/api/auth-service/Anonymous/GetSystemSwitch"
+        }
+      ],
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4853721Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "routeId": "AuthServiceGetUserAuthorizeListRoute",
+      "clusterId": "AuthServiceCluster",
+      "matchPath": "/api/System/GetUserAuthorizeList",
+      "order": 1,
+      "transforms": [
+        {
+          "PathSet": "/api/auth-service/System/GetUserAuthorizeList"
+        }
+      ],
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4853734Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "routeId": "AuthServiceGetUserBookRoute",
+      "clusterId": "AuthServiceCluster",
+      "matchPath": "/api/Book/GetUserBook",
+      "order": 1,
+      "transforms": [
+        {
+          "Append": "auth-gateway",
+          "RequestHeader": "X-Correlation-ID"
+        },
+        {
+          "PathSet": "/api/auth-service/Book/GetUserBook"
+        }
+      ],
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4853747Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "routeId": "AuthServiceGetUserMenuRoute",
+      "clusterId": "AuthServiceCluster",
+      "matchPath": "/api/System/GetUserMenu",
+      "order": 1,
+      "transforms": [
+        {
+          "PathSet": "/api/auth-service/System/GetUserMenu"
+        }
+      ],
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4853762Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "routeId": "AuthServiceGetUserOrgInfoRoute",
+      "clusterId": "AuthServiceCluster",
+      "matchPath": "/api/System/GetUserOrgInfo",
+      "order": 1,
+      "transforms": [
+        {
+          "PathSet": "/api/auth-service/System/GetUserOrgInfo"
+        }
+      ],
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4853772Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "routeId": "AuthServiceRefreshAccessTokenRoute",
+      "clusterId": "AuthServiceCluster",
+      "matchPath": "/api/Secret/RefreshAccessToken",
+      "order": 1,
+      "transforms": [
+        {
+          "PathSet": "/api/auth-service/Secret/RefreshAccessToken"
+        }
+      ],
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4853781Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "routeId": "AuthServiceResetPwdRoute",
+      "clusterId": "AuthServiceCluster",
+      "matchPath": "/api/Secret/ResetPwd",
+      "order": 1,
+      "transforms": [
+        {
+          "PathSet": "/api/auth-service/Secret/ResetPwd"
+        }
+      ],
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4853792Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "routeId": "AuthServiceSelfRoute",
+      "clusterId": "AuthServiceCluster",
+      "matchPath": "/api/auth-service/{**catchAll}",
+      "order": 2,
+      "transforms": null,
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4853797Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "routeId": "AuthServiceSLoginRoute",
+      "clusterId": "AuthServiceCluster",
+      "matchPath": "/api/Secret/SLogin",
+      "order": 1,
+      "transforms": [
+        {
+          "PathSet": "/api/auth-service/Secret/SLogin"
+        }
+      ],
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4853812Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "routeId": "HRP30ServiceRoute",
+      "clusterId": "HRP30ServiceCluster",
+      "matchPath": "/api/hrp30/{**catchAll}",
+      "order": 10,
+      "transforms": null,
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4853817Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "routeId": "PlatFallbackRoute",
+      "clusterId": "PlatServiceCluster",
+      "matchPath": "/api/{**catchAll}",
+      "order": 100,
+      "transforms": null,
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4853824Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "routeId": "new-route-1777541983207",
+      "clusterId": "qq",
+      "matchPath": "/api/new-route/{**catch-all}",
+      "order": 50,
+      "transforms": [],
+      "source": "dynamic",
+      "createdAt": "2026-04-30T09:40:25.5683939Z",
+      "createdBy": null
     }
   ],
   "clusters": [
@@ -27,6 +253,51 @@
       "healthCheck": null,
       "source": "dynamic",
       "createdAt": "2026-04-30T07:49:52.7993422Z",
+      "createdBy": null
+    },
+    {
+      "clusterId": "AuthServiceCluster",
+      "destinations": {
+        "d1": "http://192.168.16.19:20002",
+        "d2": "http://192.168.16.19:20003"
+      },
+      "loadBalancingPolicy": null,
+      "healthCheck": null,
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4856995Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "clusterId": "HRP30ServiceCluster",
+      "destinations": {
+        "d1": "http://192.168.16.19:20001"
+      },
+      "loadBalancingPolicy": null,
+      "healthCheck": null,
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4857022Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "clusterId": "PlatServiceCluster",
+      "destinations": {
+        "d1": "http://192.168.16.19:20000"
+      },
+      "loadBalancingPolicy": null,
+      "healthCheck": null,
+      "source": "config",
+      "createdAt": "2026-04-30T08:47:35.4857037Z",
+      "createdBy": "appsettings.json"
+    },
+    {
+      "clusterId": "qq",
+      "destinations": {
+        "d1": "http://localhost:5001"
+      },
+      "loadBalancingPolicy": null,
+      "healthCheck": null,
+      "source": "dynamic",
+      "createdAt": "2026-04-30T09:40:25.5683965Z",
       "createdBy": null
     }
   ]

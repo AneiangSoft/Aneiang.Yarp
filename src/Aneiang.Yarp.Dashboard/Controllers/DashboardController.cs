@@ -165,6 +165,16 @@ public class DashboardController : Controller
                 };
             }).ToList();
 
+            // Determine if cluster is editable (not from static config)
+            var isEditable = true;
+            var dynConfig = _dynamicConfig.GetDynamicConfig();
+            var dynCluster = dynConfig?.Clusters.FirstOrDefault(dc => 
+                string.Equals(dc.ClusterId, cluster.ClusterId, StringComparison.OrdinalIgnoreCase));
+            if (dynCluster != null)
+            {
+                isEditable = dynCluster.Source != "config";
+            }
+
             return new
             {
                 clusterId = cluster.ClusterId,
@@ -240,7 +250,8 @@ public class DashboardController : Controller
                 healthyCount = destinations.Count(d => d.activeHealth == "Healthy"),
                 unknownCount = destinations.Count(d => d.activeHealth == "Unknown"),
                 unhealthyCount = destinations.Count(d => d.activeHealth == "Unhealthy"),
-                totalCount = destinations.Count
+                totalCount = destinations.Count,
+                isEditable = isEditable
             };
         }).ToList();
 
@@ -260,22 +271,32 @@ public class DashboardController : Controller
 
         // Transforms from DynamicYarpConfigService (covers both file-based and dynamic routes)
         Dictionary<string, List<Dictionary<string, string>>?>? configTransforms = null;
+        Dictionary<string, string>? routeSources = null;
         try
         {
             var dr = _dynamicConfig.GetRoutes();
             if (dr?.Count > 0)
             {
                 configTransforms = new(StringComparer.OrdinalIgnoreCase);
+                routeSources = new(StringComparer.OrdinalIgnoreCase);
                 foreach (var r in dr)
                 {
                     if (r.Transforms?.Count > 0)
                         configTransforms[r.RouteId] = r.Transforms.Select(t => new Dictionary<string, string>(t)).ToList();
+                    
+                    // Get route source from dynamic config
+                    var dynConfig = _dynamicConfig.GetDynamicConfig();
+                    var dynRoute = dynConfig?.Routes.FirstOrDefault(dr => 
+                        string.Equals(dr.RouteId, r.RouteId, StringComparison.OrdinalIgnoreCase));
+                    if (dynRoute != null)
+                    {
+                        routeSources[r.RouteId] = dynRoute.Source;
+                    }
                 }
             }
         }
         catch (Exception)
         {
-            // Log transform extraction failure but continue rendering routes
             // Log transform extraction failure but continue rendering routes
         }
 
@@ -293,6 +314,13 @@ public class DashboardController : Controller
                 transforms = rc.Transforms.Select(t => new Dictionary<string, string>(t)).ToList();
             else if (configTransforms != null && configTransforms.TryGetValue(rc.RouteId, out var ct) && ct != null)
                 transforms = ct;
+
+            // Determine if route is editable (not from static config)
+            var isEditable = true;
+            if (routeSources != null && routeSources.TryGetValue(rc.RouteId, out var source))
+            {
+                isEditable = source != "config";
+            }
 
             return new
             {
@@ -317,7 +345,8 @@ public class DashboardController : Controller
                     : null,
                 queryParameters = match.QueryParameters?.Count > 0
                     ? match.QueryParameters.Select(q => new { name = q.Name, values = q.Values, mode = q.Mode.ToString() }).ToList()
-                    : null
+                    : null,
+                isEditable = isEditable
             };
         }).OrderBy(r => r.order).ToList();
 
