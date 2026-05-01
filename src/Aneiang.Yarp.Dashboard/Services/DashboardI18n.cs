@@ -150,6 +150,24 @@ public static class DashboardI18n
         ["modal.routeRequired"] = "路由的集群ID、匹配路径和目标地址为必填项",
         ["modal.apiNotImplemented"] = "API尚未实现。请使用 register-route API 来更新目标地址。",
         ["modal.apiNotImplementedCluster"] = "集群创建API尚未实现。请使用 register-route API，它将自动创建集群。",
+        ["modal.kvKeyPlaceholder"] = "键名 (例如: d1)",
+        ["modal.kvValuePlaceholder"] = "值 (例如: http://localhost:8080)",
+        ["modal.confirm"] = "确认",
+        ["modal.cancel"] = "取消",
+        ["modal.importConfirm"] = "这将导入 {routes} 个路由和 {clusters} 个集群。继续？",
+        ["modal.deleteClusterConfirm"] = "确定要删除集群：{clusterId}？\n\n警告：所有引用此集群的路由将受到影响。",
+        ["modal.deleteRouteConfirm"] = "确定要删除路由：{routeId}？",
+
+        // ── Toast messages ──
+        ["toast.importCompleted"] = "导入完成！",
+        ["toast.importedRoutes"] = "路由：",
+        ["toast.importedClusters"] = "集群：",
+        ["toast.imported"] = "已导入",
+        ["toast.importErrors"] = "错误：",
+        ["toast.checkConsole"] = "（查看详情请检查控制台）",
+        ["toast.clusterDeleted"] = "集群删除成功",
+        ["toast.routeDeleted"] = "路由删除成功",
+        ["toast.deleteFailed"] = "删除失败",
     };
 
     /// <summary>English translation dictionary.</summary>
@@ -293,6 +311,24 @@ public static class DashboardI18n
         ["modal.routeRequired"] = "ClusterId, MatchPath, and DestinationAddress are required",
         ["modal.apiNotImplemented"] = "API not yet implemented. Please use register-route API to update destinations.",
         ["modal.apiNotImplementedCluster"] = "Cluster creation API not yet implemented. Please use register-route API which will auto-create cluster.",
+        ["modal.kvKeyPlaceholder"] = "Key (e.g., d1)",
+        ["modal.kvValuePlaceholder"] = "Value (e.g., http://localhost:8080)",
+        ["modal.confirm"] = "Confirm",
+        ["modal.cancel"] = "Cancel",
+        ["modal.importConfirm"] = "This will import {routes} routes and {clusters} clusters. Continue?",
+        ["modal.deleteClusterConfirm"] = "Are you sure you want to delete cluster: {clusterId}?\n\nWarning: All routes referencing this cluster will be affected.",
+        ["modal.deleteRouteConfirm"] = "Are you sure you want to delete route: {routeId}?",
+
+        // ── Toast messages ──
+        ["toast.importCompleted"] = "Import completed!",
+        ["toast.importedRoutes"] = "Routes:",
+        ["toast.importedClusters"] = "Clusters:",
+        ["toast.imported"] = "imported",
+        ["toast.importErrors"] = "Errors:",
+        ["toast.checkConsole"] = "(check console for details)",
+        ["toast.clusterDeleted"] = "Cluster deleted successfully",
+        ["toast.routeDeleted"] = "Route deleted successfully",
+        ["toast.deleteFailed"] = "Delete failed",
     };
 
     /// <summary>Returns the translation dictionary for the given locale.</summary>

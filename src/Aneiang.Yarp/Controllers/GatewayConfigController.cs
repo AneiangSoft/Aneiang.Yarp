@@ -120,6 +120,39 @@ public class GatewayConfigController : ControllerBase
             : BadRequest(new { code = 400, message = result.Message });
     }
 
+    /// <summary>Create a new cluster.</summary>
+    [HttpPost("clusters")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public IActionResult CreateCluster([FromBody] CreateClusterRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+            return BadRequest(new { code = 400, message = string.Join("; ", errors) });
+        }
+
+        var result = _dynamicConfig.TryAddCluster(request);
+        return result.Success
+            ? Ok(new { code = 200, message = result.Message })
+            : BadRequest(new { code = 400, message = result.Message });
+    }
+
+    /// <summary>Update an existing cluster.</summary>
+    [HttpPut("clusters/{clusterId}")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    public IActionResult UpdateCluster(string clusterId, [FromBody] UpdateClusterRequest request)
+    {
+        var result = _dynamicConfig.TryUpdateCluster(clusterId, request);
+        return result.Success
+            ? Ok(new { code = 200, message = result.Message })
+            : (result.Message.Contains("not found") 
+                ? NotFound(new { code = 404, message = result.Message })
+                : BadRequest(new { code = 400, message = result.Message }));
+    }
+
     /// <summary>Health check endpoint.</summary>
     [HttpGet("ping")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]

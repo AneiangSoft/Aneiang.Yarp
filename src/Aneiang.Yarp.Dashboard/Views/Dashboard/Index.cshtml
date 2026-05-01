@@ -64,9 +64,25 @@
             <button class="btn btn-sm btn-success" onclick="showAddClusterModal()">
                 <i class="bi bi-plus-circle me-1"></i><span data-i18n="index.cluster.add">新增</span>
             </button>
+            <button class="btn btn-sm btn-outline-success" onclick="exportConfig()" title="导出配置">
+                <i class="bi bi-download me-1"></i><span data-i18n="index.btn.export">导出</span>
+            </button>
+            <button class="btn btn-sm btn-outline-info" onclick="importConfig()" title="导入配置">
+                <i class="bi bi-upload me-1"></i><span data-i18n="index.btn.import">导入</span>
+            </button>
             <span class="refresh-badge" id="cluster-refresh-time"></span>
             <button class="btn btn-sm btn-outline-secondary" onclick="manualRefresh(this)">
                 <i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="index.btn.refresh">刷新</span>
+            </button>
+        </div>
+    </div>
+    <!-- Cluster Search -->
+    <div class="search-wrapper mb-3">
+        <div class="search-box">
+            <i class="bi bi-search search-icon"></i>
+            <input type="text" class="search-input" id="clusterSearchInput" placeholder="搜索集群名称、节点地址..." oninput="filterClusters(this.value)" />
+            <button class="search-clear" type="button" onclick="document.getElementById('clusterSearchInput').value=''; filterClusters('');" title="清除搜索">
+                <i class="bi bi-x-circle-fill"></i>
             </button>
         </div>
     </div>
@@ -80,7 +96,7 @@
                     <th style="width:12%"><span data-i18n="index.cluster.th.active">主动健康</span></th>
                     <th style="width:12%"><span data-i18n="index.cluster.th.passive">被动健康</span></th>
                     <th style="width:8%"><span data-i18n="index.cluster.th.policy">均衡策略</span></th>
-                    <th style="width:5%"><span data-i18n="index.cluster.th.actions">操作</span></th>
+                    <th style="width:5%; min-width:180px;"><span data-i18n="index.cluster.th.actions">操作</span></th>
                 </tr>
             </thead>
             <tbody id="cluster-tbody">
@@ -104,6 +120,16 @@
             </button>
         </div>
     </div>
+    <!-- Route Search -->
+    <div class="search-wrapper mb-3">
+        <div class="search-box">
+            <i class="bi bi-search search-icon"></i>
+            <input type="text" class="search-input" id="routeSearchInput" placeholder="搜索路由名称、路径、集群..." oninput="filterRoutes(this.value)" />
+            <button class="search-clear" type="button" onclick="document.getElementById('routeSearchInput').value=''; filterRoutes('');" title="清除搜索">
+                <i class="bi bi-x-circle-fill"></i>
+            </button>
+        </div>
+    </div>
     <div class="table-responsive">
         <table class="table table-hover align-middle">
             <thead>
@@ -113,7 +139,7 @@
                     <th style="width:35%"><span data-i18n="index.route.th.path">匹配路径</span></th>
                     <th style="width:20%"><span data-i18n="index.route.th.cluster">关联集群</span></th>
                     <th style="width:10%"><span data-i18n="index.route.th.methods">允许方法</span></th>
-                    <th style="width:5%"><span data-i18n="index.route.th.actions">操作</span></th>
+                    <th style="width:5%; min-width:180px;"><span data-i18n="index.route.th.actions">操作</span></th>
                 </tr>
             </thead>
             <tbody id="route-tbody">
@@ -182,5 +208,104 @@
 <style>
 @@keyframes spin { to { transform: rotate(360deg); } }
 .spin { display:inline-block; animation: spin .6s linear infinite; }
+
+/* Search Box Styles */
+.search-wrapper {
+    position: relative;
+    padding: 12px 16px 0 16px;
+}
+
+.search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: #ffffff;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 0 12px;
+    transition: all 0.3s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.search-box:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.search-box:focus-within {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1), 0 2px 6px rgba(0, 0, 0, 0.08);
+    background: #ffffff;
+}
+
+.search-icon {
+    color: #94a3b8;
+    font-size: 18px;
+    margin-right: 10px;
+    transition: color 0.3s ease;
+}
+
+.search-box:focus-within .search-icon {
+    color: #3b82f6;
+}
+
+.search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    padding: 12px 0;
+    font-size: 14px;
+    color: #334155;
+    background: transparent;
+}
+
+.search-input::placeholder {
+    color: #94a3b8;
+    font-weight: 400;
+}
+
+.search-clear {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: #f1f5f9;
+    color: #64748b;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+    margin-left: 8px;
+}
+
+.search-clear:hover {
+    background: #e2e8f0;
+    color: #475569;
+    transform: scale(1.1);
+}
+
+.search-clear:active {
+    transform: scale(0.95);
+}
+
+/* Show clear button when input has value */
+.search-input:not(:placeholder-shown) + .search-clear,
+.search-input[value]:not([value=""]) + .search-clear {
+    display: flex;
+}
+
+/* Responsive */
+@@media (max-width: 768px) {
+    .search-box {
+        border-radius: 10px;
+    }
+    
+    .search-input {
+        padding: 10px 0;
+        font-size: 13px;
+    }
+}
 </style>
 }
