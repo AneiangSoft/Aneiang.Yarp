@@ -53,22 +53,27 @@
                 window.DashboardStorage.init();
             }
 
-            // 6. Load Schema service
+            // 6. Initialize core (tab system)
+            if (window.DashboardCore) {
+                window.DashboardCore.init();
+            }
+
+            // 7. Load Schema service
             if (window.DashboardSchemaService) {
                 console.log('[Dashboard] Loading JSON Schema...');
                 await window.DashboardSchemaService.load();
             }
 
-            // 7. Wait for Monaco Editor to be ready
+            // 8. Wait for Monaco Editor to be ready
             if (window.__monacoReady) {
                 console.log('[Dashboard] Waiting for Monaco Editor...');
                 await window.__monacoReady;
             }
 
-            // 8. Initialize modules
+            // 9. Initialize modules
             await this.initModules();
 
-            // 9. Setup event handlers
+            // 10. Setup event handlers
             if (window.DashboardEvents) {
                 window.DashboardEvents.setup();
             }

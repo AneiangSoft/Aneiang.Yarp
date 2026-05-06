@@ -32,12 +32,10 @@
         // ===== Load Gateway Info =====
         loadInfo: async function() {
             try {
-                const container = window.DashboardDOM.safe('#info-container');
-                if (!container) return;
-
-                window.DashboardDOM.showLoading(container, __('index.loading'));
-
+                console.log('[Home] Loading gateway info...');
+                // Note: Gateway info is displayed in #stat-bar, not a separate container
                 const info = await window.DashboardApi.endpoints.getInfo();
+                console.log('[Home] Gateway info loaded:', info);
                 
                 // Update state
                 window.DashboardState.set('data.info', info);
@@ -50,10 +48,7 @@
 
             } catch (error) {
                 console.error('[Home] Load info failed:', error);
-                const container = window.DashboardDOM.safe('#info-container');
-                if (container) {
-                    window.DashboardDOM.showError(container, __('index.error.loadFailed'));
-                }
+                console.error('[Home] Error stack:', error.stack);
             }
         },
 
@@ -65,24 +60,24 @@
 
             // Environment
             const envEl = window.DashboardDOM.safe('#info-env');
-            if (envEl) envEl.textContent = info.environmentName || '-';
+            if (envEl) envEl.textContent = info.environment || '-';
 
             // Start time
             const startEl = window.DashboardDOM.safe('#info-start');
             if (startEl && info.startTime) {
-                startEl.textContent = window.DashboardI18n.formatDateTime(new Date(info.startTime));
+                startEl.textContent = info.startTime;
             }
 
             // Uptime
             const uptimeEl = window.DashboardDOM.safe('#info-uptime');
             if (uptimeEl && info.uptime) {
-                uptimeEl.textContent = this.formatUptime(info.uptime);
+                uptimeEl.textContent = info.uptime;
             }
 
             // Memory
             const memoryEl = window.DashboardDOM.safe('#info-memory');
-            if (memoryEl && info.memoryBytes !== null) {
-                memoryEl.textContent = window.DashboardI18n.formatBytes(info.memoryBytes);
+            if (memoryEl && info.memoryMb) {
+                memoryEl.textContent = info.memoryMb.toFixed(1) + ' MB';
             }
 
             // Machine name
@@ -107,9 +102,10 @@
                 const clusterCount = (clusters || []).length;
                 const routeCount = (routes || []).length;
                 
-                const healthy = (clusters || []).filter(c => c.healthStatus === 'Healthy').length;
-                const unknown = (clusters || []).filter(c => c.healthStatus === 'Unknown' || !c.healthStatus).length;
-                const unhealthy = (clusters || []).filter(c => c.healthStatus === 'Unhealthy').length;
+                // Use healthyCount/unknownCount/unhealthyCount from backend
+                const healthy = (clusters || []).reduce((sum, c) => sum + (c.healthyCount || 0), 0);
+                const unknown = (clusters || []).reduce((sum, c) => sum + (c.unknownCount || 0), 0);
+                const unhealthy = (clusters || []).reduce((sum, c) => sum + (c.unhealthyCount || 0), 0);
 
                 // Update DOM
                 const clustersEl = window.DashboardDOM.safe('#stat-clusters');
@@ -121,9 +117,120 @@
                 const routesEl = window.DashboardDOM.safe('#stat-routes');
                 if (routesEl) routesEl.textContent = routeCount;
 
+                // Render preview lists
+                this.renderClusterPreview(clusters || []);
+                this.renderRoutePreview(routes || []);
+
             } catch (error) {
                 console.error('[Home] Update stats failed:', error);
             }
+        },
+
+        // ===== Render Cluster Preview (top 5) =====
+        renderClusterPreview: function(clusters) {
+            const tbody = window.DashboardDOM.safe('#cluster-preview-tbody');
+            if (!tbody) return;
+
+            const countEl = window.DashboardDOM.safe('#cluster-preview-count');
+            if (countEl) countEl.textContent = `共 ${clusters.length} 个`;
+
+            // Show only top 5
+            const previewClusters = clusters.slice(0, 5);
+
+            if (previewClusters.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="2" class="text-center text-muted py-3">暂无数据</td></tr>';
+                return;
+            }
+
+            const fragment = document.createDocumentFragment();
+            previewClusters.forEach(cluster => {
+                const tr = window.DashboardDOM.create('tr', { style: { cursor: 'pointer' } });
+                
+                // Cluster name
+                const tdName = window.DashboardDOM.create('td', {
+                    innerHTML: `<strong>${this.escapeHtml(cluster.clusterId)}</strong>`
+                });
+                tr.appendChild(tdName);
+
+                // Health status
+                const tdHealth = window.DashboardDOM.create('td');
+                const healthBadge = this.createHealthBadge(cluster);
+                tdHealth.appendChild(healthBadge);
+                tr.appendChild(tdHealth);
+
+                fragment.appendChild(tr);
+            });
+
+            window.DashboardDOM.clear(tbody);
+            tbody.appendChild(fragment);
+        },
+
+        // ===== Render Route Preview (top 5) =====
+        renderRoutePreview: function(routes) {
+            const tbody = window.DashboardDOM.safe('#route-preview-tbody');
+            if (!tbody) return;
+
+            const countEl = window.DashboardDOM.safe('#route-preview-count');
+            if (countEl) countEl.textContent = `共 ${routes.length} 条`;
+
+            // Show only top 5
+            const previewRoutes = routes.slice(0, 5);
+
+            if (previewRoutes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="2" class="text-center text-muted py-3">暂无数据</td></tr>';
+                return;
+            }
+
+            const fragment = document.createDocumentFragment();
+            previewRoutes.forEach(route => {
+                const tr = window.DashboardDOM.create('tr', { style: { cursor: 'pointer' } });
+                
+                // Route name
+                const tdName = window.DashboardDOM.create('td', {
+                    innerHTML: `<strong>${this.escapeHtml(route.routeId)}</strong>`
+                });
+                tr.appendChild(tdName);
+
+                // Cluster name
+                const tdCluster = window.DashboardDOM.create('td', {
+                    textContent: route.clusterId || '-'
+                });
+                tr.appendChild(tdCluster);
+
+                fragment.appendChild(tr);
+            });
+
+            window.DashboardDOM.clear(tbody);
+            tbody.appendChild(fragment);
+        },
+
+        // ===== Create Health Badge =====
+        createHealthBadge: function(cluster) {
+            const badge = window.DashboardDOM.create('span', {
+                className: 'badge',
+                style: { fontSize: '12px', padding: '4px 8px' }
+            });
+
+            if (cluster.healthyCount > 0) {
+                badge.className += ' bg-success';
+                badge.textContent = `健康 ${cluster.healthyCount}`;
+            } else if (cluster.unhealthyCount > 0) {
+                badge.className += ' bg-danger';
+                badge.textContent = `异常 ${cluster.unhealthyCount}`;
+            } else {
+                badge.className += ' bg-secondary';
+                badge.textContent = `未知 ${cluster.unknownCount}`;
+            }
+
+            return badge;
+        },
+
+        // ===== Escape HTML =====
+        escapeHtml: function(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         },
 
         // ===== Format Uptime =====

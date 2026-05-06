@@ -96,11 +96,19 @@
             if (parseJson && response.status !== 204) {
                 const data = await response.json();
                 
-                // Check for error response
-                if (!response.ok) {
-                    throw new Error(data.message || `HTTP ${response.status}`);
+                // Unwrap { code: 200, data: ... } response format
+                if (data && typeof data === 'object' && 'code' in data) {
+                    if (data.code === 200) {
+                        return data.data !== undefined ? data.data : data;
+                    } else if (data.code === 401) {
+                        this.handleAuthError();
+                        throw new Error(data.message || 'Unauthorized');
+                    } else {
+                        throw new Error(data.message || `API error: ${data.code}`);
+                    }
                 }
                 
+                // Fallback: return data directly if no code field
                 return data;
             }
 

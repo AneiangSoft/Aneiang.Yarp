@@ -51,7 +51,7 @@
                 status: 'all',
                 level: 'all',
                 autoRefresh: false,
-                refreshInterval: 5000,
+                refreshInterval: 3000, // 3 seconds
                 maxCount: 100
             }
         },
@@ -169,9 +169,15 @@
                 return false;
             }
             
-            // Health filter
-            if (health !== 'all' && cluster.healthStatus !== health) {
-                return false;
+            // Health filter - use healthyCount/unknownCount/unhealthyCount
+            if (health !== 'all') {
+                if (health === 'Healthy' && cluster.healthyCount === 0) {
+                    return false;
+                } else if (health === 'Unknown' && cluster.unknownCount === 0) {
+                    return false;
+                } else if (health === 'Unhealthy' && cluster.unhealthyCount === 0) {
+                    return false;
+                }
             }
             
             // Editable filter
@@ -179,10 +185,10 @@
                 return false;
             }
             
-            // Source filter
-            if (source !== 'all' && cluster.source !== source) {
-                return false;
-            }
+            // Source filter - not available in backend data, skip filtering
+            // if (source !== 'all' && cluster.source !== source) {
+            //     return false;
+            // }
             
             return true;
         });
@@ -197,7 +203,7 @@
             if (search) {
                 const searchLower = search.toLowerCase();
                 const matchRouteId = route.routeId.toLowerCase().includes(searchLower);
-                const matchClusterId = route.clusterId.toLowerCase().includes(searchLower);
+                const matchClusterId = route.clusterId && route.clusterId.toLowerCase().includes(searchLower);
                 if (!matchRouteId && !matchClusterId) {
                     return false;
                 }
@@ -208,14 +214,16 @@
                 return false;
             }
             
-            // Source filter
-            if (source !== 'all' && route.source !== source) {
-                return false;
-            }
+            // Source filter - not available in backend data, skip filtering
+            // if (source !== 'all' && route.source !== source) {
+            //     return false;
+            // }
             
             // Method filter
-            if (method !== 'all' && route.methods && !route.methods.includes(method)) {
-                return false;
+            if (method !== 'all') {
+                if (!route.methods || !route.methods.includes(method)) {
+                    return false;
+                }
             }
             
             return true;

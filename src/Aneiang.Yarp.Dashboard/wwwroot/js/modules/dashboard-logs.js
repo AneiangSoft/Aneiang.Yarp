@@ -95,8 +95,9 @@
         // ===== Render Filter Toolbar =====
         renderFilterToolbar: function() {
             const container = window.DashboardDOM.safe('#log-filter-container');
-            if (!container || container.dataset.initialized) return;
+            if (!container) return;
 
+            // Always render the toolbar (don't skip if already initialized)
             container.innerHTML = `
                 <div class="card-body py-2 border-bottom">
                     <div class="row g-2 align-items-center">
@@ -138,43 +139,43 @@
                 </div>
             `;
 
-            container.dataset.initialized = 'true';
+            // Re-initialize handlers every time
             this.initFilterHandlers();
         },
 
         // ===== Initialize Filter Handlers =====
         initFilterHandlers: function() {
-            // Listen button
+            // Listen button - use onclick attribute to avoid duplicate event listeners
             const listenBtn = window.DashboardDOM.safe('#log-listen-btn');
             if (listenBtn) {
-                listenBtn.addEventListener('click', () => this.togglePolling());
+                listenBtn.onclick = () => this.togglePolling();
             }
 
             // Count select
             const countSelect = window.DashboardDOM.safe('#log-count-select');
             if (countSelect) {
-                countSelect.addEventListener('change', (e) => {
+                countSelect.onchange = (e) => {
                     window.DashboardState.set('filters.logs.maxCount', parseInt(e.target.value));
                     this.loadLogs();
-                });
+                };
             }
 
             // Search input (debounced)
             const searchInput = window.DashboardDOM.safe('#log-search-input');
             if (searchInput) {
-                searchInput.addEventListener('input', window.DashboardUtils.debounce((e) => {
+                searchInput.oninput = window.DashboardUtils.debounce((e) => {
                     window.DashboardState.set('filters.logs.search', e.target.value);
                     this.renderLogs();
-                }, 300));
+                }, 300);
             }
 
             // Status select
             const statusSelect = window.DashboardDOM.safe('#log-status-select');
             if (statusSelect) {
-                statusSelect.addEventListener('change', (e) => {
+                statusSelect.onchange = (e) => {
                     window.DashboardState.set('filters.logs.status', e.target.value);
                     this.renderLogs();
-                });
+                };
             }
 
             // Restore filter values from state
@@ -241,11 +242,12 @@
                 className: 'log-row',
                 style: {
                     display: 'flex',
-                    gap: '8px',
-                    padding: '4px 16px',
+                    gap: '10px',
+                    padding: '10px 16px',
                     borderBottom: '1px solid #f1f5f9',
                     cursor: 'pointer',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    transition: 'background 0.2s'
                 },
                 events: {
                     mouseenter: function() { this.style.background = '#f8fafc'; },
@@ -260,25 +262,102 @@
                 style: {
                     color: '#94a3b8',
                     whiteSpace: 'nowrap',
-                    minWidth: '80px'
+                    minWidth: '85px',
+                    fontSize: '12px',
+                    fontFamily: 'monospace'
                 }
             });
 
             // Level badge
             const badge = this.createLevelBadge(entry.level);
 
-            // Message
+            // HTTP Method (if exists)
+            let methodSpan = null;
+            if (entry.method) {
+                const methodColors = {
+                    'GET': '#3b82f6',
+                    'POST': '#10b981',
+                    'PUT': '#f59e0b',
+                    'DELETE': '#ef4444',
+                    'PATCH': '#8b5cf6'
+                };
+                const color = methodColors[entry.method] || '#64748b';
+                methodSpan = window.DashboardDOM.create('span', {
+                    textContent: entry.method,
+                    style: {
+                        color: color,
+                        fontWeight: '600',
+                        fontSize: '11px',
+                        whiteSpace: 'nowrap',
+                        minWidth: '60px',
+                        fontFamily: 'monospace'
+                    }
+                });
+            }
+
+            // Status code (if exists)
+            let statusSpan = null;
+            if (entry.statusCode) {
+                const statusCode = parseInt(entry.statusCode);
+                let statusColor = '#64748b';
+                if (statusCode >= 200 && statusCode < 300) statusColor = '#10b981';
+                else if (statusCode >= 300 && statusCode < 400) statusColor = '#3b82f6';
+                else if (statusCode >= 400 && statusCode < 500) statusColor = '#f59e0b';
+                else if (statusCode >= 500) statusColor = '#ef4444';
+                
+                statusSpan = window.DashboardDOM.create('span', {
+                    textContent: entry.statusCode,
+                    style: {
+                        color: statusColor,
+                        fontWeight: '600',
+                        fontSize: '12px',
+                        whiteSpace: 'nowrap',
+                        minWidth: '40px',
+                        fontFamily: 'monospace',
+                        background: statusColor + '15',
+                        padding: '2px 8px',
+                        borderRadius: '4px'
+                    }
+                });
+            }
+
+            // Path/Message
             const msgSpan = window.DashboardDOM.create('span', {
-                textContent: entry.message || '',
+                textContent: entry.path || entry.message || '',
                 style: {
                     color: '#475569',
                     flex: '1',
                     wordBreak: 'break-all',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
-                    textOverflow: 'ellipsis'
+                    textOverflow: 'ellipsis',
+                    fontSize: '13px'
                 }
             });
+
+            // Action buttons (on the right)
+            const actionsDiv = window.DashboardDOM.create('div', {
+                style: {
+                    display: 'flex',
+                    gap: '4px',
+                    marginLeft: 'auto',
+                    paddingLeft: '8px'
+                }
+            });
+            
+            // Copy button
+            const copyBtn = window.DashboardDOM.create('button', {
+                className: 'btn btn-sm btn-outline-secondary',
+                innerHTML: '<i class="bi bi-clipboard"></i>',
+                style: { padding: '2px 6px', fontSize: '11px' },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        this.copyLogEntry(entry);
+                    }
+                }
+            });
+            actionsDiv.appendChild(copyBtn);
 
             // Arrow
             const arrowSpan = window.DashboardDOM.create('span', {
@@ -296,7 +375,10 @@
 
             row.appendChild(timeSpan);
             row.appendChild(badge);
+            if (methodSpan) row.appendChild(methodSpan);
+            if (statusSpan) row.appendChild(statusSpan);
             row.appendChild(msgSpan);
+            row.appendChild(actionsDiv);
             row.appendChild(arrowSpan);
 
             // Detail section
@@ -433,8 +515,25 @@
         toggleLogEntry: function(logKey) {
             const state = window.DashboardState;
             const current = state.get(`ui.expandedLogs.${logKey}`) || false;
+            
+            // If expanding and polling is active, stop polling
+            if (!current && state.get('filters.logs.autoRefresh')) {
+                this.stopPolling();
+                console.log('[Logs] Auto-stopped polling due to log expansion');
+            }
+            
             state.set(`ui.expandedLogs.${logKey}`, !current);
             this.renderLogs();
+        },
+
+        // ===== Copy Log Entry =====
+        copyLogEntry: function(entry) {
+            const text = JSON.stringify(entry, null, 2);
+            navigator.clipboard.writeText(text).then(() => {
+                console.log('[Logs] Log entry copied to clipboard');
+            }).catch(err => {
+                console.error('[Logs] Failed to copy:', err);
+            });
         },
 
         // ===== Update Log Counts =====
