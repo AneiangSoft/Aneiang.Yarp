@@ -570,4 +570,71 @@ public class DynamicYarpConfigService
             _dynamicConfig = new GatewayDynamicConfig();
         }
     }
+
+    /// <summary>
+    /// Replace entire configuration in one batch operation.
+    /// This is used for rollback operations to avoid multiple file saves.
+    /// </summary>
+    /// <param name="newRoutes">New routes to set.</param>
+    /// <param name="newClusters">New clusters to set.</param>
+    /// <param name="source">Source of the change (e.g., "rollback").</param>
+    /// <param name="createdBy">Who initiated the change.</param>
+    public void ReplaceAllConfig(
+        IReadOnlyList<RouteConfig> newRoutes,
+        IReadOnlyList<ClusterConfig> newClusters,
+        string source = "rollback",
+        string? createdBy = "dashboard-user")
+    {
+        lock (_lock)
+        {
+            // Update YARP in-memory config in one operation
+            _configProvider.Update(newRoutes, newClusters);
+            
+            // Update dynamic config metadata
+            EnsureDynamicConfigInitialized();
+            _dynamicConfig!.Routes.Clear();
+            _dynamicConfig.Clusters.Clear();
+            
+            foreach (var cluster in newClusters)
+            {
+                var dynCluster = new DynamicClusterConfig
+                {
+                    ClusterId = cluster.ClusterId,
+                    Destinations = cluster.Destinations?.ToDictionary(
+                        d => d.Key,
+                        d => d.Value.Address ?? string.Empty) ?? new Dictionary<string, string>(),
+                    LoadBalancingPolicy = cluster.LoadBalancingPolicy,
+                    HealthCheck = null,
+                    Source = source,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = createdBy
+                }; 
+                _dynamicConfig.Clusters.Add(dynCluster);
+            }
+            
+            foreach (var route in newRoutes)
+            {
+                var dynRoute = new DynamicRouteConfig
+                {
+                    RouteId = route.RouteId ?? string.Empty,
+                    ClusterId = route.ClusterId ?? string.Empty,
+                    MatchPath = route.Match?.Path ?? string.Empty,
+                    Order = route.Order ?? 50,
+                    Transforms = route.Transforms?.Select(t => new Dictionary<string, string>(t)).ToList(),
+                    Source = source,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = createdBy
+                }; 
+                _dynamicConfig.Routes.Add(dynRoute);
+            }
+            
+            // Save to file only once at the end
+            SaveDynamicConfig();
+            
+            _logger.LogInformation(
+                "Configuration replaced: {Routes} routes, {Clusters} clusters",
+                newRoutes.Count,
+                newClusters.Count);
+        }
+    }
 }

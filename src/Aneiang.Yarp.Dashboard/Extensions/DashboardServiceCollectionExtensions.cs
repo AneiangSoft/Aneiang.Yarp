@@ -68,7 +68,13 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<IDashboardAuthorizationService, DashboardAuthorizationService>();
 
         // Register configuration persistence service
-        services.AddSingleton<ConfigPersistenceService>();
+        services.AddSingleton(sp =>
+        {
+            var filePersistence = sp.GetRequiredService<DynamicConfigPersistenceService>();
+            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ConfigPersistenceService>>();
+            var dynamicConfig = sp.GetService<DynamicYarpConfigService>();
+            return new ConfigPersistenceService(filePersistence, logger, dynamicConfig);
+        });
 
         // Register dynamic config persistence service (from Aneiang.Yarp)
         services.AddSingleton(sp =>

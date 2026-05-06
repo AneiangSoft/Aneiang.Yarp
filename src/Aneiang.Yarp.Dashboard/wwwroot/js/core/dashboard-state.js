@@ -164,9 +164,20 @@
         const { search, health, editable, source } = state.filters.clusters;
         
         return clusters.filter(cluster => {
-            // Search filter
-            if (search && !cluster.clusterId.toLowerCase().includes(search.toLowerCase())) {
-                return false;
+            // Search filter - search in clusterId AND destinations addresses
+            if (search) {
+                const searchLower = search.toLowerCase();
+                const matchClusterId = cluster.clusterId.toLowerCase().includes(searchLower);
+                // Also search in destination addresses
+                let matchAddress = false;
+                if (cluster.destinations && Array.isArray(cluster.destinations)) {
+                    matchAddress = cluster.destinations.some(dest => 
+                        dest.address && dest.address.toLowerCase().includes(searchLower)
+                    );
+                }
+                if (!matchClusterId && !matchAddress) {
+                    return false;
+                }
             }
             
             // Health filter - use healthyCount/unknownCount/unhealthyCount
@@ -185,11 +196,6 @@
                 return false;
             }
             
-            // Source filter - not available in backend data, skip filtering
-            // if (source !== 'all' && cluster.source !== source) {
-            //     return false;
-            // }
-            
             return true;
         });
     };
@@ -199,12 +205,17 @@
         const { search, clusterId, source, method } = state.filters.routes;
         
         return routes.filter(route => {
-            // Search filter
+            // Search filter - search in routeId, clusterId, AND match path
             if (search) {
                 const searchLower = search.toLowerCase();
                 const matchRouteId = route.routeId.toLowerCase().includes(searchLower);
                 const matchClusterId = route.clusterId && route.clusterId.toLowerCase().includes(searchLower);
-                if (!matchRouteId && !matchClusterId) {
+                // Also search in match path
+                let matchPath = false;
+                if (route.matchPath && route.matchPath.toLowerCase().includes(searchLower)) {
+                    matchPath = true;
+                }
+                if (!matchRouteId && !matchClusterId && !matchPath) {
                     return false;
                 }
             }
@@ -213,11 +224,6 @@
             if (clusterId && route.clusterId !== clusterId) {
                 return false;
             }
-            
-            // Source filter - not available in backend data, skip filtering
-            // if (source !== 'all' && route.source !== source) {
-            //     return false;
-            // }
             
             // Method filter
             if (method !== 'all') {

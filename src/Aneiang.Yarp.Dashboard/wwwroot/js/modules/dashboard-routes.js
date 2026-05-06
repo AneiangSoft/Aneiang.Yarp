@@ -58,123 +58,208 @@
         renderRoutes: function() {
             const state = window.DashboardState;
             const routes = state.getFilteredRoutes();
-            
-            // Render filter toolbar
+                    
+            // Render filter toolbar (only once, then update counts)
             this.renderFilterToolbar();
-            
+                    
             const tbody = window.DashboardDOM.safe('#route-tbody');
-            if (!tbody) return;
-
+            if (!tbody) {
+                console.error('[Routes] tbody not found, cannot render');
+                return;
+            }
+        
+            // Always clear tbody content, not the parent table
+            window.DashboardDOM.clear(tbody);
+                    
             if (routes.length === 0) {
-                window.DashboardDOM.showEmpty(
-                    tbody.parentElement,
-                    __('index.route.empty'),
-                    'bi bi-signpost-split'
-                );
+                // Show empty state INSIDE tbody, not replacing it
+                const emptyRow = document.createElement('tr');
+                emptyRow.innerHTML = `
+                    <td colspan="6" class="text-center py-5 text-muted">
+                        <i class="bi bi-signpost-split" style="font-size: 2rem; opacity: 0.5;"></i>
+                        <div class="mt-2">${__('index.route.empty') || '暂无路由数据'}</div>
+                    </td>
+                `; 
+                tbody.appendChild(emptyRow);
             } else {
                 this.renderRouteRows(routes, tbody);
             }
-
+        
             // Update refresh time
             this.updateRefreshTime();
         },
-
+        
         // ===== Render Filter Toolbar =====
         renderFilterToolbar: function() {
             const container = window.DashboardDOM.safe('#route-filter-container');
             if (!container) return;
-
-            // Always render the toolbar (don't skip if already initialized)
+        
+            // Check if toolbar already exists - only update counts, don't recreate
+            const existingToolbar = document.getElementById('route-search-input');
+            if (existingToolbar) {
+                this._updateFilterCounts();
+                return;
+            }
+                    
+            // First time - create toolbar
+            const state = window.DashboardState;
+            const allRoutes = state.get('data.routes') || [];
+            const methodCounts = this._getMethodCounts(allRoutes);
+        
             container.innerHTML = `
                 <div class="card-body py-2 border-bottom">
                     <div class="row g-2 align-items-center">
                         <div class="col">
-                            <input type="text" class="form-control form-control-sm" id="route-search-input" 
-                                   placeholder="${__('index.route.search')}...">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="text" class="form-control" id="route-search-input" 
+                                       placeholder="${__('index.route.search') || '搜索路由ID、集群、路径...'}..." 
+                                       autocomplete="off">
+                                <button class="btn btn-primary" type="button" id="route-search-btn">
+                                    <i class="bi bi-arrow-right"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="col-auto">
-                            <select class="form-select form-select-sm" id="route-source-select" style="width:auto;" disabled title="来源过滤功能暂未实现">
-                                <option value="all">${__('index.route.source.all')}</option>
-                                <option value="static">${__('index.route.source.static')}</option>
-                                <option value="dynamic">${__('index.route.source.dynamic')}</option>
-                            </select>
+                            <span class="text-muted small" id="route-search-result"></span>
                         </div>
                         <div class="col-auto">
                             <select class="form-select form-select-sm" id="route-method-select" style="width:auto;">
-                                <option value="all">${__('index.route.method.all')}</option>
-                                <option value="GET">GET</option>
-                                <option value="POST">POST</option>
-                                <option value="PUT">PUT</option>
-                                <option value="DELETE">DELETE</option>
+                                <option value="all">${__('index.route.method.all') || '全部'} (${methodCounts.all})</option>
+                                <option value="GET">GET (${methodCounts.GET})</option>
+                                <option value="POST">POST (${methodCounts.POST})</option>
+                                <option value="PUT">PUT (${methodCounts.PUT})</option>
+                                <option value="DELETE">DELETE (${methodCounts.DELETE})</option>
                             </select>
                         </div>
                         <div class="col-auto">
-                            <button class="btn btn-sm btn-success" onclick="RoutesModule.showAddModal()">
-                                <i class="bi bi-plus-circle me-1"></i>${__('index.route.add')}
+                            <button class="btn btn-sm btn-outline-secondary" type="button" id="route-search-clear" title="${__('index.search.clear') || '清除搜索'}" style="display:none;">\n                                <i class="bi bi-x-circle me-1"></i>${__('index.search.clear') || '清除'}\n                            </button>
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-sm btn-success" id="route-add-btn">
+                                <i class="bi bi-plus-circle me-1"></i>${__('index.route.add') || '新增'}
                             </button>
                         </div>
                     </div>
                 </div>
             `;
-
-            // Re-initialize handlers every time
-            this.initFilterHandlers();
-            
-            // Restore filter values after rendering
-            this.restoreFilterValues();
+        
+            // Bind event handlers (only once)
+            this._bindFilterEvents();
         },
-
-        // ===== Initialize Filter Handlers =====
-        initFilterHandlers: function() {
-            // Search input (debounced) - use oninput to avoid duplicate event listeners
-            const searchInput = window.DashboardDOM.safe('#route-search-input');
-            if (searchInput) {
-                searchInput.oninput = window.DashboardUtils.debounce((e) => {
-                    window.DashboardState.set('filters.routes.search', e.target.value);
-                    this.renderRoutes();
-                }, 300);
-            }
-
-            // Source select
-            const sourceSelect = window.DashboardDOM.safe('#route-source-select');
-            if (sourceSelect) {
-                sourceSelect.onchange = (e) => {
-                    window.DashboardState.set('filters.routes.source', e.target.value);
-                    this.renderRoutes();
-                };
-            }
-
-            // Method select
-            const methodSelect = window.DashboardDOM.safe('#route-method-select');
-            if (methodSelect) {
-                methodSelect.onchange = (e) => {
-                    window.DashboardState.set('filters.routes.method', e.target.value);
-                    this.renderRoutes();
-                };
-            }
-
-            // Note: restoreFilterValues is called after initFilterHandlers in renderFilterToolbar
-        },
-
-        // ===== Restore Filter Values =====
-        restoreFilterValues: function() {
+                
+        // ===== Update Filter Counts (called after search, not recreating toolbar) =====
+        _updateFilterCounts: function() {
             const state = window.DashboardState;
-            
-            const searchInput = window.DashboardDOM.safe('#route-search-input');
-            if (searchInput) {
-                searchInput.value = state.get('filters.routes.search') || '';
+            const allRoutes = state.get('data.routes') || []; 
+            const filteredRoutes = state.getFilteredRoutes();
+            const searchValue = state.get('filters.routes.search') || ''; 
+            const methodValue = state.get('filters.routes.method') || 'all';
+                    
+            // Update result count
+            const resultEl = document.getElementById('route-search-result');
+            if (resultEl) {
+                if (searchValue || methodValue !== 'all') {
+                    resultEl.textContent = `${filteredRoutes.length}/${allRoutes.length}`;
+                    resultEl.style.display = '';
+                } else {
+                    resultEl.textContent = `${allRoutes.length} ${__('index.route.total') || '个路由'}`;
+                }
             }
-
-            const sourceSelect = window.DashboardDOM.safe('#route-source-select');
-            if (sourceSelect) {
-                sourceSelect.value = state.get('filters.routes.source') || 'all';
+                    
+            // Update clear button visibility
+            const clearBtn = document.getElementById('route-search-clear');
+            if (clearBtn) {
+                clearBtn.style.display = searchValue ? '' : 'none';
             }
-
-            const methodSelect = window.DashboardDOM.safe('#route-method-select');
-            if (methodSelect) {
-                methodSelect.value = state.get('filters.routes.method') || 'all';
+                    
+            // Update method select value (don't recreate)
+            const methodSelect = document.getElementById('route-method-select');
+            if (methodSelect && methodSelect.value !== methodValue) {
+                methodSelect.value = methodValue;
             }
         },
+                        
+        // ===== Get Method Counts =====
+        _getMethodCounts: function(routes) {
+            const counts = { all: routes.length, GET: 0, POST: 0, PUT: 0, DELETE: 0 }; 
+            routes.forEach(route => {
+                if (route.methods && Array.isArray(route.methods)) {
+                    route.methods.forEach(method => {
+                        if (counts[method] !== undefined) {
+                            counts[method]++; 
+                        }
+                    });
+                }
+            });
+            return counts;
+        },
+                        
+        // ===== Bind Filter Events =====
+        _bindFilterEvents: function() {
+            const self = this;
+                            
+            // Search button click
+            const searchBtn = document.getElementById('route-search-btn');
+            if (searchBtn) {
+                searchBtn.addEventListener('click', function() {
+                    self._doSearch();
+                });
+            }
+                    
+            // Search input - Enter key triggers search
+            const searchInput = document.getElementById('route-search-input');
+            if (searchInput) {
+                searchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        self._doSearch();
+                    }
+                });
+            }
+                            
+            // Clear button
+            const clearBtn = document.getElementById('route-search-clear');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function() {
+                    const input = document.getElementById('route-search-input');
+                    if (input) input.value = ''; 
+                    window.DashboardState.set('filters.routes.search', '');
+                    window.DashboardState.set('filters.routes.method', 'all');
+                    self.renderRoutes();
+                });
+            }
+                            
+            // Method select - immediate filter
+            const methodSelect = document.getElementById('route-method-select');
+            if (methodSelect) {
+                methodSelect.addEventListener('change', function(e) {
+                    window.DashboardState.set('filters.routes.method', e.target.value);
+                    self.renderRoutes();
+                });
+            }
+                    
+            // Add button
+            const addBtn = document.getElementById('route-add-btn');
+            if (addBtn) {
+                addBtn.addEventListener('click', function() {
+                    self.showAddModal();
+                });
+            }
+        },
+                
+        // ===== Do Search =====
+        _doSearch: function() {
+            const searchInput = document.getElementById('route-search-input');
+            if (searchInput) {
+                window.DashboardState.set('filters.routes.search', searchInput.value);
+                this.renderRoutes();
+            }
+        },
+                
+        // ===== Legacy methods (removed) =====
+        initFilterHandlers: function() { /* deprecated */ },
+        restoreFilterValues: function() { /* deprecated */ },
 
         // ===== Render Route Rows =====
         renderRouteRows: function(routes, tbody) {

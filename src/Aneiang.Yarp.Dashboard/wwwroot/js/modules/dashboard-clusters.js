@@ -66,18 +66,28 @@
                 filters: state.get('filters.clusters')
             });
             
-            // Render filter toolbar
+            // Render filter toolbar (only once, then update counts)
             this.renderFilterToolbar();
             
             const tbody = window.DashboardDOM.safe('#cluster-tbody');
-            if (!tbody) return;
+            if (!tbody) {
+                console.error('[Clusters] tbody not found, cannot render');
+                return;
+            }
 
+            // Always clear tbody content, not the parent table
+            window.DashboardDOM.clear(tbody);
+            
             if (clusters.length === 0) {
-                window.DashboardDOM.showEmpty(
-                    tbody.parentElement,
-                    __('index.cluster.empty'),
-                    'bi bi-hdd-rack'
-                );
+                // Show empty state INSIDE tbody, not replacing it
+                const emptyRow = document.createElement('tr');
+                emptyRow.innerHTML = `
+                    <td colspan="5" class="text-center py-5 text-muted">
+                        <i class="bi bi-hdd-rack" style="font-size: 2rem; opacity: 0.5;"></i>
+                        <div class="mt-2">${__('index.cluster.empty') || '暂无集群数据'}</div>
+                    </td>
+                `; 
+                tbody.appendChild(emptyRow);
             } else {
                 this.renderClusterRows(clusters, tbody);
             }
@@ -90,97 +100,167 @@
         renderFilterToolbar: function() {
             const container = window.DashboardDOM.safe('#cluster-filter-container');
             if (!container) return;
-        
-            // Always render the toolbar (don't skip if already initialized)
+            
+            // Check if toolbar already exists - only update counts, don't recreate
+            const existingToolbar = document.getElementById('cluster-search-input');
+            if (existingToolbar) {
+                this._updateFilterCounts();
+                return;
+            }
+            
+            // First time - create toolbar
+            const state = window.DashboardState;
+            const allClusters = state.get('data.clusters') || [];
+            const healthCounts = this._getHealthCounts(allClusters);
+            
             container.innerHTML = `
                 <div class="card-body py-2 border-bottom">
                     <div class="row g-2 align-items-center">
                         <div class="col">
-                            <input type="text" class="form-control form-control-sm" id="cluster-search-input" 
-                                   placeholder="${__('index.cluster.search')}...">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="text" class="form-control" id="cluster-search-input" 
+                                       placeholder="${__('index.cluster.search') || '搜索集群ID、地址...'}..." 
+                                       autocomplete="off">
+                                <button class="btn btn-primary" type="button" id="cluster-search-btn">
+                                    <i class="bi bi-arrow-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <span class="text-muted small" id="cluster-search-result"></span>
                         </div>
                         <div class="col-auto">
                             <select class="form-select form-select-sm" id="cluster-health-select" style="width:auto;">
-                                <option value="all">${__('index.cluster.health.all')}</option>
-                                <option value="Healthy">${__('index.cluster.health.healthy')}</option>
-                                <option value="Unknown">${__('index.cluster.health.unknown')}</option>
-                                <option value="Unhealthy">${__('index.cluster.health.unhealthy')}</option>
+                                <option value="all">${__('index.cluster.health.all') || '全部'} (${healthCounts.all})</option>
+                                <option value="Healthy">${__('index.cluster.health.healthy') || '健康'} (${healthCounts.Healthy})</option>
+                                <option value="Unknown">${__('index.cluster.health.unknown') || '未知'} (${healthCounts.Unknown})</option>
+                                <option value="Unhealthy">${__('index.cluster.health.unhealthy') || '不健康'} (${healthCounts.Unhealthy})</option>
                             </select>
                         </div>
                         <div class="col-auto">
-                            <select class="form-select form-select-sm" id="cluster-source-select" style="width:auto;" disabled title="来源过滤功能暂未实现">
-                                <option value="all">${__('index.cluster.source.all')}</option>
-                                <option value="static">${__('index.cluster.source.static')}</option>
-                                <option value="dynamic">${__('index.cluster.source.dynamic')}</option>
-                            </select>
+                            <button class="btn btn-sm btn-outline-secondary" type="button" id="cluster-search-clear" title="${__('index.search.clear') || '清除搜索'}" style="display:none;">\n                                <i class="bi bi-x-circle me-1"></i>${__('index.search.clear') || '清除'}\n                            </button>
                         </div>
                         <div class="col-auto">
-                            <button class="btn btn-sm btn-success" onclick="ClustersModule.showAddModal()">
-                                <i class="bi bi-plus-circle me-1"></i>${__('index.cluster.add')}
+                            <button class="btn btn-sm btn-success" id="cluster-add-btn">
+                                <i class="bi bi-plus-circle me-1"></i>${__('index.cluster.add') || '新增'}
                             </button>
                         </div>
                     </div>
                 </div>
             `;
         
-            // Re-initialize handlers every time
-            this.initFilterHandlers();
-                    
-            // Restore filter values after rendering
-            this.restoreFilterValues();
+            // Bind event handlers (only once)
+            this._bindFilterEvents();
         },
-
-        // ===== Initialize Filter Handlers =====
-        initFilterHandlers: function() {
-            // Search input (debounced) - use oninput to avoid duplicate event listeners
-            const searchInput = window.DashboardDOM.safe('#cluster-search-input');
-            if (searchInput) {
-                searchInput.oninput = window.DashboardUtils.debounce((e) => {
-                    window.DashboardState.set('filters.clusters.search', e.target.value);
-                    this.renderClusters();
-                }, 300);
-            }
-
-            // Health select
-            const healthSelect = window.DashboardDOM.safe('#cluster-health-select');
-            if (healthSelect) {
-                healthSelect.onchange = (e) => {
-                    window.DashboardState.set('filters.clusters.health', e.target.value);
-                    this.renderClusters();
-                };
-            }
-
-            // Source select
-            const sourceSelect = window.DashboardDOM.safe('#cluster-source-select');
-            if (sourceSelect) {
-                sourceSelect.onchange = (e) => {
-                    window.DashboardState.set('filters.clusters.source', e.target.value);
-                    this.renderClusters();
-                };
-            }
-
-            // Note: restoreFilterValues is called after initFilterHandlers in renderFilterToolbar
-        },
-
-        // ===== Restore Filter Values =====
-        restoreFilterValues: function() {
+        
+        // ===== Update Filter Counts (called after search, not recreating toolbar) =====
+        _updateFilterCounts: function() {
             const state = window.DashboardState;
+            const allClusters = state.get('data.clusters') || [];
+            const filteredClusters = state.getFilteredClusters();
+            const searchValue = state.get('filters.clusters.search') || ''; 
+            const healthValue = state.get('filters.clusters.health') || 'all';
             
-            const searchInput = window.DashboardDOM.safe('#cluster-search-input');
-            if (searchInput) {
-                searchInput.value = state.get('filters.clusters.search') || '';
+            // Update result count
+            const resultEl = document.getElementById('cluster-search-result');
+            if (resultEl) {
+                if (searchValue || healthValue !== 'all') {
+                    resultEl.textContent = `${filteredClusters.length}/${allClusters.length}`;
+                    resultEl.style.display = '';
+                } else {
+                    resultEl.textContent = `${allClusters.length} ${__('index.cluster.total') || '个集群'}`;
+                }
             }
-
-            const healthSelect = window.DashboardDOM.safe('#cluster-health-select');
-            if (healthSelect) {
-                healthSelect.value = state.get('filters.clusters.health') || 'all';
+            
+            // Update clear button visibility
+            const clearBtn = document.getElementById('cluster-search-clear');
+            if (clearBtn) {
+                clearBtn.style.display = searchValue ? '' : 'none';
             }
-
-            const sourceSelect = window.DashboardDOM.safe('#cluster-source-select');
-            if (sourceSelect) {
-                sourceSelect.value = state.get('filters.clusters.source') || 'all';
+            
+            // Update health select value (don't recreate)
+            const healthSelect = document.getElementById('cluster-health-select');
+            if (healthSelect && healthSelect.value !== healthValue) {
+                healthSelect.value = healthValue;
             }
         },
+        
+        // ===== Get Health Counts =====
+        _getHealthCounts: function(clusters) {
+            return {
+                all: clusters.length,
+                Healthy: clusters.filter(c => c.healthyCount > 0).length,
+                Unknown: clusters.filter(c => c.unknownCount > 0).length,
+                Unhealthy: clusters.filter(c => c.unhealthyCount > 0).length
+            }; 
+        },
+        
+        // ===== Bind Filter Events =====
+        _bindFilterEvents: function() {
+            const self = this;
+            
+            // Search button click
+            const searchBtn = document.getElementById('cluster-search-btn');
+            if (searchBtn) {
+                searchBtn.addEventListener('click', function() {
+                    self._doSearch();
+                });
+            }
+            
+            // Search input - Enter key triggers search
+            const searchInput = document.getElementById('cluster-search-input');
+            if (searchInput) {
+                searchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        self._doSearch();
+                    }
+                });
+            }
+            
+            // Clear button
+            const clearBtn = document.getElementById('cluster-search-clear');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function() {
+                    const input = document.getElementById('cluster-search-input');
+                    if (input) input.value = ''; 
+                    window.DashboardState.set('filters.clusters.search', '');
+                    window.DashboardState.set('filters.clusters.health', 'all');
+                    self.renderClusters();
+                });
+            }
+            
+            // Health select - immediate filter
+            const healthSelect = document.getElementById('cluster-health-select');
+            if (healthSelect) {
+                healthSelect.addEventListener('change', function(e) {
+                    window.DashboardState.set('filters.clusters.health', e.target.value);
+                    self.renderClusters();
+                });
+            }
+            
+            // Add button
+            const addBtn = document.getElementById('cluster-add-btn');
+            if (addBtn) {
+                addBtn.addEventListener('click', function() {
+                    self.showAddModal();
+                });
+            }
+        },
+        
+        // ===== Do Search =====
+        _doSearch: function() {
+            const searchInput = document.getElementById('cluster-search-input');
+            if (searchInput) {
+                window.DashboardState.set('filters.clusters.search', searchInput.value);
+                this.renderClusters();
+            }
+        },
+        
+        // ===== Legacy methods (removed) =====
+        initFilterHandlers: function() { /* deprecated */ },
+        restoreFilterValues: function() { /* deprecated */ },
 
         // ===== Render Cluster Rows =====
         renderClusterRows: function(clusters, tbody) {
