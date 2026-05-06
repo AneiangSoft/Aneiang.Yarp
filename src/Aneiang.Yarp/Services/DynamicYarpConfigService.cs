@@ -387,6 +387,115 @@ public class DynamicYarpConfigService
     }
 
     /// <summary>
+    /// Add or update a cluster independently (without creating a route).
+    /// Thread-safe.
+    /// </summary>
+    /// <param name="clusterId">Cluster ID (unique identifier).</param>
+    /// <param name="destinations">Destination addresses (name -> address mapping).</param>
+    /// <param name="loadBalancingPolicy">Load balancing policy (optional).</param>
+    /// <param name="healthCheck">Health check configuration (optional).</param>
+    /// <param name="source">Configuration source: "dynamic" | "dashboard".</param>
+    /// <param name="createdBy">Who created this cluster (optional).</param>
+    /// <returns>Route operation result.</returns>
+    public RouteOperationResult TryAddCluster(
+        string clusterId,
+        Dictionary<string, string> destinations,
+        string? loadBalancingPolicy = null,
+        Models.HealthCheckConfig? healthCheck = null,
+        string source = "dynamic",
+        string? createdBy = null)
+    {
+        if (string.IsNullOrWhiteSpace(clusterId))
+            return new RouteOperationResult(false, "Cluster ID cannot be empty");
+
+        if (destinations == null || destinations.Count == 0)
+            return new RouteOperationResult(false, "At least one destination is required");
+
+        lock (_lock)
+        {
+            var config = _configProvider.GetConfig();
+            var routes = config.Routes?.ToList() ?? new List<RouteConfig>();
+            var clusters = config.Clusters?.ToList() ?? new List<ClusterConfig>();
+            var newClusters = new List<ClusterConfig>(clusters);
+
+            var clusterConfig = new ClusterConfig
+            {
+                ClusterId = clusterId,
+                Destinations = destinations.ToDictionary(
+                    d => d.Key,
+                    d => new DestinationConfig { Address = d.Value }),
+                LoadBalancingPolicy = loadBalancingPolicy
+            }; // Note: HealthCheck is set on the dynamic config but not directly on ClusterConfig (YARP limitation)
+
+            var existingClusterIdx = clusters.FindIndex(c =>
+                string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+
+            bool isNew;
+            if (existingClusterIdx >= 0)
+            {
+                newClusters[existingClusterIdx] = clusterConfig;
+                isNew = false;
+                _logger.LogInformation("Cluster '{ClusterId}' exists, updating", clusterId);
+            }
+            else
+            {
+                newClusters.Add(clusterConfig);
+                isNew = true;
+                _logger.LogInformation("Cluster '{ClusterId}' is new, adding", clusterId);
+            }
+
+            _configProvider.Update(routes, newClusters);
+
+            // Save to dynamic config for persistence
+            EnsureDynamicConfigInitialized();
+
+            var dynCluster = _dynamicConfig!.Clusters.FirstOrDefault(c =>
+                string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+
+            if (dynCluster == null)
+            {
+                dynCluster = new DynamicClusterConfig
+                {
+                    ClusterId = clusterId,
+                    Destinations = destinations,
+                    LoadBalancingPolicy = loadBalancingPolicy,
+                    HealthCheck = healthCheck,
+                    Source = source,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = createdBy
+                };
+                _dynamicConfig.Clusters.Add(dynCluster);
+            }
+            else
+            {
+                dynCluster.Destinations = destinations;
+                dynCluster.LoadBalancingPolicy = loadBalancingPolicy;
+                dynCluster.HealthCheck = healthCheck;
+                dynCluster.Source = source; // Update source to reflect dashboard edit
+            }
+
+            SaveDynamicConfig();
+
+            var action = isNew ? "created" : "updated";
+            _logger.LogInformation("Cluster '{ClusterId}' {Action} with {DestCount} destinations",
+                clusterId, action, destinations.Count);
+            return new RouteOperationResult(true, $"Cluster '{clusterId}' {action}");
+        }
+    }
+
+    /// <summary>
+    /// Get a specific cluster by ID.
+    /// </summary>
+    /// <param name="clusterId">Cluster ID to find.</param>
+    /// <returns>Cluster configuration or null if not found.</returns>
+    public ClusterConfig? GetCluster(string clusterId)
+    {
+        var clusters = GetClusters();
+        return clusters.FirstOrDefault(c =>
+            string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
     /// Delete a cluster if no routes reference it.
     /// </summary>
     /// <param name="clusterId">Cluster ID to delete.</param>

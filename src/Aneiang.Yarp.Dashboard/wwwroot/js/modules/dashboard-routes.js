@@ -82,8 +82,9 @@
         // ===== Render Filter Toolbar =====
         renderFilterToolbar: function() {
             const container = window.DashboardDOM.safe('#route-filter-container');
-            if (!container || container.dataset.initialized) return;
+            if (!container) return;
 
+            // Always render the toolbar (don't skip if already initialized)
             container.innerHTML = `
                 <div class="card-body py-2 border-bottom">
                     <div class="row g-2 align-items-center">
@@ -92,7 +93,7 @@
                                    placeholder="${__('index.route.search')}...">
                         </div>
                         <div class="col-auto">
-                            <select class="form-select form-select-sm" id="route-source-select" style="width:auto;">
+                            <select class="form-select form-select-sm" id="route-source-select" style="width:auto;" disabled title="来源过滤功能暂未实现">
                                 <option value="all">${__('index.route.source.all')}</option>
                                 <option value="static">${__('index.route.source.static')}</option>
                                 <option value="dynamic">${__('index.route.source.dynamic')}</option>
@@ -116,41 +117,43 @@
                 </div>
             `;
 
-            container.dataset.initialized = 'true';
+            // Re-initialize handlers every time
             this.initFilterHandlers();
+            
+            // Restore filter values after rendering
+            this.restoreFilterValues();
         },
 
         // ===== Initialize Filter Handlers =====
         initFilterHandlers: function() {
-            // Search input (debounced)
+            // Search input (debounced) - use oninput to avoid duplicate event listeners
             const searchInput = window.DashboardDOM.safe('#route-search-input');
             if (searchInput) {
-                searchInput.addEventListener('input', window.DashboardUtils.debounce((e) => {
+                searchInput.oninput = window.DashboardUtils.debounce((e) => {
                     window.DashboardState.set('filters.routes.search', e.target.value);
                     this.renderRoutes();
-                }, 300));
+                }, 300);
             }
 
             // Source select
             const sourceSelect = window.DashboardDOM.safe('#route-source-select');
             if (sourceSelect) {
-                sourceSelect.addEventListener('change', (e) => {
+                sourceSelect.onchange = (e) => {
                     window.DashboardState.set('filters.routes.source', e.target.value);
                     this.renderRoutes();
-                });
+                };
             }
 
             // Method select
             const methodSelect = window.DashboardDOM.safe('#route-method-select');
             if (methodSelect) {
-                methodSelect.addEventListener('change', (e) => {
+                methodSelect.onchange = (e) => {
                     window.DashboardState.set('filters.routes.method', e.target.value);
                     this.renderRoutes();
-                });
+                };
             }
 
-            // Restore filter values from state
-            this.restoreFilterValues();
+            // Note: restoreFilterValues is called after initFilterHandlers in renderFilterToolbar
         },
 
         // ===== Restore Filter Values =====
@@ -494,35 +497,261 @@
             }
         },
 
-        // ===== Show Add Modal =====
+        // ===== Show Add Modal (JSON Mode) =====
         showAddModal: function() {
-            // TODO: Implement add route modal
-            alert('Add route modal - to be implemented');
+            const self = this;
+                    
+            // Get available clusters
+            const clusters = window.DashboardState.get('data.clusters') || [];
+            const clusterIds = clusters.map(c => c.clusterId);
+                    
+            // If no clusters, show warning
+            if (clusterIds.length === 0) {
+                window.DashboardModals.showWarning(__('index.route.noClusters') || '请先添加集群');
+                return;
+            }
+        
+            // Default route template for new route
+            const defaultRoute = {
+                "ClusterId": clusterIds[0] || "",
+                "Order": 50,
+                "Match": {
+                    "Path": "/api/service/{**catchAll}"
+                }
+            }; 
+        
+            window.DashboardModals.showJsonModal({
+                title: __('modal.addRoute') || '添加路由 (JSON模式)',
+                data: defaultRoute,
+                schemaType: 'route',
+                size: 'xl',
+                onSave: function(parsedData) {
+                    // Validate route config
+                    if (!parsedData.ClusterId || !parsedData.ClusterId.trim()) {
+                        window.DashboardModals.showError(__('index.route.invalidCluster') || 'ClusterId 必须指定有效的集群');
+                        return false;
+                    }
+                    if (!parsedData.Match || (!parsedData.Match.Path && !parsedData.Match.Hosts)) {
+                        window.DashboardModals.showError(__('index.route.invalidMatch') || 'Match 配置无效，必须指定 Path 或 Hosts');
+                        return false;
+                    }
+                    // Check cluster exists
+                    if (clusterIds.indexOf(parsedData.ClusterId) === -1) {
+                        window.DashboardModals.showWarning(__('index.route.clusterNotFound') || '指定的集群不存在: ' + parsedData.ClusterId);
+                        // Still allow save for flexibility
+                    }
+        
+                    // Save route
+                    self.saveRouteFromJson(parsedData);
+                    return true;
+                }
+            });
+        },
+        
+        // ===== Save Route from JSON =====
+        saveRouteFromJson: async function(routeConfig, routeId) {
+            try {
+                // Generate routeId from user input or from existing
+                if (!routeId) {
+                    const id = await this.promptRouteId();
+                    if (!id) return;
+                    routeId = id;
+                }
+        
+                window.DashboardModals.showInfo(__('index.route.saving') || '正在保存路由...');
+        
+                // Convert to API format (YARP format is already correct)
+                const response = await window.DashboardApi.endpoints.saveRoute(routeId, routeConfig);
+        
+                window.DashboardModals.showSuccess(__('index.route.saved') || '路由保存成功');
+                await this.loadRoutes();
+        
+                document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
+                    detail: { type: 'route', id: routeId, action: 'save' }
+                }));
+            } catch (error) {
+                console.error('[Routes] Save failed:', error);
+                window.DashboardModals.showError(__('index.route.saveFailed') || '路由保存失败: ' + error.message);
+            }
+        },
+        
+        // ===== Prompt Route ID =====
+        promptRouteId: function() {
+            return new Promise(function(resolve) {
+                const modalId = 'route-id-prompt-' + Date.now();
+                const modalHtml = `
+                    <div class="modal fade" id="${modalId}" tabindex="-1">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title"><i class="bi bi-tag me-2"></i>${__('modal.routeId') || '输入路由ID'}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <input type="text" class="form-control" id="${modalId}-input" 
+                                           placeholder="${__('modal.routeIdPlaceholder') || '例如: my-service-route'}"
+                                           required>
+                                    <small class="text-muted mt-2">${__('modal.routeIdHelp') || '路由ID用于标识此路由规则，建议使用服务名+Route作为ID'}</small>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">${__('modal.cancelBtn') || '取消'}</button>
+                                    <button type="button" class="btn btn-primary" id="${modalId}-confirm">${__('modal.confirmBtn') || '确认'}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                        
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                const modalEl = document.getElementById(modalId);
+                const bsModal = new bootstrap.Modal(modalEl);
+                const inputEl = document.getElementById(modalId + '-input');
+        
+                document.getElementById(modalId + '-confirm').addEventListener('click', function() {
+                    const value = inputEl.value.trim();
+                    if (!value) {
+                        inputEl.classList.add('is-invalid');
+                        return;
+                    }
+                    bsModal.hide();
+                    resolve(value);
+                });
+        
+                modalEl.addEventListener('hidden.bs.modal', function() {
+                    modalEl.remove();
+                    if (!inputEl.value.trim()) resolve(null);
+                });
+        
+                bsModal.show();
+                inputEl.focus();
+            });
         },
 
-        // ===== Show Edit Modal =====
+        // ===== Show Edit Modal (JSON Mode) =====
         showEditModal: function(routeId) {
-            // TODO: Implement edit route modal
-            alert(`Edit route modal for ${routeId} - to be implemented`);
+            const self = this;
+                    
+            // Get route data
+            const routes = window.DashboardState.get('data.routes') || [];
+            const route = routes.find(r => r.routeId === routeId);
+                    
+            if (!route) {
+                window.DashboardModals.showError(__('index.route.notFound') || '路由不存在');
+                return;
+            }
+        
+            // Check if editable
+            if (route.source === 'config') {
+                window.DashboardModals.showWarning(__('index.route.notEditable') || '静态配置的路由无法通过Dashboard编辑');
+                return;
+            }
+        
+            // Build YARP format route config for JSON editor
+            const yarpRoute = {
+                "ClusterId": route.clusterId || "",
+                "Order": route.order || 50,
+                "Match": {
+                    "Path": route.match?.path || route.path || ""
+                }
+            }; 
+        
+            // Add methods if exists
+            const methods = route.match?.methods || route.methods || [];
+            if (methods && methods.length > 0) {
+                yarpRoute.Match.Methods = methods;
+            }
+        
+            // Add hosts if exists
+            const hosts = route.match?.hosts || [];
+            if (hosts && hosts.length > 0) {
+                yarpRoute.Match.Hosts = hosts;
+            }
+        
+            // Add headers if exists
+            if (route.match?.headers && Object.keys(route.match.headers).length > 0) {
+                yarpRoute.Match.Headers = route.match.headers;
+            }
+        
+            // Add transforms if exists
+            if (route.transforms && route.transforms.length > 0) {
+                yarpRoute.Transforms = route.transforms;
+            }
+        
+            // Add authorization policy if exists
+            if (route.authorizationPolicy) {
+                yarpRoute.AuthorizationPolicy = route.authorizationPolicy;
+            }
+        
+            // Add CORS policy if exists
+            if (route.corsPolicy) {
+                yarpRoute.CorsPolicy = route.corsPolicy;
+            }
+        
+            // Add timeout if exists
+            if (route.timeout) {
+                yarpRoute.Timeout = route.timeout;
+            }
+        
+            // Add timeout policy if exists
+            if (route.timeoutPolicy) {
+                yarpRoute.TimeoutPolicy = route.timeoutPolicy;
+            }
+        
+            // Add metadata if exists
+            if (route.metadata && Object.keys(route.metadata).length > 0) {
+                yarpRoute.Metadata = route.metadata;
+            }
+        
+            window.DashboardModals.showJsonModal({
+                title: __('modal.editRoute') || '编辑路由 (JSON模式) - ' + routeId,
+                data: yarpRoute,
+                schemaType: 'route',
+                size: 'xl',
+                onSave: function(parsedData) {
+                    // Validate route config
+                    if (!parsedData.ClusterId || !parsedData.ClusterId.trim()) {
+                        window.DashboardModals.showError(__('index.route.invalidCluster') || 'ClusterId 必须指定有效的集群');
+                        return false;
+                    }
+                    if (!parsedData.Match || (!parsedData.Match.Path && !parsedData.Match.Hosts)) {
+                        window.DashboardModals.showError(__('index.route.invalidMatch') || 'Match 配置无效，必须指定 Path 或 Hosts');
+                        return false;
+                    }
+        
+                    // Save route directly with existing ID
+                    self.saveRouteFromJson(parsedData, routeId);
+                    return true;
+                }
+            });
         },
 
         // ===== Delete Route =====
         deleteRoute: async function(routeId) {
-            if (!confirm(__('index.route.deleteConfirm').replace('{id}', routeId))) return;
+            const self = this;
+            
+            window.DashboardModals.showConfirm(
+                __('index.route.deleteConfirm').replace('{id}', routeId) || `确认删除路由 '${routeId}'？此操作不可撤销。`,
+                async function() {
+                    try {
+                        window.DashboardModals.showInfo(__('index.route.deleting') || '正在删除路由...');
+                        
+                        await window.DashboardApi.endpoints.deleteRoute(routeId);
+                        await self.loadRoutes();
+                        
+                        window.DashboardModals.showSuccess(__('index.route.deleted') || '路由删除成功');
 
-            try {
-                await window.DashboardApi.endpoints.deleteRoute(routeId);
-                await this.loadRoutes();
-                
-                if (window.DashboardModals) {
-                    window.DashboardModals.showSuccess(__('index.route.deleted'));
-                }
-            } catch (error) {
-                console.error('[Routes] Delete failed:', error);
-                if (window.DashboardModals) {
-                    window.DashboardModals.showError(__('index.route.deleteFailed'));
-                }
-            }
+                        // Trigger config deleted event
+                        document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
+                            detail: { type: 'route', id: routeId, action: 'delete' }
+                        }));
+                    } catch (error) {
+                        console.error('[Routes] Delete failed:', error);
+                        window.DashboardModals.showError(__('index.route.deleteFailed') || '路由删除失败: ' + error.message);
+                    }
+                },
+                null,
+                { title: __('modal.deleteRoute') || '删除路由', danger: true }
+            );
         },
 
         // ===== Setup Events =====
@@ -546,5 +775,14 @@
 
     // Expose to window
     window.RoutesModule = RoutesModule;
+    
+    // Global functions for onclick handlers
+    window.showAddRouteModal = function() {
+        if (RoutesModule.showAddModal) {
+            RoutesModule.showAddModal();
+        } else {
+            console.warn('[Routes] showAddModal not implemented yet');
+        }
+    };
 
 })();
