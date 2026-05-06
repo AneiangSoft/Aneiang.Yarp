@@ -343,6 +343,31 @@
         route: null,
         full: null
     };
+    
+    /**
+     * Register a specific schema for the current editor
+     * This is called each time a modal opens with a schemaType
+     */
+    function registerSchemaForType(schemaType, schema) {
+        if (typeof monaco === 'undefined' || !monaco.languages || !monaco.languages.json) {
+            console.warn('[Modals] Monaco not available for schema registration');
+            return;
+        }
+        
+        const schemaUri = 'http://aneiang.yarp/schema/' + schemaType;
+        
+        // Only register the specific schema for this editor
+        monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+            validate: true,
+            allowComments: true,
+            schemas: [{
+                uri: schemaUri,
+                fileMatch: ['*'],
+                schema: schema
+            }]
+        });
+        console.log('[Modals] Schema registered for type:', schemaType);
+    }
 
     // ===== Load Schema =====
     window.DashboardModals.loadSchema = function(type) {
@@ -454,15 +479,20 @@
         let editor = null;
         const self = this;
 
-        // Schema promise
+        // Load schema for this specific type
         let schemaPromise = schemaType ? this.loadSchema(schemaType) : Promise.resolve(null);
 
         // Wait for Monaco and Schema to be ready
         Promise.all([window.__monacoReady || Promise.resolve(), schemaPromise]).then(function(results) {
-            const monacoReady = results[0] !== false;
+            const monacoReady = typeof monaco !== 'undefined' && monaco.editor;
             const schema = results[1];
 
             if (monacoReady && window.DashboardMonacoEditor) {
+                // Register the specific schema before creating editor
+                if (schema) {
+                    registerSchemaForType(schemaType, schema);
+                }
+
                 const editorOptions = {
                     value: jsonContent,
                     language: 'json',
@@ -474,36 +504,25 @@
                     tabSize: 2,
                     formatOnPaste: true,
                     formatOnType: true,
-                    wordWrap: 'on'
+                    wordWrap: 'on',
+                    suggestOnTriggerCharacters: true,
+                    quickSuggestions: { other: true, comments: 'off', strings: 'on' }
                 }; 
 
-                editor = window.DashboardMonacoEditor.init(modalId + '-editor', editorOptions);
-
-                // Register schema for validation and hints
-                if (schema && typeof monaco !== 'undefined') {
-                    try {
-                        const schemaUri = config.schemaUri || ('http://aneiang.yarp/schema/' + schemaType);
-                        monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
-                            validate: true,
-                            allowComments: true,
-                            schemas: [{
-                                uri: schemaUri,
-                                fileMatch: [modalId + '-editor'],
-                                schema: schema
-                            }]
-                        });
-                        console.log('[Modals] Schema registered for:', modalId);
-                    } catch (e) {
-                        console.warn('[Modals] Schema registration failed:', e);
-                    }
-                }
+                // Create editor
+                return window.DashboardMonacoEditor.init(modalId + '-editor', editorOptions).then(function(editorInstance) {
+                    editor = editorInstance;
+                    console.log('[Modals] Editor created with schema:', schemaType);
+                });
             } else {
                 // Fallback to textarea
+                console.warn('[Modals] Monaco not available, using textarea fallback');
                 const editorContainer = document.getElementById(modalId + '-editor');
                 editorContainer.innerHTML = `
                     <textarea class="form-control" id="${modalId}-textarea" style="width:100%;height:100%;border:none;font-family:monospace;font-size:13px;padding:16px;resize:none;background:#f8f9fa;"
                         ${readOnly ? 'readonly' : ''}>${jsonContent}</textarea>
                 `;
+                return Promise.resolve();
             }
         }).catch(function(err) {
             console.warn('[Modals] Monaco/Schema init failed:', err);
