@@ -51,12 +51,16 @@ public static class DashboardI18n
         ["index.stat.routes"] = "路由规则",
         ["index.loading"] = "加载中...",
 
+        // ── Index – search common ─
+        ["index.search.clear"] = "清除",
+
         // ── Index – cluster panel ──
         ["index.cluster.title"] = "集群 & 目标节点状态",
         ["index.cluster.add"] = "新增",
         ["index.cluster.loading"] = "加载中...",
         ["index.cluster.loadFailed"] = "加载集群数据失败",
         ["index.cluster.search"] = "搜索集群",
+        ["index.cluster.total"] = "个集群",
         ["index.cluster.health.all"] = "所有状态",
         ["index.cluster.health.healthy"] = "健康",
         ["index.cluster.health.unhealthy"] = "异常",
@@ -87,6 +91,7 @@ public static class DashboardI18n
         ["index.route.loading"] = "加载中...",
         ["index.route.loadFailed"] = "加载路由数据失败",
         ["index.route.search"] = "搜索路由",
+        ["index.route.total"] = "个路由",
         ["index.route.cluster.all"] = "所有集群",
         ["index.route.source.all"] = "所有来源",
         ["index.route.source.static"] = "静态",
@@ -335,12 +340,16 @@ public static class DashboardI18n
         ["index.stat.routes"] = "Routes",
         ["index.loading"] = "Loading...",
 
+        // ── Index – search common ─
+        ["index.search.clear"] = "Clear",
+
         // ── Index – cluster panel ──
         ["index.cluster.title"] = "Cluster & Destination Status",
         ["index.cluster.add"] = "Add",
         ["index.cluster.loading"] = "Loading...",
         ["index.cluster.loadFailed"] = "Failed to load clusters",
         ["index.cluster.search"] = "Search clusters",
+        ["index.cluster.total"] = "clusters",
         ["index.cluster.health.all"] = "All",
         ["index.cluster.health.healthy"] = "Healthy",
         ["index.cluster.health.unhealthy"] = "Unhealthy",
@@ -371,6 +380,7 @@ public static class DashboardI18n
         ["index.route.loading"] = "Loading...",
         ["index.route.loadFailed"] = "Failed to load routes",
         ["index.route.search"] = "Search routes",
+        ["index.route.total"] = "routes",
         ["index.route.cluster.all"] = "All Clusters",
         ["index.route.source.all"] = "All",
         ["index.route.source.static"] = "Static",

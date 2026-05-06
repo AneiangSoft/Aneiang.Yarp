@@ -104,6 +104,7 @@ public class ConfigManagementController : ControllerBase
             if (config.TryGetProperty("destinations", out var destsProp))
             {
                 // Handle both object format {"d1": "http://..."} and array format [{"name":...,"address":...}]
+                // Also handle YARP standard format with PascalCase "Address"
                 if (destsProp.ValueKind == JsonValueKind.Object)
                 {
                     foreach (var dest in destsProp.EnumerateObject())
@@ -112,8 +113,13 @@ public class ConfigManagementController : ControllerBase
                             ? dest.Value.GetString() ?? string.Empty
                             : dest.Value.TryGetProperty("address", out var addrProp)
                                 ? addrProp.GetString() ?? string.Empty
-                                : string.Empty;
-                        destinations[dest.Name] = address;
+                                : dest.Value.TryGetProperty("Address", out var addrPascalProp)  // YARP standard format
+                                    ? addrPascalProp.GetString() ?? string.Empty
+                                    : string.Empty;
+                        if (!string.IsNullOrEmpty(address))
+                        {
+                            destinations[dest.Name] = address;
+                        }
                     }
                 }
                 else if (destsProp.ValueKind == JsonValueKind.Array)
@@ -166,10 +172,10 @@ public class ConfigManagementController : ControllerBase
                 }
             }
 
+            // Save snapshot BEFORE modification (so rollback restores previous state)
+            await _persistenceService.SaveSnapshotAsync($"Before cluster '{clusterId}' saved via dashboard");
+            
             var result = _dynamicConfig.TryAddCluster(clusterId, destinations, loadBalancingPolicy, healthCheck, "dashboard", "dashboard-user");
-
-            // Save snapshot
-            await _persistenceService.SaveSnapshotAsync($"Cluster '{clusterId}' saved via dashboard");
 
             return result.Success
                 ? Ok(new { code = 200, message = result.Message, clusterId = clusterId })
@@ -192,18 +198,14 @@ public class ConfigManagementController : ControllerBase
         {
             _logger.LogInformation("Delete cluster requested: {ClusterId}", clusterId);
 
+            // Save snapshot BEFORE deletion
+            await _persistenceService.SaveSnapshotAsync($"Before cluster '{clusterId}' deleted via dashboard");
+            
             var result = _dynamicConfig.TryRemoveCluster(clusterId);
-
-            if (result.Success)
-            {
-                // Save snapshot
-                await _persistenceService.SaveSnapshotAsync($"Cluster '{clusterId}' deleted via dashboard");
-                return Ok(new { code = 200, message = result.Message, clusterId = clusterId });
-            }
-            else
-            {
-                return BadRequest(new { code = 400, message = result.Message });
-            }
+            
+            return result.Success
+                ? Ok(new { code = 200, message = result.Message, clusterId = clusterId })
+                : BadRequest(new { code = 400, message = result.Message });
         }
         catch (Exception ex)
         {
@@ -222,42 +224,46 @@ public class ConfigManagementController : ControllerBase
         {
             _logger.LogInformation("Save route requested: {RouteId}", routeId);
 
-            // Parse required fields
-            if (!config.TryGetProperty("clusterId", out var clusterIdProp))
+            // Parse required fields - support both camelCase and PascalCase (YARP standard)
+            string clusterId = string.Empty;
+            if (config.TryGetProperty("clusterId", out var clusterIdProp))
             {
-                return BadRequest(new { code = 400, message = "clusterId is required" });
+                clusterId = clusterIdProp.GetString() ?? string.Empty;
+            }
+            else if (config.TryGetProperty("ClusterId", out var clusterIdPascalProp))  // YARP standard format
+            {
+                clusterId = clusterIdPascalProp.GetString() ?? string.Empty;
+            }
+            else
+            {
+                return BadRequest(new { code = 400, message = "clusterId/ClusterId is required" });
             }
 
-            if (!config.TryGetProperty("matchPath", out var matchPathProp) &&
-                !config.TryGetProperty("match", out var matchProp))
-            {
-                return BadRequest(new { code = 400, message = "matchPath or match is required" });
-            }
-
-            // Get clusterId
-            var clusterId = clusterIdProp.GetString() ?? string.Empty;
-
-            // Get matchPath (support both direct matchPath and nested match.path)
+            // Get matchPath - support multiple formats
             string matchPath = string.Empty;
-            bool hasMatchPath = config.TryGetProperty("matchPath", out var matchPathProp2);
-            bool hasMatch = config.TryGetProperty("match", out var matchProp2);
-            
-            if (hasMatchPath && matchPathProp2.ValueKind != JsonValueKind.Undefined)
+            // Format 1: direct matchPath (camelCase)
+            if (config.TryGetProperty("matchPath", out var matchPathProp) && matchPathProp.ValueKind != JsonValueKind.Undefined)
             {
-                matchPath = matchPathProp2.GetString() ?? string.Empty;
+                matchPath = matchPathProp.GetString() ?? string.Empty;
             }
-            else if (hasMatch && matchProp2.TryGetProperty("path", out var pathProp))
+            // Format 2: nested match.path (YARP standard)
+            else if (config.TryGetProperty("Match", out var matchPascalProp) && matchPascalProp.TryGetProperty("Path", out var pathPascalProp))
+            {
+                matchPath = pathPascalProp.GetString() ?? string.Empty;
+            }
+            // Format 3: nested match.path (camelCase)
+            else if (config.TryGetProperty("match", out var matchProp) && matchProp.TryGetProperty("path", out var pathProp))
             {
                 matchPath = pathProp.GetString() ?? string.Empty;
             }
             else
             {
-                return BadRequest(new { code = 400, message = "match path is required" });
+                return BadRequest(new { code = 400, message = "Match.Path is required" });
             }
 
-            // Get destinations for cluster
+            // Get destinations for cluster - support both camelCase and PascalCase
             Dictionary<string, string> destinations = new();
-            if (config.TryGetProperty("destinations", out var destsProp))
+            if (config.TryGetProperty("destinations", out var destsProp) || config.TryGetProperty("Destinations", out destsProp))
             {
                 if (destsProp.ValueKind == JsonValueKind.Object)
                 {
@@ -267,8 +273,13 @@ public class ConfigManagementController : ControllerBase
                             ? dest.Value.GetString() ?? string.Empty
                             : dest.Value.TryGetProperty("address", out var addrProp)
                                 ? addrProp.GetString() ?? string.Empty
-                                : string.Empty;
-                        destinations[dest.Name] = address;
+                                : dest.Value.TryGetProperty("Address", out var addrPascalProp)  // YARP standard format
+                                    ? addrPascalProp.GetString() ?? string.Empty
+                                    : string.Empty;
+                        if (!string.IsNullOrEmpty(address))
+                        {
+                            destinations[dest.Name] = address;
+                        }
                     }
                 }
             }
@@ -292,16 +303,17 @@ public class ConfigManagementController : ControllerBase
                 }
             }
 
-            // Get order
+            // Get order - support both camelCase and PascalCase
             int? order = null;
-            if (config.TryGetProperty("order", out var orderProp))
+            if (config.TryGetProperty("order", out var orderProp) || config.TryGetProperty("Order", out orderProp))
             {
                 order = orderProp.GetInt32();
             }
 
-            // Get transforms
+            // Get transforms - support both camelCase and PascalCase
             List<Dictionary<string, string>>? transforms = null;
-            if (config.TryGetProperty("transforms", out var transformsProp))
+            JsonElement transformsProp;
+            if (config.TryGetProperty("transforms", out transformsProp) || config.TryGetProperty("Transforms", out transformsProp))
             {
                 transforms = transformsProp.Deserialize<List<Dictionary<string, string>>>();
             }
@@ -317,16 +329,10 @@ public class ConfigManagementController : ControllerBase
                 Transforms = transforms
             }; // Note: For multi-destination clusters, we update cluster separately
 
+            // Save snapshot BEFORE modification
+            await _persistenceService.SaveSnapshotAsync($"Before route '{routeId}' saved via dashboard");
+            
             var result = _dynamicConfig.TryAddRoute(request, "dashboard", "dashboard-user");
-
-            // Also update cluster if multiple destinations
-            if (destinations.Count > 1)
-            {
-                _dynamicConfig.TryAddCluster(clusterId, destinations, null, null, "dashboard", "dashboard-user");
-            }
-
-            // Save snapshot
-            await _persistenceService.SaveSnapshotAsync($"Route '{routeId}' saved via dashboard");
 
             return result.Success
                 ? Ok(new { code = 200, message = result.Message, routeId = routeId })
@@ -349,18 +355,14 @@ public class ConfigManagementController : ControllerBase
         {
             _logger.LogInformation("Delete route requested: {RouteId}", routeId);
 
+            // Save snapshot BEFORE deletion
+            await _persistenceService.SaveSnapshotAsync($"Before route '{routeId}' deleted via dashboard");
+            
             var result = _dynamicConfig.TryRemoveRoute(routeId);
-
-            if (result.Success)
-            {
-                // Save snapshot
-                await _persistenceService.SaveSnapshotAsync($"Route '{routeId}' deleted via dashboard");
-                return Ok(new { code = 200, message = result.Message, routeId = routeId });
-            }
-            else
-            {
-                return BadRequest(new { code = 400, message = result.Message });
-            }
+            
+            return result.Success
+                ? Ok(new { code = 200, message = result.Message, routeId = routeId })
+                : BadRequest(new { code = 400, message = result.Message });
         }
         catch (Exception ex)
         {
