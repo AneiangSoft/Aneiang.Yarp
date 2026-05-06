@@ -10,15 +10,16 @@ namespace Aneiang.Yarp.Dashboard.Services;
 /// <summary>
 /// Async auth filter for DashboardController.
 /// Skips login actions. Redirects browser to login; returns 401 JSON for API calls.
+/// Uses IDashboardAuthorizationService for unified authorization check.
 /// </summary>
 internal sealed class DashboardAuthFilter : IAsyncAuthorizationFilter
 {
-    private readonly Func<HttpContext, Task<bool>> _checkAsync;
+    private readonly IDashboardAuthorizationService _authService;
     private readonly string _routePrefix;
 
-    public DashboardAuthFilter(Func<HttpContext, Task<bool>> checkAsync, string routePrefix)
+    public DashboardAuthFilter(IDashboardAuthorizationService authService, string routePrefix)
     {
-        _checkAsync = checkAsync;
+        _authService = authService;
         _routePrefix = routePrefix;
     }
 
@@ -34,7 +35,8 @@ internal sealed class DashboardAuthFilter : IAsyncAuthorizationFilter
         if (string.Equals(actionName, "Login", StringComparison.OrdinalIgnoreCase))
             return;
 
-        if (await _checkAsync(context.HttpContext)) return;
+        // Use authorization service for unified check
+        if (await _authService.IsAuthorizedAsync(context.HttpContext)) return;
 
         var request = context.HttpContext.Request;
         var isApi = request.Headers["X-Requested-With"] == "XMLHttpRequest"

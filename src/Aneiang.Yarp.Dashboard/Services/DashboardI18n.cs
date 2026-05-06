@@ -150,6 +150,26 @@ public static class DashboardI18n
         ["modal.routeRequired"] = "路由的集群ID、匹配路径和目标地址为必填项",
         ["modal.apiNotImplemented"] = "API尚未实现。请使用 register-route API 来更新目标地址。",
         ["modal.apiNotImplementedCluster"] = "集群创建API尚未实现。请使用 register-route API，它将自动创建集群。",
+
+        // ── Filter Toolbar ──
+        ["filters.cluster.search.placeholder"] = "搜索集群ID...",
+        ["filters.route.search.placeholder"] = "搜索路由/集群/路径...",
+        ["filters.log.search.placeholder"] = "搜索消息/路由...",
+        ["filters.health.all"] = "所有健康状态",
+        ["filters.health.healthy"] = "健康",
+        ["filters.health.unhealthy"] = "异常",
+        ["filters.health.unknown"] = "未知",
+        ["filters.source.all"] = "所有来源",
+        ["filters.source.dynamic"] = "动态",
+        ["filters.source.static"] = "静态",
+        ["filters.method.all"] = "所有方法",
+        ["filters.editableOnly"] = "仅可编辑",
+        ["filters.reset"] = "重置",
+        ["filters.clear"] = "清空",
+        ["filters.autoPoll.on"] = "自动轮询: 开",
+        ["filters.autoPoll.off"] = "自动轮询: 关",
+        ["filters.gatewayOnly"] = "仅网关日志",
+        ["filters.level.all"] = "所有级别",
     };
 
     /// <summary>English translation dictionary.</summary>
@@ -293,6 +313,26 @@ public static class DashboardI18n
         ["modal.routeRequired"] = "ClusterId, MatchPath, and DestinationAddress are required",
         ["modal.apiNotImplemented"] = "API not yet implemented. Please use register-route API to update destinations.",
         ["modal.apiNotImplementedCluster"] = "Cluster creation API not yet implemented. Please use register-route API which will auto-create cluster.",
+
+        // ── Filter Toolbar ──
+        ["filters.cluster.search.placeholder"] = "Search cluster ID...",
+        ["filters.route.search.placeholder"] = "Search route/cluster/path...",
+        ["filters.log.search.placeholder"] = "Search message/route...",
+        ["filters.health.all"] = "All Health Status",
+        ["filters.health.healthy"] = "Healthy",
+        ["filters.health.unhealthy"] = "Unhealthy",
+        ["filters.health.unknown"] = "Unknown",
+        ["filters.source.all"] = "All Sources",
+        ["filters.source.dynamic"] = "Dynamic",
+        ["filters.source.static"] = "Static",
+        ["filters.method.all"] = "All Methods",
+        ["filters.editableOnly"] = "Editable Only",
+        ["filters.reset"] = "Reset",
+        ["filters.clear"] = "Clear",
+        ["filters.autoPoll.on"] = "Auto-Poll: ON",
+        ["filters.autoPoll.off"] = "Auto-Poll: OFF",
+        ["filters.gatewayOnly"] = "Gateway Only",
+        ["filters.level.all"] = "All Levels",
     };
 
     /// <summary>Returns the translation dictionary for the given locale.</summary>

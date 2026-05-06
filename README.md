@@ -95,6 +95,10 @@ app.Run();
 | 📝 **Real-time Logs** | Capture YARP forwarding logs and request/response details |
 | 🔐 **Multi-Mode Auth** | JWT login, API Key, or custom delegate authentication |
 | 🌐 **i18n Support** | Runtime language switching: English / Chinese |
+| 🔍 **Advanced Filtering** | Filter logs by route, status code, trace ID |
+| 🛡️ **Log Sanitization** | Automatic sensitive data masking (headers, JSON fields) |
+| 📈 **Log Sampling** | Configurable sampling rate for production environments |
+| 🎨 **Enhanced UI** | Search, filter, expand/collapse, copy-to-clipboard |
 
 ### Enable Dashboard
 
@@ -119,6 +123,73 @@ app.Run();
 ```
 
 Access dashboard at: `http://localhost:5000/apigateway`
+
+### Dashboard Configuration Reference
+
+All Dashboard settings are configured under `Gateway:Dashboard` in `appsettings.json`:
+
+```json
+{
+  "Gateway": {
+    "Dashboard": {
+      // Basic Settings
+      "EnableProxyLogging": true,         // Enable request/response logging (default: true)
+      "RoutePrefix": "apigateway",        // Dashboard URL prefix (default: "apigateway")
+      "Locale": "zh-CN",                  // UI language: "zh-CN" or "en-US" (default: "zh-CN")
+      
+      // Authentication (choose one mode)
+      "AuthMode": "DefaultJwt",           // None | ApiKey | CustomJwt | DefaultJwt
+      "JwtPassword": "your-strong-password",  // Required for JWT modes
+      "JwtUsername": "admin",             // Only for CustomJwt mode
+      "JwtSecret": "...",                 // Auto-generated if not set (changes on restart)
+      "ApiKey": "your-api-key",           // Only for ApiKey mode
+      "ApiKeyHeaderName": "X-Api-Key",    // Header name for ApiKey mode (default: "X-Api-Key")
+      
+      // Log Sampling & Filtering (Production Safety)
+      "EnableLogSampling": false,         // Enable log sampling (default: false)
+      "LogSamplingRate": 1.0,             // Sampling rate 0.0-1.0 (default: 1.0 = all)
+      "LogErrorsOnly": false,             // Only log error requests (status >= 400)
+      "LogMaxBodyLength": 8192,           // Max body size to log in bytes (default: 8KB)
+      
+      // Route Filtering
+      "LogRouteWhitelist": [],            // Only log these route IDs (empty = all)
+      "LogRouteBlacklist": [],            // Exclude these route IDs from logging
+      
+      // Content & Header Filtering
+      "LogContentTypeWhitelist": [],      // Content types to log body for (empty = JSON only)
+      "LogHeaderBlacklist": ["Authorization", "Cookie", "Set-Cookie"],  // Headers to exclude
+      "LogQueryBlacklist": [],            // Query params to exclude from logging
+      "LogJsonFieldSanitizeList": ["password", "token", "secret", "apikey", "api-key"]  // Fields to sanitize
+    }
+  }
+}
+```
+
+### Production Security Recommendations
+
+**For production environments, consider these settings:**
+
+```json
+{
+  "Gateway": {
+    "Dashboard": {
+      "AuthMode": "DefaultJwt",
+      "JwtPassword": "very-strong-password-here",
+      
+      // Reduce log volume in production
+      "EnableLogSampling": true,
+      "LogSamplingRate": 0.1,             // Log only 10% of requests
+      "LogErrorsOnly": true,              // Only log errors
+      
+      // Protect sensitive data
+      "LogMaxBodyLength": 4096,           // Limit body logging to 4KB
+      "LogHeaderBlacklist": ["Authorization", "Cookie", "Set-Cookie", "X-Api-Key"],
+      "LogJsonFieldSanitizeList": ["password", "token", "secret", "apikey", "creditCard", "ssn"]
+    }
+  }
+}
+```
+
 ---
 
 ## 🚀 Client Service: Auto-Registration

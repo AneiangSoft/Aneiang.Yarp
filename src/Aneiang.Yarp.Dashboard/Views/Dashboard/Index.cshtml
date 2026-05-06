@@ -70,6 +70,10 @@
             </button>
         </div>
     </div>
+    
+    <!-- Filter toolbar container -->
+    <div id="cluster-filter-container"></div>
+    
     <div class="table-responsive">
         <table class="table table-hover align-middle">
             <thead>
@@ -104,6 +108,10 @@
             </button>
         </div>
     </div>
+    
+    <!-- Filter toolbar container -->
+    <div id="route-filter-container"></div>
+    
     <div class="table-responsive">
         <table class="table table-hover align-middle">
             <thead>
@@ -128,11 +136,6 @@
     <div class="card-header">
         <span><i class="bi bi-journal-text me-2"></i><span data-i18n="index.log.title">YARP 实时日志</span></span>
         <div class="d-flex align-items-center flex-wrap" style="gap:6px 16px;">
-            <!-- filter -->
-            <label class="mb-0" style="cursor:pointer;user-select:none;">
-                <input type="checkbox" id="log-gateway-only" onchange="onGatewayOnlyChange()" style="margin-right:4px;">
-                <small data-i18n="index.log.gatewayOnly">仅请求日志</small>
-            </label>
             <span class="refresh-badge" id="log-refresh-time"></span>
             <span class="refresh-badge"><span data-i18n="index.log.showing">显示 </span><strong id="log-display-count">0</strong><span data-i18n="index.log.of"> / </span><span id="log-total-count">0</span><span data-i18n="index.log.entries"> 条</span></span>
             <!-- action buttons -->
@@ -142,11 +145,12 @@
             <button class="btn btn-sm btn-outline-secondary" onclick="loadLogs()">
                 <i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="index.btn.refresh">刷新</span>
             </button>
-            <button class="btn btn-sm btn-outline-danger" onclick="clearLogs()">
-                <i class="bi bi-trash me-1"></i><span data-i18n="index.log.clear">清空</span>
-            </button>
         </div>
     </div>
+    
+    <!-- Filter toolbar container -->
+    <div id="log-filter-container"></div>
+    
     <div style="max-height:600px;overflow-y:auto;" id="log-scroll-container">
         <div id="log-entries" style="padding:0;">
             <div class="text-center text-muted py-4" data-i18n="index.log.empty">暂无日志</div>
@@ -155,13 +159,51 @@
 </div>
 
 @section Scripts {
-<script src="/_content/Aneiang.Yarp.Dashboard/js/dashboard-core.js"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/dashboard-clusters.js"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/dashboard-routes.js"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/dashboard-logs.js"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/dashboard-modals.js"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/json-editor.js"></script>
+<!-- 1. Core Infrastructure -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js"></script>
+
+<!-- 2. Schema Service (sync load) -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-service.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-validator.js"></script>
+
+<!-- 3. Monaco Editor (async load) -->
 <script>
+    window.__monacoReady = new Promise(function(resolve) {
+        window.__monacoResolve = resolve;
+    });
+</script>
+<script src="/_content/Aneiang.Yarp.Dashboard/lib/monaco/loader.js"></script>
+<script>
+    require.config({ paths: { vs: '/_content/Aneiang.Yarp.Dashboard/lib/monaco' } });
+    require(['vs/editor/editor.main'], function() {
+        window.__monacoResolve();
+    });
+</script>
+
+<!-- 4. Editor Layer -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-monaco-editor.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-config-editor.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-form-builder.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-diff-panel.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-validation-panel.js"></script>
+
+<!-- 5. App Bootstrap & Events -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-bootstrap.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js"></script>
+
+<!-- 6. Modules -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-clusters.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-routes.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-logs.js"></script>
+
+<script>
+    // Initialize dashboard config
     window.__dashboard = window.__dashboard || {};
     var dash = window.__dashboard;
     dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
@@ -169,16 +211,13 @@
     dash.CURRENT_LOCALE = '@ViewBag.Locale';
     dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
     dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
+    
     if (dash.logPanelEnabled) {
         dash.tabPanels.logs = ['log-panel'];
         dash.allPanels.push('log-panel');
     }
-    (function() {
-        var logPanelEnabled = dash.logPanelEnabled;
-        window.refreshAll();
-        if (logPanelEnabled) { window.loadLogs(); }
-    })();
 </script>
+
 <style>
 @@keyframes spin { to { transform: rotate(360deg); } }
 .spin { display:inline-block; animation: spin .6s linear infinite; }
