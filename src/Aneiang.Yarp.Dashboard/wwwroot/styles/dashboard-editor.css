@@ -1,0 +1,181 @@
+/**
+ * Dashboard Editor Styles
+ * Monaco Editor integration, validation panel, diff panel
+ */
+
+/* Monaco Editor in Modal */
+.modal .monaco-editor-container {
+    z-index: 1050 !important;
+}
+
+.monaco-editor-container {
+    height: 400px;
+    border: 1px solid #404040;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+/* Validation Panel */
+.validation-panel {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 4px;
+}
+
+.validation-errors {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.validation-error {
+    padding: 8px 12px;
+    border-left: 3px solid #dc3545;
+    margin-bottom: 4px;
+    background: #fff5f5;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.validation-error:hover {
+    background: #fee;
+}
+
+/* Diff Panel */
+.diff-added {
+    background: #f0fff4;
+    border-left: 3px solid #22c55e;
+}
+
+.diff-modified {
+    background: #fffbeb;
+    border-left: 3px solid #eab308;
+}
+
+.diff-removed {
+    background: #fef2f2;
+    border-left: 3px solid #ef4444;
+}
+
+.diff-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* Editor Toolbar */
+.editor-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+}
+
+.editor-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* Form Builder */
+.form-builder-field {
+    margin-bottom: 1rem;
+}
+
+.form-builder-field label {
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+
+.form-builder-field .form-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+/* Code Cell Truncation */
+.table td.code-cell {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.table td.code-cell:hover {
+    white-space: normal;
+    word-break: break-all;
+}
+
+/* Log Body Truncation */
+.log-body-truncated {
+    position: relative;
+}
+
+.log-body-truncated pre {
+    max-height: 100px;
+    overflow: hidden;
+    position: relative;
+}
+
+.log-body-truncated .show-full-btn {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    background: linear-gradient(transparent, white);
+    padding: 1rem;
+}
+
+/* Import/Export Buttons */
+.import-export-toolbar {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+/* Schema Hints */
+.schema-hint {
+    font-size: 0.75rem;
+    color: #6c757d;
+    font-style: italic;
+    margin-top: 0.25rem;
+}
+
+/* Editor Mode Indicator */
+.mode-indicator {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: #e9ecef;
+    border-radius: 3px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+/* Loading Overlay */
+.editor-loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .monaco-editor-container {
+        height: 300px;
+    }
+    
+    .editor-toolbar {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .editor-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+}

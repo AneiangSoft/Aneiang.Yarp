@@ -1,0 +1,253 @@
+/**
+ * Dashboard Utilities - Common helper functions
+ */
+(function() {
+    'use strict';
+
+    window.DashboardUtils = window.DashboardUtils || {};
+
+    // ===== Initialization =====
+    window.DashboardUtils.init = function() {
+        console.log('[Utils] Initialized');
+    };
+
+    // ===== DOM Utilities =====
+    window.DashboardUtils.$ = function(selector, context) {
+        context = context || document;
+        return context.querySelector(selector);
+    };
+
+    window.DashboardUtils.$$ = function(selector, context) {
+        context = context || document;
+        return Array.from(context.querySelectorAll(selector));
+    };
+
+    window.DashboardUtils.createElement = function(tag, className, attributes) {
+        const el = document.createElement(tag);
+        if (className) {
+            if (Array.isArray(className)) {
+                el.classList.add(...className);
+            } else {
+                el.className = className;
+            }
+        }
+        if (attributes) {
+            Object.keys(attributes).forEach(function(key) {
+                if (key === 'textContent') {
+                    el.textContent = attributes[key];
+                } else if (key === 'innerHTML') {
+                    el.innerHTML = attributes[key];
+                } else if (key.startsWith('on')) {
+                    el.addEventListener(key.substring(2).toLowerCase(), attributes[key]);
+                } else {
+                    el.setAttribute(key, attributes[key]);
+                }
+            });
+        }
+        return el;
+    };
+
+    // ===== Safe Access =====
+    window.DashboardUtils.safeGet = function(obj, path, defaultValue) {
+        if (!obj || !path) return defaultValue;
+        
+        const keys = path.split('.');
+        let result = obj;
+        
+        for (const key of keys) {
+            if (result === null || result === undefined) {
+                return defaultValue;
+            }
+            result = result[key];
+        }
+        
+        return result !== undefined ? result : defaultValue;
+    };
+
+    // ===== String Utilities =====
+    window.DashboardUtils.escapeHtml = function(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    };
+
+    window.DashboardUtils.truncate = function(text, maxLength, suffix) {
+        maxLength = maxLength || 100;
+        suffix = suffix !== undefined ? suffix : '...';
+        
+        if (!text || text.length <= maxLength) return text;
+        return text.substring(0, maxLength) + suffix;
+    };
+
+    window.DashboardUtils.formatBytes = function(bytes, decimals) {
+        if (bytes === 0 || bytes === null) return '0 B';
+        
+        const k = 1024;
+        const dm = decimals || 2;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    };
+
+    // ===== Time Utilities =====
+    window.DashboardUtils.formatTime = function(date, locale) {
+        locale = locale || window.__dashboard?.CURRENT_LOCALE || 'zh-CN';
+        const d = typeof date === 'string' ? new Date(date) : date;
+        return d.toLocaleTimeString(locale, { hour12: false });
+    };
+
+    window.DashboardUtils.formatDateTime = function(date, locale) {
+        locale = locale || window.__dashboard?.CURRENT_LOCALE || 'zh-CN';
+        const d = typeof date === 'string' ? new Date(date) : date;
+        return d.toLocaleString(locale, { hour12: false });
+    };
+
+    window.DashboardUtils.timeAgo = function(date) {
+        const now = new Date();
+        const d = typeof date === 'string' ? new Date(date) : date;
+        const seconds = Math.floor((now - d) / 1000);
+
+        if (seconds < 60) return '刚刚';
+        if (seconds < 3600) return Math.floor(seconds / 60) + ' 分钟前';
+        if (seconds < 86400) return Math.floor(seconds / 3600) + ' 小时前';
+        return Math.floor(seconds / 86400) + ' 天前';
+    };
+
+    // ===== JSON Utilities =====
+    window.DashboardUtils.safeJsonParse = function(text, defaultValue) {
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            return defaultValue !== undefined ? defaultValue : null;
+        }
+    };
+
+    window.DashboardUtils.safeJsonStringify = function(obj, space, defaultValue) {
+        try {
+            return JSON.stringify(obj, null, space || 2);
+        } catch (e) {
+            return defaultValue !== undefined ? defaultValue : '';
+        }
+    };
+
+    // ===== Validation =====
+    window.DashboardUtils.isValidUrl = function(string) {
+        try {
+            new URL(string);
+            return true;
+        } catch (_) {
+            return false;
+        }
+    };
+
+    window.DashboardUtils.isValidJson = function(text) {
+        try {
+            JSON.parse(text);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    };
+
+    // ===== Array Utilities =====
+    window.DashboardUtils.unique = function(array, key) {
+        if (!key) return [...new Set(array)];
+        
+        const seen = new Set();
+        return array.filter(item => {
+            const value = item[key];
+            if (seen.has(value)) return false;
+            seen.add(value);
+            return true;
+        });
+    };
+
+    window.DashboardUtils.groupBy = function(array, key) {
+        return array.reduce((groups, item) => {
+            const group = item[key];
+            groups[group] = groups[group] || [];
+            groups[group].push(item);
+            return groups;
+        }, {});
+    };
+
+    // ===== Debounce & Throttle =====
+    window.DashboardUtils.debounce = function(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    };
+
+    window.DashboardUtils.throttle = function(func, limit) {
+        let inThrottle;
+        return function(...args) {
+            if (!inThrottle) {
+                func.apply(this, args);
+                inThrottle = true;
+                setTimeout(() => inThrottle = false, limit);
+            }
+        };
+    };
+
+    // ===== Clipboard =====
+    window.DashboardUtils.copyToClipboard = async function(text) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch (err) {
+            // Fallback for older browsers
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                return true;
+            } catch (e) {
+                document.body.removeChild(textarea);
+                return false;
+            }
+        }
+    };
+
+    // ===== LocalStorage =====
+    window.DashboardUtils.storage = {
+        get: function(key, defaultValue) {
+            try {
+                const item = localStorage.getItem(key);
+                return item ? JSON.parse(item) : defaultValue;
+            } catch (e) {
+                return defaultValue;
+            }
+        },
+        set: function(key, value) {
+            try {
+                localStorage.setItem(key, JSON.stringify(value));
+                return true;
+            } catch (e) {
+                console.error('[Utils] Storage set failed:', e);
+                return false;
+            }
+        },
+        remove: function(key) {
+            try {
+                localStorage.removeItem(key);
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+    };
+
+})();

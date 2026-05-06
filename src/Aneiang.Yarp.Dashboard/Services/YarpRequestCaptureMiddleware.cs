@@ -1,6 +1,7 @@
 using Aneiang.Yarp.Dashboard.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using System.Diagnostics;
 using System.Text;
 using Yarp.ReverseProxy.Model;
 
@@ -9,24 +10,34 @@ namespace Aneiang.Yarp.Dashboard.Services;
 /// <summary>
 /// Captures incoming proxy request/response details before YARP processes the request.
 /// Skips Dashboard requests. Buffers body for parameter capture.
+/// Supports structured logging, sampling, filtering, and sanitization.
 /// Zero dependency on logging frameworks.
 /// </summary>
 public sealed class YarpRequestCaptureMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly ProxyLogStore _store;
+    private readonly IProxyLogStore _store;
+    private readonly LogSanitizer _sanitizer;
     private readonly string _dashPrefix;
     private readonly bool _loggingEnabled;
+    private readonly DashboardOptions _options;
+    private readonly Random _random = new();
 
     /// <summary>
     /// Creates the middleware.
     /// </summary>
-    public YarpRequestCaptureMiddleware(RequestDelegate next, ProxyLogStore store, IOptions<DashboardOptions> options)
+    public YarpRequestCaptureMiddleware(
+        RequestDelegate next,
+        IProxyLogStore store,
+        LogSanitizer sanitizer,
+        IOptions<DashboardOptions> options)
     {
         _next = next;
         _store = store;
+        _sanitizer = sanitizer;
         _dashPrefix = "/" + options.Value.RoutePrefix.Trim('/');
         _loggingEnabled = options.Value.EnableProxyLogging;
+        _options = options.Value;
     }
 
     /// <summary>
@@ -48,6 +59,8 @@ public sealed class YarpRequestCaptureMiddleware
         }
 
         var timestamp = DateTime.Now;
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N");
 
         // Enable request body buffering for capture
         context.Request.EnableBuffering();
@@ -61,6 +74,7 @@ public sealed class YarpRequestCaptureMiddleware
         context.Response.Body = responseBody;
 
         await _next(context);
+        stopwatch.Stop();
 
         // Read response body
         string responseBodyText = await ReadStreamAsync(responseBody);
@@ -68,7 +82,8 @@ public sealed class YarpRequestCaptureMiddleware
         // Get downstream destination address from YARP proxy feature
         var proxyFeature = context.Features.Get<IReverseProxyFeature>();
         var downstreamUrl = BuildDownstreamUrl(proxyFeature, context.Request);
-        var dest = downstreamUrl != null ? " \u2192 " + downstreamUrl : null;
+        var routeId = proxyFeature?.Route?.Config?.RouteId;
+        var clusterId = proxyFeature?.Route?.Config?.ClusterId;
 
         // Get captured downstream request body (after transforms like encryption)
         var downstreamBody = GetDownstreamBody(context);
@@ -78,38 +93,111 @@ public sealed class YarpRequestCaptureMiddleware
         await responseBody.CopyToAsync(originalResponseBody);
         context.Response.Body = originalResponseBody;
 
-        // Build message
-        var msg = $"[Request] {context.Request.Method} {context.Request.Path}{context.Request.QueryString}{dest}";
-        string? requestDetails = null;
-        if (!string.IsNullOrEmpty(requestBody))
-            requestDetails = $"Request Body:\n{requestBody}";
-        if (downstreamUrl != null)
-            requestDetails = (requestDetails != null ? requestDetails + "\n" : "") + $"Downstream: {downstreamUrl}";
-        if (downstreamBody != null)
-            requestDetails = (requestDetails != null ? requestDetails + "\n" : "") + $"Downstream Body:\n{downstreamBody}";
+        // Check if should log based on sampling and filtering rules
+        if (!ShouldLog(context, routeId))
+        {
+            return;
+        }
 
+        // Sanitize and truncate request body
+        var sanitizedRequestBody = _sanitizer.SanitizeJsonBody(requestBody);
+        var requestText = _sanitizer.TruncateText(sanitizedRequestBody, out var requestTruncated);
+
+        // Build structured request log entry
         _store.Add(new LogEntry
         {
             Timestamp = timestamp,
+            EventType = LogEventType.ProxyRequest,
             Level = "Information",
             Category = "Gateway",
-            Message = msg,
-            Details = requestDetails
+            Message = $"[Request] {context.Request.Method} {context.Request.Path}{context.Request.QueryString}",
+            TraceId = traceId,
+            RouteId = routeId,
+            ClusterId = clusterId,
+            UpstreamPath = context.Request.Path + context.Request.QueryString.Value,
+            DownstreamUrl = downstreamUrl,
+            RequestHeaders = _sanitizer.SanitizeHeaders(context.Request.Headers),
+            RequestBody = requestText,
+            RequestBodyTruncated = requestTruncated
         });
 
-        var respMsg = $"[Response] {context.Response.StatusCode} {context.Request.Method} {context.Request.Path}{context.Request.QueryString}{dest}";
-        string? responseDetails = null;
-        if (!string.IsNullOrEmpty(responseBodyText))
-            responseDetails = $"Response Body:\n{responseBodyText}";
+        // Sanitize and truncate response body
+        var sanitizedResponseBody = _sanitizer.SanitizeJsonBody(responseBodyText);
+        var responseText = _sanitizer.TruncateText(sanitizedResponseBody, out var responseTruncated);
 
+        // Build structured response log entry
         _store.Add(new LogEntry
         {
             Timestamp = DateTime.Now,
-            Level = "Information",
+            EventType = LogEventType.ProxyResponse,
+            Level = GetLogLevel(context.Response.StatusCode),
             Category = "Gateway",
-            Message = respMsg,
-            Details = responseDetails
+            Message = $"[Response] {context.Response.StatusCode} {context.Request.Method} {context.Request.Path}{context.Request.QueryString}",
+            TraceId = traceId,
+            RouteId = routeId,
+            ClusterId = clusterId,
+            UpstreamPath = context.Request.Path + context.Request.QueryString.Value,
+            DownstreamUrl = downstreamUrl,
+            StatusCode = context.Response.StatusCode,
+            ElapsedMs = stopwatch.Elapsed.TotalMilliseconds,
+            ResponseHeaders = _sanitizer.SanitizeHeaders(context.Response.Headers),
+            ResponseBody = responseText,
+            ResponseBodyTruncated = responseTruncated
         });
+    }
+
+    /// <summary>
+    /// Determines if a request should be logged based on sampling and filtering rules.
+    /// </summary>
+    private bool ShouldLog(HttpContext context, string? routeId)
+    {
+        // Check route whitelist
+        if (_options.LogRouteWhitelist?.Count > 0)
+        {
+            if (string.IsNullOrEmpty(routeId) || 
+                !_options.LogRouteWhitelist.Contains(routeId, StringComparer.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        // Check route blacklist
+        if (_options.LogRouteBlacklist?.Count > 0 && 
+            !string.IsNullOrEmpty(routeId) &&
+            _options.LogRouteBlacklist.Contains(routeId, StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // Check errors only mode
+        if (_options.LogErrorsOnly && context.Response.StatusCode < 400)
+        {
+            return false;
+        }
+
+        // Check sampling
+        if (_options.EnableLogSampling && _options.LogSamplingRate < 1.0)
+        {
+            if (_random.NextDouble() > _options.LogSamplingRate)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Gets log level based on HTTP status code.
+    /// </summary>
+    private static string GetLogLevel(int statusCode)
+    {
+        return statusCode switch
+        {
+            >= 500 => "Error",
+            >= 400 => "Warning",
+            _ => "Information"
+        };
     }
 
     private static string? GetDownstreamBody(HttpContext context)

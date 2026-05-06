@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Aneiang.Yarp.Dashboard.Controllers;
 using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Dashboard.Services;
+using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -45,12 +46,37 @@ public static class DashboardServiceCollectionExtensions
         services.AddMvcCore().AddApplicationPart(typeof(DashboardController).Assembly);
 
         // YARP log capture (zero dependency on logging frameworks)
-        services.AddSingleton<ProxyLogStore>();
+        services.AddSingleton<IProxyLogStore, ProxyLogStore>();
+        services.AddSingleton<ProxyLogStore>(sp => (ProxyLogStore)sp.GetRequiredService<IProxyLogStore>());
+        services.AddSingleton<LogSanitizer>();
         services.AddSingleton<YarpEventSourceListener>();
         services.AddHostedService<YarpEventSourceListenerStartupService>();
 
         // Register downstream capture transform (runs after all other transforms)
         services.AddSingleton<ITransformProvider, DownstreamCaptureTransformProvider>();
+
+        // Register dashboard query services
+        services.AddSingleton<IDashboardInfoQueryService, DashboardInfoQueryService>();
+        services.AddSingleton<IDashboardClusterQueryService, DashboardClusterQueryService>();
+        services.AddSingleton<IDashboardRouteQueryService, DashboardRouteQueryService>();
+        services.AddSingleton<IDashboardLogQueryService, DashboardLogQueryService>();
+
+        // Register editable policy
+        services.AddSingleton<IEditablePolicy, DashboardEditablePolicy>();
+
+        // Register authorization service
+        services.AddSingleton<IDashboardAuthorizationService, DashboardAuthorizationService>();
+
+        // Register configuration persistence service
+        services.AddSingleton<ConfigPersistenceService>();
+
+        // Register dynamic config persistence service (from Aneiang.Yarp)
+        services.AddSingleton(sp =>
+        {
+            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<DynamicConfigPersistenceService>>();
+            var configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "gateway-dynamic.json");
+            return new DynamicConfigPersistenceService(configPath, logger);
+        });
 
         // Route prefix + auth conventions
         services.AddSingleton<IConfigureOptions<MvcOptions>>(sp =>
@@ -73,6 +99,7 @@ public static class DashboardServiceCollectionExtensions
             {
                 mvcOptions.Conventions.Add(new DashboardRouteConvention(prefix));
 
+                // Add auth filter if authorization is enabled
                 var authFilter = CreateAuthFilter(opts, prefix);
                 if (authFilter != null)
                     mvcOptions.Filters.Add(authFilter);
@@ -84,55 +111,17 @@ public static class DashboardServiceCollectionExtensions
 
     // -- Auth filter factory
 
-    /// <summary>Creates an auth filter based on the configured auth mode.</summary>
+    /// <summary>Creates an auth filter if authorization is enabled.</summary>
     private static DashboardAuthFilter? CreateAuthFilter(DashboardOptions opts, string routePrefix)
     {
-        // Priority 1: Custom delegate (highest)
-        if (opts.AuthorizeRequest != null)
-            return new DashboardAuthFilter(ctx => opts.AuthorizeRequest(ctx), routePrefix);
+        // No authorization needed for AuthMode.None without custom delegate
+        if (opts.AuthMode == DashboardAuthMode.None && opts.AuthorizeRequest == null)
+            return null;
 
-        // Priority 2: API Key
-        if (opts.AuthMode == DashboardAuthMode.ApiKey && !string.IsNullOrEmpty(opts.ApiKey))
-        {
-            var apiKey = opts.ApiKey;
-            var headerName = opts.ApiKeyHeaderName;
-            return new DashboardAuthFilter(ctx =>
-            {
-                if (ctx.Request.Headers.TryGetValue(headerName, out var hv) && hv.Any(v => v == apiKey))
-                    return Task.FromResult(true);
-                if (ctx.Request.Query.TryGetValue("api-key", out var qv) && qv.Any(v => v == apiKey))
-                    return Task.FromResult(true);
-                return Task.FromResult(false);
-            }, routePrefix);
-        }
-
-        // Priority 3: JWT (DefaultJwt / CustomJwt)
-        if (opts.AuthMode is DashboardAuthMode.CustomJwt or DashboardAuthMode.DefaultJwt)
-        {
-            var secret = opts.JwtSecret!;
-            return new DashboardAuthFilter(ctx =>
-            {
-                // Authorization header (for XHR/API calls)
-                var authHeader = ctx.Request.Headers["Authorization"].FirstOrDefault();
-                if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer "))
-                {
-                    var (valid, _) = DashboardJwtHelper.ValidateToken(authHeader[7..], secret);
-                    if (valid) return Task.FromResult(true);
-                }
-
-                // dashboard_token cookie (for browser page loads)
-                if (ctx.Request.Cookies.TryGetValue("dashboard_token", out var cookieToken)
-                    && !string.IsNullOrEmpty(cookieToken))
-                {
-                    var (valid, _) = DashboardJwtHelper.ValidateToken(cookieToken, secret);
-                    return Task.FromResult(valid);
-                }
-
-                return Task.FromResult(false);
-            }, routePrefix);
-        }
-
-        // AuthMode.None with no custom delegate - no filter
-        return null;
+        // Create a temporary auth service instance for the filter
+        // The actual service will be resolved from DI at runtime
+        return new DashboardAuthFilter(
+            new DashboardAuthorizationService(Microsoft.Extensions.Options.Options.Create(opts)),
+            routePrefix);
     }
 }
