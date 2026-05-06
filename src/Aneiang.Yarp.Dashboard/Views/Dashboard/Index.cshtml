@@ -164,6 +164,25 @@
 
 <!-- 3. Monaco Editor (async load) -->
 <script>
+    // Configure Monaco Worker paths BEFORE loading loader
+    window.MonacoEnvironment = {
+        getWorkerUrl: function(workerId, label) {
+            var workerPath = '/_content/Aneiang.Yarp.Dashboard/lib/monaco/';
+            // Map worker labels to their specific worker files
+            if (label === 'json') {
+                return workerPath + 'language/json/jsonWorker.js';
+            } else if (label === 'css') {
+                return workerPath + 'language/css/cssWorker.js';
+            } else if (label === 'html') {
+                return workerPath + 'language/html/htmlWorker.js';
+            } else if (label === 'typescript' || label === 'javascript') {
+                return workerPath + 'language/typescript/tsWorker.js';
+            }
+            // Default editor worker
+            return workerPath + 'editor/editor.worker.js';
+        }
+    }; 
+
     window.__monacoReady = new Promise(function(resolve) {
         window.__monacoResolve = resolve;
     });
