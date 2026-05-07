@@ -97,43 +97,46 @@
             const container = window.DashboardDOM.safe('#log-filter-container');
             if (!container) return;
 
-            // Always render the toolbar (don't skip if already initialized)
+            // Layout: Search(left) | Filters(middle) | Action buttons(right)
             container.innerHTML = `
                 <div class="card-body py-2 border-bottom">
                     <div class="row g-2 align-items-center">
-                        <div class="col-auto">
-                            <button class="btn btn-sm btn-outline-success" id="log-listen-btn">
-                                <i class="bi bi-play-circle me-1"></i>${__('index.log.startListen')}
-                            </button>
+                        <div class="col">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light border-end-0">
+                                    <i class="bi bi-search text-muted"></i>
+                                </span>
+                                <input type="text" class="form-control border-start-0" id="log-search-input" 
+                                       placeholder="${__('index.log.search')}...">
+                            </div>
                         </div>
                         <div class="col-auto">
-                            <button class="btn btn-sm btn-outline-secondary" onclick="LogsModule.loadLogs()">
-                                <i class="bi bi-arrow-clockwise me-1"></i>${__('index.btn.refresh')}
-                            </button>
-                        </div>
-                        <div class="col-auto">
-                            <button class="btn btn-sm btn-outline-danger" onclick="LogsModule.clearLogs()">
-                                <i class="bi bi-trash me-1"></i>${__('index.log.clear')}
-                            </button>
-                        </div>
-                        <div class="col-auto">
-                            <select class="form-select form-select-sm" id="log-count-select" style="width:auto;">
-                                <option value="50">50 ${__('index.log.entries')}</option>
-                                <option value="100" selected>100 ${__('index.log.entries')}</option>
-                                <option value="200">200 ${__('index.log.entries')}</option>
-                                <option value="500">500 ${__('index.log.entries')}</option>
+                            <select class="form-select form-select-sm" id="log-count-select" style="width:75px;">
+                                <option value="50">50</option>
+                                <option value="100" selected>100</option>
+                                <option value="200">200</option>
+                                <option value="500">500</option>
                             </select>
                         </div>
-                        <div class="col">
-                            <input type="text" class="form-control form-control-sm" id="log-search-input" 
-                                   placeholder="${__('index.log.search')}...">
-                        </div>
                         <div class="col-auto">
-                            <select class="form-select form-select-sm" id="log-status-select" style="width:auto;">
+                            <select class="form-select form-select-sm" id="log-status-select" style="width:100px;">
                                 <option value="all">${__('index.log.status.all')}</option>
                                 <option value="success">${__('index.log.status.success')}</option>
                                 <option value="error">${__('index.log.status.error')}</option>
                             </select>
+                        </div>
+                        <div class="col-auto">
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-sm btn-outline-success" id="log-listen-btn" title="${__('index.log.startListen')}">
+                                    <i class="bi bi-play-circle"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="LogsModule.loadLogs()" title="${__('index.btn.refresh')}">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="LogsModule.clearLogs()" title="${__('index.log.clear')}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -233,26 +236,26 @@
 
         // ===== Create Log Item =====
         createLogItem: function(entry, logKey, isExpanded) {
+            // Level class mapping for CSS color bar
+            const levelClassMap = {
+                'Information': 'level-info',
+                'Warning': 'level-warning',
+                'Error': 'level-error',
+                'Critical': 'level-critical',
+                'Debug': 'level-debug'
+            };
+            const levelClass = levelClassMap[entry.level] || 'level-info';
+
             const item = window.DashboardDOM.create('div', {
-                className: 'log-item'
+                className: `log-item ${levelClass}`,
+                attributes: { 'data-log-key': logKey }
             });
 
-            // Clickable row
+            // Clickable row - simplified: only show time, level, and message
             const row = window.DashboardDOM.create('div', {
                 className: 'log-row',
-                style: {
-                    display: 'flex',
-                    gap: '10px',
-                    padding: '10px 16px',
-                    borderBottom: '1px solid #f1f5f9',
-                    cursor: 'pointer',
-                    alignItems: 'center',
-                    transition: 'background 0.2s'
-                },
                 events: {
-                    mouseenter: function() { this.style.background = '#f8fafc'; },
-                    mouseleave: function() { this.style.background = ''; },
-                    click: () => this.toggleLogEntry(logKey)
+                    click: (e) => this.toggleLogEntryDirect(logKey, e)
                 }
             });
 
@@ -260,96 +263,34 @@
             const timeSpan = window.DashboardDOM.create('span', {
                 textContent: window.DashboardI18n.formatTime(new Date(entry.timestamp)),
                 style: {
-                    color: '#94a3b8',
+                    color: '#64748b',
                     whiteSpace: 'nowrap',
-                    minWidth: '85px',
-                    fontSize: '12px',
-                    fontFamily: 'monospace'
+                    minWidth: '70px',
+                    fontSize: '12px'
                 }
             });
 
-            // Level badge
+            // Level badge (more prominent)
             const badge = this.createLevelBadge(entry.level);
 
-            // HTTP Method (if exists)
-            let methodSpan = null;
-            if (entry.method) {
-                const methodColors = {
-                    'GET': '#3b82f6',
-                    'POST': '#10b981',
-                    'PUT': '#f59e0b',
-                    'DELETE': '#ef4444',
-                    'PATCH': '#8b5cf6'
-                };
-                const color = methodColors[entry.method] || '#64748b';
-                methodSpan = window.DashboardDOM.create('span', {
-                    textContent: entry.method,
-                    style: {
-                        color: color,
-                        fontWeight: '600',
-                        fontSize: '11px',
-                        whiteSpace: 'nowrap',
-                        minWidth: '60px',
-                        fontFamily: 'monospace'
-                    }
-                });
-            }
-
-            // Status code (if exists)
-            let statusSpan = null;
-            if (entry.statusCode) {
-                const statusCode = parseInt(entry.statusCode);
-                let statusColor = '#64748b';
-                if (statusCode >= 200 && statusCode < 300) statusColor = '#10b981';
-                else if (statusCode >= 300 && statusCode < 400) statusColor = '#3b82f6';
-                else if (statusCode >= 400 && statusCode < 500) statusColor = '#f59e0b';
-                else if (statusCode >= 500) statusColor = '#ef4444';
-                
-                statusSpan = window.DashboardDOM.create('span', {
-                    textContent: entry.statusCode,
-                    style: {
-                        color: statusColor,
-                        fontWeight: '600',
-                        fontSize: '12px',
-                        whiteSpace: 'nowrap',
-                        minWidth: '40px',
-                        fontFamily: 'monospace',
-                        background: statusColor + '15',
-                        padding: '2px 8px',
-                        borderRadius: '4px'
-                    }
-                });
-            }
-
-            // Path/Message
+            // Message (main content)
             const msgSpan = window.DashboardDOM.create('span', {
-                textContent: entry.path || entry.message || '',
+                textContent: entry.message || '',
                 style: {
-                    color: '#475569',
+                    color: '#1e293b',
                     flex: '1',
-                    wordBreak: 'break-all',
-                    whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    fontSize: '13px'
+                    whiteSpace: 'nowrap',
+                    fontWeight: '500'
                 }
             });
 
-            // Action buttons (on the right)
-            const actionsDiv = window.DashboardDOM.create('div', {
-                style: {
-                    display: 'flex',
-                    gap: '4px',
-                    marginLeft: 'auto',
-                    paddingLeft: '8px'
-                }
-            });
-            
-            // Copy button
+            // Copy button (small icon button)
             const copyBtn = window.DashboardDOM.create('button', {
-                className: 'btn btn-sm btn-outline-secondary',
-                innerHTML: '<i class="bi bi-clipboard"></i>',
-                style: { padding: '2px 6px', fontSize: '11px' },
+                className: 'btn btn-sm btn-link p-0',
+                innerHTML: '<i class="bi bi-clipboard" style="color:#94a3b8"></i>',
+                style: { marginLeft: '8px', opacity: '0.6' },
                 events: {
                     click: (e) => {
                         e.stopPropagation();
@@ -357,31 +298,24 @@
                     }
                 }
             });
-            actionsDiv.appendChild(copyBtn);
 
-            // Arrow
-            const arrowSpan = window.DashboardDOM.create('span', {
-                className: 'log-arrow',
-                textContent: isExpanded ? '▼' : '▶',
+            // Arrow indicator (uses CSS rotation)
+            const arrowSpan = window.DashboardDOM.create('i', {
+                className: `bi bi-chevron-right log-arrow ${isExpanded ? 'expanded' : ''}`,
                 style: {
                     color: '#94a3b8',
-                    fontSize: '10px',
-                    whiteSpace: 'nowrap',
-                    minWidth: '14px',
-                    textAlign: 'center',
-                    transition: 'transform .2s'
+                    fontSize: '12px',
+                    transition: 'transform 0.2s ease'
                 }
             });
 
             row.appendChild(timeSpan);
             row.appendChild(badge);
-            if (methodSpan) row.appendChild(methodSpan);
-            if (statusSpan) row.appendChild(statusSpan);
             row.appendChild(msgSpan);
-            row.appendChild(actionsDiv);
+            row.appendChild(copyBtn);
             row.appendChild(arrowSpan);
 
-            // Detail section
+            // Detail section - hidden by default, uses CSS class for expanded state
             const detail = this.createLogDetail(entry, isExpanded);
 
             item.appendChild(row);
@@ -393,40 +327,73 @@
         // ===== Create Level Badge =====
         createLevelBadge: function(level) {
             const levelMap = {
-                'Information': { class: 'bg-info', icon: 'ℹ️' },
-                'Warning': { class: 'bg-warning', icon: '⚠️' },
-                'Error': { class: 'bg-danger', icon: '❌' },
-                'Critical': { class: 'bg-dark', icon: '🔥' },
-                'Debug': { class: 'bg-secondary', icon: '🐛' }
+                'Information': { css: 'info', icon: 'bi-info-circle-fill', text: 'INFO' },
+                'Warning': { css: 'warning', icon: 'bi-exclamation-triangle-fill', text: 'WARN' },
+                'Error': { css: 'error', icon: 'bi-x-circle-fill', text: 'ERROR' },
+                'Critical': { css: 'critical', icon: 'bi-fire', text: 'FATAL' },
+                'Debug': { css: 'debug', icon: 'bi-bug-fill', text: 'DEBUG' }
             };
-
-            const config = levelMap[level] || { class: 'bg-light', icon: '•' };
             
-            return window.DashboardDOM.create('span', {
-                className: `badge ${config.class} text-dark`,
-                textContent: `${config.icon} ${level}`,
-                style: { fontSize: '11px' }
+            const config = levelMap[level] || { css: 'info', icon: 'bi-circle-fill', text: level };
+            
+            const badge = window.DashboardDOM.create('span', {
+                className: `log-level-badge ${config.css}`
             });
+            
+            const icon = window.DashboardDOM.create('i', {
+                className: `bi ${config.icon}`
+            });
+            badge.appendChild(icon);
+            
+            const text = window.DashboardDOM.create('span', {
+                textContent: config.text
+            });
+            badge.appendChild(text);
+            
+            return badge;
         },
 
         // ===== Create Log Detail =====
         createLogDetail: function(entry, isExpanded) {
             const detail = window.DashboardDOM.create('div', {
-                className: 'log-detail',
-                style: {
-                    display: isExpanded ? 'block' : 'none',
-                    padding: '8px 16px 12px',
-                    background: '#f8fafc',
-                    borderBottom: '1px solid #e2e8f0',
-                    fontSize: '12px'
-                }
+                className: `log-detail ${isExpanded ? 'expanded' : ''}`
             });
-
+                
             const dtHtml = [];
-
+                
+            // HTTP Request Info (if exists)
+            if (entry.method || entry.statusCode || entry.path) {
+                dtHtml.push('<div class="d-flex flex-wrap gap-2 mb-2 pb-2 border-bottom">');
+                        
+                // Method with colored badge
+                if (entry.method) {
+                    const methodColors = {
+                        'GET': 'bg-primary',
+                        'POST': 'bg-success',
+                        'PUT': 'bg-warning',
+                        'DELETE': 'bg-danger',
+                        'PATCH': 'bg-info'
+                    }; 
+                    const methodClass = methodColors[entry.method] || 'bg-secondary';
+                    dtHtml.push(`<span><strong>Method:</strong> <span class="badge ${methodClass}">${entry.method}</span></span>`);
+                }
+                        
+                // Status code
+                if (entry.statusCode) {
+                    dtHtml.push(`<span><strong>Status:</strong> <span class="badge ${this.getStatusCodeBadge(entry.statusCode)}">${entry.statusCode}</span></span>`);
+                }
+                        
+                // Path
+                if (entry.path) {
+                    dtHtml.push(`<span style="flex:1"><strong>Path:</strong> <code>${window.DashboardUtils.escapeHtml(entry.path)}</code></span>`);
+                }
+                        
+                dtHtml.push('</div>');
+            }
+                
             // Metadata row
-            dtHtml.push('<div style="display:flex;flex-wrap:wrap;gap:8px 24px;margin-bottom:6px;">');
-            
+            dtHtml.push('<div class="d-flex flex-wrap gap-2 mb-2">');
+                            
             if (entry.category) {
                 dtHtml.push(`<span><strong>${__('index.log.category')}</strong> ${window.DashboardUtils.escapeHtml(entry.category)}</span>`);
             }
@@ -436,35 +403,32 @@
             if (entry.traceId) {
                 dtHtml.push(`<span><strong>TraceId:</strong> <code>${window.DashboardUtils.escapeHtml(entry.traceId)}</code></span>`);
             }
-            if (entry.statusCode) {
-                dtHtml.push(`<span><strong>Status:</strong> <span class="badge ${this.getStatusCodeBadge(entry.statusCode)}">${entry.statusCode}</span></span>`);
-            }
-            
+                            
             dtHtml.push('</div>');
-
-            // Message
-            dtHtml.push(`<div style="color:#334155;margin-bottom:4px;"><strong>${__('index.log.message')}</strong><br>`);
+                
+            // Message (full content)
+            dtHtml.push(`<div class="mb-2"><strong>${__('index.log.message')}</strong><br>`);
             dtHtml.push(`<span style="color:#475569;word-break:break-all;">${window.DashboardUtils.escapeHtml(entry.message || '')}</span></div>`);
-
+                
             // Details (JSON)
             if (entry.details) {
-                dtHtml.push(`<div style="color:#334155;margin-top:6px;"><strong>${__('index.log.details')}</strong></div>`);
+                dtHtml.push(`<div class="mt-2"><strong>${__('index.log.details')}</strong></div>`);
                 try {
                     const detailsObj = JSON.parse(entry.details);
-                    dtHtml.push(this.renderJsonBlock(detailsObj, 'Details JSON'));
+                    dtHtml.push(this.renderJsonBlock(detailsObj, 'Details JSON')); 
                 } catch (err) {
-                    dtHtml.push(`<pre style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:12px;color:#334155;line-height:1.6;">${window.DashboardUtils.escapeHtml(entry.details)}</pre>`);
+                    dtHtml.push(`<pre style="background:#f1f5f9;border:1px solid var(--border-color);border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:12px;color:#334155;">${window.DashboardUtils.escapeHtml(entry.details)}</pre>`);
                 }
             }
-
+                
             // Exception
             if (entry.exception) {
-                dtHtml.push(`<div style="color:#dc2626;margin-top:6px;"><strong>${__('index.log.exception')}</strong></div>`);
-                dtHtml.push(`<pre style="background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:11px;color:#991b1b;line-height:1.5;">${window.DashboardUtils.escapeHtml(entry.exception)}</pre>`);
+                dtHtml.push(`<div style="color:#dc2626;margin-top:6px"><strong>${__('index.log.exception')}</strong></div>`);
+                dtHtml.push(`<pre style="background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:11px;color:#991b1b;">${window.DashboardUtils.escapeHtml(entry.exception)}</pre>`);
             }
-
+                
             detail.innerHTML = dtHtml.join('');
-
+        
             return detail;
         },
 
@@ -512,6 +476,39 @@
         },
 
         // ===== Toggle Log Entry =====
+        // ===== Toggle Log Entry (Direct DOM Manipulation - More Efficient) =====
+        toggleLogEntryDirect: function(logKey, event) {
+            const state = window.DashboardState;
+            const current = state.get(`ui.expandedLogs.${logKey}`) || false;
+            
+            // If expanding and polling is active, stop polling
+            if (!current && state.get('filters.logs.autoRefresh')) {
+                this.stopPolling();
+                console.log('[Logs] Auto-stopped polling due to log expansion');
+            }
+            
+            // Update state
+            state.set(`ui.expandedLogs.${logKey}`, !current);
+            
+            // Direct DOM manipulation - find the log item by data-log-key
+            const logItem = document.querySelector(`.log-item[data-log-key="${CSS.escape(logKey)}"]`);
+            if (logItem) {
+                const arrow = logItem.querySelector('.log-arrow');
+                const detail = logItem.querySelector('.log-detail');
+                
+                if (!current) {
+                    // Expanding
+                    if (arrow) arrow.classList.add('expanded');
+                    if (detail) detail.classList.add('expanded');
+                } else {
+                    // Collapsing
+                    if (arrow) arrow.classList.remove('expanded');
+                    if (detail) detail.classList.remove('expanded');
+                }
+            }
+        },
+
+        // ===== Toggle Log Entry (Full Re-render - Old Method) =====
         toggleLogEntry: function(logKey) {
             const state = window.DashboardState;
             const current = state.get(`ui.expandedLogs.${logKey}`) || false;
@@ -595,11 +592,13 @@
             if (!btn) return;
 
             if (isPolling) {
-                btn.className = 'btn btn-sm btn-outline-warning';
-                btn.innerHTML = `<i class="bi bi-pause-circle me-1"></i>${__('index.log.stopListen')}`;
+                btn.className = 'btn btn-sm btn-outline-warning active';
+                btn.innerHTML = '<i class="bi bi-pause-circle"></i>';
+                btn.title = __('index.log.stopListen');
             } else {
                 btn.className = 'btn btn-sm btn-outline-success';
-                btn.innerHTML = `<i class="bi bi-play-circle me-1"></i>${__('index.log.startListen')}`;
+                btn.innerHTML = '<i class="bi bi-play-circle"></i>';
+                btn.title = __('index.log.startListen');
             }
         },
 

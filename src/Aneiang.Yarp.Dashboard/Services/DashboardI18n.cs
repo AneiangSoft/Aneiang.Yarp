@@ -24,6 +24,9 @@ public static class DashboardI18n
         ["layout.tab.logs"] = "日志",
         ["layout.lang.switch"] = "English",
         ["layout.lang.tooltip"] = "Switch to English",
+        ["layout.user.loggedIn"] = "已登录",
+        ["layout.user.logout"] = "退出登录",
+        ["layout.user.logoutConfirm"] = "确认退出登录？",
 
         // ── Login ──
         ["login.title"] = "登录 - 网关仪表盘",
@@ -313,6 +316,9 @@ public static class DashboardI18n
         ["layout.tab.logs"] = "Logs",
         ["layout.lang.switch"] = "中文",
         ["layout.lang.tooltip"] = "切换到中文",
+        ["layout.user.loggedIn"] = "Logged in",
+        ["layout.user.logout"] = "Logout",
+        ["layout.user.logoutConfirm"] = "Confirm logout?",
 
         // ── Login ──
         ["login.title"] = "Login - Gateway Dashboard",

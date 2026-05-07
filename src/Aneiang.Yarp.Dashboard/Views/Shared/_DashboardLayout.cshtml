@@ -63,7 +63,7 @@
         }
         
         .sidebar .brand {
-            padding: 24px 20px; 
+            padding: 20px; 
             font-size: 18px; 
             font-weight: 700;
             border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -81,7 +81,7 @@
         }
         
         .sidebar .nav-section {
-            padding: 16px 0;
+            padding: 12px 0;
         }
         
         .sidebar .section-title { 
@@ -90,13 +90,13 @@
             color: var(--text-muted); 
             text-transform: uppercase; 
             letter-spacing: 1.2px; 
-            padding: 12px 20px 8px;
+            padding: 8px 20px;
             margin: 0;
         }
         
         .sidebar .nav-link {
             color: rgba(255,255,255,0.65); 
-            padding: 11px 20px;
+            padding: 10px 20px;
             font-size: 14px; 
             font-weight: 500;
             display: flex; 
@@ -149,14 +149,39 @@
         
         .sidebar-footer {
             margin-top: auto;
-            padding: 16px;
+            padding: 12px;
             border-top: 1px solid rgba(255,255,255,0.06);
+        }
+        
+        .sidebar-user {
+            padding: 8px 0;
+            margin-bottom: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        
+        .sidebar-user .user-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            font-size: 13px;
+            color: rgba(255,255,255,0.75);
+        }
+        
+        .sidebar-user .user-info i {
+            font-size: 16px;
+            color: var(--primary-light);
+        }
+        
+        .sidebar-footer .nav-link {
+            padding: 8px;
+            font-size: 13px;
         }
         
         /* Main Content */
         .main-content {
             margin-left: var(--sidebar-width); 
-            padding: 32px 40px; 
+            padding: 24px;
             min-height: 100vh;
             background: var(--bg-color);
         }
@@ -165,7 +190,7 @@
         .stat-card {
             background: var(--card-bg); 
             border-radius: 16px; 
-            padding: 24px 28px;
+            padding: 20px;
             box-shadow: var(--shadow-sm);
             border: 1px solid var(--border-color);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -231,7 +256,7 @@
             box-shadow: var(--shadow-sm);
             border: 1px solid var(--border-color);
             overflow: hidden;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
             transition: box-shadow 0.3s ease;
         }
         
@@ -240,7 +265,7 @@
         }
         
         .card-panel .card-header {
-            padding: 20px 24px; 
+            padding: 16px 20px; 
             font-weight: 600; 
             font-size: 16px;
             border-bottom: 1px solid var(--border-color); 
@@ -255,6 +280,18 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .card-panel .card-header > div:last-child,
+        .card-panel .card-header > span:last-child:not(:first-child) {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+            white-space: nowrap;
+            min-width: fit-content;
         }
         
         .card-panel .card-header i {
@@ -263,7 +300,7 @@
         }
         
         .card-panel .card-body {
-            padding: 20px 24px;
+            padding: 16px 20px;
         }
         
         /* Health Indicators */
@@ -325,14 +362,14 @@
             color: var(--text-secondary); 
             background: #f8fafc; 
             border-bottom: 2px solid var(--border-color);
-            padding: 14px 16px;
+            padding: 12px 16px;
             font-size: 13px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
         
         .table td {
-            padding: 14px 16px;
+            padding: 12px 16px;
             vertical-align: middle;
         }
         
@@ -373,11 +410,118 @@
             word-break: break-all;
         }
         
+        /* Log Module Styles - Seq-like Design */
+        .log-entries-container {
+            font-family: 'Inter', Consolas, monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        /* Log Level Color Bar */
+        .log-item {
+            border-bottom: 1px solid var(--border-color);
+            position: relative;
+        }
+        
+        .log-item:last-child {
+            border-bottom: none;
+        }
+        
+        /* Level-specific left border color */
+        .log-item.level-info { border-left: 4px solid #3b82f6; }
+        .log-item.level-warning { border-left: 4px solid #f59e0b; }
+        .log-item.level-error { border-left: 4px solid #ef4444; }
+        .log-item.level-critical { border-left: 4px solid #991b1b; }
+        .log-item.level-debug { border-left: 4px solid #64748b; }
+        
+        /* Level-specific row background hover */
+        .log-item.level-info .log-row:hover { background: rgba(59, 130, 246, 0.08); }
+        .log-item.level-warning .log-row:hover { background: rgba(245, 158, 11, 0.08); }
+        .log-item.level-error .log-row:hover { background: rgba(239, 68, 68, 0.08); }
+        .log-item.level-critical .log-row:hover { background: rgba(153, 27, 27, 0.08); }
+        .log-item.level-debug .log-row:hover { background: rgba(100, 116, 139, 0.08); }
+        
+        .log-row {
+            display: flex;
+            gap: 12px;
+            padding: 8px 12px;
+            align-items: center;
+            transition: background 0.15s ease;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        /* Log Level Badge - more prominent */
+        .log-level-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            min-width: 70px;
+            justify-content: center;
+        }
+        
+        .log-level-badge.info { background: #dbeafe; color: #1d4ed8; }
+        .log-level-badge.warning { background: #fef3c7; color: #b45309; }
+        .log-level-badge.error { background: #fee2e2; color: #b91c1c; }
+        .log-level-badge.critical { background: #991b1b; color: #fff; }
+        .log-level-badge.debug { background: #f1f5f9; color: #475569; }
+        
+        .log-detail {
+            display: none;
+            padding: 12px 16px 16px;
+            background: #f8fafc;
+            border-top: 1px dashed var(--border-color);
+            font-size: 12px;
+        }
+        
+        .log-detail.expanded {
+            display: block;
+        }
+        
+        /* Log Arrow Icon */
+        .log-arrow {
+            transition: transform 0.2s ease;
+        }
+        
+        .log-arrow.expanded {
+            transform: rotate(90deg);
+        }
+        
+        /* Log Toolbar in Card Panel */
+        .card-panel .card-body.py-2 {
+            padding: 12px 16px;
+        }
+        
+        .card-panel .card-body .form-select-sm,
+        .card-panel .card-body .form-control-sm,
+        .card-panel .card-body .btn-sm {
+            font-size: 13px;
+        }
+        
+        .card-panel .card-body .btn-sm {
+            padding: 6px 12px;
+        }
+        
+        .card-panel .card-body .form-select-sm {
+            padding: 6px 8px;
+        }
+        
+        .card-panel .card-body .form-control-sm {
+            padding: 6px 12px;
+        }
+        
         /* Refresh Badge */
         .refresh-badge { 
             font-size: 12px; 
             color: var(--text-muted); 
             font-weight: 500;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
         }
         
         /* Buttons */
@@ -416,36 +560,105 @@
             box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
         }
         
-        /* Info Bar */
+        /* Info Bar - Server Status */
         .info-bar {
             background: var(--card-bg);
             border-radius: 12px;
-            padding: 16px 24px;
-            margin-bottom: 24px;
+            padding: 12px 16px;
             box-shadow: var(--shadow-sm);
             border: 1px solid var(--border-color);
             display: flex;
-            flex-wrap: wrap;
-            gap: 24px;
+            justify-content: space-between;
             align-items: center;
+            gap: 12px;
             font-size: 13px;
             color: var(--text-secondary);
         }
         
-        .info-bar span {
+        .info-bar-content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px 16px;
+            align-items: center;
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .info-bar-actions {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        
+        .info-bar-content span {
             display: flex;
             align-items: center;
             gap: 6px;
+            white-space: nowrap;
         }
         
-        .info-bar i {
+        .info-bar-content i {
             color: var(--primary-color);
-            font-size: 15px;
+            font-size: 14px;
         }
         
-        .info-bar strong {
+        .info-bar-content strong {
             color: var(--text-primary);
             font-weight: 600;
+        }
+        
+        /* Icon Button Style */
+        .btn-icon {
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        .btn-icon:hover {
+            transform: scale(1.05);
+        }
+        
+        .btn-icon i {
+            margin: 0;
+        }
+        
+        /* Responsive Info Bar */
+        @@media (max-width: 992px) {
+            .info-bar-content {
+                gap: 8px 12px;
+            }
+        }
+        
+        @@media (max-width: 768px) {
+            .info-bar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+            
+            .info-bar-content {
+                justify-content: center;
+            }
+            
+            .info-bar-actions {
+                justify-content: center;
+            }
+        }
+        
+        @@media (max-width: 576px) {
+            .info-bar-content span {
+                font-size: 12px;
+                gap: 4px;
+            }
+            
+            .info-bar-content i {
+                font-size: 12px;
+            }
         }
         
         /* Animations */
@@ -529,6 +742,15 @@
         </div>
         
         <div class="sidebar-footer">
+            <div class="sidebar-user">
+                <span class="user-info">
+                    <i class="bi bi-person-circle"></i>
+                    <span id="sidebar-username" data-i18n="layout.user.loggedIn">已登录</span>
+                </span>
+            </div>
+            <a class="nav-link" href="#" onclick="dashboardLogout();return false;" style="border-left:none;">
+                <i class="bi bi-box-arrow-right"></i> <span data-i18n="layout.user.logout">退出登录</span>
+            </a>
             <a class="nav-link" href="#" onclick="switchLocale();return false;" title="@(ViewBag.Locale != null && ViewBag.Locale.ToString() == "en-US" ? "切换到中文" : "Switch to English")" style="border-left:none;">
                 <i class="bi bi-translate"></i> <span data-i18n="layout.lang.switch">@(ViewBag.Locale != null && ViewBag.Locale.ToString() == "en-US" ? "中文" : "English")</span>
             </a>
@@ -549,6 +771,35 @@
             localStorage.setItem('dashboard_locale', next);
             location.reload();
         }
+        function dashboardLogout() {
+            if (!confirm(__('layout.user.logoutConfirm'))) return;
+            fetch('/' + '@ViewBag.DashboardRoutePrefix' + '/logout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            }).then(function(res) {
+                return res.json();
+            }).then(function(data) {
+                if (data.code === 200) {
+                    localStorage.removeItem('dashboard_token');
+                    window.location.href = '/' + '@ViewBag.DashboardRoutePrefix' + '/login';
+                }
+            }).catch(function(err) {
+                console.error('Logout failed:', err);
+                // Still redirect to login page
+                localStorage.removeItem('dashboard_token');
+                window.location.href = '/' + '@ViewBag.DashboardRoutePrefix' + '/login';
+            });
+        }
+        function getJwtUsername() {
+            var token = localStorage.getItem('dashboard_token');
+            if (!token) return null;
+            try {
+                var payload = JSON.parse(atob(token.split('.')[1]));
+                return payload.username || payload.sub || null;
+            } catch (e) {
+                return null;
+            }
+        }
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('[data-i18n]').forEach(function(el) {
                 var key = el.getAttribute('data-i18n');
@@ -558,6 +809,12 @@
                 var key = el.getAttribute('data-i18n-placeholder');
                 if (key && I18N[key]) el.placeholder = I18N[key];
             });
+            // Show username in sidebar
+            var username = getJwtUsername();
+            var usernameEl = document.getElementById('sidebar-username');
+            if (usernameEl && username) {
+                usernameEl.textContent = username;
+            }
         });
     </script>
     <script src="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap/js/bootstrap.bundle.min.js"></script>
