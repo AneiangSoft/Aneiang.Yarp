@@ -166,4 +166,12 @@ public class DashboardController : Controller
             }
         });
     }
+
+    /// <summary>Logout - clear the auth token cookie.</summary>
+    [HttpPost("logout")]
+    public IActionResult Logout()
+    {
+        Response.Cookies.Delete("dashboard_token");
+        return Json(new { code = 200, message = "Logged out successfully" });
+    }
 }

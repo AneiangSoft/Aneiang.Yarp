@@ -4,21 +4,23 @@
 }
 
 <!-- Stat cards (visible on all tabs) -->
-<div id="stat-bar" class="row g-4 mb-4">
+<div id="stat-bar" class="row g-3 mb-3">
     <!-- Gateway info -->
-    <div class="col-12 mb-2">
+    <div class="col-12">
         <div class="info-bar">
-            <span><i class="bi bi-cpu"></i><span data-i18n="index.label.version">版本：</span><strong id="info-version">-</strong></span>
-            <span><i class="bi bi-cloud"></i><span data-i18n="index.label.env">环境：</span><strong id="info-env">-</strong></span>
-            <span><i class="bi bi-play-circle"></i><span data-i18n="index.label.start">启动：</span><strong id="info-start">-</strong></span>
-            <span><i class="bi bi-clock-history"></i><span data-i18n="index.label.uptime">运行：</span><strong id="info-uptime">-</strong></span>
-            <span><i class="bi bi-memory"></i><span data-i18n="index.label.memory">内存：</span><strong id="info-memory">-</strong></span>
-            <span><i class="bi bi-pc-display"></i><span data-i18n="index.label.host">主机：</span><strong id="info-machine">-</strong></span>
-            <span class="ms-auto">
-                <button class="btn btn-sm btn-outline-primary" onclick="manualRefresh(this)">
-                    <i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="index.btn.refresh">刷新</span>
+            <div class="info-bar-content">
+                <span><i class="bi bi-cpu"></i><span data-i18n="index.label.version">版本：</span><strong id="info-version">-</strong></span>
+                <span><i class="bi bi-cloud"></i><span data-i18n="index.label.env">环境：</span><strong id="info-env">-</strong></span>
+                <span><i class="bi bi-play-circle"></i><span data-i18n="index.label.start">启动：</span><strong id="info-start">-</strong></span>
+                <span><i class="bi bi-clock-history"></i><span data-i18n="index.label.uptime">运行：</span><strong id="info-uptime">-</strong></span>
+                <span><i class="bi bi-memory"></i><span data-i18n="index.label.memory">内存：</span><strong id="info-memory">-</strong></span>
+                <span><i class="bi bi-pc-display"></i><span data-i18n="index.label.host">主机：</span><strong id="info-machine">-</strong></span>
+            </div>
+            <div class="info-bar-actions">
+                <button class="btn btn-icon btn-outline-primary" onclick="manualRefresh(this)" title="刷新">
+                    <i class="bi bi-arrow-clockwise"></i>
                 </button>
-            </span>
+            </div>
         </div>
     </div>
     <div class="col-md-4 col-sm-6">
@@ -59,7 +61,7 @@
 
 
 <!-- Cluster panel -->
-<div id="cluster-panel" class="card-panel mb-4" style="display:none;">
+<div id="cluster-panel" class="card-panel mb-3" style="display:none;">
     <div class="card-header">
         <span><i class="bi bi-hdd-stack me-2"></i><span data-i18n="index.cluster.title">集群 &amp; 目标节点状态</span></span>
         <div class="d-flex align-items-center gap-3">
@@ -94,7 +96,7 @@
 </div>
 
 <!-- Route panel -->
-<div id="route-panel" class="card-panel mb-4" style="display:none;">
+<div id="route-panel" class="card-panel mb-3" style="display:none;">
     <div class="card-header">
         <span><i class="bi bi-signpost-split me-2"></i><span data-i18n="index.route.title">路由规则列表</span></span>
         <div class="d-flex align-items-center gap-3">
@@ -128,10 +130,10 @@
 </div>
 
 <!-- Log panel -->
-<div id="log-panel" class="card-panel mb-4" style="display:none;">
+<div id="log-panel" class="card-panel mb-3" style="display:none;">
     <div class="card-header">
         <span><i class="bi bi-journal-text me-2"></i><span data-i18n="index.log.title">YARP 实时日志</span></span>
-        <div class="d-flex align-items-center flex-wrap" style="gap:6px 16px;">
+        <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
             <span class="refresh-badge" id="log-refresh-time"></span>
             <span class="refresh-badge"><span data-i18n="index.log.showing">显示 </span><strong id="log-display-count">0</strong><span data-i18n="index.log.of"> / </span><span id="log-total-count">0</span><span data-i18n="index.log.entries"> 条</span></span>
         </div>
@@ -141,7 +143,7 @@
     <div id="log-filter-container"></div>
     
     <div style="max-height:600px;overflow-y:auto;" id="log-scroll-container">
-        <div id="log-entries" style="padding:0;">
+        <div id="log-entries" class="log-entries-container">
             <div class="text-center text-muted py-4" data-i18n="index.log.empty">暂无日志</div>
         </div>
     </div>
