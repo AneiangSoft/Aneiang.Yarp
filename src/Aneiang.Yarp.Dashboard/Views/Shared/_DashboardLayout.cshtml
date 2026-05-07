@@ -410,6 +410,147 @@
             word-break: break-all;
         }
         
+        /* Cluster & Route Table Styles - Health Color Bar */
+        .cluster-row.health-healthy { border-left: 4px solid #22c55e; }
+        .cluster-row.health-unhealthy { border-left: 4px solid #ef4444; }
+        .cluster-row.health-unknown { border-left: 4px solid #94a3b8; }
+        
+        /* Route Priority Badge Styles */
+        .priority-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .priority-badge.priority-high {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #b45309;
+            border: 1px solid #f59e0b;
+        }
+        .priority-badge.priority-medium {
+            background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+            color: #0369a1;
+            border: 1px solid #0ea5e9;
+        }
+        .priority-badge.priority-low {
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            color: #475569;
+            border: 1px solid #94a3b8;
+        }
+        .priority-badge.priority-none {
+            background: #f8fafc;
+            color: #94a3b8;
+            border: 1px solid #e2e8f0;
+        }
+        
+        /* Row Expand Icon */
+        .row-expand-icon { 
+            transition: transform 0.2s ease;
+            color: #64748b;
+        }
+        .row-expand-icon.expanded { 
+            transform: rotate(90deg);
+            color: #3b82f6;
+        }
+        
+        /* Table Row Styles */
+        .cluster-row, .route-row {
+            transition: background-color 0.15s ease;
+        }
+        .cluster-row:hover, .route-row:hover {
+            background-color: rgba(0, 0, 0, 0.03);
+        }
+        .cluster-row td, .route-row td {
+            padding: 12px 16px;
+            vertical-align: middle;
+        }
+        
+        /* Detail Row Styles */
+        .cluster-detail-row td, .route-detail-row td {
+            padding: 0;
+            background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+            border-left: 4px solid #3b82f6;
+        }
+        .detail-panel {
+            padding: 20px 24px;
+            border-bottom: none;
+        }
+        .detail-panel .detail-section {
+            margin-bottom: 20px;
+            background: #fff;
+            border-radius: 8px;
+            padding: 12px 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+        .detail-panel .detail-section:last-child {
+            margin-bottom: 0;
+        }
+        .detail-panel .detail-section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e40af;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .detail-panel .detail-section-title i {
+            color: #3b82f6;
+            font-size: 16px;
+        }
+        
+        /* Detail Info Grid */
+        .detail-info-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 24px;
+        }
+        .detail-info-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .detail-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: #64748b;
+        }
+        .detail-value {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .detail-panel .detail-table {
+            font-size: 13px;
+            margin-bottom: 0;
+            border-radius: 6px;
+        }
+        .detail-panel .detail-table th {
+            background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+            font-weight: 600;
+            padding: 10px 14px;
+            color: #334155;
+        }
+        .detail-panel .detail-table td {
+            padding: 10px 14px;
+            background: #fff;
+        }
+        .detail-panel code {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #92400e;
+            border: 1px solid #fcd34d;
+        }
+        
         /* Log Module Styles - Seq-like Design */
         .log-entries-container {
             font-family: 'Inter', Consolas, monospace;

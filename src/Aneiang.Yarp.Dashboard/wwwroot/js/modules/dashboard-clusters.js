@@ -82,9 +82,12 @@
                 // Show empty state INSIDE tbody, not replacing it
                 const emptyRow = document.createElement('tr');
                 emptyRow.innerHTML = `
-                    <td colspan="5" class="text-center py-5 text-muted">
-                        <i class="bi bi-hdd-rack" style="font-size: 2rem; opacity: 0.5;"></i>
-                        <div class="mt-2">${__('index.cluster.empty') || '暂无集群数据'}</div>
+                    <td colspan="7" class="text-center py-5">
+                        <div class="empty-state">
+                            <i class="bi bi-hdd-rack" style="font-size: 2.5rem; opacity: 0.4; color: #64748b;"></i>
+                            <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.cluster.empty') || '暂无集群数据'}</div>
+                            <div class="mt-2 text-muted small">${__('index.cluster.emptyHelp') || '点击右上角 "+" 添加集群'}</div>
+                        </div>
                     </td>
                 `; 
                 tbody.appendChild(emptyRow);
@@ -118,20 +121,16 @@
                     <div class="row g-2 align-items-center">
                         <div class="col">
                             <div class="input-group input-group-sm">
-                                <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                <input type="text" class="form-control" id="cluster-search-input" 
-                                       placeholder="${__('index.cluster.search') || '搜索集群ID、地址...'}..." 
+                                <span class="input-group-text bg-light border-end-0">
+                                    <i class="bi bi-search text-muted"></i>
+                                </span>
+                                <input type="text" class="form-control border-start-0" id="cluster-search-input" 
+                                       placeholder="${__('index.cluster.search') || '搜索集群ID、地址...'}" 
                                        autocomplete="off">
-                                <button class="btn btn-primary" type="button" id="cluster-search-btn">
-                                    <i class="bi bi-arrow-right"></i>
-                                </button>
                             </div>
                         </div>
                         <div class="col-auto">
-                            <span class="text-muted small" id="cluster-search-result"></span>
-                        </div>
-                        <div class="col-auto">
-                            <select class="form-select form-select-sm" id="cluster-health-select" style="width:auto;">
+                            <select class="form-select form-select-sm" id="cluster-health-select" style="width:100px;">
                                 <option value="all">${__('index.cluster.health.all') || '全部'} (${healthCounts.all})</option>
                                 <option value="Healthy">${__('index.cluster.health.healthy') || '健康'} (${healthCounts.Healthy})</option>
                                 <option value="Unknown">${__('index.cluster.health.unknown') || '未知'} (${healthCounts.Unknown})</option>
@@ -139,12 +138,20 @@
                             </select>
                         </div>
                         <div class="col-auto">
-                            <button class="btn btn-sm btn-outline-secondary" type="button" id="cluster-search-clear" title="${__('index.search.clear') || '清除搜索'}" style="display:none;">\n                                <i class="bi bi-x-circle me-1"></i>${__('index.search.clear') || '清除'}\n                            </button>
+                            <span class="text-muted small" id="cluster-search-result"></span>
                         </div>
                         <div class="col-auto">
-                            <button class="btn btn-sm btn-success" id="cluster-add-btn">
-                                <i class="bi bi-plus-circle me-1"></i>${__('index.cluster.add') || '新增'}
-                            </button>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-secondary" id="cluster-refresh-btn" title="${__('index.btn.refresh') || '刷新'}">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" id="cluster-clear-btn" title="${__('index.search.clear') || '清除搜索'}" style="display:none;">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                                <button class="btn btn-sm btn-success" id="cluster-add-btn" title="${__('index.cluster.add') || '新增集群'}">
+                                    <i class="bi bi-plus-circle"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -162,6 +169,12 @@
             const searchValue = state.get('filters.clusters.search') || ''; 
             const healthValue = state.get('filters.clusters.health') || 'all';
             
+            // Update display count in header
+            const displayCountEl = document.getElementById('cluster-display-count');
+            const totalCountEl = document.getElementById('cluster-total-count');
+            if (displayCountEl) displayCountEl.textContent = filteredClusters.length;
+            if (totalCountEl) totalCountEl.textContent = allClusters.length;
+            
             // Update result count
             const resultEl = document.getElementById('cluster-search-result');
             if (resultEl) {
@@ -169,12 +182,12 @@
                     resultEl.textContent = `${filteredClusters.length}/${allClusters.length}`;
                     resultEl.style.display = '';
                 } else {
-                    resultEl.textContent = `${allClusters.length} ${__('index.cluster.total') || '个集群'}`;
+                    resultEl.textContent = '';
                 }
             }
             
             // Update clear button visibility
-            const clearBtn = document.getElementById('cluster-search-clear');
+            const clearBtn = document.getElementById('cluster-clear-btn');
             if (clearBtn) {
                 clearBtn.style.display = searchValue ? '' : 'none';
             }
@@ -200,27 +213,22 @@
         _bindFilterEvents: function() {
             const self = this;
             
-            // Search button click
-            const searchBtn = document.getElementById('cluster-search-btn');
-            if (searchBtn) {
-                searchBtn.addEventListener('click', function() {
-                    self._doSearch();
-                });
-            }
-            
-            // Search input - Enter key triggers search
+            // Search input - live search on input
             const searchInput = document.getElementById('cluster-search-input');
             if (searchInput) {
-                searchInput.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        self._doSearch();
-                    }
+                // Debounced live search
+                let searchTimeout = null;
+                searchInput.addEventListener('input', function(e) {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(function() {
+                        window.DashboardState.set('filters.clusters.search', searchInput.value);
+                        self.renderClusters();
+                    }, 300);
                 });
             }
             
             // Clear button
-            const clearBtn = document.getElementById('cluster-search-clear');
+            const clearBtn = document.getElementById('cluster-clear-btn');
             if (clearBtn) {
                 clearBtn.addEventListener('click', function() {
                     const input = document.getElementById('cluster-search-input');
@@ -228,6 +236,14 @@
                     window.DashboardState.set('filters.clusters.search', '');
                     window.DashboardState.set('filters.clusters.health', 'all');
                     self.renderClusters();
+                });
+            }
+            
+            // Refresh button
+            const refreshBtn = document.getElementById('cluster-refresh-btn');
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', function() {
+                    self.loadClusters();
                 });
             }
             
@@ -280,12 +296,18 @@
         // ===== Create Cluster Rows =====
         createClusterRows: function(cluster, isExpanded) {
             const rows = [];
-            const destinations = cluster.destinations || [];
+            const destinations = cluster.destinations || []; 
             const rowspan = destinations.length || 1;
-
+                    
+            // Determine overall health status for color bar
+            let overallHealth = 'Unknown';
+            if (cluster.healthyCount > 0) overallHealth = 'Healthy';
+            else if (cluster.unhealthyCount > 0) overallHealth = 'Unhealthy';
+                    
             destinations.forEach((dest, index) => {
                 const tr = window.DashboardDOM.create('tr', {
-                    className: 'cluster-row',
+                    className: `cluster-row health-${overallHealth.toLowerCase()}`,
+                    attributes: index === 0 ? { 'data-cluster-id': cluster.clusterId } : {},
                     style: { cursor: 'pointer' }
                 });
 
@@ -299,14 +321,12 @@
                         }
                     });
 
-                    // Expand icon
-                    const expandIcon = window.DashboardDOM.create('span', {
-                        className: 'cluster-expand-icon',
-                        textContent: isExpanded ? '▼' : '▶',
+                    // Expand icon (Bootstrap Icons with rotation)
+                    const expandIcon = window.DashboardDOM.create('i', {
+                        className: `bi bi-chevron-right row-expand-icon ${isExpanded ? 'expanded' : ''}`,
                         style: {
-                            display: 'inline-block',
-                            width: '16px',
-                            marginRight: '4px'
+                            marginRight: '6px'
+                            // Note: transition is defined in CSS, don't override with inline style
                         }
                     });
 
@@ -383,17 +403,25 @@
         // ===== Create Health Badge =====
         createHealthBadge: function(health) {
             const healthMap = {
-                'Healthy': { class: 'text-success', icon: '✓' },
-                'Unhealthy': { class: 'text-danger', icon: '✗' },
-                'Unknown': { class: 'text-warning', icon: '?' }
-            };
-
+                'Healthy': { css: 'bg-success', icon: 'bi-check-circle-fill', text: '健康' },
+                'Unhealthy': { css: 'bg-danger', icon: 'bi-x-circle-fill', text: '异常' },
+                'Unknown': { css: 'bg-secondary', icon: 'bi-question-circle-fill', text: '未知' }
+            }; 
+        
             const config = healthMap[health] || healthMap['Unknown'];
-            
-            return window.DashboardDOM.create('span', {
-                className: config.class,
-                textContent: `${config.icon} ${health}`
+                    
+            const badge = window.DashboardDOM.create('span', {
+                className: `badge ${config.css}`, 
+                style: { fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }
             });
+                    
+            const icon = window.DashboardDOM.create('i', {
+                className: `bi ${config.icon}`
+            });
+            badge.appendChild(icon);
+            badge.appendChild(document.createTextNode(' ' + config.text));
+                    
+            return badge;
         },
 
         // ===== Create Policy Badge =====
@@ -407,13 +435,13 @@
         // ===== Create Action Buttons =====
         createActionButtons: function(cluster) {
             const container = window.DashboardDOM.create('div', {
-                className: 'd-flex gap-1'
+                className: 'btn-group btn-group-sm'
             });
 
-            // Edit button
+            // Edit button (icon only)
             const editBtn = window.DashboardDOM.create('button', {
-                className: 'btn btn-sm btn-outline-primary',
-                textContent: __('index.cluster.edit'),
+                className: 'btn btn-outline-primary',
+                attributes: { title: __('index.cluster.edit') || '编辑' },
                 events: {
                     click: (e) => {
                         e.stopPropagation();
@@ -421,12 +449,17 @@
                     }
                 }
             });
+            const editIcon = window.DashboardDOM.create('i', {
+                className: 'bi bi-pencil'
+            });
+            editBtn.appendChild(editIcon);
+            container.appendChild(editBtn);
 
             // Delete button (only if editable)
             if (cluster.isEditable) {
                 const deleteBtn = window.DashboardDOM.create('button', {
-                    className: 'btn btn-sm btn-outline-danger',
-                    textContent: __('index.cluster.delete'),
+                    className: 'btn btn-outline-danger',
+                    attributes: { title: __('index.cluster.delete') || '删除' },
                     events: {
                         click: (e) => {
                             e.stopPropagation();
@@ -434,10 +467,12 @@
                         }
                     }
                 });
+                const deleteIcon = window.DashboardDOM.create('i', {
+                    className: 'bi bi-trash'
+                });
+                deleteBtn.appendChild(deleteIcon);
                 container.appendChild(deleteBtn);
             }
-
-            container.appendChild(editBtn);
 
             return container;
         },
@@ -449,55 +484,84 @@
             });
 
             const td = window.DashboardDOM.create('td', {
-                attributes: { colspan: '7' },
-                style: {
-                    padding: '16px',
-                    background: '#f8fafc'
-                }
+                attributes: { colspan: '7' }
             });
 
             const detailHtml = [];
+            detailHtml.push('<div class="detail-panel">');
 
             // Destinations detail
-            detailHtml.push(`<h6 class="mb-2">${__('index.cluster.destinations')}</h6>`);
+            detailHtml.push('<div class="detail-section">');
+            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations') || '目标节点'}</div>`);
             detailHtml.push('<div class="table-responsive">');
-            detailHtml.push('<table class="table table-sm table-bordered">');
-            detailHtml.push('<thead><tr><th>Name</th><th>Address</th><th>Active Health</th><th>Passive Health</th></tr></thead>');
+            detailHtml.push('<table class="table table-sm detail-table">');
+            detailHtml.push('<thead><tr><th>Name</th><th>Address</th><th>Active</th><th>Passive</th></tr></thead>');
             detailHtml.push('<tbody>');
 
             (cluster.destinations || []).forEach(dest => {
+                const activeBadge = this.createHealthBadgeInline(dest.activeHealth || 'Unknown');
+                const passiveBadge = this.createHealthBadgeInline(dest.passiveHealth || 'Unknown');
                 detailHtml.push('<tr>');
                 detailHtml.push(`<td><code>${dest.name || '-'}</code></td>`);
-                detailHtml.push(`<td>${dest.address || '-'}</td>`);
-                detailHtml.push(`<td>${dest.activeHealth || 'Unknown'}</td>`);
-                detailHtml.push(`<td>${dest.passiveHealth || 'Unknown'}</td>`);
+                detailHtml.push(`<td><a href="${dest.address || '#'}" target="_blank" style="text-decoration:none;color:#0ea5e9;">${dest.address || '-'}</a></td>`);
+                detailHtml.push(`<td>${activeBadge}</td>`);
+                detailHtml.push(`<td>${passiveBadge}</td>`);
                 detailHtml.push('</tr>');
             });
 
             detailHtml.push('</tbody></table></div>');
+            detailHtml.push('</div>');
 
             // Health check config
             if (cluster.healthCheck) {
-                detailHtml.push(`<h6 class="mt-3 mb-2">${__('index.cluster.healthCheck')}</h6>`);
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-heart-pulse"></i>${__('index.cluster.healthCheck') || '健康检查'}</div>`);
                 detailHtml.push(this.renderJsonBlock(cluster.healthCheck, 'Health Check Config'));
+                detailHtml.push('</div>');
             }
 
             // Session affinity
             if (cluster.sessionAffinity) {
-                detailHtml.push(`<h6 class="mt-3 mb-2">${__('index.cluster.sessionAffinity')}</h6>`);
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-link-45deg"></i>${__('index.cluster.sessionAffinity') || '会话亲和性'}</div>`);
                 detailHtml.push(this.renderJsonBlock(cluster.sessionAffinity, 'Session Affinity Config'));
+                detailHtml.push('</div>');
             }
 
             // HTTP client
             if (cluster.httpClient) {
-                detailHtml.push(`<h6 class="mt-3 mb-2">${__('index.cluster.httpClient')}</h6>`);
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-globe"></i>${__('index.cluster.httpClient') || 'HTTP 客户端'}</div>`);
                 detailHtml.push(this.renderJsonBlock(cluster.httpClient, 'HTTP Client Config'));
+                detailHtml.push('</div>');
             }
 
+            // Metadata
+            if (cluster.metadata && Object.keys(cluster.metadata).length > 0) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-tags"></i>Metadata</div>`);
+                detailHtml.push(this.renderJsonBlock(cluster.metadata, 'Metadata'));
+                detailHtml.push('</div>');
+            }
+
+            detailHtml.push('</div>');
             td.innerHTML = detailHtml.join('');
             tr.appendChild(td);
 
             return tr;
+        },
+
+        // ===== Create Health Badge Inline =====
+        createHealthBadgeInline: function(health) {
+            const healthMap = {
+                'Healthy': { css: 'text-success', icon: 'bi-check-circle-fill' },
+                'Unhealthy': { css: 'text-danger', icon: 'bi-x-circle-fill' },
+                'Unknown': { css: 'text-secondary', icon: 'bi-question-circle-fill' }
+            }; 
+            const config = healthMap[health] || healthMap['Unknown'];
+            return `<span class="${config.css}" style="display:inline-flex;align-items:center;gap:4px;font-size:13px;">
+                <i class="bi ${config.icon}"></i>${health}
+            </span>`;
         },
 
         // ===== Render JSON Block =====
@@ -513,8 +577,45 @@
         toggleCluster: function(clusterId) {
             const state = window.DashboardState;
             const current = state.get(`ui.expandedClusters.${clusterId}`) || false;
+            
+            // Update state
             state.set(`ui.expandedClusters.${clusterId}`, !current);
-            this.renderClusters();
+            
+            // Direct DOM manipulation for better performance
+            // Find the first row of this cluster (with data-cluster-id attribute)
+            const clusterRow = document.querySelector(`.cluster-row[data-cluster-id="${CSS.escape(clusterId)}"]`);
+            if (clusterRow) {
+                // Update expand icon
+                const expandIcon = clusterRow.querySelector('.row-expand-icon');
+                if (expandIcon) {
+                    expandIcon.classList.toggle('expanded', !current);
+                }
+                
+                // Find all rows belonging to this cluster (rows following the first row until next cluster or end)
+                const clusterRows = [clusterRow];
+                let nextRow = clusterRow.nextElementSibling;
+                while (nextRow && nextRow.classList.contains('cluster-row') && !nextRow.hasAttribute('data-cluster-id')) {
+                    clusterRows.push(nextRow);
+                    nextRow = nextRow.nextElementSibling;
+                }
+                
+                // The last row is either a detail row or the last destination row
+                const lastRow = clusterRows[clusterRows.length - 1];
+                const existingDetailRow = lastRow.nextElementSibling;
+                
+                // Check if there's already a detail row
+                if (existingDetailRow && existingDetailRow.classList.contains('cluster-detail-row')) {
+                    // Remove existing detail row
+                    existingDetailRow.remove();
+                } else if (!current) {
+                    // Add detail row after the last cluster row
+                    const cluster = state.get('data.clusters').find(c => c.clusterId === clusterId);
+                    if (cluster) {
+                        const detailTr = this.createClusterDetailRow(cluster);
+                        lastRow.after(detailTr);
+                    }
+                }
+            }
         },
 
         // ===== Update Refresh Time =====

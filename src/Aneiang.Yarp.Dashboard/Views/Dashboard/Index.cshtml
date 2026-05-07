@@ -64,11 +64,9 @@
 <div id="cluster-panel" class="card-panel mb-3" style="display:none;">
     <div class="card-header">
         <span><i class="bi bi-hdd-stack me-2"></i><span data-i18n="index.cluster.title">集群 &amp; 目标节点状态</span></span>
-        <div class="d-flex align-items-center gap-3">
+        <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
             <span class="refresh-badge" id="cluster-refresh-time"></span>
-            <button class="btn btn-sm btn-outline-secondary" onclick="manualRefresh(this)">
-                <i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="index.btn.refresh">刷新</span>
-            </button>
+            <span class="refresh-badge"><span data-i18n="index.cluster.showing">显示 </span><strong id="cluster-display-count">0</strong><span data-i18n="index.cluster.of"> / </span><span id="cluster-total-count">0</span><span data-i18n="index.cluster.entries"> 个</span></span>
         </div>
     </div>
     
@@ -99,11 +97,9 @@
 <div id="route-panel" class="card-panel mb-3" style="display:none;">
     <div class="card-header">
         <span><i class="bi bi-signpost-split me-2"></i><span data-i18n="index.route.title">路由规则列表</span></span>
-        <div class="d-flex align-items-center gap-3">
+        <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
             <span class="refresh-badge" id="route-refresh-time"></span>
-            <button class="btn btn-sm btn-outline-secondary" onclick="manualRefresh(this)">
-                <i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="index.btn.refresh">刷新</span>
-            </button>
+            <span class="refresh-badge"><span data-i18n="index.route.showing">显示 </span><strong id="route-display-count">0</strong><span data-i18n="index.route.of"> / </span><span id="route-total-count">0</span><span data-i18n="index.route.entries"> 个</span></span>
         </div>
     </div>
     

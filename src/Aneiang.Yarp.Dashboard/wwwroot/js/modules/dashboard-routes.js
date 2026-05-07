@@ -75,9 +75,12 @@
                 // Show empty state INSIDE tbody, not replacing it
                 const emptyRow = document.createElement('tr');
                 emptyRow.innerHTML = `
-                    <td colspan="6" class="text-center py-5 text-muted">
-                        <i class="bi bi-signpost-split" style="font-size: 2rem; opacity: 0.5;"></i>
-                        <div class="mt-2">${__('index.route.empty') || '暂无路由数据'}</div>
+                    <td colspan="6" class="text-center py-5">
+                        <div class="empty-state">
+                            <i class="bi bi-signpost-split" style="font-size: 2.5rem; opacity: 0.4; color: #64748b;"></i>
+                            <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.route.empty') || '暂无路由数据'}</div>
+                            <div class="mt-2 text-muted small">${__('index.route.emptyHelp') || '点击右上角 "+" 添加路由'}</div>
+                        </div>
                     </td>
                 `; 
                 tbody.appendChild(emptyRow);
@@ -111,20 +114,16 @@
                     <div class="row g-2 align-items-center">
                         <div class="col">
                             <div class="input-group input-group-sm">
-                                <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                <input type="text" class="form-control" id="route-search-input" 
-                                       placeholder="${__('index.route.search') || '搜索路由ID、集群、路径...'}..." 
+                                <span class="input-group-text bg-light border-end-0">
+                                    <i class="bi bi-search text-muted"></i>
+                                </span>
+                                <input type="text" class="form-control border-start-0" id="route-search-input" 
+                                       placeholder="${__('index.route.search') || '搜索路由ID、集群、路径...'}" 
                                        autocomplete="off">
-                                <button class="btn btn-primary" type="button" id="route-search-btn">
-                                    <i class="bi bi-arrow-right"></i>
-                                </button>
                             </div>
                         </div>
                         <div class="col-auto">
-                            <span class="text-muted small" id="route-search-result"></span>
-                        </div>
-                        <div class="col-auto">
-                            <select class="form-select form-select-sm" id="route-method-select" style="width:auto;">
+                            <select class="form-select form-select-sm" id="route-method-select" style="width:100px;">
                                 <option value="all">${__('index.route.method.all') || '全部'} (${methodCounts.all})</option>
                                 <option value="GET">GET (${methodCounts.GET})</option>
                                 <option value="POST">POST (${methodCounts.POST})</option>
@@ -133,12 +132,20 @@
                             </select>
                         </div>
                         <div class="col-auto">
-                            <button class="btn btn-sm btn-outline-secondary" type="button" id="route-search-clear" title="${__('index.search.clear') || '清除搜索'}" style="display:none;">\n                                <i class="bi bi-x-circle me-1"></i>${__('index.search.clear') || '清除'}\n                            </button>
+                            <span class="text-muted small" id="route-search-result"></span>
                         </div>
                         <div class="col-auto">
-                            <button class="btn btn-sm btn-success" id="route-add-btn">
-                                <i class="bi bi-plus-circle me-1"></i>${__('index.route.add') || '新增'}
-                            </button>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-secondary" id="route-refresh-btn" title="${__('index.btn.refresh') || '刷新'}">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" id="route-clear-btn" title="${__('index.search.clear') || '清除搜索'}" style="display:none;">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                                <button class="btn btn-sm btn-success" id="route-add-btn" title="${__('index.route.add') || '新增路由'}">
+                                    <i class="bi bi-plus-circle"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -155,6 +162,12 @@
             const filteredRoutes = state.getFilteredRoutes();
             const searchValue = state.get('filters.routes.search') || ''; 
             const methodValue = state.get('filters.routes.method') || 'all';
+            
+            // Update display count in header
+            const displayCountEl = document.getElementById('route-display-count');
+            const totalCountEl = document.getElementById('route-total-count');
+            if (displayCountEl) displayCountEl.textContent = filteredRoutes.length;
+            if (totalCountEl) totalCountEl.textContent = allRoutes.length;
                     
             // Update result count
             const resultEl = document.getElementById('route-search-result');
@@ -163,12 +176,12 @@
                     resultEl.textContent = `${filteredRoutes.length}/${allRoutes.length}`;
                     resultEl.style.display = '';
                 } else {
-                    resultEl.textContent = `${allRoutes.length} ${__('index.route.total') || '个路由'}`;
+                    resultEl.textContent = '';
                 }
             }
                     
             // Update clear button visibility
-            const clearBtn = document.getElementById('route-search-clear');
+            const clearBtn = document.getElementById('route-clear-btn');
             if (clearBtn) {
                 clearBtn.style.display = searchValue ? '' : 'none';
             }
@@ -198,28 +211,23 @@
         // ===== Bind Filter Events =====
         _bindFilterEvents: function() {
             const self = this;
-                            
-            // Search button click
-            const searchBtn = document.getElementById('route-search-btn');
-            if (searchBtn) {
-                searchBtn.addEventListener('click', function() {
-                    self._doSearch();
-                });
-            }
-                    
-            // Search input - Enter key triggers search
+            
+            // Search input - live search on input
             const searchInput = document.getElementById('route-search-input');
             if (searchInput) {
-                searchInput.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        self._doSearch();
-                    }
+                // Debounced live search
+                let searchTimeout = null;
+                searchInput.addEventListener('input', function(e) {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(function() {
+                        window.DashboardState.set('filters.routes.search', searchInput.value);
+                        self.renderRoutes();
+                    }, 300);
                 });
             }
-                            
+            
             // Clear button
-            const clearBtn = document.getElementById('route-search-clear');
+            const clearBtn = document.getElementById('route-clear-btn');
             if (clearBtn) {
                 clearBtn.addEventListener('click', function() {
                     const input = document.getElementById('route-search-input');
@@ -229,7 +237,15 @@
                     self.renderRoutes();
                 });
             }
-                            
+            
+            // Refresh button
+            const refreshBtn = document.getElementById('route-refresh-btn');
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', function() {
+                    self.loadRoutes();
+                });
+            }
+            
             // Method select - immediate filter
             const methodSelect = document.getElementById('route-method-select');
             if (methodSelect) {
@@ -238,7 +254,7 @@
                     self.renderRoutes();
                 });
             }
-                    
+            
             // Add button
             const addBtn = document.getElementById('route-add-btn');
             if (addBtn) {
@@ -304,6 +320,7 @@
         createRouteMainRow: function(route, isExpanded) {
             const tr = window.DashboardDOM.create('tr', {
                 className: 'route-row',
+                attributes: { 'data-route-id': route.routeId },
                 style: { cursor: 'pointer' }
             });
 
@@ -319,13 +336,11 @@
                 style: { fontWeight: '500' }
             });
             
-            const expandIcon = window.DashboardDOM.create('span', {
-                className: 'route-expand-icon',
-                textContent: isExpanded ? '▼' : '▶',
+            const expandIcon = window.DashboardDOM.create('i', {
+                className: `bi bi-chevron-right row-expand-icon ${isExpanded ? 'expanded' : ''}`,
                 style: {
-                    display: 'inline-block',
-                    width: '16px',
-                    marginRight: '4px'
+                    marginRight: '6px'
+                    // Note: transition is defined in CSS, don't override with inline style
                 }
             });
             
@@ -339,7 +354,7 @@
             // Path
             const tdPath = window.DashboardDOM.create('td', {});
             const code = window.DashboardDOM.create('code', {
-                textContent: route.match?.path || route.path || '-'
+                textContent: route.match?.path || '-'
             });
             tdPath.appendChild(code);
             tr.appendChild(tdPath);
@@ -364,14 +379,10 @@
 
             // Methods
             const tdMethods = window.DashboardDOM.create('td', {});
-            const methods = route.match?.methods || route.methods;
+            const methods = route.match?.methods;
             if (methods && methods.length > 0) {
                 methods.forEach(method => {
-                    const methodBadge = window.DashboardDOM.create('span', {
-                        className: `badge ${this.getMethodBadgeClass(method)} me-1`,
-                        textContent: method,
-                        style: { fontSize: '11px' }
-                    });
+                    const methodBadge = this.createMethodBadge(method);
                     tdMethods.appendChild(methodBadge);
                 });
             } else {
@@ -394,12 +405,36 @@
         // ===== Create Order Badge =====
         createOrderBadge: function(order) {
             const displayOrder = (order !== null && order !== undefined) ? order : '-';
-            const className = (order !== null && order !== undefined && order < 100) ? 'badge bg-warning text-dark' : 'badge bg-light text-dark';
             
-            return window.DashboardDOM.create('span', {
-                className: className,
-                textContent: displayOrder
+            // Priority levels: High (< 50), Medium (50-100), Low (> 100), None
+            let cssClass, iconClass;
+            if (order !== null && order !== undefined) {
+                if (order < 50) {
+                    cssClass = 'priority-high';
+                    iconClass = 'bi-arrow-up-circle-fill';
+                } else if (order < 100) {
+                    cssClass = 'priority-medium';
+                    iconClass = 'bi-arrow-right-circle-fill';
+                } else {
+                    cssClass = 'priority-low';
+                    iconClass = 'bi-arrow-down-circle-fill';
+                }
+            } else {
+                cssClass = 'priority-none';
+                iconClass = 'bi-dash-circle';
+            }
+            
+            const badge = window.DashboardDOM.create('span', {
+                className: `priority-badge ${cssClass}`
             });
+            
+            const icon = window.DashboardDOM.create('i', {
+                className: `bi ${iconClass}`
+            });
+            badge.appendChild(icon);
+            badge.appendChild(document.createTextNode(' ' + displayOrder));
+            
+            return badge;
         },
 
         // ===== Get Method Badge Class =====
@@ -410,20 +445,46 @@
                 'PUT': 'bg-info',
                 'DELETE': 'bg-danger',
                 'PATCH': 'bg-warning text-dark'
-            };
+            }; 
             return methodMap[method] || 'bg-secondary';
+        },
+        
+        // ===== Create Method Badge =====
+        createMethodBadge: function(method) {
+            const methodMap = {
+                'GET': { css: 'bg-success', icon: 'bi-arrow-down-circle-fill' },
+                'POST': { css: 'bg-primary', icon: 'bi-plus-circle-fill' },
+                'PUT': { css: 'bg-info', icon: 'bi-pencil-circle-fill' },
+                'DELETE': { css: 'bg-danger', icon: 'bi-trash-circle-fill' },
+                'PATCH': { css: 'bg-warning text-dark', icon: 'bi-gear-circle-fill' }
+            }; 
+                    
+            const config = methodMap[method] || { css: 'bg-secondary', icon: 'bi-circle-fill' };
+                    
+            const badge = window.DashboardDOM.create('span', {
+                className: `badge ${config.css} me-1`,
+                style: { fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }
+            });
+                    
+            const icon = window.DashboardDOM.create('i', {
+                className: `bi ${config.icon}`
+            });
+            badge.appendChild(icon);
+            badge.appendChild(document.createTextNode(' ' + method));
+                    
+            return badge;
         },
 
         // ===== Create Action Buttons =====
         createActionButtons: function(route) {
             const container = window.DashboardDOM.create('div', {
-                className: 'd-flex gap-1'
+                className: 'btn-group btn-group-sm'
             });
 
-            // Edit button
+            // Edit button (icon only)
             const editBtn = window.DashboardDOM.create('button', {
-                className: 'btn btn-sm btn-outline-primary',
-                textContent: __('index.route.edit'),
+                className: 'btn btn-outline-primary',
+                attributes: { title: __('index.route.edit') || '编辑' },
                 events: {
                     click: (e) => {
                         e.stopPropagation();
@@ -431,12 +492,17 @@
                     }
                 }
             });
+            const editIcon = window.DashboardDOM.create('i', {
+                className: 'bi bi-pencil'
+            });
+            editBtn.appendChild(editIcon);
+            container.appendChild(editBtn);
 
             // Delete button (only if editable)
             if (route.isEditable) {
                 const deleteBtn = window.DashboardDOM.create('button', {
-                    className: 'btn btn-sm btn-outline-danger',
-                    textContent: __('index.route.delete'),
+                    className: 'btn btn-outline-danger',
+                    attributes: { title: __('index.route.delete') || '删除' },
                     events: {
                         click: (e) => {
                             e.stopPropagation();
@@ -444,10 +510,12 @@
                         }
                     }
                 });
+                const deleteIcon = window.DashboardDOM.create('i', {
+                    className: 'bi bi-trash'
+                });
+                deleteBtn.appendChild(deleteIcon);
                 container.appendChild(deleteBtn);
             }
-
-            container.appendChild(editBtn);
 
             return container;
         },
@@ -457,104 +525,177 @@
             const tr = window.DashboardDOM.create('tr', {
                 className: 'route-detail-row'
             });
-
+                
             const td = window.DashboardDOM.create('td', {
-                attributes: { colspan: '6' },
-                style: {
-                    padding: '0'
-                }
+                attributes: { colspan: '6' }
             });
-
-            const detailDiv = window.DashboardDOM.create('div', {
-                style: {
-                    padding: '14px 20px',
-                    background: '#f8fafc',
-                    borderBottom: '2px solid #e2e8f0',
-                    fontSize: '13px',
-                    lineHeight: '1.8'
-                }
-            });
-
-            const detailHtml = [];
-
-            // Metadata row
-            detailHtml.push('<div style="display:flex;flex-wrap:wrap;gap:8px 24px;margin-bottom:6px;">');
-            detailHtml.push(`<span><strong>RouteId:</strong> ${window.DashboardUtils.escapeHtml(route.routeId)}</span>`);
-            detailHtml.push(`<span><strong>ClusterId:</strong> <code>${window.DashboardUtils.escapeHtml(route.clusterId || '')}</code></span>`);
-            detailHtml.push(`<span><strong>Order:</strong> ${route.order ?? '-'}</span>`);
-            detailHtml.push(`<span><strong>Source:</strong> <span class="badge ${route.source === 'dynamic' ? 'bg-success' : 'bg-secondary'}">${route.source || 'static'}</span></span>`);
+                
+            const detailHtml = []; 
+            detailHtml.push('<div class="detail-panel">');
+                
+            // Basic info section
+            detailHtml.push('<div class="detail-section">');
+            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-info-circle"></i>基本信息</div>`);
+            detailHtml.push('<div class="detail-info-grid">');
+            detailHtml.push(`<div class="detail-info-item"><span class="detail-label">RouteId</span><code class="detail-value">${window.DashboardUtils.escapeHtml(route.routeId)}</code></div>`);
+            detailHtml.push(`<div class="detail-info-item"><span class="detail-label">ClusterId</span><code class="detail-value">${window.DashboardUtils.escapeHtml(route.clusterId || '-')}</code></div>`);
+            detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Order</span>${this.createOrderBadgeHtml(route.order)}</div>`);
+            detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Source</span><span class="badge ${route.source === 'dynamic' ? 'bg-success' : 'bg-secondary'}">${route.source || 'static'}</span></div>`);
             detailHtml.push('</div>');
-
-            // Match configuration
+            detailHtml.push('</div>');
+                
+            // Match configuration - use route.match properties
+            detailHtml.push('<div class="detail-section">');
+            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-filter"></i>${__('index.route.match') || '匹配规则'}</div>`);
+            detailHtml.push('<div class="detail-info-grid">');
+                                
             const match = route.match || {};
-            detailHtml.push(`<div style="margin-top:6px;margin-bottom:4px;"><strong>${__('index.route.match')}</strong></div>`);
-            detailHtml.push('<div class="table-responsive">');
-            detailHtml.push('<table class="table table-sm table-bordered" style="font-size:12px;">');
-            detailHtml.push('<thead><tr><th style="width:150px;">Property</th><th>Value</th></tr></thead>');
-            detailHtml.push('<tbody>');
-            
             if (match.path) {
-                detailHtml.push(`<tr><td>Path</td><td><code>${window.DashboardUtils.escapeHtml(match.path)}</code></td></tr>`);
+                detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Path</span><code class="detail-value">${window.DashboardUtils.escapeHtml(match.path)}</code></div>`);
             }
             if (match.hosts && match.hosts.length > 0) {
-                detailHtml.push(`<tr><td>Hosts</td><td>${match.hosts.join(', ')}</td></tr>`);
+                detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Hosts</span><div class="detail-value">${match.hosts.map(h => `<code>${h}</code>`).join(' ')}</div></div>`);
             }
             if (match.methods && match.methods.length > 0) {
-                detailHtml.push(`<tr><td>Methods</td><td>${match.methods.join(', ')}</td></tr>`);
+                const methodBadges = match.methods.map(m => this.createMethodBadgeInline(m)).join(' '); 
+                detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Methods</span><div class="detail-value">${methodBadges}</div></div>`);
             }
-            if (match.headers && Object.keys(match.headers).length > 0) {
-                detailHtml.push(`<tr><td>Headers</td><td>${this.renderJsonBlock(match.headers, 'Headers')}</td></tr>`);
+            detailHtml.push('</div>');
+                        
+            // Headers & Query Parameters in table format
+            if ((match.headers && match.headers.length > 0) || (match.queryParameters && match.queryParameters.length > 0)) {
+                detailHtml.push('<div class="table-responsive mt-2">');
+                detailHtml.push('<table class="table table-sm detail-table">');
+                detailHtml.push('<thead><tr><th style="width:100px;">Type</th><th style="width:120px;">Name</th><th>Values</th><th style="width:80px;">Mode</th></tr></thead>');
+                detailHtml.push('<tbody>');
+                if (match.headers && match.headers.length > 0) {
+                    match.headers.forEach(h => {
+                        detailHtml.push(`<tr><td><span class="badge bg-secondary">Header</span></td><td><code>${h.name || '-'}</code></td><td>${(h.values || []).map(v => `<code>${v}</code>`).join(' ')}</td><td>${h.mode || '-'}</td></tr>`);
+                    });
+                }
+                if (match.queryParameters && match.queryParameters.length > 0) {
+                    match.queryParameters.forEach(q => {
+                        detailHtml.push(`<tr><td><span class="badge bg-info">Query</span></td><td><code>${q.name || '-'}</code></td><td>${(q.values || []).map(v => `<code>${v}</code>`).join(' ')}</td><td>${q.mode || '-'}</td></tr>`);
+                    });
+                }
+                detailHtml.push('</tbody></table></div>');
             }
-            if (match.queryParameters && Object.keys(match.queryParameters).length > 0) {
-                detailHtml.push(`<tr><td>Query Params</td><td>${this.renderJsonBlock(match.queryParameters, 'Query Parameters')}</td></tr>`);
+            detailHtml.push('</div>');
+                
+            // Destinations
+            if (route.destinations && route.destinations.length > 0) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations') || '目标节点'}</div>`);
+                detailHtml.push('<div class="table-responsive">');
+                detailHtml.push('<table class="table table-sm detail-table">');
+                detailHtml.push('<thead><tr><th>Name</th><th>Address</th></tr></thead>');
+                detailHtml.push('<tbody>');
+                route.destinations.forEach(d => {
+                    detailHtml.push(`<tr><td><code>${d.name}</code></td><td><a href="${d.address}" target="_blank" class="text-decoration-none"><code>${d.address}</code></a></td></tr>`);
+                });
+                detailHtml.push('</tbody></table></div>');
+                detailHtml.push('</div>');
             }
-            
-            detailHtml.push('</tbody></table></div>');
-
+                
             // Transforms
             if (route.transforms && route.transforms.length > 0) {
-                detailHtml.push(`<div style="margin-top:8px;margin-bottom:4px;"><strong>${__('index.route.transforms')}</strong></div>`);
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-arrow-repeat"></i>${__('index.route.transforms') || '请求转换'}</div>`);
                 detailHtml.push('<div class="table-responsive">');
-                detailHtml.push('<table class="table table-sm table-bordered" style="font-size:12px;">');
+                detailHtml.push('<table class="table table-sm detail-table">');
                 detailHtml.push('<thead><tr><th style="width:50px;">#</th><th>Transform</th></tr></thead>');
                 detailHtml.push('<tbody>');
-                
+                                
                 route.transforms.forEach((transform, index) => {
                     detailHtml.push(`<tr><td>${index + 1}</td><td>${this.renderJsonBlock(transform, `Transform ${index + 1}`)}</td></tr>`);
                 });
-                
+                                
                 detailHtml.push('</tbody></table></div>');
+                detailHtml.push('</div>');
             }
-
+                
             // Authorization
             if (route.authorizationPolicy) {
-                detailHtml.push(`<div style="margin-top:8px;"><strong>Authorization:</strong> <code>${window.DashboardUtils.escapeHtml(route.authorizationPolicy)}</code></div>`);
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield-lock"></i>Authorization</div>`);
+                detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Policy</span><code class="detail-value">${window.DashboardUtils.escapeHtml(route.authorizationPolicy)}</code></div>`);
+                detailHtml.push('</div>');
             }
-
+                
             // CORS
             if (route.corsPolicy) {
-                detailHtml.push(`<div style="margin-top:4px;"><strong>CORS Policy:</strong> <code>${window.DashboardUtils.escapeHtml(route.corsPolicy)}</code></div>`);
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield"></i>CORS Policy</div>`);
+                detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Policy</span><code class="detail-value">${window.DashboardUtils.escapeHtml(route.corsPolicy)}</code></div>`);
+                detailHtml.push('</div>');
             }
-
+                
             // Timeout
             if (route.timeout || route.timeoutPolicy) {
-                detailHtml.push(`<div style="margin-top:4px;"><strong>Timeout:</strong>`);
-                if (route.timeout) detailHtml.push(` ${route.timeout}`);
-                if (route.timeoutPolicy) detailHtml.push(` (${route.timeoutPolicy})`);
-                detailHtml.push(`</div>`);
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-clock"></i>Timeout</div>`);
+                detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Value</span><code class="detail-value">${route.timeout || '-'}</code> ${route.timeoutPolicy ? `<span class="text-muted small">(${route.timeoutPolicy})</span>` : ''}</div>`);
+                detailHtml.push('</div>');
             }
-
+                
+            // Rate Limiter
+            if (route.rateLimiterPolicy) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-speedometer2"></i>Rate Limiter</div>`);
+                detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Policy</span><code class="detail-value">${window.DashboardUtils.escapeHtml(route.rateLimiterPolicy)}</code></div>`);
+                detailHtml.push('</div>');
+            }
+                
             // Metadata
             if (route.metadata && Object.keys(route.metadata).length > 0) {
-                detailHtml.push(`<div style="margin-top:8px;"><strong>${__('index.route.metadata')}</strong></div>`);
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-tags"></i>${__('index.route.metadata') || 'Metadata'}</div>`);
                 detailHtml.push(this.renderJsonBlock(route.metadata, 'Metadata'));
+                detailHtml.push('</div>');
             }
-
-            detailDiv.innerHTML = detailHtml.join('');
-            td.appendChild(detailDiv);
+                
+            detailHtml.push('</div>');
+            td.innerHTML = detailHtml.join('');
             tr.appendChild(td);
-
+                
             return tr;
+        },
+        
+        // ===== Create Order Badge HTML =====
+        createOrderBadgeHtml: function(order) {
+            const displayOrder = (order !== null && order !== undefined) ? order : '-';
+                    
+            let cssClass, iconClass;
+            if (order !== null && order !== undefined) {
+                if (order < 50) {
+                    cssClass = 'priority-high';
+                    iconClass = 'bi-arrow-up-circle-fill';
+                } else if (order < 100) {
+                    cssClass = 'priority-medium';
+                    iconClass = 'bi-arrow-right-circle-fill';
+                } else {
+                    cssClass = 'priority-low';
+                    iconClass = 'bi-arrow-down-circle-fill';
+                }
+            } else {
+                cssClass = 'priority-none';
+                iconClass = 'bi-dash-circle';
+            }
+                    
+            return `<span class="priority-badge ${cssClass}"><i class="bi ${iconClass}"></i> ${displayOrder}</span>`;
+        },
+
+        // ===== Create Method Badge Inline =====
+        createMethodBadgeInline: function(method) {
+            const methodMap = {
+                'GET': { css: 'bg-success', icon: 'bi-arrow-down-circle-fill' },
+                'POST': { css: 'bg-primary', icon: 'bi-plus-circle-fill' },
+                'PUT': { css: 'bg-info', icon: 'bi-pencil-circle-fill' },
+                'DELETE': { css: 'bg-danger', icon: 'bi-trash-circle-fill' },
+                'PATCH': { css: 'bg-warning text-dark', icon: 'bi-gear-circle-fill' }
+            }; 
+            const config = methodMap[method] || { css: 'bg-secondary', icon: 'bi-circle-fill' }; 
+            return `<span class="badge ${config.css}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;margin-right:4px;"><i class="bi ${config.icon}"></i>${method}</span>`;
         },
 
         // ===== Render JSON Block =====
@@ -566,12 +707,37 @@
             </details>`;
         },
 
-        // ===== Toggle Route =====
+        // ===== Toggle Route (Direct DOM Manipulation) =====
         toggleRoute: function(routeId) {
             const state = window.DashboardState;
             const current = state.get(`ui.expandedRoutes.${routeId}`) || false;
+            
+            // Update state
             state.set(`ui.expandedRoutes.${routeId}`, !current);
-            this.renderRoutes();
+            
+            // Direct DOM manipulation for better performance
+            const routeRow = document.querySelector(`.route-row[data-route-id="${CSS.escape(routeId)}"]`);
+            if (routeRow) {
+                // Update expand icon
+                const expandIcon = routeRow.querySelector('.row-expand-icon');
+                if (expandIcon) {
+                    expandIcon.classList.toggle('expanded', !current);
+                }
+                
+                // Toggle detail row visibility
+                const detailRow = routeRow.nextElementSibling;
+                if (detailRow && detailRow.classList.contains('route-detail-row')) {
+                    // Remove existing detail row
+                    detailRow.remove();
+                } else if (!current) {
+                    // Add detail row after main row
+                    const route = state.get('data.routes').find(r => r.routeId === routeId);
+                    if (route) {
+                        const detailTr = this.createRouteDetailRow(route);
+                        routeRow.after(detailTr);
+                    }
+                }
+            }
         },
 
         // ===== Update Refresh Time =====
