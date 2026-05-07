@@ -45,9 +45,28 @@ internal static class DashboardRouteMapper
         {
             RouteId = route.RouteId,
             ClusterId = route.ClusterId,
-            Path = match?.Path,
-            Methods = match?.Methods,
-            Hosts = match?.Hosts,
+            Match = new RouteMatchInfo
+            {
+                Path = match?.Path,
+                Methods = match?.Methods,
+                Hosts = match?.Hosts,
+                Headers = match?.Headers?.Count > 0
+                    ? match.Headers.Select(h => new RouteHeaderInfo
+                    {
+                        Name = h.Name,
+                        Values = h.Values,
+                        Mode = h.Mode.ToString()
+                    }).ToList()
+                    : null,
+                QueryParameters = match?.QueryParameters?.Count > 0
+                    ? match.QueryParameters.Select(q => new RouteQueryParameterInfo
+                    {
+                        Name = q.Name,
+                        Values = q.Values,
+                        Mode = q.Mode.ToString()
+                    }).ToList()
+                    : null
+            },
             Order = route.Order,
             AuthorizationPolicy = route.AuthorizationPolicy,
             CorsPolicy = route.CorsPolicy,
@@ -59,22 +78,6 @@ internal static class DashboardRouteMapper
             TimeoutPolicy = route.TimeoutPolicy,
             Timeout = route.Timeout?.ToString(),
             Metadata = route.Metadata?.Count > 0 ? route.Metadata.ToDictionary(kv => kv.Key, kv => kv.Value) : null,
-            Headers = match?.Headers?.Count > 0
-                ? match.Headers.Select(h => new RouteHeaderInfo
-                {
-                    Name = h.Name,
-                    Values = h.Values,
-                    Mode = h.Mode.ToString()
-                }).ToList()
-                : null,
-            QueryParameters = match?.QueryParameters?.Count > 0
-                ? match.QueryParameters.Select(q => new RouteQueryParameterInfo
-                {
-                    Name = q.Name,
-                    Values = q.Values,
-                    Mode = q.Mode.ToString()
-                }).ToList()
-                : null,
             IsEditable = isEditable
         };
     }

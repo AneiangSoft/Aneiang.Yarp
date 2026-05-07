@@ -15,17 +15,9 @@ public class DashboardRouteResponse
     [JsonPropertyName("clusterId")]
     public string? ClusterId { get; set; }
 
-    /// <summary>Match path pattern.</summary>
-    [JsonPropertyName("path")]
-    public string? Path { get; set; }
-
-    /// <summary>Allowed HTTP methods.</summary>
-    [JsonPropertyName("methods")]
-    public IReadOnlyList<string>? Methods { get; set; }
-
-    /// <summary>Allowed hosts.</summary>
-    [JsonPropertyName("hosts")]
-    public IReadOnlyList<string>? Hosts { get; set; }
+    /// <summary>Route match criteria (standard YARP structure).</summary>
+    [JsonPropertyName("match")]
+    public RouteMatchInfo? Match { get; set; }
 
     /// <summary>Route order.</summary>
     [JsonPropertyName("order")]
@@ -71,6 +63,28 @@ public class DashboardRouteResponse
     [JsonPropertyName("metadata")]
     public Dictionary<string, string>? Metadata { get; set; }
 
+    /// <summary>Whether the route is editable.</summary>
+    [JsonPropertyName("isEditable")]
+    public bool IsEditable { get; set; }
+}
+
+/// <summary>
+/// Route match criteria (standard YARP structure).
+/// </summary>
+public class RouteMatchInfo
+{
+    /// <summary>Match path pattern.</summary>
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
+
+    /// <summary>Allowed HTTP methods.</summary>
+    [JsonPropertyName("methods")]
+    public IReadOnlyList<string>? Methods { get; set; }
+
+    /// <summary>Allowed hosts.</summary>
+    [JsonPropertyName("hosts")]
+    public IReadOnlyList<string>? Hosts { get; set; }
+
     /// <summary>Header match criteria.</summary>
     [JsonPropertyName("headers")]
     public List<RouteHeaderInfo>? Headers { get; set; }
@@ -78,10 +92,6 @@ public class DashboardRouteResponse
     /// <summary>Query parameter match criteria.</summary>
     [JsonPropertyName("queryParameters")]
     public List<RouteQueryParameterInfo>? QueryParameters { get; set; }
-
-    /// <summary>Whether the route is editable.</summary>
-    [JsonPropertyName("isEditable")]
-    public bool IsEditable { get; set; }
 }
 
 /// <summary>

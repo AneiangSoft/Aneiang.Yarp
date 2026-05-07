@@ -261,47 +261,40 @@ public class ConfigManagementController : ControllerBase
                 return BadRequest(new { code = 400, message = "Match.Path is required" });
             }
 
-            // Get destinations for cluster - support both camelCase and PascalCase
-            Dictionary<string, string> destinations = new();
-            if (config.TryGetProperty("destinations", out var destsProp) || config.TryGetProperty("Destinations", out destsProp))
+            // Check if cluster exists
+            var existingCluster = _dynamicConfig.GetCluster(clusterId);
+            string destinationAddress = string.Empty;
+            
+            if (existingCluster == null)
             {
-                if (destsProp.ValueKind == JsonValueKind.Object)
+                // Cluster doesn't exist - need to provide a default destination address
+                // Try to get from config if provided
+                if (config.TryGetProperty("destinations", out var destsProp) || config.TryGetProperty("Destinations", out destsProp))
                 {
-                    foreach (var dest in destsProp.EnumerateObject())
+                    if (destsProp.ValueKind == JsonValueKind.Object)
                     {
-                        var address = dest.Value.ValueKind == JsonValueKind.String
-                            ? dest.Value.GetString() ?? string.Empty
-                            : dest.Value.TryGetProperty("address", out var addrProp)
-                                ? addrProp.GetString() ?? string.Empty
-                                : dest.Value.TryGetProperty("Address", out var addrPascalProp)  // YARP standard format
-                                    ? addrPascalProp.GetString() ?? string.Empty
-                                    : string.Empty;
-                        if (!string.IsNullOrEmpty(address))
+                        var firstDest = destsProp.EnumerateObject().FirstOrDefault();
+                        if (firstDest.Value.ValueKind == JsonValueKind.String)
                         {
-                            destinations[dest.Name] = address;
+                            destinationAddress = firstDest.Value.GetString() ?? string.Empty;
+                        }
+                        else if (firstDest.Value.TryGetProperty("address", out var addrProp))
+                        {
+                            destinationAddress = addrProp.GetString() ?? string.Empty;
+                        }
+                        else if (firstDest.Value.TryGetProperty("Address", out var addrPascalProp))
+                        {
+                            destinationAddress = addrPascalProp.GetString() ?? string.Empty;
                         }
                     }
                 }
-            }
-
-            // If no destinations, try to get from cluster or use default
-            if (destinations.Count == 0)
-            {
-                // Check if cluster exists and use its destinations
-                var existingCluster = _dynamicConfig.GetCluster(clusterId);
-                if (existingCluster?.Destinations != null)
+                
+                if (string.IsNullOrEmpty(destinationAddress))
                 {
-                    foreach (var dest in existingCluster.Destinations)
-                    {
-                        destinations[dest.Key] = dest.Value.Address ?? string.Empty;
-                    }
-                }
-
-                if (destinations.Count == 0)
-                {
-                    return BadRequest(new { code = 400, message = "destinations are required for new cluster" });
+                    return BadRequest(new { code = 400, message = $"Cluster '{clusterId}' doesn't exist. 'destinations' is required to create a new cluster." });
                 }
             }
+            // else: Cluster exists - destinationAddress will be ignored, no need to validate
 
             // Get order - support both camelCase and PascalCase
             int? order = null;
@@ -319,15 +312,16 @@ public class ConfigManagementController : ControllerBase
             }
 
             // Create request
+            // Note: DestinationAddress is only used when creating a new cluster
             var request = new RegisterRouteRequest
             {
                 RouteName = routeId,
                 ClusterName = clusterId,
                 MatchPath = matchPath,
-                DestinationAddress = destinations.Values.FirstOrDefault() ?? string.Empty,
+                DestinationAddress = destinationAddress,
                 Order = order,
                 Transforms = transforms
-            }; // Note: For multi-destination clusters, we update cluster separately
+            };
 
             // Save snapshot BEFORE modification
             await _persistenceService.SaveSnapshotAsync($"Before route '{routeId}' saved via dashboard");

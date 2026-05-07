@@ -255,23 +255,32 @@ public class DynamicYarpConfigService
                 isNew = true;
                 _logger.LogInformation("Route '{RouteName}' is new, adding", request.RouteName);
             }
-
-            var clusterConfig = new ClusterConfig
-            {
-                ClusterId = request.ClusterName,
-                Destinations = new Dictionary<string, DestinationConfig>
-                {
-                    ["d1"] = new() { Address = request.DestinationAddress }
-                }
-            };
-
+            
+            // Handle cluster - only create if cluster doesn't exist
+            // IMPORTANT: Updating a route should NOT modify the cluster's destinations!
             var existingClusterIdx = newClusters.FindIndex(c =>
                 string.Equals(c.ClusterId, request.ClusterName, StringComparison.OrdinalIgnoreCase));
-
-            if (existingClusterIdx >= 0)
-                newClusters[existingClusterIdx] = clusterConfig;
-            else
+            
+            if (existingClusterIdx < 0)
+            {
+                // Cluster doesn't exist - create a new one with default destination
+                _logger.LogInformation("Cluster '{ClusterName}' doesn't exist, creating with default destination", request.ClusterName);
+                            
+                var clusterConfig = new ClusterConfig
+                {
+                    ClusterId = request.ClusterName,
+                    Destinations = new Dictionary<string, DestinationConfig>
+                    {
+                        ["d1"] = new() { Address = request.DestinationAddress }
+                    }
+                }; 
                 newClusters.Add(clusterConfig);
+            }
+            else
+            {
+                // Cluster exists - keep its existing configuration (don't modify destinations)
+                _logger.LogInformation("Cluster '{ClusterName}' exists, keeping existing configuration", request.ClusterName);
+            }
 
             _configProvider.Update(newRoutes, newClusters);
             
@@ -304,12 +313,13 @@ public class DynamicYarpConfigService
                 dynRoute.Transforms = request.Transforms;
             }
             
-            // Update or add cluster in dynamic config
+            // Update or add cluster in dynamic config - only add if doesn't exist
             var dynCluster = _dynamicConfig.Clusters.FirstOrDefault(c => 
                 string.Equals(c.ClusterId, request.ClusterName, StringComparison.OrdinalIgnoreCase));
             
             if (dynCluster == null)
             {
+                // Cluster doesn't exist in dynamic config - create new
                 dynCluster = new DynamicClusterConfig
                 {
                     ClusterId = request.ClusterName,
@@ -317,13 +327,10 @@ public class DynamicYarpConfigService
                     Source = source,
                     CreatedAt = DateTime.UtcNow,
                     CreatedBy = createdBy
-                };
+                }; 
                 _dynamicConfig.Clusters.Add(dynCluster);
             }
-            else
-            {
-                dynCluster.Destinations["d1"] = request.DestinationAddress;
-            }
+            // else: Cluster exists - keep its existing destinations (don't modify)
             
             SaveDynamicConfig();
 
