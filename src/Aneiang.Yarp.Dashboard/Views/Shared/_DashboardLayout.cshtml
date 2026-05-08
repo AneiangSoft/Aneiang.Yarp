@@ -901,6 +901,142 @@
         .log-arrow.expanded {
             transform: rotate(90deg);
         }
+
+        /* Log Event Type Tags */
+        .log-event-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            min-width: 32px;
+            justify-content: center;
+            white-space: nowrap;
+        }
+        .log-event-request { background: #dbeafe; color: #1d4ed8; }
+        .log-event-response { background: #dcfce7; color: #166534; }
+        .log-event-yarp { background: #f3e8ff; color: #7c3aed; }
+
+        /* Log Flow Layout (upstream → downstream) */
+        .log-flow {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            margin-bottom: 10px;
+        }
+        .log-flow-section {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .log-flow-title {
+            padding: 5px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+            color: #475569;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .log-flow-title i { font-size: 13px; }
+        .log-flow-body {
+            padding: 8px 10px;
+            font-size: 12px;
+        }
+        .log-flow-arrow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2px 0;
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        /* Log Key-Value Row */
+        .log-kv {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 4px;
+            line-height: 1.5;
+        }
+        .log-kv-label {
+            min-width: 60px;
+            font-weight: 600;
+            color: #64748b;
+            font-size: 11px;
+            padding-top: 2px;
+            flex-shrink: 0;
+        }
+        .log-kv-code {
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            color: #0f172a;
+            word-break: break-all;
+        }
+
+        /* Log Body Pre */
+        .log-body-pre {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 6px 8px;
+            margin: 2px 0 0;
+            font-size: 11px;
+            color: #334155;
+            overflow-x: auto;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        /* Log Headers Block */
+        .log-headers-block {
+            max-height: 120px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            background: #f8fafc;
+        }
+        .log-header-row {
+            display: flex;
+            gap: 8px;
+            padding: 2px 8px;
+            font-size: 11px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .log-header-row:last-child { border-bottom: none; }
+        .log-header-key {
+            min-width: 100px;
+            font-weight: 600;
+            color: #475569;
+        }
+        .log-header-val {
+            color: #334155;
+            word-break: break-all;
+        }
+        .log-redacted {
+            color: #ef4444;
+            font-style: italic;
+            font-size: 10px;
+        }
+
+        /* Log Meta Row */
+        .log-meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 6px 0;
+            font-size: 11px;
+            color: #64748b;
+        }
+        .log-meta-row strong { color: #475569; }
         
         /* Log Toolbar in Card Panel */
         .card-panel .card-body.py-2 {

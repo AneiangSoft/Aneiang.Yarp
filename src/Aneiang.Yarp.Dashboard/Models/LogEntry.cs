@@ -1,8 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace Aneiang.Yarp.Dashboard.Models;
 
 /// <summary>
 /// Log event type enumeration.
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum LogEventType
 {
     /// <summary>YARP internal event.</summary>
@@ -61,6 +64,11 @@ public class LogEntry
     public string? ClusterId { get; init; }
 
     /// <summary>
+    /// Upstream request HTTP method (e.g. GET, POST).
+    /// </summary>
+    public string? Method { get; init; }
+
+    /// <summary>
     /// Upstream request path.
     /// </summary>
     public string? UpstreamPath { get; init; }
@@ -69,6 +77,21 @@ public class LogEntry
     /// Downstream URL after transforms.
     /// </summary>
     public string? DownstreamUrl { get; init; }
+
+    /// <summary>
+    /// Downstream HTTP method after transforms.
+    /// </summary>
+    public string? DownstreamMethod { get; init; }
+
+    /// <summary>
+    /// Downstream request body after transforms/encryption (captured by DownstreamCaptureTransform).
+    /// </summary>
+    public string? DownstreamBody { get; init; }
+
+    /// <summary>
+    /// Indicates if downstream body was truncated.
+    /// </summary>
+    public bool DownstreamBodyTruncated { get; init; }
 
     /// <summary>
     /// HTTP status code (for response events).
