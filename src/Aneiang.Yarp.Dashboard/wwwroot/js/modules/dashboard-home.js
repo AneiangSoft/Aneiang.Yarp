@@ -148,7 +148,7 @@
                 
                 // Cluster name
                 const tdName = window.DashboardDOM.create('td', {
-                    innerHTML: `<strong>${this.escapeHtml(cluster.clusterId)}</strong>`
+                    innerHTML: `<strong>${window.DashboardUtils.escapeHtml(cluster.clusterId)}</strong>`
                 });
                 tr.appendChild(tdName);
 
@@ -187,7 +187,7 @@
                 
                 // Route name
                 const tdName = window.DashboardDOM.create('td', {
-                    innerHTML: `<strong>${this.escapeHtml(route.routeId)}</strong>`
+                    innerHTML: `<strong>${window.DashboardUtils.escapeHtml(route.routeId)}</strong>`
                 });
                 tr.appendChild(tdName);
 
@@ -223,14 +223,6 @@
             }
 
             return badge;
-        },
-
-        // ===== Escape HTML =====
-        escapeHtml: function(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
         },
 
         // ===== Format Uptime =====

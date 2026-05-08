@@ -46,37 +46,47 @@
     // ===== Keyboard Shortcuts =====
     window.DashboardEvents.setupKeyboardShortcuts = function() {
         document.addEventListener('keydown', function(e) {
-            // Ctrl/Cmd + S: Save draft
+            // Skip shortcuts when typing in input/textarea/select or contentEditable
+            const tag = e.target.tagName.toLowerCase();
+            const isEditable = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
+
+            // Ctrl/Cmd + S: Save draft (always active, even in editors)
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                 e.preventDefault();
                 document.dispatchEvent(new CustomEvent('dashboard:shortcut:save'));
+                return;
             }
 
-            // Ctrl/Cmd + F: Focus search
-            if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            // Ctrl/Cmd + F: Focus search (only when not in an input field)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'f' && !isEditable) {
                 e.preventDefault();
                 document.dispatchEvent(new CustomEvent('dashboard:shortcut:search'));
+                return;
             }
 
-            // Ctrl/Cmd + R: Refresh
-            if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+            // Ctrl/Cmd + Shift + R: Refresh (Shift required to avoid browser refresh conflict)
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'R') {
                 e.preventDefault();
                 document.dispatchEvent(new CustomEvent('dashboard:shortcut:refresh'));
+                return;
             }
 
-            // Escape: Close modal
+            // Escape: Close modal (only when not in an input that might need Escape)
             if (e.key === 'Escape') {
                 document.dispatchEvent(new CustomEvent('dashboard:shortcut:close'));
+                return;
             }
 
-            // Ctrl/Cmd + Z: Undo
-            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+            // Ctrl/Cmd + Z: Undo (only in non-editable contexts to avoid interfering with editors)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey && !isEditable) {
                 document.dispatchEvent(new CustomEvent('dashboard:shortcut:undo'));
+                return;
             }
 
             // Ctrl/Cmd + Shift + Z: Redo
-            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey && !isEditable) {
                 document.dispatchEvent(new CustomEvent('dashboard:shortcut:redo'));
+                return;
             }
         });
     };

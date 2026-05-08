@@ -112,14 +112,14 @@
             
             var html = '<div class="' + className + ' p-2 mb-2 border-start border-3 rounded">';
             html += '<div class="fw-bold">' + icon + ' ' + label + '</div>';
-            html += '<div class="text-muted small">' + this.escapeHtml(diff.path) + '</div>';
+            html += '<div class="text-muted small">' + window.DashboardUtils.escapeHtml(diff.path) + '</div>';
             
             if (diff.oldValue !== undefined) {
-                html += '<div class="text-danger small">Old: ' + this.escapeHtml(JSON.stringify(diff.oldValue)) + '</div>';
+                html += '<div class="text-danger small">Old: ' + window.DashboardUtils.escapeHtml(JSON.stringify(diff.oldValue)) + '</div>';
             }
             
             if (diff.newValue !== undefined) {
-                html += '<div class="text-success small">New: ' + this.escapeHtml(JSON.stringify(diff.newValue)) + '</div>';
+                html += '<div class="text-success small">New: ' + window.DashboardUtils.escapeHtml(JSON.stringify(diff.newValue)) + '</div>';
             }
             
             html += '</div>';
@@ -152,20 +152,6 @@
             return modal;
         },
 
-        /**
-         * Escape HTML to prevent XSS
-         */
-        escapeHtml: function(text) {
-            if (text === null || text === undefined) return '';
-            var str = String(text);
-            var map = {
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#039;'
-            };
-            return str.replace(/[&<>"']/g, function(m) { return map[m]; });
-        }
     };
+
 })();
