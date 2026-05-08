@@ -14,6 +14,9 @@ public class ConfigSnapshot
     /// <summary>Optional description of this snapshot.</summary>
     public string? Description { get; set; }
 
+    /// <summary>Client IP address that triggered this snapshot.</summary>
+    public string? ClientIp { get; set; }
+
     /// <summary>Complete configuration content.</summary>
     public JsonElement Config { get; set; }
 }

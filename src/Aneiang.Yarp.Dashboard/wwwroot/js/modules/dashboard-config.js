@@ -262,6 +262,7 @@
                             <div style="flex:1;">
                                 <div style="font-weight:500;font-size:14px;color:#1e293b;">${item.description || __('config.manualSnapshot')}</div>
                                 <div style="font-size:12px;color:#64748b;margin-top:4px;">${__('config.time') || '时间'}: ${time}</div>
+                                <div style="font-size:12px;color:#64748b;">${__('config.operatorIp') || '操作IP'}: ${item.clientIp || '-'}</div>
                                 <div style="font-size:12px;color:#94a3b8;">${__('config.version') || '版本'}: ${item.versionId}</div>
                             </div>
                             <button class="btn btn-sm btn-outline-warning" onclick="DashboardConfig.rollbackTo('${item.versionId}')" style="padding:6px 12px;border-radius:8px;">
