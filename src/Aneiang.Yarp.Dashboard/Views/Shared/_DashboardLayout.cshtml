@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - @(ViewBag.Locale != null && ViewBag.Locale.ToString() == "en-US" ? "Gateway Dashboard" : "网关维护仪表盘")</title>
+    <title>@ViewData["Title"] - @((ViewBag.Locale as string) == "en-US" ? "Gateway Dashboard" : "网关维护仪表盘")</title>
     <link href="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
     <link href="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet" />
     <link href="/_content/Aneiang.Yarp.Dashboard/styles/dashboard-editor.css" rel="stylesheet" />
@@ -892,8 +892,8 @@
             <a class="nav-link" href="#" onclick="dashboardLogout();return false;" style="border-left:none;">
                 <i class="bi bi-box-arrow-right"></i> <span data-i18n="layout.user.logout">退出登录</span>
             </a>
-            <a class="nav-link" href="#" onclick="switchLocale();return false;" title="@(ViewBag.Locale != null && ViewBag.Locale.ToString() == "en-US" ? "切换到中文" : "Switch to English")" style="border-left:none;">
-                <i class="bi bi-translate"></i> <span data-i18n="layout.lang.switch">@(ViewBag.Locale != null && ViewBag.Locale.ToString() == "en-US" ? "中文" : "English")</span>
+            <a class="nav-link" href="#" onclick="switchLocale();return false;" title="@(((ViewBag.Locale as string) == "en-US") ? "切换到中文" : "Switch to English")" style="border-left:none;">
+                <i class="bi bi-translate"></i> <span data-i18n="layout.lang.switch">@(((ViewBag.Locale as string) == "en-US") ? "中文" : "English")</span>
             </a>
         </div>
     </nav>
@@ -949,6 +949,10 @@
             document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
                 var key = el.getAttribute('data-i18n-placeholder');
                 if (key && I18N[key]) el.placeholder = I18N[key];
+            });
+            document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
+                var key = el.getAttribute('data-i18n-title');
+                if (key && I18N[key]) el.title = I18N[key];
             });
             // Show username in sidebar
             var username = getJwtUsername();

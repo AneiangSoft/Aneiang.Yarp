@@ -535,7 +535,7 @@
                 
             // Basic info section
             detailHtml.push('<div class="detail-section">');
-            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-info-circle"></i>基本信息</div>`);
+            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-info-circle"></i>${__('index.route.basicInfo') || 'Basic Info'}</div>`);
             detailHtml.push('<div class="detail-info-grid">');
             detailHtml.push(`<div class="detail-info-item"><span class="detail-label">RouteId</span><code class="detail-value">${window.DashboardUtils.escapeHtml(route.routeId)}</code></div>`);
             detailHtml.push(`<div class="detail-info-item"><span class="detail-label">ClusterId</span><code class="detail-value">${window.DashboardUtils.escapeHtml(route.clusterId || '-')}</code></div>`);
@@ -546,7 +546,7 @@
                 
             // Match configuration - use route.match properties
             detailHtml.push('<div class="detail-section">');
-            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-filter"></i>${__('index.route.match') || '匹配规则'}</div>`);
+            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-filter"></i>${__('index.route.match') || 'Match Rules'}</div>`);
             detailHtml.push('<div class="detail-info-grid">');
                                 
             const match = route.match || {};
@@ -585,10 +585,10 @@
             // Destinations
             if (route.destinations && route.destinations.length > 0) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations') || '目标节点'}</div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations') || 'Destinations'}</div>`);
                 detailHtml.push('<div class="table-responsive">');
                 detailHtml.push('<table class="table table-sm detail-table">');
-                detailHtml.push('<thead><tr><th>Name</th><th>Address</th></tr></thead>');
+                detailHtml.push(`<thead><tr><th>${__('index.detail.name') || 'Name'}</th><th>${__('index.detail.address') || 'Address'}</th></tr></thead>`);
                 detailHtml.push('<tbody>');
                 route.destinations.forEach(d => {
                     detailHtml.push(`<tr><td><code>${d.name}</code></td><td><a href="${d.address}" target="_blank" class="text-decoration-none"><code>${d.address}</code></a></td></tr>`);
@@ -600,7 +600,7 @@
             // Transforms
             if (route.transforms && route.transforms.length > 0) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-arrow-repeat"></i>${__('index.route.transforms') || '请求转换'}</div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-arrow-repeat"></i>${__('index.route.transforms') || 'Transforms'}</div>`);
                 detailHtml.push('<div class="table-responsive">');
                 detailHtml.push('<table class="table table-sm detail-table">');
                 detailHtml.push('<thead><tr><th style="width:50px;">#</th><th>Transform</th></tr></thead>');
