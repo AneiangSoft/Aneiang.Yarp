@@ -46,16 +46,18 @@
         const modalHtml = `
             <div class="modal fade" id="${modalId}" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered modal-lg">
-                    <div class="modal-content" style="border-radius:12px;border:none;box-shadow:0 20px 40px rgba(0,0,0,0.2);">
-                        <div class="modal-header" style="border-bottom:1px solid #e2e8f0;padding:16px 20px;">
-                            <h5 class="modal-title" style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:8px;">
-                                <i class="bi bi-upload text-primary"></i>
+                    <div class="modal-content" style="border-radius:16px;border:none;box-shadow:0 25px 50px rgba(0,0,0,0.25);overflow:hidden;">
+                        <div class="modal-header" style="background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);border-bottom:1px solid #e2e8f0;padding:18px 24px;">
+                            <h5 class="modal-title" style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:10px;">
+                                <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:16px;">
+                                    <i class="bi bi-upload"></i>
+                                </span>
                                 ${__('config.import') || '导入配置'}
                             </h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
-                        <div class="modal-body" style="padding:20px;">
-                            <div id="import-drop-zone" style="border:2px dashed #e2e8f0;border-radius:12px;padding:40px;text-align:center;background:#f8fafc;cursor:pointer;">
+                        <div class="modal-body" style="padding:24px;">
+                            <div id="import-drop-zone" style="border:2px dashed #cbd5e1;border-radius:12px;padding:40px;text-align:center;background:#f8fafc;cursor:pointer;transition:all 0.2s ease;">
                                 <i class="bi bi-file-earmark-arrow-up" style="font-size:48px;color:#6366f1;"></i>
                                 <p style="margin-top:12px;color:#64748b;font-size:14px;">${__('config.dropFile') || '拖拽文件到这里或点击选择'}</p>
                                 <input type="file" id="import-file-input" accept=".json" style="display:none;">
@@ -68,11 +70,11 @@
                                 <div class="alert alert-danger" style="border-radius:8px;"></div>
                             </div>
                         </div>
-                        <div class="modal-footer" style="border-top:1px solid #e2e8f0;padding:16px 20px;">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="padding:8px 16px;">
+                        <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
+                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
                                 ${__('modal.cancelBtn') || '取消'}
                             </button>
-                            <button type="button" class="btn btn-primary" id="import-btn" disabled style="padding:8px 20px;">
+                            <button type="button" class="btn btn-primary btn-sm" id="import-btn" disabled style="min-width:80px;">
                                 <i class="bi bi-upload me-1"></i>${__('config.import') || '导入'}
                             </button>
                         </div>
@@ -112,19 +114,22 @@
         dropZone.addEventListener('dragover', function(e) {
             e.preventDefault();
             dropZone.style.borderColor = '#6366f1';
-            dropZone.style.background = '#eff6ff';
+            dropZone.style.background = 'linear-gradient(135deg,#eff6ff,#f0f9ff)';
+            dropZone.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.1)';
         });
 
         dropZone.addEventListener('dragleave', function(e) {
             e.preventDefault();
-            dropZone.style.borderColor = '#e2e8f0';
+            dropZone.style.borderColor = '#cbd5e1';
             dropZone.style.background = '#f8fafc';
+            dropZone.style.boxShadow = 'none';
         });
 
         dropZone.addEventListener('drop', function(e) {
             e.preventDefault();
-            dropZone.style.borderColor = '#e2e8f0';
+            dropZone.style.borderColor = '#cbd5e1';
             dropZone.style.background = '#f8fafc';
+            dropZone.style.boxShadow = 'none';
 
             if (e.dataTransfer.files && e.dataTransfer.files[0]) {
                 handleFile(e.dataTransfer.files[0]);
@@ -218,13 +223,13 @@
                 history.forEach(function(item) {
                     const time = new Date(item.timestamp).toLocaleString();
                     historyHtml += `
-                        <div class="history-item" style="display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid #e2e8f0;">
+                        <div class="history-item" style="display:flex;align-items:center;padding:14px 20px;border-bottom:1px solid #e2e8f0;transition:background 0.15s ease;">
                             <div style="flex:1;">
-                                <div style="font-weight:500;font-size:14px;">${item.description || __('config.manualSnapshot')}</div>
-                                <div style="font-size:12px;color:#64748b;">${__('config.time') || '时间'}: ${time}</div>
+                                <div style="font-weight:500;font-size:14px;color:#1e293b;">${item.description || __('config.manualSnapshot')}</div>
+                                <div style="font-size:12px;color:#64748b;margin-top:4px;">${__('config.time') || '时间'}: ${time}</div>
                                 <div style="font-size:12px;color:#94a3b8;">${__('config.version') || '版本'}: ${item.versionId}</div>
                             </div>
-                            <button class="btn btn-sm btn-outline-warning" onclick="DashboardConfig.rollbackTo('${item.versionId}')" style="padding:6px 12px;">
+                            <button class="btn btn-sm btn-outline-warning" onclick="DashboardConfig.rollbackTo('${item.versionId}')" style="padding:6px 12px;border-radius:8px;">
                                 <i class="bi bi-arrow-counterclockwise me-1"></i>${__('config.rollback') || '回滚'}
                             </button>
                         </div>
@@ -237,10 +242,12 @@
             const modalHtml = `
                 <div class="modal fade" id="${modalId}" tabindex="-1">
                     <div class="modal-dialog modal-dialog-centered modal-lg">
-                        <div class="modal-content" style="border-radius:12px;border:none;box-shadow:0 20px 40px rgba(0,0,0,0.2);">
-                            <div class="modal-header" style="border-bottom:1px solid #e2e8f0;padding:16px 20px;">
-                                <h5 class="modal-title" style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:8px;">
-                                    <i class="bi bi-clock-history text-primary"></i>
+                        <div class="modal-content" style="border-radius:16px;border:none;box-shadow:0 25px 50px rgba(0,0,0,0.25);overflow:hidden;">
+                            <div class="modal-header" style="background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);border-bottom:1px solid #e2e8f0;padding:18px 24px;">
+                                <h5 class="modal-title" style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:10px;">
+                                    <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:16px;">
+                                        <i class="bi bi-clock-history"></i>
+                                    </span>
                                     ${__('config.history') || '配置历史'}
                                 </h5>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -248,8 +255,8 @@
                             <div class="modal-body" style="padding:0;max-height:500px;overflow-y:auto;">
                                 ${historyHtml}
                             </div>
-                            <div class="modal-footer" style="border-top:1px solid #e2e8f0;padding:16px 20px;">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="padding:8px 16px;">
+                            <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
+                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
                                     ${__('config.close') || 'Close'}
                                 </button>
                             </div>
