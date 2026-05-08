@@ -117,6 +117,12 @@
                             </div>
                         </div>
                         <div class="col-auto">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-primary" id="log-type-all-btn" title="${__('index.log.type.all')}">${__('index.log.type.all')}</button>
+                                <button type="button" class="btn btn-outline-primary" id="log-type-gateway-btn" title="${__('index.log.gatewayOnly')}"><i class="bi bi-globe"></i> ${__('index.log.gatewayOnly')}</button>
+                            </div>
+                        </div>
+                        <div class="col-auto">
                             <select class="form-select form-select-sm" id="log-count-select" style="width:75px;">
                                 <option value="50">50</option>
                                 <option value="100" selected>100</option>
@@ -158,6 +164,22 @@
             const listenBtn = window.DashboardDOM.safe('#log-listen-btn');
             if (listenBtn) {
                 listenBtn.onclick = () => this.togglePolling();
+            }
+
+            // Gateway-only toggle buttons
+            const allBtn = window.DashboardDOM.safe('#log-type-all-btn');
+            const gatewayBtn = window.DashboardDOM.safe('#log-type-gateway-btn');
+            if (allBtn && gatewayBtn) {
+                allBtn.onclick = () => {
+                    window.DashboardState.set('filters.logs.gatewayOnly', false);
+                    this.updateGatewayOnlyButtons(false);
+                    this.renderLogs();
+                };
+                gatewayBtn.onclick = () => {
+                    window.DashboardState.set('filters.logs.gatewayOnly', true);
+                    this.updateGatewayOnlyButtons(true);
+                    this.renderLogs();
+                };
             }
 
             // Count select
@@ -213,6 +235,25 @@
             const listenBtn = window.DashboardDOM.safe('#log-listen-btn');
             if (listenBtn && state.get('filters.logs.autoRefresh')) {
                 this.updateListenButton(true);
+            }
+
+            // Restore gateway-only toggle state
+            const gatewayOnly = state.get('filters.logs.gatewayOnly') || false;
+            this.updateGatewayOnlyButtons(gatewayOnly);
+        },
+
+        // ===== Update Gateway-Only Toggle Buttons =====
+        updateGatewayOnlyButtons: function(gatewayOnly) {
+            const allBtn = window.DashboardDOM.safe('#log-type-all-btn');
+            const gatewayBtn = window.DashboardDOM.safe('#log-type-gateway-btn');
+            if (allBtn && gatewayBtn) {
+                if (gatewayOnly) {
+                    allBtn.classList.remove('active');
+                    gatewayBtn.classList.add('active');
+                } else {
+                    allBtn.classList.add('active');
+                    gatewayBtn.classList.remove('active');
+                }
             }
         },
 
@@ -272,9 +313,23 @@
             // Level badge (more prominent)
             const badge = this.createLevelBadge(entry.level);
 
-            // Message (main content)
+            // Event type tag (for proxy request/response)
+            let eventTypeTag = '';
+            if (entry.eventType === 'ProxyRequest') {
+                eventTypeTag = `<span class="log-event-tag log-event-request">${__('index.log.eventType.request') || 'REQ'}</span>`;
+            } else if (entry.eventType === 'ProxyResponse') {
+                eventTypeTag = `<span class="log-event-tag log-event-response">${__('index.log.eventType.response') || 'RES'}</span>`;
+            } else {
+                eventTypeTag = `<span class="log-event-tag log-event-yarp">YARP</span>`;
+            }
+
+            // Message (main content) - enrich for proxy events
+            let displayMessage = entry.message || '';
+            if (entry.eventType === 'ProxyResponse' && entry.elapsedMs != null) {
+                displayMessage += ` (${entry.elapsedMs.toFixed(0)}ms)`;
+            }
             const msgSpan = window.DashboardDOM.create('span', {
-                textContent: entry.message || '',
+                textContent: displayMessage,
                 style: {
                     color: '#1e293b',
                     flex: '1',
@@ -310,6 +365,14 @@
 
             row.appendChild(timeSpan);
             row.appendChild(badge);
+            
+            // Add event type tag via innerHTML helper
+            const eventTypeSpan = document.createElement('span');
+            eventTypeSpan.innerHTML = eventTypeTag;
+            if (eventTypeSpan.firstChild) {
+                row.appendChild(eventTypeSpan.firstChild);
+            }
+            
             row.appendChild(msgSpan);
             row.appendChild(copyBtn);
             row.appendChild(arrowSpan);
@@ -359,68 +422,153 @@
             });
                 
             const dtHtml = [];
-                
-            // HTTP Request Info (if exists)
-            if (entry.method || entry.statusCode || entry.path) {
-                dtHtml.push('<div class="d-flex flex-wrap gap-2 mb-2 pb-2 border-bottom">');
-                        
-                // Method with colored badge (consistent with routes module)
+
+            // ─── ProxyRequest Event Type ───
+            if (entry.eventType === 'ProxyRequest') {
+                dtHtml.push('<div class="log-flow">');
+
+                // Upstream Section
+                dtHtml.push('<div class="log-flow-section">');
+                dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-in-down"></i> ${__('index.log.upstream') || '上游请求'}</div>`);
+                dtHtml.push('<div class="log-flow-body">');
                 if (entry.method) {
                     const methodColors = {
-                        'GET': 'bg-success',
-                        'POST': 'bg-primary',
-                        'PUT': 'bg-info',
-                        'DELETE': 'bg-danger',
-                        'PATCH': 'bg-warning text-dark'
-                    }; 
+                        'GET': 'bg-success', 'POST': 'bg-primary', 'PUT': 'bg-info',
+                        'DELETE': 'bg-danger', 'PATCH': 'bg-warning text-dark'
+                    };
                     const methodClass = methodColors[entry.method] || 'bg-secondary';
-                    dtHtml.push(`<span><strong>Method:</strong> <span class="badge ${methodClass}">${entry.method}</span></span>`);
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.method') || 'Method'}</span><span class="badge ${methodClass}">${entry.method}</span></div>`);
                 }
-                        
-                // Status code
-                if (entry.statusCode) {
-                    dtHtml.push(`<span><strong>Status:</strong> <span class="badge ${this.getStatusCodeBadge(entry.statusCode)}">${entry.statusCode}</span></span>`);
+                if (entry.upstreamPath) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.path') || 'Path'}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(entry.upstreamPath)}</code></div>`);
                 }
-                        
-                // Path
-                if (entry.path) {
-                    dtHtml.push(`<span style="flex:1"><strong>Path:</strong> <code>${window.DashboardUtils.escapeHtml(entry.path)}</code></span>`);
+                if (entry.requestBody) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.body') || 'Body'}</span>`);
+                    dtHtml.push(this.renderBodyContent(entry.requestBody, entry.requestBodyTruncated));
+                    dtHtml.push('</div>');
                 }
-                        
+                if (entry.requestHeaders && Object.keys(entry.requestHeaders).length > 0) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.headers') || 'Headers'}</span>`);
+                    dtHtml.push(this.renderHeadersInline(entry.requestHeaders));
+                    dtHtml.push('</div>');
+                }
+                dtHtml.push('</div></div>'); // end upstream
+
+                // Arrow
+                dtHtml.push('<div class="log-flow-arrow"><i class="bi bi-arrow-down-circle-fill"></i></div>');
+
+                // Downstream Section
+                dtHtml.push('<div class="log-flow-section">');
+                dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-up-right"></i> ${__('index.log.downstream') || '下游请求'}</div>`);
+                dtHtml.push('<div class="log-flow-body">');
+                const dsMethod = entry.downstreamMethod || entry.method;
+                if (dsMethod) {
+                    const methodColors = {
+                        'GET': 'bg-success', 'POST': 'bg-primary', 'PUT': 'bg-info',
+                        'DELETE': 'bg-danger', 'PATCH': 'bg-warning text-dark'
+                    };
+                    const methodClass = methodColors[dsMethod] || 'bg-secondary';
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.method') || 'Method'}</span><span class="badge ${methodClass}">${dsMethod}</span></div>`);
+                }
+                if (entry.downstreamUrl) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.url') || 'URL'}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(entry.downstreamUrl)}</code></div>`);
+                }
+                if (entry.downstreamBody) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.body') || 'Body'}</span>`);
+                    dtHtml.push(this.renderBodyContent(entry.downstreamBody, entry.downstreamBodyTruncated));
+                    dtHtml.push('</div>');
+                }
+                dtHtml.push('</div></div>'); // end downstream
+
+                dtHtml.push('</div>'); // end log-flow
+
+                // Metadata
+                dtHtml.push('<div class="log-meta-row">');
+                if (entry.routeId) dtHtml.push(`<span><strong>RouteId:</strong> <code>${window.DashboardUtils.escapeHtml(entry.routeId)}</code></span>`);
+                if (entry.clusterId) dtHtml.push(`<span><strong>ClusterId:</strong> <code>${window.DashboardUtils.escapeHtml(entry.clusterId)}</code></span>`);
+                if (entry.traceId) dtHtml.push(`<span><strong>TraceId:</strong> <code class="text-muted">${window.DashboardUtils.escapeHtml(entry.traceId)}</code></span>`);
                 dtHtml.push('</div>');
             }
-                
-            // Metadata row
-            dtHtml.push('<div class="d-flex flex-wrap gap-2 mb-2">');
-                            
-            if (entry.category) {
-                dtHtml.push(`<span><strong>${__('index.log.category')}</strong> ${window.DashboardUtils.escapeHtml(entry.category)}</span>`);
+            // ─── ProxyResponse Event Type ───
+            else if (entry.eventType === 'ProxyResponse') {
+                dtHtml.push('<div class="log-flow">');
+
+                // Downstream Response Section (from destination server)
+                dtHtml.push('<div class="log-flow-section">');
+                dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-up-right"></i> ${__('index.log.downstream.response') || '下游响应'}</div>`);
+                dtHtml.push('<div class="log-flow-body">');
+                if (entry.downstreamUrl) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.url') || 'URL'}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(entry.downstreamUrl)}</code></div>`);
+                }
+                if (entry.statusCode != null) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.status') || 'Status'}</span><span class="badge ${this.getStatusCodeBadge(entry.statusCode)}">${entry.statusCode}</span></div>`);
+                }
+                if (entry.elapsedMs != null) {
+                    const elapsedClass = entry.elapsedMs < 200 ? 'text-success' : entry.elapsedMs < 1000 ? 'text-warning' : 'text-danger';
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.duration') || 'Duration'}</span><strong class="${elapsedClass}">${entry.elapsedMs.toFixed(1)} ms</strong></div>`);
+                }
+                if (entry.responseBody) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.body') || 'Body'}</span>`);
+                    dtHtml.push(this.renderBodyContent(entry.responseBody, entry.responseBodyTruncated));
+                    dtHtml.push('</div>');
+                }
+                if (entry.responseHeaders && Object.keys(entry.responseHeaders).length > 0) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.headers') || 'Headers'}</span>`);
+                    dtHtml.push(this.renderHeadersInline(entry.responseHeaders));
+                    dtHtml.push('</div>');
+                }
+                dtHtml.push('</div></div>'); // end downstream response
+
+                // Arrow (upward: downstream → upstream)
+                dtHtml.push('<div class="log-flow-arrow"><i class="bi bi-arrow-up-circle-fill"></i></div>');
+
+                // Upstream Response Section (returned to client)
+                dtHtml.push('<div class="log-flow-section">');
+                dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-in-down"></i> ${__('index.log.upstream.response') || '上游返回'}</div>`);
+                dtHtml.push('<div class="log-flow-body">');
+                if (entry.upstreamPath) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.path') || 'Path'}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(entry.upstreamPath)}</code></div>`);
+                }
+                if (entry.statusCode != null) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.status') || 'Status'}</span><span class="badge ${this.getStatusCodeBadge(entry.statusCode)}">${entry.statusCode}</span></div>`);
+                }
+                dtHtml.push('</div></div>'); // end upstream response
+
+                dtHtml.push('</div>'); // end log-flow
+
+                // Metadata
+                dtHtml.push('<div class="log-meta-row">');
+                if (entry.routeId) dtHtml.push(`<span><strong>RouteId:</strong> <code>${window.DashboardUtils.escapeHtml(entry.routeId)}</code></span>`);
+                if (entry.clusterId) dtHtml.push(`<span><strong>ClusterId:</strong> <code>${window.DashboardUtils.escapeHtml(entry.clusterId)}</code></span>`);
+                if (entry.traceId) dtHtml.push(`<span><strong>TraceId:</strong> <code class="text-muted">${window.DashboardUtils.escapeHtml(entry.traceId)}</code></span>`);
+                dtHtml.push('</div>');
             }
-            if (entry.routeId) {
-                dtHtml.push(`<span><strong>RouteId:</strong> <code>${window.DashboardUtils.escapeHtml(entry.routeId)}</code></span>`);
-            }
-            if (entry.traceId) {
-                dtHtml.push(`<span><strong>TraceId:</strong> <code>${window.DashboardUtils.escapeHtml(entry.traceId)}</code></span>`);
-            }
-                            
-            dtHtml.push('</div>');
+            // ─── YarpEvent Type (fallback) ───
+            else {
+                // Metadata row
+                dtHtml.push('<div class="log-meta-row">');
+                if (entry.category) dtHtml.push(`<span><strong>${__('index.log.category')}</strong> ${window.DashboardUtils.escapeHtml(entry.category)}</span>`);
+                if (entry.routeId) dtHtml.push(`<span><strong>RouteId:</strong> <code>${window.DashboardUtils.escapeHtml(entry.routeId)}</code></span>`);
+                if (entry.traceId) dtHtml.push(`<span><strong>TraceId:</strong> <code>${window.DashboardUtils.escapeHtml(entry.traceId)}</code></span>`);
+                dtHtml.push('</div>');
+
+                // Message (full content)
+                dtHtml.push(`<div class="mb-2"><strong>${__('index.log.message')}</strong><br>`);
+                dtHtml.push(`<span style="color:#475569;word-break:break-all;">${window.DashboardUtils.escapeHtml(entry.message || '')}</span></div>`);
                 
-            // Message (full content)
-            dtHtml.push(`<div class="mb-2"><strong>${__('index.log.message')}</strong><br>`);
-            dtHtml.push(`<span style="color:#475569;word-break:break-all;">${window.DashboardUtils.escapeHtml(entry.message || '')}</span></div>`);
-                
-            // Details (JSON)
-            if (entry.details) {
-                dtHtml.push(`<div class="mt-2"><strong>${__('index.log.details')}</strong></div>`);
-                try {
-                    const detailsObj = JSON.parse(entry.details);
-                    dtHtml.push(this.renderJsonBlock(detailsObj, 'Details JSON')); 
-                } catch (err) {
-                    dtHtml.push(`<pre style="background:#f1f5f9;border:1px solid var(--border-color);border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:12px;color:#334155;">${window.DashboardUtils.escapeHtml(entry.details)}</pre>`);
+                // Details (JSON)
+                if (entry.details) {
+                    dtHtml.push(`<div class="mt-2"><strong>${__('index.log.details')}</strong></div>`);
+                    try {
+                        const detailsObj = JSON.parse(entry.details);
+                        dtHtml.push(this.renderJsonBlock(detailsObj, 'Details JSON')); 
+                    } catch (err) {
+                        dtHtml.push(`<pre style="background:#f1f5f9;border:1px solid var(--border-color);border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:12px;color:#334155;">${window.DashboardUtils.escapeHtml(entry.details)}</pre>`);
+                    }
                 }
             }
-                
-            // Exception
+
+            // Exception (for any type)
             if (entry.exception) {
                 dtHtml.push(`<div style="color:#dc2626;margin-top:6px"><strong>${__('index.log.exception')}</strong></div>`);
                 dtHtml.push(`<pre style="background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:11px;color:#991b1b;">${window.DashboardUtils.escapeHtml(entry.exception)}</pre>`);
@@ -429,6 +577,40 @@
             detail.innerHTML = dtHtml.join('');
         
             return detail;
+        },
+
+        // ===== Render Body Content =====
+        renderBodyContent: function(body, truncated) {
+            if (!body) return '<span class="text-muted">-</span>';
+            const escaped = window.DashboardUtils.escapeHtml(body);
+            const truncatedNotice = truncated ? `<span class="text-muted small">(${__('index.log.truncated') || 'truncated'})</span>` : '';
+            
+            // Try to format as JSON
+            try {
+                const obj = JSON.parse(body);
+                const formatted = JSON.stringify(obj, null, 2);
+                const escapedFormatted = window.DashboardUtils.escapeHtml(formatted);
+                return `<pre class="log-body-pre">${escapedFormatted}</pre>${truncatedNotice}`;
+            } catch (e) {
+                // Not JSON, display as-is
+                return `<pre class="log-body-pre">${escaped}</pre>${truncatedNotice}`;
+            }
+        },
+
+        // ===== Render Headers Inline =====
+        renderHeadersInline: function(headers) {
+            if (!headers || typeof headers !== 'object') return '<span class="text-muted">-</span>';
+            const keys = Object.keys(headers);
+            if (keys.length === 0) return '<span class="text-muted">-</span>';
+            
+            const rows = keys.map(k => {
+                const val = headers[k];
+                const displayVal = val === '***REDACTED***' 
+                    ? '<span class="log-redacted">***REDACTED***</span>' 
+                    : window.DashboardUtils.escapeHtml(val);
+                return `<div class="log-header-row"><span class="log-header-key">${window.DashboardUtils.escapeHtml(k)}</span><span class="log-header-val">${displayVal}</span></div>`;
+            });
+            return `<div class="log-headers-block">${rows.join('')}</div>`;
         },
 
         // ===== Render JSON Block (delegates to shared utility) =====

@@ -50,6 +50,7 @@
                 routeId: '',
                 status: 'all',
                 level: 'all',
+                gatewayOnly: false,
                 autoRefresh: false,
                 refreshInterval: 3000, // 3 seconds
                 maxCount: 100
@@ -254,12 +255,24 @@
 
     window.DashboardState.getFilteredLogs = function() {
         const { logs } = state.data;
-        const { search, routeId, status, level, maxCount } = state.filters.logs;
+        const { search, routeId, status, level, gatewayOnly, maxCount } = state.filters.logs;
         
         let filtered = logs.filter(log => {
-            // Search filter
-            if (search && !log.message?.toLowerCase().includes(search.toLowerCase())) {
+            // Gateway-only filter: show only ProxyRequest/ProxyResponse (exclude YarpEvent)
+            if (gatewayOnly && log.eventType === 'YarpEvent') {
                 return false;
+            }
+            
+            // Search filter - search in message, path, routeId, clusterId
+            if (search) {
+                const searchLower = search.toLowerCase();
+                const matchMessage = log.message?.toLowerCase().includes(searchLower);
+                const matchPath = log.upstreamPath?.toLowerCase().includes(searchLower);
+                const matchRoute = log.routeId?.toLowerCase().includes(searchLower);
+                const matchCluster = log.clusterId?.toLowerCase().includes(searchLower);
+                if (!matchMessage && !matchPath && !matchRoute && !matchCluster) {
+                    return false;
+                }
             }
             
             // Route filter

@@ -1,5 +1,6 @@
 using Aneiang.Yarp.Dashboard.Models;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
 using System.Text;
@@ -22,6 +23,19 @@ public sealed class YarpRequestCaptureMiddleware
     private readonly bool _loggingEnabled;
     private readonly DashboardOptions _options;
     private readonly Random _random = new();
+
+    /// <summary>
+    /// Static file extensions to skip from logging (frontend resources).
+    /// </summary>
+    private static readonly HashSet<string> SkippedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".js", ".mjs", ".css", ".map",
+        ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp", ".bmp", ".avif",
+        ".woff", ".woff2", ".ttf", ".eot", ".otf",
+        ".mp3", ".mp4", ".wav", ".avi", ".webm", ".ogg",
+        ".pdf", ".zip", ".gz", ".tar", ".rar",
+        ".html", ".htm", ".xml", ".txt"
+    };
 
     /// <summary>
     /// Creates the middleware.
@@ -58,6 +72,14 @@ public sealed class YarpRequestCaptureMiddleware
             return;
         }
 
+        // Skip frontend static resource requests
+        var extension = Path.GetExtension(context.Request.Path.Value);
+        if (extension != null && SkippedExtensions.Contains(extension))
+        {
+            await _next(context);
+            return;
+        }
+
         var timestamp = DateTime.Now;
         var stopwatch = Stopwatch.StartNew();
         var traceId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N");
@@ -68,16 +90,22 @@ public sealed class YarpRequestCaptureMiddleware
         // Read request body (non-consuming)
         string requestBody = await ReadBodyAsync(context.Request);
 
-        // Capture original response body stream
+        // Capture response body by replacing Response.Body and IHttpResponseBodyFeature.
+        // Note: YARP internally manages the response transport stream and may bypass
+        // our MemoryStream in proxy scenarios. We capture what we can.
         var originalResponseBody = context.Response.Body;
-        using var responseBody = new MemoryStream();
-        context.Response.Body = responseBody;
+        var originalBodyFeature = context.Features.Get<IHttpResponseBodyFeature>();
+        using var responseBodyStream = new MemoryStream();
+        var captureFeature = new StreamResponseBodyFeature(responseBodyStream, originalBodyFeature);
+
+        context.Response.Body = responseBodyStream;
+        context.Features.Set<IHttpResponseBodyFeature>(captureFeature);
 
         await _next(context);
         stopwatch.Stop();
 
-        // Read response body
-        string responseBodyText = await ReadStreamAsync(responseBody);
+        // Read response body from the captured stream
+        string responseBodyText = await ReadStreamAsync(responseBodyStream);
 
         // Get downstream destination address from YARP proxy feature
         var proxyFeature = context.Features.Get<IReverseProxyFeature>();
@@ -85,13 +113,16 @@ public sealed class YarpRequestCaptureMiddleware
         var routeId = proxyFeature?.Route?.Config?.RouteId;
         var clusterId = proxyFeature?.Route?.Config?.ClusterId;
 
-        // Get captured downstream request body (after transforms like encryption)
+        // Get captured downstream request data (after transforms like encryption)
         var downstreamBody = GetDownstreamBody(context);
+        var downstreamMethod = GetDownstreamMethod(context);
+        var downstreamUrlCaptured = GetDownstreamUrl(context) ?? downstreamUrl;
 
         // Restore original response stream and copy back
-        responseBody.Seek(0, SeekOrigin.Begin);
-        await responseBody.CopyToAsync(originalResponseBody);
+        responseBodyStream.Seek(0, SeekOrigin.Begin);
+        await responseBodyStream.CopyToAsync(originalResponseBody);
         context.Response.Body = originalResponseBody;
+        context.Features.Set(originalBodyFeature);
 
         // Check if should log based on sampling and filtering rules
         if (!ShouldLog(context, routeId))
@@ -102,6 +133,15 @@ public sealed class YarpRequestCaptureMiddleware
         // Sanitize and truncate request body
         var sanitizedRequestBody = _sanitizer.SanitizeJsonBody(requestBody);
         var requestText = _sanitizer.TruncateText(sanitizedRequestBody, out var requestTruncated);
+
+        // Sanitize and truncate downstream body
+        string? downstreamText = null;
+        var downstreamTruncatedFlag = false;
+        if (downstreamBody != null)
+        {
+            var sanitizedDownstreamBody = _sanitizer.SanitizeJsonBody(downstreamBody);
+            downstreamText = _sanitizer.TruncateText(sanitizedDownstreamBody, out downstreamTruncatedFlag);
+        }
 
         // Build structured request log entry
         _store.Add(new LogEntry
@@ -114,8 +154,12 @@ public sealed class YarpRequestCaptureMiddleware
             TraceId = traceId,
             RouteId = routeId,
             ClusterId = clusterId,
+            Method = context.Request.Method,
             UpstreamPath = context.Request.Path + context.Request.QueryString.Value,
-            DownstreamUrl = downstreamUrl,
+            DownstreamUrl = downstreamUrlCaptured,
+            DownstreamMethod = downstreamMethod,
+            DownstreamBody = downstreamText,
+            DownstreamBodyTruncated = downstreamTruncatedFlag,
             RequestHeaders = _sanitizer.SanitizeHeaders(context.Request.Headers),
             RequestBody = requestText,
             RequestBodyTruncated = requestTruncated
@@ -136,6 +180,7 @@ public sealed class YarpRequestCaptureMiddleware
             TraceId = traceId,
             RouteId = routeId,
             ClusterId = clusterId,
+            Method = context.Request.Method,
             UpstreamPath = context.Request.Path + context.Request.QueryString.Value,
             DownstreamUrl = downstreamUrl,
             StatusCode = context.Response.StatusCode,
@@ -205,6 +250,24 @@ public sealed class YarpRequestCaptureMiddleware
         if (context.Items.TryGetValue("DownstreamBody", out var obj) && obj is byte[] bodyBytes && bodyBytes.Length > 0)
         {
             return Encoding.UTF8.GetString(bodyBytes);
+        }
+        return null;
+    }
+
+    private static string? GetDownstreamMethod(HttpContext context)
+    {
+        if (context.Items.TryGetValue("DownstreamMethod", out var obj) && obj is string method)
+        {
+            return method;
+        }
+        return null;
+    }
+
+    private static string? GetDownstreamUrl(HttpContext context)
+    {
+        if (context.Items.TryGetValue("DownstreamUrl", out var obj) && obj is string url)
+        {
+            return url;
         }
         return null;
     }
