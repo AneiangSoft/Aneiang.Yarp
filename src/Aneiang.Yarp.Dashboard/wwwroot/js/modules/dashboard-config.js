@@ -209,13 +209,48 @@
     window.DashboardConfig.showHistoryModal = async function() {
         const self = this;
 
+        const modalId = 'dashboard-history-modal';
+        const existing = document.getElementById(modalId);
+        if (existing) existing.remove();
+
+        // Show modal with loading state first
+        const loadingHtml = `
+            <div class="modal fade" id="${modalId}" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered modal-lg">
+                    <div class="modal-content" style="border-radius:16px;border:none;box-shadow:0 25px 50px rgba(0,0,0,0.25);overflow:hidden;">
+                        <div class="modal-header" style="background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);border-bottom:1px solid #e2e8f0;padding:18px 24px;">
+                            <h5 class="modal-title" style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:10px;">
+                                <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:16px;">
+                                    <i class="bi bi-clock-history"></i>
+                                </span>
+                                ${__('config.history') || '配置历史'}
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body" id="${modalId}-body" style="padding:0;max-height:500px;overflow-y:auto;">
+                            <div style="display:flex;align-items:center;justify-content:center;padding:60px 0;gap:10px;color:#64748b;">
+                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                                <span>${__('config.loading') || '加载中...'}</span>
+                            </div>
+                        </div>
+                        <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
+                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
+                                ${__('config.close') || 'Close'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', loadingHtml);
+        const modalEl = document.getElementById(modalId);
+        const bsModal = new bootstrap.Modal(modalEl);
+        bsModal.show();
+
         // Fetch history
         try {
             const history = await window.DashboardApi.endpoints.getConfigHistory();
-
-            const modalId = 'dashboard-history-modal';
-            const existing = document.getElementById(modalId);
-            if (existing) existing.remove();
 
             // Build history list HTML
             let historyHtml = '';
@@ -239,47 +274,19 @@
                 historyHtml = `<div class="text-center py-4 text-muted">${__('config.noHistory') || '暂无历史版本'}</div>`;
             }
 
-            const modalHtml = `
-                <div class="modal fade" id="${modalId}" tabindex="-1">
-                    <div class="modal-dialog modal-dialog-centered modal-lg">
-                        <div class="modal-content" style="border-radius:16px;border:none;box-shadow:0 25px 50px rgba(0,0,0,0.25);overflow:hidden;">
-                            <div class="modal-header" style="background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);border-bottom:1px solid #e2e8f0;padding:18px 24px;">
-                                <h5 class="modal-title" style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:10px;">
-                                    <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:16px;">
-                                        <i class="bi bi-clock-history"></i>
-                                    </span>
-                                    ${__('config.history') || '配置历史'}
-                                </h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body" style="padding:0;max-height:500px;overflow-y:auto;">
-                                ${historyHtml}
-                            </div>
-                            <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
-                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
-                                    ${__('config.close') || 'Close'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-            const modalEl = document.getElementById(modalId);
-            const bsModal = new bootstrap.Modal(modalEl);
-
-            // Remove modal on hide
-            modalEl.addEventListener('hidden.bs.modal', function() {
-                modalEl.remove();
-            });
-
-            bsModal.show();
+            // Update modal body with loaded content
+            const body = document.getElementById(modalId + '-body');
+            if (body) body.innerHTML = historyHtml;
 
         } catch (error) {
             console.error('[Config] Failed to get history:', error);
-            window.DashboardModals.showError(__('config.getHistoryFailed') + ': ' + error.message);
+            // Update modal body with error state
+            const body = document.getElementById(modalId + '-body');
+            if (body) {
+                body.innerHTML = `<div class="text-center py-4 text-danger"><i class="bi bi-exclamation-circle me-2"></i>${__('config.getHistoryFailed') || '加载历史失败'}: ${window.DashboardUtils.escapeHtml(error.message)}</div>`;
+            } else {
+                window.DashboardModals.showError(__('config.getHistoryFailed') + ': ' + error.message);
+            }
         }
     };
 

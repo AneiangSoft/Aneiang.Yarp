@@ -674,17 +674,9 @@
             return btn;
         },
 
-        // ===== Create Source Badge =====
+        // ===== Create Source Badge (delegates to shared utility) =====
         createSourceBadge: function(source) {
-            const sourceMap = {
-                'config': { css: 'bg-secondary', icon: 'bi-file-earmark-code', label: __('index.source.config') || 'Static Config' },
-                'dynamic': { css: 'bg-success', icon: 'bi-lightning-charge-fill', label: __('index.source.dynamic') || 'Dynamic' },
-                'dashboard': { css: 'bg-primary', icon: 'bi-speedometer2', label: __('index.source.dashboard') || 'Dashboard' },
-                'auto-register': { css: 'bg-info', icon: 'bi-cloud-arrow-up-fill', label: __('index.source.autoRegister') || 'Auto Register' }
-            };
-            const s = source || 'config';
-            const cfg = sourceMap[s] || { css: 'bg-secondary', icon: 'bi-question-circle-fill', label: s };
-            return `<span class="badge ${cfg.css}" style="font-size:12px;display:inline-flex;align-items:center;gap:4px;"><i class="bi ${cfg.icon}"></i>${cfg.label}</span>`;
+            return window.DashboardUtils.createSourceBadge(source);
         },
 
         // ===== Create Health Badge Inline =====
@@ -700,13 +692,9 @@
             </span>`;
         },
 
-        // ===== Render JSON Block =====
+        // ===== Render JSON Block (delegates to shared utility) =====
         renderJsonBlock: function(obj, title) {
-            const json = JSON.stringify(obj, null, 2);
-            return `<details style="margin:4px 0 0;">
-                <summary style="cursor:pointer;color:#0ea5e9;font-weight:500;">${title}</summary>
-                <pre style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:12px;color:#334155;line-height:1.6;">${window.DashboardUtils.escapeHtml(json)}</pre>
-            </details>`;
+            return window.DashboardUtils.renderJsonBlock(obj, title);
         },
 
         // ===== Toggle Cluster =====
@@ -908,6 +896,14 @@
                     }
                     bsModal.hide();
                     resolve(value);
+                });
+        
+                // Enter key to submit
+                inputEl.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        document.getElementById(modalId + '-confirm').click();
+                    }
                 });
         
                 modalEl.addEventListener('hidden.bs.modal', function() {

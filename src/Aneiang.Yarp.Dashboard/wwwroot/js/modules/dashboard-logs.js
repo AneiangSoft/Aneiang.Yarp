@@ -97,6 +97,12 @@
             const container = window.DashboardDOM.safe('#log-filter-container');
             if (!container) return;
 
+            // Only build toolbar once; subsequent calls just restore state
+            if (container.querySelector('#log-search-input')) {
+                this.restoreFilterValues();
+                return;
+            }
+
             // Layout: Search(left) | Filters(middle) | Action buttons(right)
             container.innerHTML = `
                 <div class="card-body py-2 border-bottom">
@@ -142,7 +148,7 @@
                 </div>
             `;
 
-            // Re-initialize handlers every time
+            // Initialize handlers only once
             this.initFilterHandlers();
         },
 
@@ -213,24 +219,17 @@
         // ===== Render Log Entries =====
         renderLogEntries: function(entries, container) {
             window.DashboardDOM.clear(container);
+            container.classList.add('log-entries-container');
 
             const fragment = document.createDocumentFragment();
-            const outerDiv = window.DashboardDOM.create('div', {
-                style: {
-                    fontFamily: 'Consolas, monospace',
-                    fontSize: '13px',
-                    lineHeight: '1.6'
-                }
-            });
 
             entries.forEach((entry, index) => {
                 const logKey = `${entry.timestamp}|${entry.level}|${(entry.message || '').substring(0, 80)}`;
                 const isExpanded = window.DashboardState.get(`ui.expandedLogs.${logKey}`) || false;
                 const item = this.createLogItem(entry, logKey, isExpanded);
-                outerDiv.appendChild(item);
+                fragment.appendChild(item);
             });
 
-            fragment.appendChild(outerDiv);
             container.appendChild(fragment);
         },
 
@@ -290,11 +289,11 @@
             const copyBtn = window.DashboardDOM.create('button', {
                 className: 'btn btn-sm btn-link p-0',
                 innerHTML: '<i class="bi bi-clipboard" style="color:#94a3b8"></i>',
-                style: { marginLeft: '8px', opacity: '0.6' },
+                style: { marginLeft: '8px', opacity: '0.6', transition: 'all 0.2s ease' },
                 events: {
                     click: (e) => {
                         e.stopPropagation();
-                        this.copyLogEntry(entry);
+                        this.copyLogEntry(entry, copyBtn);
                     }
                 }
             });
@@ -365,14 +364,14 @@
             if (entry.method || entry.statusCode || entry.path) {
                 dtHtml.push('<div class="d-flex flex-wrap gap-2 mb-2 pb-2 border-bottom">');
                         
-                // Method with colored badge
+                // Method with colored badge (consistent with routes module)
                 if (entry.method) {
                     const methodColors = {
-                        'GET': 'bg-primary',
-                        'POST': 'bg-success',
-                        'PUT': 'bg-warning',
+                        'GET': 'bg-success',
+                        'POST': 'bg-primary',
+                        'PUT': 'bg-info',
                         'DELETE': 'bg-danger',
-                        'PATCH': 'bg-info'
+                        'PATCH': 'bg-warning text-dark'
                     }; 
                     const methodClass = methodColors[entry.method] || 'bg-secondary';
                     dtHtml.push(`<span><strong>Method:</strong> <span class="badge ${methodClass}">${entry.method}</span></span>`);
@@ -432,13 +431,9 @@
             return detail;
         },
 
-        // ===== Render JSON Block =====
+        // ===== Render JSON Block (delegates to shared utility) =====
         renderJsonBlock: function(obj, title) {
-            const json = JSON.stringify(obj, null, 2);
-            return `<details style="margin:4px 0 0;">
-                <summary style="cursor:pointer;color:#0ea5e9;font-weight:500;">${title}</summary>
-                <pre style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:12px;color:#334155;line-height:1.6;">${window.DashboardUtils.escapeHtml(json)}</pre>
-            </details>`;
+            return window.DashboardUtils.renderJsonBlock(obj, title);
         },
 
         // ===== Render Truncated Body (for large content) =====
@@ -508,28 +503,30 @@
             }
         },
 
-        // ===== Toggle Log Entry (Full Re-render - Old Method) =====
-        toggleLogEntry: function(logKey) {
-            const state = window.DashboardState;
-            const current = state.get(`ui.expandedLogs.${logKey}`) || false;
-            
-            // If expanding and polling is active, stop polling
-            if (!current && state.get('filters.logs.autoRefresh')) {
-                this.stopPolling();
-                console.log('[Logs] Auto-stopped polling due to log expansion');
-            }
-            
-            state.set(`ui.expandedLogs.${logKey}`, !current);
-            this.renderLogs();
-        },
-
         // ===== Copy Log Entry =====
-        copyLogEntry: function(entry) {
+        copyLogEntry: function(entry, btnElement) {
             const text = JSON.stringify(entry, null, 2);
             navigator.clipboard.writeText(text).then(() => {
-                console.log('[Logs] Log entry copied to clipboard');
+                // Visual feedback - same pattern as clusters/routes copy button
+                if (btnElement) {
+                    const icon = btnElement.querySelector('i');
+                    if (icon) icon.className = 'bi bi-check2';
+                    btnElement.style.opacity = '1';
+                    btnElement.style.color = '#22c55e';
+                    setTimeout(() => {
+                        if (icon) icon.className = 'bi bi-clipboard';
+                        btnElement.style.opacity = '0.6';
+                        btnElement.style.color = '#94a3b8';
+                    }, 1500);
+                }
+                if (window.DashboardModals) {
+                    window.DashboardModals.showSuccess(__('index.copied') || '已复制');
+                }
             }).catch(err => {
                 console.error('[Logs] Failed to copy:', err);
+                if (window.DashboardModals) {
+                    window.DashboardModals.showError(__('index.copyFailed') || '复制失败');
+                }
             });
         },
 
