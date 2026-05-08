@@ -569,68 +569,79 @@
             const detailHtml = [];
             detailHtml.push('<div class="detail-panel">');
 
-            // Source info
+            // Quick actions bar
+            detailHtml.push('<div class="detail-actions-bar">');
+            detailHtml.push(`<div class="detail-actions-left"><span class="detail-actions-label"><i class="bi bi-gear"></i> ${__('index.cluster.title') || '集群'}</span></div>`);
+            detailHtml.push('<div class="detail-actions-right">');
+            if ((cluster.source || 'config') !== 'config') {
+                detailHtml.push(`<button class="btn btn-sm btn-outline-secondary detail-action-btn" onclick="ClustersModule.showEditModal('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('index.cluster.edit') || '编辑'}"><i class="bi bi-pencil"></i> ${__('index.cluster.edit') || '编辑'}</button>`);
+            }
+            detailHtml.push(`<button class="btn btn-sm btn-outline-primary detail-action-btn" onclick="ClustersModule.copyClusterJson('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('index.copyJson.title') || '复制JSON'}"><i class="bi bi-clipboard-data"></i> ${__('index.copyJson') || '复制JSON'}</button>`);
+            detailHtml.push('</div>');
+            detailHtml.push('</div>');
+
+            // Overview (compact key-value)
             const sourceBadge = this.createSourceBadge(cluster.source);
             detailHtml.push('<div class="detail-section">');
             detailHtml.push(`<div class="detail-section-title"><i class="bi bi-info-circle"></i>${__('index.route.basicInfo') || 'Basic Info'}</div>`);
-            detailHtml.push('<div class="detail-info-grid">');
-            detailHtml.push(`<div class="detail-info-item"><span class="detail-label">ClusterId</span><code class="detail-value">${window.DashboardUtils.escapeHtml(cluster.clusterId)}</code></div>`);
-            detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Source</span>${sourceBadge}</div>`);
-            detailHtml.push(`<div class="detail-info-item"><span class="detail-label">${__('index.cluster.loadBalancing') || 'Load Balancing'}</span><span class="badge bg-light text-dark">${window.DashboardUtils.escapeHtml(cluster.loadBalancingPolicy || 'RoundRobin')}</span></div>`);
+            detailHtml.push('<div class="detail-structured-config">');
+            detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">ClusterId</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(cluster.clusterId)}</code></span></div>`);
+            detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Source</span><span class="detail-kv-value">${sourceBadge}</span></div>`);
+            detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">${__('index.cluster.loadBalancing') || 'Load Balancing'}</span><span class="detail-kv-value"><span class="badge bg-light text-dark">${window.DashboardUtils.escapeHtml(cluster.loadBalancingPolicy || 'RoundRobin')}</span></span></div>`);
             detailHtml.push('</div>');
             detailHtml.push('</div>');
 
-            // Destinations detail
-            detailHtml.push('<div class="detail-section">');
-            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations') || 'Destinations'}</div>`);
-            detailHtml.push('<div class="table-responsive">');
-            detailHtml.push('<table class="table table-sm detail-table">');
-            detailHtml.push(`<thead><tr><th>${__('index.detail.name') || 'Name'}</th><th>${__('index.detail.address') || 'Address'}</th><th>${__('index.detail.active') || 'Active'}</th><th>${__('index.detail.passive') || 'Passive'}</th></tr></thead>`);
-            detailHtml.push('<tbody>');
+            // Destinations detail (with health info)
+            if (cluster.destinations && cluster.destinations.length > 0) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations') || 'Destinations'} <span class="badge bg-light text-dark ms-2">${cluster.destinations.length}</span></div>`);
+                detailHtml.push('<div class="table-responsive">');
+                detailHtml.push('<table class="table table-sm detail-table">');
+                detailHtml.push(`<thead><tr><th>${__('index.detail.name') || 'Name'}</th><th>${__('index.detail.address') || 'Address'}</th><th>${__('index.detail.active') || 'Active'}</th><th>${__('index.detail.passive') || 'Passive'}</th></tr></thead>`);
+                detailHtml.push('<tbody>');
+                (cluster.destinations || []).forEach(dest => {
+                    const activeBadge = this.createHealthBadgeInline(dest.activeHealth || 'Unknown');
+                    const passiveBadge = this.createHealthBadgeInline(dest.passiveHealth || 'Unknown');
+                    detailHtml.push('<tr>');
+                    detailHtml.push(`<td><code>${dest.name || '-'}</code></td>`);
+                    detailHtml.push(`<td><a href="${dest.address || '#'}" target="_blank" style="text-decoration:none;color:#0ea5e9;">${dest.address || '-'}</a></td>`);
+                    detailHtml.push(`<td>${activeBadge}</td>`);
+                    detailHtml.push(`<td>${passiveBadge}</td>`);
+                    detailHtml.push('</tr>');
+                });
+                detailHtml.push('</tbody></table></div>');
+                detailHtml.push('</div>');
+            }
 
-            (cluster.destinations || []).forEach(dest => {
-                const activeBadge = this.createHealthBadgeInline(dest.activeHealth || 'Unknown');
-                const passiveBadge = this.createHealthBadgeInline(dest.passiveHealth || 'Unknown');
-                detailHtml.push('<tr>');
-                detailHtml.push(`<td><code>${dest.name || '-'}</code></td>`);
-                detailHtml.push(`<td><a href="${dest.address || '#'}" target="_blank" style="text-decoration:none;color:#0ea5e9;">${dest.address || '-'}</a></td>`);
-                detailHtml.push(`<td>${activeBadge}</td>`);
-                detailHtml.push(`<td>${passiveBadge}</td>`);
-                detailHtml.push('</tr>');
-            });
-
-            detailHtml.push('</tbody></table></div>');
-            detailHtml.push('</div>');
-
-            // Health check config
+            // Health Check - structured display
             if (cluster.healthCheck) {
                 detailHtml.push('<div class="detail-section">');
                 detailHtml.push(`<div class="detail-section-title"><i class="bi bi-heart-pulse"></i>${__('index.cluster.healthCheck') || 'Health Check'}</div>`);
-                detailHtml.push(this.renderJsonBlock(cluster.healthCheck, __('index.cluster.healthCheck') || 'Health Check Config'));
+                detailHtml.push(this.renderStructuredConfig(cluster.healthCheck, 'healthCheck'));
                 detailHtml.push('</div>');
             }
 
-            // Session affinity
+            // Session Affinity - structured display
             if (cluster.sessionAffinity) {
                 detailHtml.push('<div class="detail-section">');
                 detailHtml.push(`<div class="detail-section-title"><i class="bi bi-link-45deg"></i>${__('index.cluster.sessionAffinity') || 'Session Affinity'}</div>`);
-                detailHtml.push(this.renderJsonBlock(cluster.sessionAffinity, __('index.cluster.sessionAffinity') || 'Session Affinity Config'));
+                detailHtml.push(this.renderStructuredConfig(cluster.sessionAffinity, 'sessionAffinity'));
                 detailHtml.push('</div>');
             }
 
-            // HTTP client
+            // HTTP Client - structured display
             if (cluster.httpClient) {
                 detailHtml.push('<div class="detail-section">');
                 detailHtml.push(`<div class="detail-section-title"><i class="bi bi-globe"></i>${__('index.cluster.httpClient') || 'HTTP Client'}</div>`);
-                detailHtml.push(this.renderJsonBlock(cluster.httpClient, __('index.cluster.httpClient') || 'HTTP Client Config'));
+                detailHtml.push(this.renderStructuredConfig(cluster.httpClient, 'httpClient'));
                 detailHtml.push('</div>');
             }
 
-            // Metadata
+            // Metadata - structured key-value display
             if (cluster.metadata && Object.keys(cluster.metadata).length > 0) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-tags"></i>Metadata</div>`);
-                detailHtml.push(this.renderJsonBlock(cluster.metadata, 'Metadata'));
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-tags"></i>${__('index.route.metadata') || 'Metadata'}</div>`);
+                detailHtml.push(this.renderStructuredConfig(cluster.metadata, 'metadata'));
                 detailHtml.push('</div>');
             }
 
@@ -639,6 +650,103 @@
             tr.appendChild(td);
 
             return tr;
+        },
+
+        // ===== Render Structured Config (instead of raw JSON) =====
+        renderStructuredConfig: function(obj, configType) {
+            if (!obj || typeof obj !== 'object') return '';
+
+            // Known key display names
+            const keyLabels = {
+                // Health Check
+                'Enabled': 'Enabled', 'Path': 'Path', 'Interval': 'Interval', 'Timeout': 'Timeout',
+                'Policy': 'Policy', 'Destination': 'Destination', 'Port': 'Port',
+                'Active': 'Active', 'Passive': 'Passive',
+                'ConsecutiveFailures': 'ConsecutiveFailures', 'ReactivationPeriod': 'ReactivationPeriod',
+                // Session Affinity
+                'AffinityKeyName': 'Cookie/Key', 'Cookie': 'Cookie', 'FailurePolicy': 'FailurePolicy',
+                'CustomAffinityPolicy': 'CustomPolicy',
+                // HTTP Client
+                'SslProtocols': 'SSL Protocols', 'DangerousAcceptAnyServerCertificate': 'SkipCertValidation',
+                'MaxConnectionsPerServer': 'MaxConnections', 'EnableMultipleHttp2Connections': 'Http2MultiConn',
+                'RequestHeaderEncoding': 'HeaderEncoding', 'WebProxy': 'WebProxy',
+                // General
+                'Name': 'Name', 'Value': 'Value', 'Domain': 'Domain', 'HttpOnly': 'HttpOnly',
+                'SameSite': 'SameSite', 'Expiration': 'Expiration', 'MaxAge': 'MaxAge',
+                'RequireRemoteCertificate': 'RequireCert',
+            };
+
+            const html = [];
+            html.push('<div class="detail-structured-config">');
+
+            const renderKeyValue = function(key, value, depth) {
+                const label = keyLabels[key] || key;
+                const indent = depth > 0 ? ` style="padding-left:${depth * 20}px;"` : '';
+
+                if (value === null || value === undefined) {
+                    html.push(`<div class="detail-kv-row"${indent}><span class="detail-kv-key">${label}</span><span class="detail-kv-value text-muted">-</span></div>`);
+                } else if (typeof value === 'boolean') {
+                    const badge = value
+                        ? `<span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes') || 'Yes'}</span>`
+                        : `<span class="badge bg-secondary"><i class="bi bi-x-circle-fill"></i> ${__('index.bool.no') || 'No'}</span>`;
+                    html.push(`<div class="detail-kv-row"${indent}><span class="detail-kv-key">${label}</span><span class="detail-kv-value">${badge}</span></div>`);
+                } else if (typeof value === 'number' || typeof value === 'string') {
+                    const isUrl = typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'));
+                    const valHtml = isUrl
+                        ? `<a href="${value}" target="_blank" class="text-decoration-none"><code>${value}</code></a>`
+                        : `<code>${window.DashboardUtils.escapeHtml(String(value))}</code>`;
+                    html.push(`<div class="detail-kv-row"${indent}><span class="detail-kv-key">${label}</span><span class="detail-kv-value">${valHtml}</span></div>`);
+                } else if (Array.isArray(value)) {
+                    const items = value.map(function(v) {
+                        if (typeof v === 'object' && v !== null) {
+                            return `<div class="detail-kv-nested">${JSON.stringify(v)}</div>`;
+                        }
+                        return `<code>${window.DashboardUtils.escapeHtml(String(v))}</code>`;
+                    }).join(' ');
+                    html.push(`<div class="detail-kv-row"${indent}><span class="detail-kv-key">${label}</span><span class="detail-kv-value">${items}</span></div>`);
+                } else if (typeof value === 'object') {
+                    // Nested object - render with a sub-header
+                    html.push(`<div class="detail-kv-row detail-kv-group"${indent}><span class="detail-kv-key detail-kv-group-key"><i class="bi bi-chevron-right"></i> ${label}</span></div>`);
+                    Object.keys(value).forEach(function(subKey) {
+                        renderKeyValue(subKey, value[subKey], depth + 1);
+                    });
+                }
+            };
+
+            Object.keys(obj).forEach(function(key) {
+                renderKeyValue(key, obj[key], 0);
+            });
+
+            // Always add a collapsible raw JSON toggle at the bottom
+            html.push(`<div class="detail-raw-json-toggle"><details><summary><i class="bi bi-code-slash"></i> ${__('index.viewRawJson') || '查看原始JSON'}</summary><pre class="detail-raw-json">${window.DashboardUtils.escapeHtml(JSON.stringify(obj, null, 2))}</pre></details></div>`);
+
+            html.push('</div>');
+            return html.join('');
+        },
+
+        // ===== Copy Cluster JSON =====
+        copyClusterJson: function(clusterId) {
+            const clusters = window.DashboardState.get('data.clusters') || [];
+            const cluster = clusters.find(function(c) { return c.clusterId === clusterId; });
+            if (!cluster) return;
+
+            // Build YARP-format JSON
+            const yarpCluster = {
+                "Destinations": {},
+                "LoadBalancingPolicy": cluster.loadBalancingPolicy || "RoundRobin"
+            };
+            (cluster.destinations || []).forEach(function(dest) {
+                yarpCluster.Destinations[dest.name || 'destination'] = { "Address": dest.address };
+            });
+            if (cluster.healthCheck) yarpCluster.HealthCheck = cluster.healthCheck;
+            if (cluster.httpClient) yarpCluster.HttpClient = cluster.httpClient;
+            if (cluster.sessionAffinity) yarpCluster.SessionAffinity = cluster.sessionAffinity;
+            if (cluster.metadata && Object.keys(cluster.metadata).length > 0) yarpCluster.Metadata = cluster.metadata;
+
+            const json = JSON.stringify(yarpCluster, null, 2);
+            navigator.clipboard.writeText(json).then(function() {
+                window.DashboardModals.showSuccess(__('index.copied') || '已复制到剪贴板');
+            });
         },
 
         // ===== Create Copy Button =====
