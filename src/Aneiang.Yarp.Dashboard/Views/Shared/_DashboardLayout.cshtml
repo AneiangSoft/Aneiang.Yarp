@@ -448,12 +448,63 @@
         
         /* Row Expand Icon */
         .row-expand-icon { 
+            display: inline-block;
             transition: transform 0.2s ease;
             color: #64748b;
+            cursor: pointer;
         }
         .row-expand-icon.expanded { 
             transform: rotate(90deg);
             color: #3b82f6;
+        }
+        
+        /* Copy Button */
+        .copy-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            padding: 0;
+            border: none;
+            background: transparent;
+            color: #94a3b8;
+            cursor: pointer;
+            border-radius: 4px;
+            flex-shrink: 0;
+            transition: all 0.15s ease;
+        }
+        .copy-btn:hover {
+            background: #e2e8f0;
+            color: #3b82f6;
+        }
+        .copy-btn.copied {
+            color: #22c55e;
+        }
+        
+        /* Action Buttons in Table */
+        .btn-group-sm .btn {
+            padding: 4px 8px;
+            font-size: 13px;
+        }
+        
+        /* Truncated cell with copy */
+        .cell-with-copy {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            overflow: hidden;
+            min-width: 0;
+        }
+        .cell-with-copy .cell-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
+            flex: 1;
+        }
+        .cell-with-copy .badge.cell-text {
+            max-width: 100%;
         }
         
         /* Table Row Styles */

@@ -28,6 +28,7 @@
             id = '',
             attributes = {},
             events = {},
+            style = {},
             textContent = '',
             innerHTML = '',
             children = []
@@ -49,6 +50,11 @@
         // Set attributes
         Object.keys(attributes).forEach(key => {
             element.setAttribute(key, attributes[key]);
+        });
+
+        // Set inline styles
+        Object.keys(style).forEach(key => {
+            element.style[key] = style[key];
         });
 
         // Add event listeners

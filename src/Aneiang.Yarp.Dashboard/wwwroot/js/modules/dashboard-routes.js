@@ -75,7 +75,7 @@
                 // Show empty state INSIDE tbody, not replacing it
                 const emptyRow = document.createElement('tr');
                 emptyRow.innerHTML = `
-                    <td colspan="6" class="text-center py-5">
+                    <td colspan="8" class="text-center py-5">
                         <div class="empty-state">
                             <i class="bi bi-signpost-split" style="font-size: 2.5rem; opacity: 0.4; color: #64748b;"></i>
                             <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.route.empty') || '暂无路由数据'}</div>
@@ -108,6 +108,7 @@
             const state = window.DashboardState;
             const allRoutes = state.get('data.routes') || [];
             const methodCounts = this._getMethodCounts(allRoutes);
+            const sourceCounts = this._getSourceCounts(allRoutes);
         
             container.innerHTML = `
                 <div class="card-body py-2 border-bottom">
@@ -129,6 +130,15 @@
                                 <option value="POST">POST (${methodCounts.POST})</option>
                                 <option value="PUT">PUT (${methodCounts.PUT})</option>
                                 <option value="DELETE">DELETE (${methodCounts.DELETE})</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <select class="form-select form-select-sm" id="route-source-select" style="width:110px;">
+                                <option value="all">${__('index.source.all') || '全部来源'} (${sourceCounts.all})</option>
+                                <option value="config">${__('index.source.config') || '静态配置'} (${sourceCounts.config})</option>
+                                <option value="dynamic">${__('index.source.dynamic') || '动态'} (${sourceCounts.dynamic})</option>
+                                <option value="dashboard">${__('index.source.dashboard') || '仪表盘'} (${sourceCounts.dashboard})</option>
+                                <option value="auto-register">${__('index.source.autoRegister') || '自动注册'} (${sourceCounts['auto-register']})</option>
                             </select>
                         </div>
                         <div class="col-auto">
@@ -207,6 +217,17 @@
             });
             return counts;
         },
+        
+        // ===== Get Source Counts =====
+        _getSourceCounts: function(routes) {
+            return {
+                all: routes.length,
+                'config': routes.filter(r => (r.source || 'config') === 'config').length,
+                'dynamic': routes.filter(r => r.source === 'dynamic').length,
+                'dashboard': routes.filter(r => r.source === 'dashboard').length,
+                'auto-register': routes.filter(r => r.source === 'auto-register').length
+            };
+        },
                         
         // ===== Bind Filter Events =====
         _bindFilterEvents: function() {
@@ -234,6 +255,7 @@
                     if (input) input.value = ''; 
                     window.DashboardState.set('filters.routes.search', '');
                     window.DashboardState.set('filters.routes.method', 'all');
+                    window.DashboardState.set('filters.routes.source', 'all');
                     self.renderRoutes();
                 });
             }
@@ -251,6 +273,15 @@
             if (methodSelect) {
                 methodSelect.addEventListener('change', function(e) {
                     window.DashboardState.set('filters.routes.method', e.target.value);
+                    self.renderRoutes();
+                });
+            }
+            
+            // Source select - immediate filter
+            const sourceSelect = document.getElementById('route-source-select');
+            if (sourceSelect) {
+                sourceSelect.addEventListener('change', function(e) {
+                    window.DashboardState.set('filters.routes.source', e.target.value);
                     self.renderRoutes();
                 });
             }
@@ -291,7 +322,7 @@
             });
 
             sortedRoutes.forEach(route => {
-                const isExpanded = window.DashboardState.get(`ui.expandedRoutes.${route.routeId}`) || false;
+                const isExpanded = (window.DashboardState.get('ui.expandedRoutes') || new Set()).has(route.routeId);
                 const rows = this.createRouteRows(route, isExpanded);
                 rows.forEach(row => fragment.appendChild(row));
             });
@@ -324,6 +355,16 @@
                 style: { cursor: 'pointer' }
             });
 
+            // Expand column
+            const tdExpand = window.DashboardDOM.create('td', {
+                style: { verticalAlign: 'middle', textAlign: 'center' }
+            });
+            const expandIcon = window.DashboardDOM.create('i', {
+                className: `bi bi-chevron-right row-expand-icon ${isExpanded ? 'expanded' : ''}`
+            });
+            tdExpand.appendChild(expandIcon);
+            tr.appendChild(tdExpand);
+
             // Order
             const tdOrder = window.DashboardDOM.create('td', {
                 style: { textAlign: 'center' }
@@ -331,43 +372,77 @@
             tdOrder.appendChild(this.createOrderBadge(route.order));
             tr.appendChild(tdOrder);
 
-            // Route ID
+            // Route ID - with copy button
             const tdId = window.DashboardDOM.create('td', {
-                style: { fontWeight: '500' }
+                style: { fontWeight: '500', overflow: 'hidden' }
             });
-            
-            const expandIcon = window.DashboardDOM.create('i', {
-                className: `bi bi-chevron-right row-expand-icon ${isExpanded ? 'expanded' : ''}`,
-                style: {
-                    marginRight: '6px'
-                    // Note: transition is defined in CSS, don't override with inline style
-                }
+            const nameWrapper = window.DashboardDOM.create('div', {
+                className: 'cell-with-copy'
             });
-            
-            tdId.appendChild(expandIcon);
-            tdId.appendChild(document.createTextNode(route.routeId));
+            const nameSpan = window.DashboardDOM.create('span', {
+                className: 'cell-text',
+                textContent: route.routeId,
+                attributes: { title: route.routeId }
+            });
+            const nameCopyBtn = this.createCopyButton(route.routeId);
+            nameWrapper.appendChild(nameSpan);
+            nameWrapper.appendChild(nameCopyBtn);
+            tdId.appendChild(nameWrapper);
             tr.appendChild(tdId);
 
-            // Click to expand
-            tr.addEventListener('click', () => this.toggleRoute(route.routeId));
+            // Source column
+            const tdSource = window.DashboardDOM.create('td', {});
+            const sourceBadgeSpan = window.DashboardDOM.create('span', {});
+            sourceBadgeSpan.innerHTML = this.createSourceBadge(route.source);
+            tdSource.appendChild(sourceBadgeSpan);
+            tr.appendChild(tdSource);
 
-            // Path
-            const tdPath = window.DashboardDOM.create('td', {});
-            const code = window.DashboardDOM.create('code', {
-                textContent: route.match?.path || '-'
+            // Click to expand (on the row)
+            tr.addEventListener('click', (e) => {
+                if (e.target.closest('.copy-btn')) return;
+                this.toggleRoute(route.routeId);
             });
-            tdPath.appendChild(code);
+
+            // Path - with copy button
+            const pathText = route.match?.path || '-';
+            const tdPath = window.DashboardDOM.create('td', {
+                style: { overflow: 'hidden' }
+            });
+            const pathWrapper = window.DashboardDOM.create('div', {
+                className: 'cell-with-copy'
+            });
+            const pathSpan = window.DashboardDOM.create('span', {
+                className: 'cell-text'
+            });
+            const pathCode = window.DashboardDOM.create('code', {
+                textContent: pathText,
+                attributes: { title: pathText }
+            });
+            pathSpan.appendChild(pathCode);
+            const pathCopyBtn = this.createCopyButton(route.match?.path || '');
+            pathWrapper.appendChild(pathSpan);
+            pathWrapper.appendChild(pathCopyBtn);
+            tdPath.appendChild(pathWrapper);
             tr.appendChild(tdPath);
 
-            // Cluster
-            const tdCluster = window.DashboardDOM.create('td', {});
+            // Cluster - with copy button and ellipsis
+            const tdCluster = window.DashboardDOM.create('td', {
+                style: { overflow: 'hidden' }
+            });
             if (route.clusterId) {
-                const badge = window.DashboardDOM.create('span', {
-                    className: 'badge bg-primary',
-                    textContent: route.clusterId,
-                    style: { fontSize: '12px' }
+                const clusterWrapper = window.DashboardDOM.create('div', {
+                    className: 'cell-with-copy'
                 });
-                tdCluster.appendChild(badge);
+                const clusterBadge = window.DashboardDOM.create('span', {
+                    className: 'badge bg-primary cell-text',
+                    textContent: route.clusterId,
+                    attributes: { title: route.clusterId },
+                    style: { fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }
+                });
+                const clusterCopyBtn = this.createCopyButton(route.clusterId);
+                clusterWrapper.appendChild(clusterBadge);
+                clusterWrapper.appendChild(clusterCopyBtn);
+                tdCluster.appendChild(clusterWrapper);
             } else {
                 const span = window.DashboardDOM.create('span', {
                     className: 'text-muted',
@@ -481,7 +556,13 @@
                 className: 'btn-group btn-group-sm'
             });
 
-            // Edit button (icon only)
+            const isConfigSource = (route.source || 'config') === 'config';
+            // No action buttons for config source
+            if (isConfigSource) {
+                return container;
+            }
+
+            // Edit button
             const editBtn = window.DashboardDOM.create('button', {
                 className: 'btn btn-outline-primary',
                 attributes: { title: __('index.route.edit') || '编辑' },
@@ -498,24 +579,22 @@
             editBtn.appendChild(editIcon);
             container.appendChild(editBtn);
 
-            // Delete button (only if editable)
-            if (route.isEditable) {
-                const deleteBtn = window.DashboardDOM.create('button', {
-                    className: 'btn btn-outline-danger',
-                    attributes: { title: __('index.route.delete') || '删除' },
-                    events: {
-                        click: (e) => {
-                            e.stopPropagation();
-                            this.deleteRoute(route.routeId);
-                        }
+            // Delete button
+            const deleteBtn = window.DashboardDOM.create('button', {
+                className: 'btn btn-outline-danger',
+                attributes: { title: __('index.route.delete') || '删除' },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        this.deleteRoute(route.routeId);
                     }
-                });
-                const deleteIcon = window.DashboardDOM.create('i', {
-                    className: 'bi bi-trash'
-                });
-                deleteBtn.appendChild(deleteIcon);
-                container.appendChild(deleteBtn);
-            }
+                }
+            });
+            const deleteIcon = window.DashboardDOM.create('i', {
+                className: 'bi bi-trash'
+            });
+            deleteBtn.appendChild(deleteIcon);
+            container.appendChild(deleteBtn);
 
             return container;
         },
@@ -527,7 +606,7 @@
             });
                 
             const td = window.DashboardDOM.create('td', {
-                attributes: { colspan: '6' }
+                attributes: { colspan: '8' }
             });
                 
             const detailHtml = []; 
@@ -540,7 +619,7 @@
             detailHtml.push(`<div class="detail-info-item"><span class="detail-label">RouteId</span><code class="detail-value">${window.DashboardUtils.escapeHtml(route.routeId)}</code></div>`);
             detailHtml.push(`<div class="detail-info-item"><span class="detail-label">ClusterId</span><code class="detail-value">${window.DashboardUtils.escapeHtml(route.clusterId || '-')}</code></div>`);
             detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Order</span>${this.createOrderBadgeHtml(route.order)}</div>`);
-            detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Source</span><span class="badge ${route.source === 'dynamic' ? 'bg-success' : 'bg-secondary'}">${route.source || 'static'}</span></div>`);
+            detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Source</span>${this.createSourceBadge(route.source)}</div>`);
             detailHtml.push('</div>');
             detailHtml.push('</div>');
                 
@@ -661,6 +740,52 @@
             return tr;
         },
         
+        // ===== Create Copy Button =====
+        createCopyButton: function(text) {
+            const btn = window.DashboardDOM.create('button', {
+                className: 'copy-btn',
+                attributes: { title: __('index.copy') || '复制' },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        if (!text) return;
+                        navigator.clipboard.writeText(text).then(() => {
+                            btn.classList.add('copied');
+                            const icon = btn.querySelector('i');
+                            if (icon) {
+                                icon.className = 'bi bi-check2';
+                            }
+                            setTimeout(() => {
+                                btn.classList.remove('copied');
+                                if (icon) {
+                                    icon.className = 'bi bi-clipboard';
+                                }
+                            }, 1500);
+                        });
+                    }
+                }
+            });
+            const icon = window.DashboardDOM.create('i', {
+                className: 'bi bi-clipboard',
+                style: { fontSize: '12px' }
+            });
+            btn.appendChild(icon);
+            return btn;
+        },
+
+        // ===== Create Source Badge =====
+        createSourceBadge: function(source) {
+            const sourceMap = {
+                'config': { css: 'bg-secondary', icon: 'bi-file-earmark-code', label: __('index.source.config') || 'Static Config' },
+                'dynamic': { css: 'bg-success', icon: 'bi-lightning-charge-fill', label: __('index.source.dynamic') || 'Dynamic' },
+                'dashboard': { css: 'bg-primary', icon: 'bi-speedometer2', label: __('index.source.dashboard') || 'Dashboard' },
+                'auto-register': { css: 'bg-info', icon: 'bi-cloud-arrow-up-fill', label: __('index.source.autoRegister') || 'Auto Register' }
+            };
+            const s = source || 'config';
+            const cfg = sourceMap[s] || { css: 'bg-secondary', icon: 'bi-question-circle-fill', label: s };
+            return `<span class="badge ${cfg.css}" style="font-size:12px;display:inline-flex;align-items:center;gap:4px;"><i class="bi ${cfg.icon}"></i>${cfg.label}</span>`;
+        },
+        
         // ===== Create Order Badge HTML =====
         createOrderBadgeHtml: function(order) {
             const displayOrder = (order !== null && order !== undefined) ? order : '-';
@@ -710,10 +835,15 @@
         // ===== Toggle Route (Direct DOM Manipulation) =====
         toggleRoute: function(routeId) {
             const state = window.DashboardState;
-            const current = state.get(`ui.expandedRoutes.${routeId}`) || false;
+            const expandedSet = state.get('ui.expandedRoutes');
+            const current = expandedSet ? expandedSet.has(routeId) : false;
             
             // Update state
-            state.set(`ui.expandedRoutes.${routeId}`, !current);
+            if (current) {
+                expandedSet.delete(routeId);
+            } else {
+                expandedSet.add(routeId);
+            }
             
             // Direct DOM manipulation for better performance
             const routeRow = document.querySelector(`.route-row[data-route-id="${CSS.escape(routeId)}"]`);
@@ -833,20 +963,34 @@
                 const modalHtml = `
                     <div class="modal fade" id="${modalId}" tabindex="-1">
                         <div class="modal-dialog modal-dialog-centered">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title"><i class="bi bi-tag me-2"></i>${__('modal.routeId') || '输入路由ID'}</h5>
+                            <div class="modal-content" style="border-radius:16px;border:none;box-shadow:0 25px 50px rgba(0,0,0,0.25);overflow:hidden;">
+                                <div class="modal-header" style="background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);border-bottom:1px solid #e2e8f0;padding:18px 24px;">
+                                    <h5 class="modal-title" style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:10px;">
+                                        <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:16px;">
+                                            <i class="bi bi-tag"></i>
+                                        </span>
+                                        ${__('modal.routeId') || '输入路由ID'}
+                                    </h5>
                                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                 </div>
-                                <div class="modal-body">
-                                    <input type="text" class="form-control" id="${modalId}-input" 
-                                           placeholder="${__('modal.routeIdPlaceholder') || '例如: my-service-route'}"
-                                           required>
-                                    <small class="text-muted mt-2">${__('modal.routeIdHelp') || '路由ID用于标识此路由规则，建议使用服务名+Route作为ID'}</small>
+                                <div class="modal-body" style="padding:24px;">
+                                    <div style="margin-bottom:12px;">
+                                        <label class="form-label" style="font-weight:500;font-size:13px;color:#334155;">Route ID</label>
+                                        <input type="text" class="form-control" id="${modalId}-input" 
+                                               placeholder="${__('modal.routeIdPlaceholder') || '例如: my-service-route'}"
+                                               required
+                                               style="border-radius:8px;padding:10px 14px;font-size:14px;border:1.5px solid #e2e8f0;transition:border-color 0.2s,box-shadow 0.2s;"
+                                               onfocus="this.style.borderColor='#6366f1';this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.1)'"
+                                               onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
+                                    </div>
+                                    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;font-size:12px;color:#0369a1;display:flex;align-items:flex-start;gap:8px;">
+                                        <i class="bi bi-info-circle" style="font-size:14px;margin-top:2px;flex-shrink:0;"></i>
+                                        <span>${__('modal.routeIdHelp') || '路由ID用于标识此路由规则，建议使用服务名+Route作为ID'}</span>
+                                    </div>
                                 </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">${__('modal.cancelBtn') || '取消'}</button>
-                                    <button type="button" class="btn btn-primary" id="${modalId}-confirm">${__('modal.confirmBtn') || '确认'}</button>
+                                <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
+                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">${__('modal.cancelBtn') || '取消'}</button>
+                                    <button type="button" class="btn btn-primary btn-sm" id="${modalId}-confirm" style="min-width:70px;">${__('modal.confirmBtn') || '确认'}</button>
                                 </div>
                             </div>
                         </div>

@@ -120,22 +120,24 @@
         const modalHtml = `
             <div class="modal fade" id="${confirmModalId}" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content" style="border-radius:12px;border:none;box-shadow:0 20px 40px rgba(0,0,0,0.2);">
-                        <div class="modal-header" style="border-bottom:1px solid #e2e8f0;padding:16px 20px;">
-                            <h5 class="modal-title" style="font-weight:600;font-size:16px;">
-                                <i class="bi ${danger ? 'bi-exclamation-triangle text-danger' : 'bi-question-circle text-primary'} me-2"></i>
+                    <div class="modal-content" style="border-radius:16px;border:none;box-shadow:0 25px 50px rgba(0,0,0,0.25);overflow:hidden;">
+                        <div class="modal-header" style="background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);border-bottom:1px solid #e2e8f0;padding:18px 24px;">
+                            <h5 class="modal-title" style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:10px;">
+                                <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:${danger ? 'linear-gradient(135deg,#ef4444,#f87171)' : 'linear-gradient(135deg,#6366f1,#818cf8)'};color:#fff;font-size:16px;">
+                                    <i class="bi ${danger ? 'bi-exclamation-triangle' : 'bi-question-circle'}"></i>
+                                </span>
                                 ${title}
                             </h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
-                        <div class="modal-body" style="padding:20px;font-size:14px;">
+                        <div class="modal-body" style="padding:24px;font-size:14px;line-height:1.7;color:#334155;">
                             ${window.DashboardUtils?.escapeHtml?.(message) || message}
                         </div>
-                        <div class="modal-footer" style="border-top:1px solid #e2e8f0;padding:16px 20px;">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="padding:8px 16px;">
+                        <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
+                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
                                 ${cancelText}
                             </button>
-                            <button type="button" class="btn ${danger ? 'btn-danger' : 'btn-primary'}" id="confirm-btn" style="padding:8px 16px;">
+                            <button type="button" class="btn ${danger ? 'btn-danger' : 'btn-primary'} btn-sm" id="confirm-btn" style="min-width:70px;">
                                 ${confirmText}
                             </button>
                         </div>
@@ -242,24 +244,26 @@
         const modalHtml = `
             <div class="modal fade" id="${modalId}" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered modal-${size}">
-                    <div class="modal-content" style="border-radius:12px;border:none;box-shadow:0 20px 40px rgba(0,0,0,0.2);">
-                        <div class="modal-header" style="border-bottom:1px solid #e2e8f0;padding:16px 20px;">
-                            <h5 class="modal-title" style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:8px;">
-                                <i class="bi ${config.icon || 'bi-pencil'} text-primary"></i>
+                    <div class="modal-content" style="border-radius:16px;border:none;box-shadow:0 25px 50px rgba(0,0,0,0.25);overflow:hidden;">
+                        <div class="modal-header" style="background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);border-bottom:1px solid #e2e8f0;padding:18px 24px;">
+                            <h5 class="modal-title" style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:10px;">
+                                <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:16px;">
+                                    <i class="bi ${config.icon || 'bi-pencil'}"></i>
+                                </span>
                                 ${title}
                             </h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
-                        <div class="modal-body" style="padding:20px;">
+                        <div class="modal-body" style="padding:24px;">
                             <form id="${modalId}-form">
                                 ${formHtml}
                             </form>
                         </div>
-                        <div class="modal-footer" style="border-top:1px solid #e2e8f0;padding:16px 20px;">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="padding:8px 16px;">
+                        <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
+                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
                                 ${window.__('modal.cancelBtn') || '取消'}
                             </button>
-                            <button type="button" class="btn btn-primary" id="${modalId}-save" style="padding:8px 20px;">
+                            <button type="button" class="btn btn-primary btn-sm" id="${modalId}-save" style="min-width:80px;">
                                 <i class="bi bi-check-lg me-1"></i>${window.__('modal.saveBtn') || '保存'}
                             </button>
                         </div>
@@ -436,10 +440,12 @@
         const modalHtml = `
             <div class="modal fade" id="${modalId}" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered modal-xl">
-                    <div class="modal-content" style="border-radius:12px;border:none;box-shadow:0 20px 40px rgba(0,0,0,0.2);">
-                        <div class="modal-header" style="border-bottom:1px solid #e2e8f0;padding:16px 20px;">
-                            <h5 class="modal-title" style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:8px;">
-                                <i class="bi bi-file-code text-primary"></i>
+                    <div class="modal-content" style="border-radius:16px;border:none;box-shadow:0 25px 50px rgba(0,0,0,0.25);overflow:hidden;">
+                        <div class="modal-header" style="background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);border-bottom:1px solid #e2e8f0;padding:18px 24px;">
+                            <h5 class="modal-title" style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:10px;">
+                                <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:16px;">
+                                    <i class="bi bi-file-code"></i>
+                                </span>
                                 ${title}
                             </h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -447,23 +453,30 @@
                         <div class="modal-body" style="padding:0;">
                             <div id="${modalId}-editor" style="height:500px;border:none;"></div>
                         </div>
-                        <div class="modal-footer" style="border-top:1px solid #e2e8f0;padding:16px 20px;">
-                            <button type="button" class="btn btn-outline-secondary" onclick="DashboardModals.copyJsonFromEditor('${modalId}')">
-                                <i class="bi bi-copy me-1"></i>${window.__('modal.copy') || '复制'}
-                            </button>
-                            ${readOnly ? '' : `
-                            <button type="button" class="btn btn-warning" onclick="DashboardModals.validateJson('${modalId}')">
-                                <i class="bi bi-check-circle me-1"></i>${window.__('modal.validate') || '验证'}
-                            </button>
-                            `}
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="padding:8px 16px;">
-                                ${window.__('modal.cancelBtn') || '取消'}
-                            </button>
-                            ${readOnly ? '' : `
-                            <button type="button" class="btn btn-primary" id="${modalId}-save" style="padding:8px 20px;">
-                                <i class="bi bi-check-lg me-1"></i>${window.__('modal.saveBtn') || '保存'}
-                            </button>
-                            `}
+                        <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
+                            <div style="flex:1;display:flex;align-items:center;gap:8px;">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="DashboardModals.formatJson('${modalId}')" title="${window.__('modal.format') || '格式化'}">
+                                    <i class="bi bi-code-slash me-1"></i>${window.__('modal.format') || '格式化'}
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="DashboardModals.copyJsonFromEditor('${modalId}')" title="${window.__('modal.copy') || '复制'}">
+                                    <i class="bi bi-clipboard me-1"></i>${window.__('modal.copy') || '复制'}
+                                </button>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                ${readOnly ? '' : `
+                                <button type="button" class="btn btn-outline-warning btn-sm" onclick="DashboardModals.validateJson('${modalId}')">
+                                    <i class="bi bi-check-circle me-1"></i>${window.__('modal.validate') || '验证'}
+                                </button>
+                                `}
+                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+                                    ${window.__('modal.cancelBtn') || '取消'}
+                                </button>
+                                ${readOnly ? '' : `
+                                <button type="button" class="btn btn-primary btn-sm" id="${modalId}-save" style="min-width:80px;">
+                                    <i class="bi bi-check-lg me-1"></i>${window.__('modal.saveBtn') || '保存'}
+                                </button>
+                                `}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -596,6 +609,32 @@
             }).catch(function() {
                 DashboardModals.showError(window.__('modal.copyFailed') || '复制失败');
             });
+        }
+    };
+
+    // ===== Helper: Format JSON =====
+    window.DashboardModals.formatJson = function(modalId) {
+        let value;
+        const editorContainerId = modalId + '-editor';
+        if (window.DashboardMonacoEditor && window.DashboardMonacoEditor.instances.has(editorContainerId)) {
+            value = window.DashboardMonacoEditor.getValue(editorContainerId);
+        } else {
+            const textarea = document.getElementById(modalId + '-textarea');
+            value = textarea ? textarea.value : '';
+        }
+
+        try {
+            const parsed = JSON.parse(value);
+            const formatted = JSON.stringify(parsed, null, 2);
+            if (window.DashboardMonacoEditor && window.DashboardMonacoEditor.instances.has(editorContainerId)) {
+                window.DashboardMonacoEditor.setValue(editorContainerId, formatted);
+            } else {
+                const textarea = document.getElementById(modalId + '-textarea');
+                if (textarea) textarea.value = formatted;
+            }
+            DashboardModals.showSuccess(window.__('modal.formatted') || '格式化成功');
+        } catch (e) {
+            DashboardModals.showError(window.__('modal.invalidJson') || 'JSON格式错误，无法格式化: ' + e.message);
         }
     };
 
