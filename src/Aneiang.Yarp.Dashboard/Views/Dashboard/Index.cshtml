@@ -1,5 +1,5 @@
 @{
-    ViewData["Title"] = (ViewBag.Locale as string) == "en-US" ? "Overview" : "总览";
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Overview" : "总览";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
@@ -17,7 +17,7 @@
                 <span><i class="bi bi-pc-display"></i><span data-i18n="index.label.host">主机：</span><strong id="info-machine">-</strong></span>
             </div>
             <div class="info-bar-actions">
-                <button class="btn btn-icon btn-outline-primary" onclick="manualRefresh(this)" title="刷新">
+                <button class="btn btn-icon btn-outline-primary" onclick="manualRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
                     <i class="bi bi-arrow-clockwise"></i>
                 </button>
             </div>
@@ -99,7 +99,7 @@
         <span><i class="bi bi-signpost-split me-2"></i><span data-i18n="index.route.title">路由规则列表</span></span>
         <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
             <span class="refresh-badge" id="route-refresh-time"></span>
-            <span class="refresh-badge"><span data-i18n="index.route.showing">显示 </span><strong id="route-display-count">0</strong><span data-i18n="index.route.of"> / </span><span id="route-total-count">0</span><span data-i18n="index.route.entries"> 个</span></span>
+            <span class="refresh-badge"><span data-i18n="index.route.showing">Showing </span><strong id="route-display-count">0</strong><span data-i18n="index.route.of"> / </span><span id="route-total-count">0</span><span data-i18n="index.route.entries"> entries</span></span>
         </div>
     </div>
     

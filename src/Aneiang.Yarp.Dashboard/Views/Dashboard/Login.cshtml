@@ -2,6 +2,7 @@
     Layout = null;
     var prefix = ViewBag.DashboardRoutePrefix ?? "apigateway";
     var authMode = (int)(ViewBag.AuthMode ?? 0);
+    var isEn = (ViewBag.Locale as string) == "en-US";
 }
 
 <!DOCTYPE html>
@@ -9,7 +10,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@(ViewBag.Locale != null && ViewBag.Locale.ToString() == "en-US" ? "Login - Gateway Dashboard" : "登录 - 网关仪表盘")</title>
+    <title>@(isEn ? "Login - Gateway Dashboard" : "登录 - 网关仪表盘")</title>
     <link href="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
     <link href="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet" />
     <style>
@@ -41,8 +42,8 @@
             </button>
         </form>
         <div class="text-center mt-3">
-            <a href="#" onclick="switchLocale();return false;" class="text-muted" style="font-size:13px;text-decoration:none;" title="@(ViewBag.Locale != null && ViewBag.Locale.ToString() == "en-US" ? "切换到中文" : "Switch to English")">
-                <i class="bi bi-translate me-1"></i><span data-i18n="layout.lang.switch">@(ViewBag.Locale != null && ViewBag.Locale.ToString() == "en-US" ? "中文" : "English")</span>
+            <a href="#" onclick="switchLocale();return false;" class="text-muted" style="font-size:13px;text-decoration:none;" title="@(isEn ? "切换到中文" : "Switch to English")">
+                <i class="bi bi-translate me-1"></i><span data-i18n="layout.lang.switch">@(isEn ? "中文" : "English")</span>
             </a>
         </div>
     </div>
@@ -65,6 +66,10 @@
             document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
                 var key = el.getAttribute('data-i18n-placeholder');
                 if (key && I18N[key]) el.placeholder = I18N[key];
+            });
+            document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
+                var key = el.getAttribute('data-i18n-title');
+                if (key && I18N[key]) el.title = I18N[key];
             });
         });
     </script>

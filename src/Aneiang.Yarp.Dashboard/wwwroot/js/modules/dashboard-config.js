@@ -135,7 +135,7 @@
         function handleFile(file) {
             if (!file.name.endsWith('.json')) {
                 errors.style.display = 'block';
-                errors.querySelector('.alert').textContent = '请选择JSON文件';
+                errors.querySelector('.alert').textContent = __('config.selectJsonFile');
                 return;
             }
 
@@ -220,7 +220,7 @@
                     historyHtml += `
                         <div class="history-item" style="display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid #e2e8f0;">
                             <div style="flex:1;">
-                                <div style="font-weight:500;font-size:14px;">${item.description || '手动快照'}</div>
+                                <div style="font-weight:500;font-size:14px;">${item.description || __('config.manualSnapshot')}</div>
                                 <div style="font-size:12px;color:#64748b;">${__('config.time') || '时间'}: ${time}</div>
                                 <div style="font-size:12px;color:#94a3b8;">${__('config.version') || '版本'}: ${item.versionId}</div>
                             </div>
@@ -250,7 +250,7 @@
                             </div>
                             <div class="modal-footer" style="border-top:1px solid #e2e8f0;padding:16px 20px;">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="padding:8px 16px;">
-                                    ${__('modal.cancelBtn') || '关闭'}
+                                    ${__('config.close') || 'Close'}
                                 </button>
                             </div>
                         </div>
@@ -272,7 +272,7 @@
 
         } catch (error) {
             console.error('[Config] Failed to get history:', error);
-            window.DashboardModals.showError('获取配置历史失败: ' + error.message);
+            window.DashboardModals.showError(__('config.getHistoryFailed') + ': ' + error.message);
         }
     };
 

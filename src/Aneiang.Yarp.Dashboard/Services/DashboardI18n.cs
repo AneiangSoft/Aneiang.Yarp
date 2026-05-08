@@ -49,6 +49,7 @@ public static class DashboardI18n
         ["index.label.memory"] = "内存：",
         ["index.label.host"] = "主机：",
         ["index.btn.refresh"] = "刷新",
+        ["index.btn.loading"] = "加载中...",
         ["index.stat.clusters"] = "服务集群",
         ["index.stat.health"] = "健康 / 未知 / 异常",
         ["index.stat.routes"] = "路由规则",
@@ -86,7 +87,14 @@ public static class DashboardI18n
         ["index.cluster.th.health"] = "健康状态",
         ["index.cluster.preview"] = "集群预览",
         ["index.cluster.empty"] = "暂无集群数据",
+        ["index.cluster.emptyHelp"] = "点击右上角 \"+\" 添加集群",
+        ["index.cluster.showing"] = "显示 ",
+        ["index.cluster.of"] = " / ",
+        ["index.cluster.entries"] = " 个",
         ["index.cluster.updated"] = "更新于 ",
+        ["index.cluster.healthCheck"] = "健康检查",
+        ["index.cluster.sessionAffinity"] = "会话亲和性",
+        ["index.cluster.httpClient"] = "HTTP 客户端",
 
         // ── Index – route panel ─
         ["index.route.title"] = "路由规则列表",
@@ -113,8 +121,16 @@ public static class DashboardI18n
         ["index.route.preview"] = "路由预览",
         ["index.route.th.actions"] = "操作",
         ["index.route.empty"] = "暂无路由数据",
+        ["index.route.emptyHelp"] = "点击右上角 \"+\" 添加路由",
+        ["index.route.showing"] = "显示 ",
+        ["index.route.of"] = " / ",
+        ["index.route.entries"] = " 个",
         ["index.route.updated"] = "更新于 ",
         ["index.route.allMethods"] = "All",
+        ["index.route.match"] = "匹配规则",
+        ["index.route.transforms"] = "请求转换",
+        ["index.route.metadata"] = "元数据",
+        ["index.route.basicInfo"] = "基本信息",
 
         // ── Index – log panel ──
         ["index.log.title"] = "YARP 实时日志",
@@ -134,6 +150,9 @@ public static class DashboardI18n
         ["index.log.clear"] = "清空",
         ["index.log.empty"] = "暂无日志",
         ["index.log.updated"] = "更新于 ",
+        ["index.log.clearConfirm"] = "确认清空所有日志？",
+        ["index.log.cleared"] = "日志已清空",
+        ["index.log.clearFailed"] = "清空日志失败",
 
         // ── Index – log detail ──
         ["index.log.category"] = "Category:",
@@ -282,6 +301,12 @@ public static class DashboardI18n
         ["config.version"] = "版本",
         ["config.time"] = "时间",
         ["config.desc"] = "描述",
+        ["config.dropFile"] = "拖拽文件到这里或点击选择",
+        ["config.importInvalid"] = "配置格式无效，需要包含 ReverseProxy.Routes 和 ReverseProxy.Clusters",
+        ["config.selectJsonFile"] = "请选择JSON文件",
+        ["config.manualSnapshot"] = "手动快照",
+        ["config.getHistoryFailed"] = "获取配置历史失败",
+        ["config.close"] = "关闭",
 
         // ── JSON Mode ──
         ["modal.addCluster"] = "添加集群 (JSON模式)",
@@ -299,6 +324,17 @@ public static class DashboardI18n
         ["index.route.invalidMatch"] = "Match 配置无效，必须指定 Path 或 Hosts",
         ["index.route.clusterNotFound"] = "指定的集群不存在",
         ["index.cluster.destinations"] = "目标地址",
+
+        // ── Home module ──
+        ["home.cluster.total"] = "共 {count} 个",
+        ["home.route.total"] = "共 {count} 条",
+        ["home.noData"] = "暂无数据",
+        ["home.healthy"] = "健康",
+        ["home.unhealthy"] = "异常",
+        ["home.unknown"] = "未知",
+        ["home.uptime.days"] = "{days}天 {hours}小时 {minutes}分钟",
+        ["home.uptime.hours"] = "{hours}小时 {minutes}分钟",
+        ["home.uptime.minutes"] = "{minutes}分钟",
     };
 
     /// <summary>English translation dictionary.</summary>
@@ -341,6 +377,7 @@ public static class DashboardI18n
         ["index.label.memory"] = "Memory:",
         ["index.label.host"] = "Host:",
         ["index.btn.refresh"] = "Refresh",
+        ["index.btn.loading"] = "Loading...",
         ["index.stat.clusters"] = "Clusters",
         ["index.stat.health"] = "Healthy / Unknown / Unhealthy",
         ["index.stat.routes"] = "Routes",
@@ -378,7 +415,14 @@ public static class DashboardI18n
         ["index.cluster.th.health"] = "Health Status",
         ["index.cluster.preview"] = "Cluster Preview",
         ["index.cluster.empty"] = "No cluster data",
+        ["index.cluster.emptyHelp"] = "Click \"+\" in the toolbar to add a cluster",
+        ["index.cluster.showing"] = "Showing ",
+        ["index.cluster.of"] = " / ",
+        ["index.cluster.entries"] = " entries",
         ["index.cluster.updated"] = "Updated at ",
+        ["index.cluster.healthCheck"] = "Health Check",
+        ["index.cluster.sessionAffinity"] = "Session Affinity",
+        ["index.cluster.httpClient"] = "HTTP Client",
 
         // ── Index – route panel ──
         ["index.route.title"] = "Route Rules",
@@ -405,8 +449,16 @@ public static class DashboardI18n
         ["index.route.preview"] = "Route Preview",
         ["index.route.th.actions"] = "Actions",
         ["index.route.empty"] = "No route data",
+        ["index.route.emptyHelp"] = "Click \"+\" in the toolbar to add a route",
+        ["index.route.showing"] = "Showing ",
+        ["index.route.of"] = " / ",
+        ["index.route.entries"] = " entries",
         ["index.route.updated"] = "Updated at ",
         ["index.route.allMethods"] = "All",
+        ["index.route.match"] = "Match Rules",
+        ["index.route.transforms"] = "Transforms",
+        ["index.route.metadata"] = "Metadata",
+        ["index.route.basicInfo"] = "Basic Info",
 
         // ── Index – log panel ──
         ["index.log.title"] = "YARP Live Logs",
@@ -426,6 +478,9 @@ public static class DashboardI18n
         ["index.log.clear"] = "Clear",
         ["index.log.empty"] = "No logs",
         ["index.log.updated"] = "Updated at ",
+        ["index.log.clearConfirm"] = "Confirm clear all logs?",
+        ["index.log.cleared"] = "Logs cleared",
+        ["index.log.clearFailed"] = "Failed to clear logs",
 
         // ── Index – log detail ──
         ["index.log.category"] = "Category:",
@@ -574,6 +629,12 @@ public static class DashboardI18n
         ["config.version"] = "Version",
         ["config.time"] = "Time",
         ["config.desc"] = "Description",
+        ["config.dropFile"] = "Drop file here or click to select",
+        ["config.importInvalid"] = "Invalid config format, must contain ReverseProxy.Routes and ReverseProxy.Clusters",
+        ["config.selectJsonFile"] = "Please select a JSON file",
+        ["config.manualSnapshot"] = "Manual snapshot",
+        ["config.getHistoryFailed"] = "Failed to get config history",
+        ["config.close"] = "Close",
 
         // ── JSON Mode ──
         ["modal.addCluster"] = "Add Cluster (JSON Mode)",
@@ -591,6 +652,17 @@ public static class DashboardI18n
         ["index.route.invalidMatch"] = "Match config invalid, must specify Path or Hosts",
         ["index.route.clusterNotFound"] = "Specified cluster not found",
         ["index.cluster.destinations"] = "Destinations",
+
+        // ── Home module ──
+        ["home.cluster.total"] = "{count} total",
+        ["home.route.total"] = "{count} total",
+        ["home.noData"] = "No data",
+        ["home.healthy"] = "Healthy",
+        ["home.unhealthy"] = "Unhealthy",
+        ["home.unknown"] = "Unknown",
+        ["home.uptime.days"] = "{days}d {hours}h {minutes}m",
+        ["home.uptime.hours"] = "{hours}h {minutes}m",
+        ["home.uptime.minutes"] = "{minutes}m",
     };
 
     /// <summary>Returns the translation dictionary for the given locale.</summary>

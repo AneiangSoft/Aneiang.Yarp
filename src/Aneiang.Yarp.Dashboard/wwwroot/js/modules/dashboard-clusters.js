@@ -403,9 +403,9 @@
         // ===== Create Health Badge =====
         createHealthBadge: function(health) {
             const healthMap = {
-                'Healthy': { css: 'bg-success', icon: 'bi-check-circle-fill', text: '健康' },
-                'Unhealthy': { css: 'bg-danger', icon: 'bi-x-circle-fill', text: '异常' },
-                'Unknown': { css: 'bg-secondary', icon: 'bi-question-circle-fill', text: '未知' }
+                'Healthy': { css: 'bg-success', icon: 'bi-check-circle-fill', text: __('index.cluster.health.healthy') || 'Healthy' },
+                'Unhealthy': { css: 'bg-danger', icon: 'bi-x-circle-fill', text: __('index.cluster.health.unhealthy') || 'Unhealthy' },
+                'Unknown': { css: 'bg-secondary', icon: 'bi-question-circle-fill', text: __('index.cluster.health.unknown') || 'Unknown' }
             }; 
         
             const config = healthMap[health] || healthMap['Unknown'];
@@ -492,10 +492,10 @@
 
             // Destinations detail
             detailHtml.push('<div class="detail-section">');
-            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations') || '目标节点'}</div>`);
+            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations') || 'Destinations'}</div>`);
             detailHtml.push('<div class="table-responsive">');
             detailHtml.push('<table class="table table-sm detail-table">');
-            detailHtml.push('<thead><tr><th>Name</th><th>Address</th><th>Active</th><th>Passive</th></tr></thead>');
+            detailHtml.push(`<thead><tr><th>${__('index.detail.name') || 'Name'}</th><th>${__('index.detail.address') || 'Address'}</th><th>${__('index.detail.active') || 'Active'}</th><th>${__('index.detail.passive') || 'Passive'}</th></tr></thead>`);
             detailHtml.push('<tbody>');
 
             (cluster.destinations || []).forEach(dest => {
@@ -515,24 +515,24 @@
             // Health check config
             if (cluster.healthCheck) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-heart-pulse"></i>${__('index.cluster.healthCheck') || '健康检查'}</div>`);
-                detailHtml.push(this.renderJsonBlock(cluster.healthCheck, 'Health Check Config'));
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-heart-pulse"></i>${__('index.cluster.healthCheck') || 'Health Check'}</div>`);
+                detailHtml.push(this.renderJsonBlock(cluster.healthCheck, __('index.cluster.healthCheck') || 'Health Check Config'));
                 detailHtml.push('</div>');
             }
 
             // Session affinity
             if (cluster.sessionAffinity) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-link-45deg"></i>${__('index.cluster.sessionAffinity') || '会话亲和性'}</div>`);
-                detailHtml.push(this.renderJsonBlock(cluster.sessionAffinity, 'Session Affinity Config'));
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-link-45deg"></i>${__('index.cluster.sessionAffinity') || 'Session Affinity'}</div>`);
+                detailHtml.push(this.renderJsonBlock(cluster.sessionAffinity, __('index.cluster.sessionAffinity') || 'Session Affinity Config'));
                 detailHtml.push('</div>');
             }
 
             // HTTP client
             if (cluster.httpClient) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-globe"></i>${__('index.cluster.httpClient') || 'HTTP 客户端'}</div>`);
-                detailHtml.push(this.renderJsonBlock(cluster.httpClient, 'HTTP Client Config'));
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-globe"></i>${__('index.cluster.httpClient') || 'HTTP Client'}</div>`);
+                detailHtml.push(this.renderJsonBlock(cluster.httpClient, __('index.cluster.httpClient') || 'HTTP Client Config'));
                 detailHtml.push('</div>');
             }
 

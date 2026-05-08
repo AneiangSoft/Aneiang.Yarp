@@ -132,13 +132,13 @@
             if (!tbody) return;
 
             const countEl = window.DashboardDOM.safe('#cluster-preview-count');
-            if (countEl) countEl.textContent = `共 ${clusters.length} 个`;
+            if (countEl) countEl.textContent = __('home.cluster.total', { count: clusters.length });
 
             // Show only top 5
             const previewClusters = clusters.slice(0, 5);
 
             if (previewClusters.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="2" class="text-center text-muted py-3">暂无数据</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="2" class="text-center text-muted py-3">${__('home.noData')}</td></tr>`;
                 return;
             }
 
@@ -171,13 +171,13 @@
             if (!tbody) return;
 
             const countEl = window.DashboardDOM.safe('#route-preview-count');
-            if (countEl) countEl.textContent = `共 ${routes.length} 条`;
+            if (countEl) countEl.textContent = __('home.route.total', { count: routes.length });
 
             // Show only top 5
             const previewRoutes = routes.slice(0, 5);
 
             if (previewRoutes.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="2" class="text-center text-muted py-3">暂无数据</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="2" class="text-center text-muted py-3">${__('home.noData')}</td></tr>`;
                 return;
             }
 
@@ -213,13 +213,13 @@
 
             if (cluster.healthyCount > 0) {
                 badge.className += ' bg-success';
-                badge.textContent = `健康 ${cluster.healthyCount}`;
+                badge.textContent = `${__('home.healthy')} ${cluster.healthyCount}`;
             } else if (cluster.unhealthyCount > 0) {
                 badge.className += ' bg-danger';
-                badge.textContent = `异常 ${cluster.unhealthyCount}`;
+                badge.textContent = `${__('home.unhealthy')} ${cluster.unhealthyCount}`;
             } else {
                 badge.className += ' bg-secondary';
-                badge.textContent = `未知 ${cluster.unknownCount}`;
+                badge.textContent = `${__('home.unknown')} ${cluster.unknownCount}`;
             }
 
             return badge;
@@ -243,11 +243,11 @@
             const minutes = Math.floor((seconds % 3600) / 60);
             
             if (days > 0) {
-                return `${days}天 ${hours}小时 ${minutes}分钟`;
+                return __('home.uptime.days', { days, hours, minutes });
             } else if (hours > 0) {
-                return `${hours}小时 ${minutes}分钟`;
+                return __('home.uptime.hours', { hours, minutes });
             } else {
-                return `${minutes}分钟`;
+                return __('home.uptime.minutes', { minutes });
             }
         },
 
