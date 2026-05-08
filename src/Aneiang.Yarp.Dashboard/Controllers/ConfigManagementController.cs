@@ -29,6 +29,24 @@ public class ConfigManagementController : ControllerBase
     }
 
     /// <summary>
+    /// Gets the client IP address from the request, considering proxy headers.
+    /// </summary>
+    private string? GetClientIp()
+    {
+        var ip = HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(ip))
+        {
+            // X-Forwarded-For may contain multiple IPs, take the first one
+            return ip.Split(',', StringSplitOptions.TrimEntries)[0];
+        }
+
+        ip = HttpContext.Request.Headers["X-Real-IP"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(ip)) return ip;
+
+        return HttpContext.Connection.RemoteIpAddress?.ToString();
+    }
+
+    /// <summary>
     /// Export full configuration in standard YARP format.
     /// </summary>
     [HttpGet("export")]
@@ -73,7 +91,7 @@ public class ConfigManagementController : ControllerBase
                 });
             }
 
-            var success = await _persistenceService.ImportFullConfigAsync(config);
+            var success = await _persistenceService.ImportFullConfigAsync(config, GetClientIp());
             
             return success
                 ? Ok(new { code = 200, message = "Configuration imported successfully" })
@@ -173,7 +191,7 @@ public class ConfigManagementController : ControllerBase
             }
 
             // Save snapshot BEFORE modification (so rollback restores previous state)
-            await _persistenceService.SaveSnapshotAsync($"Before cluster '{clusterId}' saved via dashboard");
+            await _persistenceService.SaveSnapshotAsync($"Before cluster '{clusterId}' saved via dashboard", GetClientIp());
             
             var result = _dynamicConfig.TryAddCluster(clusterId, destinations, loadBalancingPolicy, healthCheck, "dashboard", "dashboard-user");
 
@@ -199,7 +217,7 @@ public class ConfigManagementController : ControllerBase
             _logger.LogInformation("Delete cluster requested: {ClusterId}", clusterId);
 
             // Save snapshot BEFORE deletion
-            await _persistenceService.SaveSnapshotAsync($"Before cluster '{clusterId}' deleted via dashboard");
+            await _persistenceService.SaveSnapshotAsync($"Before cluster '{clusterId}' deleted via dashboard", GetClientIp());
             
             var result = _dynamicConfig.TryRemoveCluster(clusterId);
             
@@ -324,7 +342,7 @@ public class ConfigManagementController : ControllerBase
             };
 
             // Save snapshot BEFORE modification
-            await _persistenceService.SaveSnapshotAsync($"Before route '{routeId}' saved via dashboard");
+            await _persistenceService.SaveSnapshotAsync($"Before route '{routeId}' saved via dashboard", GetClientIp());
             
             var result = _dynamicConfig.TryAddRoute(request, "dashboard", "dashboard-user");
 
@@ -350,7 +368,7 @@ public class ConfigManagementController : ControllerBase
             _logger.LogInformation("Delete route requested: {RouteId}", routeId);
 
             // Save snapshot BEFORE deletion
-            await _persistenceService.SaveSnapshotAsync($"Before route '{routeId}' deleted via dashboard");
+            await _persistenceService.SaveSnapshotAsync($"Before route '{routeId}' deleted via dashboard", GetClientIp());
             
             var result = _dynamicConfig.TryRemoveRoute(routeId);
             
@@ -379,7 +397,8 @@ public class ConfigManagementController : ControllerBase
             {
                 s.VersionId,
                 s.Timestamp,
-                s.Description
+                s.Description,
+                s.ClientIp
             }).ToList();
 
             return Ok(new 
@@ -404,7 +423,7 @@ public class ConfigManagementController : ControllerBase
     {
         try
         {
-            var success = await _persistenceService.RollbackAsync(versionId);
+            var success = await _persistenceService.RollbackAsync(versionId, GetClientIp());
             
             return success
                 ? Ok(new { code = 200, message = $"Rolled back to version: {versionId}" })

@@ -95,72 +95,199 @@ public class ConfigPersistenceService
     /// <summary>
     /// Import full configuration from standard YARP format.
     /// </summary>
-    public async Task<bool> ImportFullConfigAsync(JsonElement config)
+    public async Task<bool> ImportFullConfigAsync(JsonElement config, string? clientIp = null)
     {
         try
         {
             // Save current snapshot before import
-            await SaveSnapshotAsync("Before import");
+            await SaveSnapshotAsync("Before import", clientIp);
 
             var dynamicConfig = _filePersistence.LoadConfig();
 
-            // Parse and import routes
-            if (config.TryGetProperty("ReverseProxy", out var reverseProxy))
+            // Parse and import routes - support both camelCase (export format) and PascalCase (YARP standard)
+            bool hasReverseProxy;
+            JsonElement reverseProxy = default;
+            if (config.TryGetProperty("reverseProxy", out var rpCamel))
             {
-                if (reverseProxy.TryGetProperty("Routes", out var routes))
+                hasReverseProxy = true;
+                reverseProxy = rpCamel;
+            }
+            else if (config.TryGetProperty("ReverseProxy", out var rpPascal))
+            {
+                hasReverseProxy = true;
+                reverseProxy = rpPascal;
+            }
+            else
+            {
+                hasReverseProxy = false;
+            }
+
+            if (hasReverseProxy)
+            {
+                // Parse routes - try both "routes" and "Routes"
+                bool hasRoutes;
+                JsonElement routesElement = default;
+                if (reverseProxy.TryGetProperty("routes", out var rCamel))
                 {
-                    dynamicConfig.Routes.Clear();
-                    foreach (var route in routes.EnumerateObject())
+                    hasRoutes = true;
+                    routesElement = rCamel;
+                }
+                else if (reverseProxy.TryGetProperty("Routes", out var rPascal))
+                {
+                    hasRoutes = true;
+                    routesElement = rPascal;
+                }
+                else
+                {
+                    hasRoutes = false;
+                }
+
+                if (hasRoutes)
+                {
+                    // Merge: remove existing routes with same ID, then add imported ones
+                    foreach (var route in routesElement.EnumerateObject())
                     {
-                        var routeObj = new DynamicRouteConfig
+                        var clusterId = route.Value.TryGetProperty("clusterId", out var cidCamel) ? cidCamel.GetString() ?? string.Empty
+                            : route.Value.TryGetProperty("ClusterId", out var cidPascal) ? cidPascal.GetString() ?? string.Empty
+                            : string.Empty;
+
+                        var matchPath = string.Empty;
+                        if (route.Value.TryGetProperty("match", out var matchCamel) && matchCamel.TryGetProperty("path", out var pathCamel))
+                            matchPath = pathCamel.GetString() ?? string.Empty;
+                        else if (route.Value.TryGetProperty("Match", out var matchPascal) && matchPascal.TryGetProperty("Path", out var pathPascal))
+                            matchPath = pathPascal.GetString() ?? string.Empty;
+
+                        List<Dictionary<string, string>>? transforms = null;
+                        if (route.Value.TryGetProperty("transforms", out var tfCamel))
+                            transforms = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(tfCamel.GetRawText(), _jsonOptions);
+                        else if (route.Value.TryGetProperty("Transforms", out var tfPascal))
+                            transforms = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(tfPascal.GetRawText(), _jsonOptions);
+
+                        var order = route.Value.TryGetProperty("order", out var orderCamel) ? orderCamel.GetInt32()
+                            : route.Value.TryGetProperty("Order", out var orderPascal) ? orderPascal.GetInt32()
+                            : 50;
+
+                        // Remove existing route with same ID if present (merge/update)
+                        dynamicConfig.Routes.RemoveAll(r => r.RouteId == route.Name);
+
+                        dynamicConfig.Routes.Add(new DynamicRouteConfig
                         {
                             RouteId = route.Name,
-                            ClusterId = route.Value.GetProperty("ClusterId").GetString() ?? string.Empty,
-                            MatchPath = route.Value.TryGetProperty("Match", out var match) 
-                                && match.TryGetProperty("Path", out var path)
-                                ? path.GetString() ?? string.Empty
-                                : string.Empty,
-                            Transforms = route.Value.TryGetProperty("Transforms", out var transforms)
-                                ? JsonSerializer.Deserialize<List<Dictionary<string, string>>>(transforms.GetRawText(), _jsonOptions)
-                                : new List<Dictionary<string, string>>(),
-                            Order = route.Value.TryGetProperty("Order", out var order) ? order.GetInt32() : 50
-                        };
-                        dynamicConfig.Routes.Add(routeObj);
+                            ClusterId = clusterId,
+                            MatchPath = matchPath,
+                            Transforms = transforms ?? new List<Dictionary<string, string>>(),
+                            Order = order
+                        });
                     }
                 }
 
-                if (reverseProxy.TryGetProperty("Clusters", out var clusters))
+                // Parse clusters - try both "clusters" and "Clusters"
+                bool hasClusters;
+                JsonElement clustersElement = default;
+                if (reverseProxy.TryGetProperty("clusters", out var cCamel))
                 {
-                    dynamicConfig.Clusters.Clear();
-                    foreach (var cluster in clusters.EnumerateObject())
+                    hasClusters = true;
+                    clustersElement = cCamel;
+                }
+                else if (reverseProxy.TryGetProperty("Clusters", out var cPascal))
+                {
+                    hasClusters = true;
+                    clustersElement = cPascal;
+                }
+                else
+                {
+                    hasClusters = false;
+                }
+
+                if (hasClusters)
+                {
+                    // Merge: remove existing clusters with same ID, then add imported ones
+                    foreach (var cluster in clustersElement.EnumerateObject())
                     {
                         var destinations = new Dictionary<string, string>();
-                        if (cluster.Value.TryGetProperty("Destinations", out var dests))
+                        bool hasDests;
+                        JsonElement destsElement = default;
+                        if (cluster.Value.TryGetProperty("destinations", out var dCamel))
                         {
-                            foreach (var dest in dests.EnumerateObject())
+                            hasDests = true;
+                            destsElement = dCamel;
+                        }
+                        else if (cluster.Value.TryGetProperty("Destinations", out var dPascal))
+                        {
+                            hasDests = true;
+                            destsElement = dPascal;
+                        }
+                        else
+                        {
+                            hasDests = false;
+                        }
+
+                        if (hasDests)
+                        {
+                            foreach (var dest in destsElement.EnumerateObject())
                             {
-                                var address = dest.Value.TryGetProperty("Address", out var addr)
-                                    ? addr.GetString() ?? string.Empty
-                                    : string.Empty;
+                                var address = string.Empty;
+                                if (dest.Value.ValueKind == JsonValueKind.String)
+                                {
+                                    address = dest.Value.GetString() ?? string.Empty;
+                                }
+                                else if (dest.Value.ValueKind == JsonValueKind.Object)
+                                {
+                                    if (dest.Value.TryGetProperty("address", out var addrCamel))
+                                        address = addrCamel.GetString() ?? string.Empty;
+                                    else if (dest.Value.TryGetProperty("Address", out var addrPascal))
+                                        address = addrPascal.GetString() ?? string.Empty;
+                                }
                                 destinations[dest.Name] = address;
                             }
                         }
 
-                        var clusterObj = new DynamicClusterConfig
+                        var loadBalancingPolicy = cluster.Value.TryGetProperty("loadBalancingPolicy", out var lbCamel) ? lbCamel.GetString()
+                            : cluster.Value.TryGetProperty("LoadBalancingPolicy", out var lbPascal) ? lbPascal.GetString()
+                            : null;
+
+                        // Remove existing cluster with same ID if present (merge/update)
+                        dynamicConfig.Clusters.RemoveAll(c => c.ClusterId == cluster.Name);
+
+                        dynamicConfig.Clusters.Add(new DynamicClusterConfig
                         {
                             ClusterId = cluster.Name,
                             Destinations = destinations,
-                            LoadBalancingPolicy = cluster.Value.TryGetProperty("LoadBalancingPolicy", out var lb)
-                                ? lb.GetString()
-                                : null
-                        };
-                        dynamicConfig.Clusters.Add(clusterObj);
+                            LoadBalancingPolicy = loadBalancingPolicy
+                        });
                     }
                 }
             }
 
-            // Save imported config
+            // Save merged config to file
             _filePersistence.SaveConfig(dynamicConfig);
+
+            // Apply imported routes/clusters to YARP in-memory runtime (merge, not replace)
+            if (_dynamicConfig != null)
+            {
+                // Import clusters first (routes depend on clusters)
+                foreach (var c in dynamicConfig.Clusters)
+                {
+                    if (c.Destinations != null && c.Destinations.Count > 0)
+                    {
+                        _dynamicConfig.TryAddCluster(c.ClusterId, c.Destinations, c.LoadBalancingPolicy, null, "import", "dashboard-user");
+                    }
+                }
+
+                // Import routes
+                foreach (var r in dynamicConfig.Routes)
+                {
+                    var request = new RegisterRouteRequest
+                    {
+                        RouteName = r.RouteId,
+                        ClusterName = r.ClusterId,
+                        MatchPath = r.MatchPath,
+                        Order = r.Order,
+                        Transforms = r.Transforms
+                    };
+                    _dynamicConfig.TryAddRoute(request, "import", "dashboard-user");
+                }
+            }
 
             _logger.LogInformation("Configuration imported successfully");
             return true;
@@ -175,13 +302,14 @@ public class ConfigPersistenceService
     /// <summary>
     /// Save a configuration snapshot for version management.
     /// </summary>
-    public async Task<ConfigSnapshot> SaveSnapshotAsync(string? description = null)
+    public async Task<ConfigSnapshot> SaveSnapshotAsync(string? description = null, string? clientIp = null)
     {
         var config = await ExportFullConfigAsync();
         
         var snapshot = new ConfigSnapshot
         {
             Description = description ?? "Manual snapshot",
+            ClientIp = clientIp,
             Config = config
         };
 
@@ -218,7 +346,7 @@ public class ConfigPersistenceService
     /// <summary>
     /// Rollback to a specific version.
     /// </summary>
-    public async Task<bool> RollbackAsync(string versionId)
+    public async Task<bool> RollbackAsync(string versionId, string? clientIp = null)
     {
         ConfigSnapshot? snapshot;
         
@@ -236,7 +364,7 @@ public class ConfigPersistenceService
         try
         {
             // Save current state before rollback
-            await SaveSnapshotAsync("Before rollback to " + versionId);
+            await SaveSnapshotAsync("Before rollback to " + versionId, clientIp);
 
             // Parse snapshot config - it's in YARP standard format with ReverseProxy wrapper
             // Note: Snapshot is saved with CamelCase naming policy, so properties are: reverseProxy, routes, clusters, etc.
