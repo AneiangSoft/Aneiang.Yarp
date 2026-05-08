@@ -611,33 +611,46 @@
                 
             const detailHtml = []; 
             detailHtml.push('<div class="detail-panel">');
-                
-            // Basic info section
+
+            // Quick actions bar
+            detailHtml.push('<div class="detail-actions-bar">');
+            detailHtml.push(`<div class="detail-actions-left"><span class="detail-actions-label"><i class="bi bi-signpost-split"></i> ${__('index.route.title') || '路由'}</span></div>`);
+            detailHtml.push('<div class="detail-actions-right">');
+            if ((route.source || 'config') !== 'config') {
+                detailHtml.push(`<button class="btn btn-sm btn-outline-secondary detail-action-btn" onclick="RoutesModule.showEditModal('${window.DashboardUtils.escapeHtml(route.routeId)}')" title="${__('index.route.edit') || '编辑'}"><i class="bi bi-pencil"></i> ${__('index.route.edit') || '编辑'}</button>`);
+            }
+            detailHtml.push(`<button class="btn btn-sm btn-outline-primary detail-action-btn" onclick="RoutesModule.copyRouteJson('${window.DashboardUtils.escapeHtml(route.routeId)}')" title="${__('index.copyJson.title') || '复制JSON'}"><i class="bi bi-clipboard-data"></i> ${__('index.copyJson') || '复制JSON'}</button>`);
+            detailHtml.push('</div>');
+            detailHtml.push('</div>');
+
+            // Overview (compact key-value)
+            const sourceBadge = this.createSourceBadge(route.source);
             detailHtml.push('<div class="detail-section">');
             detailHtml.push(`<div class="detail-section-title"><i class="bi bi-info-circle"></i>${__('index.route.basicInfo') || 'Basic Info'}</div>`);
-            detailHtml.push('<div class="detail-info-grid">');
-            detailHtml.push(`<div class="detail-info-item"><span class="detail-label">RouteId</span><code class="detail-value">${window.DashboardUtils.escapeHtml(route.routeId)}</code></div>`);
-            detailHtml.push(`<div class="detail-info-item"><span class="detail-label">ClusterId</span><code class="detail-value">${window.DashboardUtils.escapeHtml(route.clusterId || '-')}</code></div>`);
-            detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Order</span>${this.createOrderBadgeHtml(route.order)}</div>`);
-            detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Source</span>${this.createSourceBadge(route.source)}</div>`);
+            detailHtml.push('<div class="detail-structured-config">');
+            detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">RouteId</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.routeId)}</code></span></div>`);
+            detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">ClusterId</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.clusterId || '-')}</code></span></div>`);
+            detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Order</span><span class="detail-kv-value">${this.createOrderBadgeHtml(route.order)}</span></div>`);
+            detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Source</span><span class="detail-kv-value">${sourceBadge}</span></div>`);
             detailHtml.push('</div>');
             detailHtml.push('</div>');
-                
-            // Match configuration - use route.match properties
+
+            // Match Rules
             detailHtml.push('<div class="detail-section">');
             detailHtml.push(`<div class="detail-section-title"><i class="bi bi-filter"></i>${__('index.route.match') || 'Match Rules'}</div>`);
-            detailHtml.push('<div class="detail-info-grid">');
+            detailHtml.push('<div class="detail-structured-config">');
                                 
             const match = route.match || {};
             if (match.path) {
-                detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Path</span><code class="detail-value">${window.DashboardUtils.escapeHtml(match.path)}</code></div>`);
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Path</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(match.path)}</code></span></div>`);
             }
             if (match.hosts && match.hosts.length > 0) {
-                detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Hosts</span><div class="detail-value">${match.hosts.map(h => `<code>${h}</code>`).join(' ')}</div></div>`);
+                const hostBadges = match.hosts.map(function(h) { return `<code>${h}</code>`; }).join(' ');
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Hosts</span><span class="detail-kv-value">${hostBadges}</span></div>`);
             }
             if (match.methods && match.methods.length > 0) {
-                const methodBadges = match.methods.map(m => this.createMethodBadgeInline(m)).join(' '); 
-                detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Methods</span><div class="detail-value">${methodBadges}</div></div>`);
+                const methodBadges = match.methods.map(m => this.createMethodBadgeInline(m)).join(' ');
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Methods</span><span class="detail-kv-value">${methodBadges}</span></div>`);
             }
             detailHtml.push('</div>');
                         
@@ -645,91 +658,74 @@
             if ((match.headers && match.headers.length > 0) || (match.queryParameters && match.queryParameters.length > 0)) {
                 detailHtml.push('<div class="table-responsive mt-2">');
                 detailHtml.push('<table class="table table-sm detail-table">');
-                detailHtml.push('<thead><tr><th style="width:100px;">Type</th><th style="width:120px;">Name</th><th>Values</th><th style="width:80px;">Mode</th></tr></thead>');
+                detailHtml.push('<thead><tr><th style="width:100px;">' + (__('index.detail.type') || 'Type') + '</th><th style="width:120px;">' + (__('index.detail.name') || 'Name') + '</th><th>' + (__('index.detail.values') || 'Values') + '</th><th style="width:80px;">' + (__('index.detail.mode') || 'Mode') + '</th></tr></thead>');
                 detailHtml.push('<tbody>');
                 if (match.headers && match.headers.length > 0) {
                     match.headers.forEach(h => {
-                        detailHtml.push(`<tr><td><span class="badge bg-secondary">Header</span></td><td><code>${h.name || '-'}</code></td><td>${(h.values || []).map(v => `<code>${v}</code>`).join(' ')}</td><td>${h.mode || '-'}</td></tr>`);
+                        detailHtml.push(`<tr><td><span class="badge bg-secondary">${__('index.detail.header') || 'Header'}</span></td><td><code>${h.name || '-'}</code></td><td>${(h.values || []).map(v => `<code>${v}</code>`).join(' ')}</td><td>${h.mode || '-'}</td></tr>`);
                     });
                 }
                 if (match.queryParameters && match.queryParameters.length > 0) {
                     match.queryParameters.forEach(q => {
-                        detailHtml.push(`<tr><td><span class="badge bg-info">Query</span></td><td><code>${q.name || '-'}</code></td><td>${(q.values || []).map(v => `<code>${v}</code>`).join(' ')}</td><td>${q.mode || '-'}</td></tr>`);
+                        detailHtml.push(`<tr><td><span class="badge bg-info">${__('index.detail.query') || 'Query'}</span></td><td><code>${q.name || '-'}</code></td><td>${(q.values || []).map(v => `<code>${v}</code>`).join(' ')}</td><td>${q.mode || '-'}</td></tr>`);
                     });
                 }
                 detailHtml.push('</tbody></table></div>');
             }
             detailHtml.push('</div>');
-                
+
             // Destinations
             if (route.destinations && route.destinations.length > 0) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations') || 'Destinations'}</div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations') || 'Destinations'} <span class="badge bg-light text-dark ms-2">${route.destinations.length}</span></div>`);
                 detailHtml.push('<div class="table-responsive">');
                 detailHtml.push('<table class="table table-sm detail-table">');
                 detailHtml.push(`<thead><tr><th>${__('index.detail.name') || 'Name'}</th><th>${__('index.detail.address') || 'Address'}</th></tr></thead>`);
                 detailHtml.push('<tbody>');
                 route.destinations.forEach(d => {
-                    detailHtml.push(`<tr><td><code>${d.name}</code></td><td><a href="${d.address}" target="_blank" class="text-decoration-none"><code>${d.address}</code></a></td></tr>`);
+                    detailHtml.push(`<tr><td><code>${window.DashboardUtils.escapeHtml(d.name || '-')}</code></td><td><a href="${d.address || '#'}" target="_blank" class="text-decoration-none"><code>${window.DashboardUtils.escapeHtml(d.address || '-')}</code></a></td></tr>`);
                 });
                 detailHtml.push('</tbody></table></div>');
                 detailHtml.push('</div>');
             }
-                
-            // Transforms
+
+            // Transforms - structured display
             if (route.transforms && route.transforms.length > 0) {
                 detailHtml.push('<div class="detail-section">');
                 detailHtml.push(`<div class="detail-section-title"><i class="bi bi-arrow-repeat"></i>${__('index.route.transforms') || 'Transforms'}</div>`);
-                detailHtml.push('<div class="table-responsive">');
-                detailHtml.push('<table class="table table-sm detail-table">');
-                detailHtml.push('<thead><tr><th style="width:50px;">#</th><th>Transform</th></tr></thead>');
-                detailHtml.push('<tbody>');
-                                
-                route.transforms.forEach((transform, index) => {
-                    detailHtml.push(`<tr><td>${index + 1}</td><td>${this.renderJsonBlock(transform, `Transform ${index + 1}`)}</td></tr>`);
-                });
-                                
-                detailHtml.push('</tbody></table></div>');
+                detailHtml.push(this.renderStructuredTransforms(route.transforms));
                 detailHtml.push('</div>');
             }
-                
-            // Authorization
-            if (route.authorizationPolicy) {
+
+            // Policies (merged: Authorization + CORS + Timeout + RateLimiter)
+            const hasPolicies = route.authorizationPolicy || route.corsPolicy || route.timeout || route.timeoutPolicy || route.rateLimiterPolicy;
+            if (hasPolicies) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield-lock"></i>Authorization</div>`);
-                detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Policy</span><code class="detail-value">${window.DashboardUtils.escapeHtml(route.authorizationPolicy)}</code></div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield-check"></i>${__('index.route.policies') || 'Policies'}</div>`);
+                detailHtml.push('<div class="detail-structured-config">');
+                if (route.authorizationPolicy) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield-lock"></i> ${__('index.route.policy.authorization') || 'Authorization'}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.authorizationPolicy)}</code></span></div>`);
+                }
+                if (route.corsPolicy) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield"></i> ${__('index.route.policy.cors') || 'CORS'}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.corsPolicy)}</code></span></div>`);
+                }
+                if (route.timeout || route.timeoutPolicy) {
+                    const timeoutVal = route.timeout ? `<code>${route.timeout}</code>` : '<span class="text-muted">-</span>';
+                    const timeoutNote = route.timeoutPolicy ? ` <span class="text-muted small">(${route.timeoutPolicy})</span>` : '';
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-clock"></i> ${__('index.route.policy.timeout') || 'Timeout'}</span><span class="detail-kv-value">${timeoutVal}${timeoutNote}</span></div>`);
+                }
+                if (route.rateLimiterPolicy) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-speedometer2"></i> ${__('index.route.policy.rateLimiter') || 'Rate Limiter'}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.rateLimiterPolicy)}</code></span></div>`);
+                }
+                detailHtml.push('</div>');
                 detailHtml.push('</div>');
             }
-                
-            // CORS
-            if (route.corsPolicy) {
-                detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield"></i>CORS Policy</div>`);
-                detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Policy</span><code class="detail-value">${window.DashboardUtils.escapeHtml(route.corsPolicy)}</code></div>`);
-                detailHtml.push('</div>');
-            }
-                
-            // Timeout
-            if (route.timeout || route.timeoutPolicy) {
-                detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-clock"></i>Timeout</div>`);
-                detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Value</span><code class="detail-value">${route.timeout || '-'}</code> ${route.timeoutPolicy ? `<span class="text-muted small">(${route.timeoutPolicy})</span>` : ''}</div>`);
-                detailHtml.push('</div>');
-            }
-                
-            // Rate Limiter
-            if (route.rateLimiterPolicy) {
-                detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-speedometer2"></i>Rate Limiter</div>`);
-                detailHtml.push(`<div class="detail-info-item"><span class="detail-label">Policy</span><code class="detail-value">${window.DashboardUtils.escapeHtml(route.rateLimiterPolicy)}</code></div>`);
-                detailHtml.push('</div>');
-            }
-                
-            // Metadata
+
+            // Metadata - structured key-value display
             if (route.metadata && Object.keys(route.metadata).length > 0) {
                 detailHtml.push('<div class="detail-section">');
                 detailHtml.push(`<div class="detail-section-title"><i class="bi bi-tags"></i>${__('index.route.metadata') || 'Metadata'}</div>`);
-                detailHtml.push(this.renderJsonBlock(route.metadata, 'Metadata'));
+                detailHtml.push(this.renderStructuredConfig(route.metadata, 'metadata'));
                 detailHtml.push('</div>');
             }
                 
@@ -738,6 +734,156 @@
             tr.appendChild(td);
                 
             return tr;
+        },
+
+        // ===== Render Structured Transforms =====
+        renderStructuredTransforms: function(transforms) {
+            const html = [];
+            html.push('<div class="detail-transforms-list">');
+
+            transforms.forEach(function(transform, index) {
+                const keys = Object.keys(transform);
+                // Try to build a human-readable summary
+                let summary = '';
+                let detailParts = [];
+
+                keys.forEach(function(key) {
+                    const val = transform[key];
+                    if (typeof val === 'string') {
+                        // Known transform types for readable labels
+                        const labelMap = {
+                            'PathPattern': 'Path Pattern',
+                            'PathSet': 'Path Set',
+                            'PathPrefix': 'Path Prefix',
+                            'PathRemovePrefix': 'Remove Prefix',
+                            'AddRequestHeader': 'Add Request Header',
+                            'AddResponseHeader': 'Add Response Header',
+                            'RemoveRequestHeader': 'Remove Request Header',
+                            'RemoveResponseHeader': 'Remove Response Header',
+                            'RequestHeader': 'Request Header',
+                            'ResponseHeader': 'Response Header',
+                            'QueryValueParameter': 'Query Param',
+                            'AddQueryParameter': 'Add Query',
+                            'RemoveQueryParameter': 'Remove Query',
+                            'RequestHeadersCopy': 'Copy Request Headers',
+                            'ResponseHeadersCopy': 'Copy Response Headers',
+                            'UseOriginalHost': 'Use Original Host',
+                            'Forwarded': 'Forwarded Header',
+                            'PathTransform': 'Path Transform',
+                        };
+                        const label = labelMap[key] || key;
+                        if (!summary) {
+                            summary = `<strong>${label}</strong>: <code>${window.DashboardUtils.escapeHtml(val)}</code>`;
+                        } else {
+                            detailParts.push(`<span class="detail-kv-key">${label}</span> <code>${window.DashboardUtils.escapeHtml(val)}</code>`);
+                        }
+                    } else if (typeof val === 'boolean') {
+                        const label = key.replace(/([A-Z])/g, ' $1').trim();
+                        if (val) {
+                            detailParts.push(`<span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes') || 'Yes'}: ${label}</span>`);
+                        }
+                    } else if (typeof val === 'object' && val !== null) {
+                        detailParts.push(`<span class="detail-kv-key">${key}</span> <code>${window.DashboardUtils.escapeHtml(JSON.stringify(val))}</code>`);
+                    }
+                });
+
+                html.push(`<div class="detail-transform-item">`);
+                html.push(`<div class="detail-transform-header">`);
+                html.push(`<span class="detail-transform-index">#${index + 1}</span>`);
+                html.push(`<span class="detail-transform-summary">${summary || JSON.stringify(transform)}</span>`);
+                if (detailParts.length > 0) {
+                    html.push(`<span class="detail-transform-detail">${detailParts.join(' &bull; ')}</span>`);
+                }
+                html.push('</div>');
+                // Collapsible raw JSON
+                html.push(`<details class="detail-transform-raw"><summary><i class="bi bi-code-slash"></i></summary><pre>${window.DashboardUtils.escapeHtml(JSON.stringify(transform, null, 2))}</pre></details>`);
+                html.push('</div>');
+            });
+
+            html.push('</div>');
+            return html.join('');
+        },
+
+        // ===== Render Structured Config =====
+        renderStructuredConfig: function(obj, configType) {
+            if (!obj || typeof obj !== 'object') return '';
+
+            const keyLabels = {
+                'Name': 'Name', 'Value': 'Value', 'Domain': 'Domain', 'HttpOnly': 'HttpOnly',
+                'SameSite': 'SameSite', 'Expiration': 'Expiration', 'MaxAge': 'MaxAge',
+            };
+
+            const html = [];
+            html.push('<div class="detail-structured-config">');
+
+            const renderKeyValue = function(key, value, depth) {
+                const label = keyLabels[key] || key;
+                const indent = depth > 0 ? ` style="padding-left:${depth * 20}px;"` : '';
+
+                if (value === null || value === undefined) {
+                    html.push(`<div class="detail-kv-row"${indent}><span class="detail-kv-key">${label}</span><span class="detail-kv-value text-muted">-</span></div>`);
+                } else if (typeof value === 'boolean') {
+                    const badge = value
+                        ? `<span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes') || 'Yes'}</span>`
+                        : `<span class="badge bg-secondary"><i class="bi bi-x-circle-fill"></i> ${__('index.bool.no') || 'No'}</span>`;
+                    html.push(`<div class="detail-kv-row"${indent}><span class="detail-kv-key">${label}</span><span class="detail-kv-value">${badge}</span></div>`);
+                } else if (typeof value === 'number' || typeof value === 'string') {
+                    const valHtml = `<code>${window.DashboardUtils.escapeHtml(String(value))}</code>`;
+                    html.push(`<div class="detail-kv-row"${indent}><span class="detail-kv-key">${label}</span><span class="detail-kv-value">${valHtml}</span></div>`);
+                } else if (Array.isArray(value)) {
+                    const items = value.map(function(v) {
+                        return `<code>${window.DashboardUtils.escapeHtml(String(v))}</code>`;
+                    }).join(' ');
+                    html.push(`<div class="detail-kv-row"${indent}><span class="detail-kv-key">${label}</span><span class="detail-kv-value">${items}</span></div>`);
+                } else if (typeof value === 'object') {
+                    html.push(`<div class="detail-kv-row detail-kv-group"${indent}><span class="detail-kv-key detail-kv-group-key"><i class="bi bi-chevron-right"></i> ${label}</span></div>`);
+                    Object.keys(value).forEach(function(subKey) {
+                        renderKeyValue(subKey, value[subKey], depth + 1);
+                    });
+                }
+            };
+
+            Object.keys(obj).forEach(function(key) {
+                renderKeyValue(key, obj[key], 0);
+            });
+
+            // Collapsible raw JSON toggle
+            html.push(`<div class="detail-raw-json-toggle"><details><summary><i class="bi bi-code-slash"></i> ${__('index.viewRawJson') || '查看原始JSON'}</summary><pre class="detail-raw-json">${window.DashboardUtils.escapeHtml(JSON.stringify(obj, null, 2))}</pre></details></div>`);
+
+            html.push('</div>');
+            return html.join('');
+        },
+
+        // ===== Copy Route JSON =====
+        copyRouteJson: function(routeId) {
+            const routes = window.DashboardState.get('data.routes') || [];
+            const route = routes.find(function(r) { return r.routeId === routeId; });
+            if (!route) return;
+
+            const yarpRoute = {
+                "ClusterId": route.clusterId || "",
+                "Order": route.order || 50,
+                "Match": {
+                    "Path": route.match?.path || ""
+                }
+            };
+            const methods = route.match?.methods || [];
+            if (methods.length > 0) yarpRoute.Match.Methods = methods;
+            const hosts = route.match?.hosts || [];
+            if (hosts.length > 0) yarpRoute.Match.Hosts = hosts;
+            if (route.match?.headers && route.match?.headers.length > 0) yarpRoute.Match.Headers = route.match.headers;
+            if (route.transforms && route.transforms.length > 0) yarpRoute.Transforms = route.transforms;
+            if (route.authorizationPolicy) yarpRoute.AuthorizationPolicy = route.authorizationPolicy;
+            if (route.corsPolicy) yarpRoute.CorsPolicy = route.corsPolicy;
+            if (route.timeout) yarpRoute.Timeout = route.timeout;
+            if (route.timeoutPolicy) yarpRoute.TimeoutPolicy = route.timeoutPolicy;
+            if (route.rateLimiterPolicy) yarpRoute.RateLimiterPolicy = route.rateLimiterPolicy;
+            if (route.metadata && Object.keys(route.metadata).length > 0) yarpRoute.Metadata = route.metadata;
+
+            const json = JSON.stringify(yarpRoute, null, 2);
+            navigator.clipboard.writeText(json).then(function() {
+                window.DashboardModals.showSuccess(__('index.copied') || '已复制到剪贴板');
+            });
         },
         
         // ===== Create Copy Button =====
