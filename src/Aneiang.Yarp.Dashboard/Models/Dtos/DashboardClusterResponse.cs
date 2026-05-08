@@ -55,6 +55,10 @@ public class DashboardClusterResponse
     [JsonPropertyName("totalCount")]
     public int TotalCount { get; set; }
 
+    /// <summary>Configuration source: "config" | "dynamic" | "dashboard" | "auto-register".</summary>
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = string.Empty;
+
     /// <summary>Whether the cluster is editable.</summary>
     [JsonPropertyName("isEditable")]
     public bool IsEditable { get; set; }

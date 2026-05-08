@@ -39,7 +39,7 @@ internal static class DashboardRouteMapper
             transforms = ct;
         }
 
-        var isEditable = IsRouteEditable(route.RouteId, routeSources);
+        var (isEditable, source) = GetRouteEditability(route.RouteId, routeSources);
 
         return new DashboardRouteResponse
         {
@@ -78,20 +78,21 @@ internal static class DashboardRouteMapper
             TimeoutPolicy = route.TimeoutPolicy,
             Timeout = route.Timeout?.ToString(),
             Metadata = route.Metadata?.Count > 0 ? route.Metadata.ToDictionary(kv => kv.Key, kv => kv.Value) : null,
+            Source = source,
             IsEditable = isEditable
         };
     }
 
     /// <summary>
-    /// Determines if a route is editable based on its source.
+    /// Determines editability and source for a route.
     /// </summary>
-    private static bool IsRouteEditable(string routeId, IReadOnlyDictionary<string, string>? routeSources)
+    private static (bool isEditable, string source) GetRouteEditability(string routeId, IReadOnlyDictionary<string, string>? routeSources)
     {
         if (routeSources != null && routeSources.TryGetValue(routeId, out var source))
         {
-            return source != "config";
+            return (source != "config", source);
         }
 
-        return true;
+        return (false, "config"); // Not in route sources means it's from static config
     }
 }

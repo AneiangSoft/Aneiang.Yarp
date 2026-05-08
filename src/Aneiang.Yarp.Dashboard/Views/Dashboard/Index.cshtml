@@ -74,20 +74,22 @@
     <div id="cluster-filter-container"></div>
     
     <div class="table-responsive">
-        <table class="table table-hover align-middle">
+        <table class="table table-hover align-middle" style="table-layout:fixed;width:100%">
             <thead>
                 <tr>
-                    <th style="width:20%"><span data-i18n="index.cluster.th.name">集群名称</span></th>
+                    <th style="width:40px"></th>
+                    <th style="width:15%"><span data-i18n="index.cluster.th.name">集群名称</span></th>
+                    <th style="width:90px"><span data-i18n="index.cluster.th.source">来源</span></th>
                     <th style="width:10%"><span data-i18n="index.cluster.th.dest">节点名</span></th>
-                    <th style="width:25%"><span data-i18n="index.cluster.th.address">目标地址</span></th>
-                    <th style="width:12%"><span data-i18n="index.cluster.th.active">主动健康</span></th>
-                    <th style="width:12%"><span data-i18n="index.cluster.th.passive">被动健康</span></th>
-                    <th style="width:8%"><span data-i18n="index.cluster.th.policy">均衡策略</span></th>
-                    <th style="width:5%"><span data-i18n="index.cluster.th.actions">操作</span></th>
+                    <th style="width:22%"><span data-i18n="index.cluster.th.address">目标地址</span></th>
+                    <th style="width:9%"><span data-i18n="index.cluster.th.active">主动健康</span></th>
+                    <th style="width:9%"><span data-i18n="index.cluster.th.passive">被动健康</span></th>
+                    <th style="width:9%"><span data-i18n="index.cluster.th.policy">均衡策略</span></th>
+                    <th style="width:80px"><span data-i18n="index.cluster.th.actions">操作</span></th>
                 </tr>
             </thead>
             <tbody id="cluster-tbody">
-                <tr><td colspan="6" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
+                <tr><td colspan="9" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
             </tbody>
         </table>
     </div>
@@ -107,19 +109,21 @@
     <div id="route-filter-container"></div>
     
     <div class="table-responsive">
-        <table class="table table-hover align-middle">
+        <table class="table table-hover align-middle" style="table-layout:fixed;width:100%">
             <thead>
                 <tr>
-                    <th style="width:8%"><span data-i18n="index.route.th.order">优先级</span></th>
-                    <th style="width:22%"><span data-i18n="index.route.th.name">路由名称</span></th>
-                    <th style="width:35%"><span data-i18n="index.route.th.path">匹配路径</span></th>
-                    <th style="width:20%"><span data-i18n="index.route.th.cluster">关联集群</span></th>
-                    <th style="width:10%"><span data-i18n="index.route.th.methods">允许方法</span></th>
-                    <th style="width:5%"><span data-i18n="index.route.th.actions">操作</span></th>
+                    <th style="width:40px"></th>
+                    <th style="width:60px"><span data-i18n="index.route.th.order">优先级</span></th>
+                    <th style="width:15%"><span data-i18n="index.route.th.name">路由名称</span></th>
+                    <th style="width:90px"><span data-i18n="index.route.th.source">来源</span></th>
+                    <th style="width:22%"><span data-i18n="index.route.th.path">匹配路径</span></th>
+                    <th style="width:14%"><span data-i18n="index.route.th.cluster">关联集群</span></th>
+                    <th style="width:14%"><span data-i18n="index.route.th.methods">允许方法</span></th>
+                    <th style="width:80px"><span data-i18n="index.route.th.actions">操作</span></th>
                 </tr>
             </thead>
             <tbody id="route-tbody">
-                <tr><td colspan="5" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
+                <tr><td colspan="8" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
             </tbody>
         </table>
     </div>

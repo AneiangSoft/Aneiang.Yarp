@@ -29,7 +29,7 @@ internal static class DashboardClusterMapper
             PassiveHealth = "Unknown"
         }).ToList() ?? new List<DashboardDestinationResponse>();
 
-        var isEditable = IsClusterEditable(cluster.ClusterId, dynamicConfig);
+        var (isEditable, source) = GetClusterEditability(cluster.ClusterId, dynamicConfig);
 
         return new DashboardClusterResponse
         {
@@ -47,6 +47,7 @@ internal static class DashboardClusterMapper
             UnknownCount = destinations.Count,
             UnhealthyCount = 0,
             TotalCount = destinations.Count,
+            Source = source,
             IsEditable = isEditable
         };
     }
@@ -134,9 +135,9 @@ internal static class DashboardClusterMapper
     }
 
     /// <summary>
-    /// Determines if a cluster is editable based on its source.
+    /// Determines editability and source for a cluster.
     /// </summary>
-    private static bool IsClusterEditable(string clusterId, DynamicYarpConfigService dynamicConfig)
+    private static (bool isEditable, string source) GetClusterEditability(string clusterId, DynamicYarpConfigService dynamicConfig)
     {
         var dynConfig = dynamicConfig.GetDynamicConfig();
         var dynCluster = dynConfig?.Clusters.FirstOrDefault(dc =>
@@ -144,9 +145,9 @@ internal static class DashboardClusterMapper
 
         if (dynCluster != null)
         {
-            return dynCluster.Source != "config";
+            return (dynCluster.Source != "config", dynCluster.Source);
         }
 
-        return true;
+        return (true, "config"); // Not in dynamic config means it's from static config
     }
 }

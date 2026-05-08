@@ -63,6 +63,10 @@ public class DashboardRouteResponse
     [JsonPropertyName("metadata")]
     public Dictionary<string, string>? Metadata { get; set; }
 
+    /// <summary>Configuration source: "config" | "dynamic" | "dashboard" | "auto-register".</summary>
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = string.Empty;
+
     /// <summary>Whether the route is editable.</summary>
     [JsonPropertyName("isEditable")]
     public bool IsEditable { get; set; }

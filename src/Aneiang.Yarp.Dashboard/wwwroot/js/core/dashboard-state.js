@@ -196,6 +196,14 @@
                 return false;
             }
             
+            // Source filter
+            if (source !== 'all') {
+                const clusterSource = cluster.source || 'config';
+                if (clusterSource !== source) {
+                    return false;
+                }
+            }
+            
             return true;
         });
     };
@@ -228,6 +236,14 @@
             // Method filter
             if (method !== 'all') {
                 if (!route.methods || !route.methods.includes(method)) {
+                    return false;
+                }
+            }
+            
+            // Source filter
+            if (source !== 'all') {
+                const routeSource = route.source || 'config';
+                if (routeSource !== source) {
                     return false;
                 }
             }
