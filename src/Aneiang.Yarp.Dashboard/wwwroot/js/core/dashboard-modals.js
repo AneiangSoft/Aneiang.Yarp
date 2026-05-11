@@ -429,6 +429,7 @@
         const readOnly = config.readOnly || false;
         const data = config.data || {};
         const schemaType = config.schemaType || null;
+        const editableId = config.editableId || null;
 
         let jsonContent = '';
         try {
@@ -436,6 +437,22 @@
         } catch (e) {
             jsonContent = '{}';
         }
+
+        // Build editable ID input HTML if provided
+        const idInputHtml = editableId ? `
+            <div style="padding:14px 24px 0 24px;background:#fff;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <label style="font-weight:500;font-size:13px;color:#334155;white-space:nowrap;min-width:60px;">${editableId.label || 'ID'}</label>
+                    <input type="text" class="form-control" id="${modalId}-id-input"
+                           value="${editableId.value || ''}"
+                           placeholder="${editableId.placeholder || ''}"
+                           style="border-radius:8px;padding:8px 12px;font-size:14px;border:1.5px solid #e2e8f0;transition:border-color 0.2s,box-shadow 0.2s;"
+                           onfocus="this.style.borderColor='#6366f1';this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.1)'"
+                           onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
+                    ${editableId.original ? `<span style="font-size:12px;color:#94a3b8;white-space:nowrap;">${window.__('modal.renameHint') || '修改ID将创建新条目并删除旧条目'}</span>` : ''}
+                </div>
+            </div>
+        ` : '';
 
         const modalHtml = `
             <div class="modal fade" id="${modalId}" tabindex="-1">
@@ -451,7 +468,8 @@
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body" style="padding:0;">
-                            <div id="${modalId}-editor" style="height:500px;border:none;"></div>
+                            ${idInputHtml}
+                            <div id="${modalId}-editor" style="height:${editableId ? '460' : '500'}px;border:none;"></div>
                         </div>
                         <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
                             <div style="flex:1;display:flex;align-items:center;gap:8px;">
@@ -562,8 +580,20 @@
                 // Validate JSON
                 try {
                     const parsed = JSON.parse(newValue);
+
+                    // Get editable ID value if present
+                    let newId = null;
+                    if (editableId) {
+                        const idInput = document.getElementById(modalId + '-id-input');
+                        newId = idInput ? idInput.value.trim() : null;
+                        if (editableId && !newId) {
+                            DashboardModals.showError(window.__('modal.idRequired') || 'ID不能为空');
+                            return;
+                        }
+                    }
+
                     if (config.onSave) {
-                        const saveResult = config.onSave(parsed);
+                        const saveResult = config.onSave(parsed, newId);
                         if (saveResult !== false) {
                             bsModal.hide();
                         }

@@ -232,6 +232,7 @@
         importConfig: (config) => DashboardApi.post('/api/config/import', config),
         saveCluster: (clusterId, config) => DashboardApi.put(`/api/config/clusters/${clusterId}`, config),
         deleteClusterConfig: (clusterId) => DashboardApi.delete(`/api/config/clusters/${clusterId}`),
+        renameCluster: (oldClusterId, config) => DashboardApi.put(`/api/config/clusters/${oldClusterId}/rename`, config),
         saveRoute: (routeId, config) => DashboardApi.put(`/api/config/routes/${routeId}`, config),
         deleteRouteConfig: (routeId) => DashboardApi.delete(`/api/config/routes/${routeId}`),
         getConfigHistory: () => DashboardApi.get('/api/config/history'),

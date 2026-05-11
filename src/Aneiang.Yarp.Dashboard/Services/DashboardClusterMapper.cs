@@ -136,6 +136,7 @@ internal static class DashboardClusterMapper
 
     /// <summary>
     /// Determines editability and source for a cluster.
+    /// All clusters are editable. Source is preserved for display purposes only.
     /// </summary>
     private static (bool isEditable, string source) GetClusterEditability(string clusterId, DynamicYarpConfigService dynamicConfig)
     {
@@ -145,7 +146,7 @@ internal static class DashboardClusterMapper
 
         if (dynCluster != null)
         {
-            return (dynCluster.Source != "config", dynCluster.Source);
+            return (true, dynCluster.Source);
         }
 
         return (true, "config"); // Not in dynamic config means it's from static config

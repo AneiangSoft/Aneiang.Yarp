@@ -514,10 +514,7 @@
             });
 
             const isConfigSource = (cluster.source || 'config') === 'config';
-            // No action buttons for config source
-            if (isConfigSource) {
-                return container;
-            }
+            // All clusters are editable now, show action buttons
 
             // Edit button
             const editBtn = window.DashboardDOM.create('button', {
@@ -573,9 +570,7 @@
             detailHtml.push('<div class="detail-actions-bar">');
             detailHtml.push(`<div class="detail-actions-left"><span class="detail-actions-label"><i class="bi bi-gear"></i> ${__('index.cluster.title') || '集群'}</span></div>`);
             detailHtml.push('<div class="detail-actions-right">');
-            if ((cluster.source || 'config') !== 'config') {
-                detailHtml.push(`<button class="btn btn-sm btn-outline-secondary detail-action-btn" onclick="ClustersModule.showEditModal('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('index.cluster.edit') || '编辑'}"><i class="bi bi-pencil"></i> ${__('index.cluster.edit') || '编辑'}</button>`);
-            }
+            detailHtml.push(`<button class="btn btn-sm btn-outline-secondary detail-action-btn" onclick="ClustersModule.showEditModal('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('index.cluster.edit') || '编辑'}"><i class="bi bi-pencil"></i> ${__('index.cluster.edit') || '编辑'}</button>`);
             detailHtml.push(`<button class="btn btn-sm btn-outline-primary detail-action-btn" onclick="ClustersModule.copyClusterJson('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('index.copyJson.title') || '复制JSON'}"><i class="bi bi-clipboard-data"></i> ${__('index.copyJson') || '复制JSON'}</button>`);
             detailHtml.push('</div>');
             detailHtml.push('</div>');
@@ -1058,11 +1053,7 @@
                 return;
             }
 
-            // Check if editable
-            if (cluster.source === 'config') {
-                window.DashboardModals.showWarning(__('index.cluster.notEditable') || '静态配置的集群无法通过Dashboard编辑');
-                return;
-            }
+            // All clusters are editable now
 
             // Build YARP format cluster config for JSON editor
             const yarpCluster = {
@@ -1098,11 +1089,17 @@
             }
 
             window.DashboardModals.showJsonModal({
-                title: __('modal.editCluster') || '编辑集群 (JSON模式) - ' + clusterId,
+                title: __('modal.editCluster') || '编辑集群 (JSON模式)',
                 data: yarpCluster,
                 schemaType: 'cluster',
                 size: 'xl',
-                onSave: function(parsedData) {
+                editableId: {
+                    label: 'Cluster ID',
+                    value: clusterId,
+                    original: clusterId,
+                    placeholder: __('modal.clusterIdPlaceholder') || '例如: my-service-cluster'
+                },
+                onSave: function(parsedData, newId) {
                     // Validate cluster config
                     if (!parsedData.Destinations || typeof parsedData.Destinations !== 'object') {
                         window.DashboardModals.showError(__('index.cluster.invalidDestinations') || 'Destinations 配置无效');
@@ -1123,14 +1120,59 @@
                         return false;
                     }
 
-                    // Save cluster directly with existing ID
-                    self.saveClusterFromJson(parsedData, clusterId);
+                    // Handle rename: only if ID actually changed (case-sensitive comparison)
+                    if (newId && newId !== clusterId) {
+                        self.renameCluster(clusterId, newId, parsedData);
+                    } else {
+                        self.saveClusterFromJson(parsedData, clusterId);
+                    }
                     return true;
                 }
             });
         },
 
         // ===== Delete Cluster =====
+        // ===== Rename Cluster =====
+        renameCluster: async function(oldId, newId, clusterConfig) {
+            const self = this;
+            try {
+                window.DashboardModals.showInfo(__('index.cluster.renaming') || '正在重命名集群...');
+
+                if (oldId !== newId) {
+                    // Use atomic rename API - handles creating new cluster, updating routes, and deleting old cluster in one operation
+                    const renameConfig = {
+                        newClusterId: newId,
+                        destinations: clusterConfig.Destinations,
+                        loadBalancingPolicy: clusterConfig.LoadBalancingPolicy || undefined
+                    };
+                    await window.DashboardApi.endpoints.renameCluster(oldId, renameConfig);
+                } else {
+                    // Just update the cluster config (no rename)
+                    const apiConfig = {
+                        clusterId: newId,
+                        destinations: clusterConfig.Destinations,
+                        loadBalancingPolicy: clusterConfig.LoadBalancingPolicy || undefined,
+                        healthCheck: clusterConfig.HealthCheck || undefined,
+                        httpClient: clusterConfig.HttpClient || undefined,
+                        httpRequest: clusterConfig.HttpRequest || undefined,
+                        sessionAffinity: clusterConfig.SessionAffinity || undefined,
+                        metadata: clusterConfig.Metadata || undefined
+                    };
+                    await window.DashboardApi.endpoints.saveCluster(newId, apiConfig);
+                }
+
+                window.DashboardModals.showSuccess(__('index.cluster.renamed') || '集群重命名成功');
+                await self.loadClusters();
+
+                document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
+                    detail: { type: 'cluster', id: newId, oldId: oldId, action: 'rename' }
+                }));
+            } catch (error) {
+                console.error('[Clusters] Rename failed:', error);
+                window.DashboardModals.showError(__('index.cluster.renameFailed') || '集群重命名失败: ' + error.message);
+            }
+        },
+
         deleteCluster: async function(clusterId) {
             const self = this;
             
@@ -1140,7 +1182,7 @@
                     try {
                         window.DashboardModals.showInfo(__('index.cluster.deleting') || '正在删除集群...');
                         
-                        await window.DashboardApi.endpoints.deleteCluster(clusterId);
+                        await window.DashboardApi.endpoints.deleteClusterConfig(clusterId);
                         await self.loadClusters();
                         
                         window.DashboardModals.showSuccess(__('index.cluster.deleted') || '集群删除成功');
