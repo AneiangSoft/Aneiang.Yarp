@@ -1,14 +1,11 @@
-using System.Diagnostics;
 using System.Reflection;
 using Aneiang.Yarp.Dashboard.Models;
+using Aneiang.Yarp.Dashboard.Models.Dtos;
 using Aneiang.Yarp.Dashboard.Services;
-using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using Yarp.ReverseProxy;
-using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Dashboard.Controllers;
 
@@ -18,41 +15,33 @@ public class DashboardController : Controller
     /// <summary>Route prefix, set by convention at startup.</summary>
     internal static string RoutePrefix { get; set; } = "apigateway";
 
-    private readonly IProxyStateLookup _proxyState;
-    private readonly IWebHostEnvironment _env;
-    private readonly ProxyLogStore _logStore;
-    private readonly DynamicYarpConfigService _dynamicConfig;
+    private readonly IDashboardInfoQueryService _infoQuery;
+    private readonly IDashboardClusterQueryService _clusterQuery;
+    private readonly IDashboardRouteQueryService _routeQuery;
+    private readonly IDashboardLogQueryService _logQuery;
+    private readonly IDashboardAuthorizationService _authService;
     private readonly DashboardOptions _options;
 
-    private static readonly DateTime _startTime = DateTime.Now;
-    private static readonly string _fileVersion;
-
-    static DashboardController()
-    {
-        var location = Assembly.GetExecutingAssembly().Location;
-        _fileVersion = !string.IsNullOrEmpty(location)
-            ? FileVersionInfo.GetVersionInfo(location).ProductVersion
-              ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown"
-            : Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
-    }
-
     /// <summary>Initializes a new instance of DashboardController.</summary>
-    /// <param name="proxyState">YARP proxy state lookup.</param>
-    /// <param name="dynamicConfig">Dynamic YARP config service.</param>
-    /// <param name="env">Web host environment.</param>
-    /// <param name="logStore">Proxy log store.</param>
+    /// <param name="infoQuery">Dashboard info query service.</param>
+    /// <param name="clusterQuery">Cluster query service.</param>
+    /// <param name="routeQuery">Route query service.</param>
+    /// <param name="logQuery">Log query service.</param>
+    /// <param name="authService">Authorization service.</param>
     /// <param name="options">Dashboard options.</param>
     public DashboardController(
-        IProxyStateLookup proxyState,
-        DynamicYarpConfigService dynamicConfig,
-        IWebHostEnvironment env,
-        ProxyLogStore logStore,
+        IDashboardInfoQueryService infoQuery,
+        IDashboardClusterQueryService clusterQuery,
+        IDashboardRouteQueryService routeQuery,
+        IDashboardLogQueryService logQuery,
+        IDashboardAuthorizationService authService,
         IOptions<DashboardOptions> options)
     {
-        _proxyState = proxyState;
-        _dynamicConfig = dynamicConfig;
-        _env = env;
-        _logStore = logStore;
+        _infoQuery = infoQuery;
+        _clusterQuery = clusterQuery;
+        _routeQuery = routeQuery;
+        _logQuery = logQuery;
+        _authService = authService;
         _options = options.Value;
     }
 
@@ -122,152 +111,15 @@ public class DashboardController : Controller
     [HttpGet("info")]
     public IActionResult GetInfo()
     {
-        var process = Process.GetCurrentProcess();
-        var uptime = DateTime.Now - _startTime;
-        var memoryMb = Math.Round(process.WorkingSet64 / 1024.0 / 1024.0, 1);
-
-        return Json(new
-        {
-            code = 200,
-            data = new
-            {
-                version = _fileVersion,
-                environment = _env.EnvironmentName,
-                startTime = _startTime.ToString("yyyy-MM-dd HH:mm:ss"),
-                uptime = $"{(int)uptime.TotalHours}h {uptime.Minutes}m {uptime.Seconds}s",
-                memoryMb,
-                machineName = Environment.MachineName,
-                processId = process.Id
-            }
-        });
+        var info = _infoQuery.GetInfo();
+        return Json(new { code = 200, data = info });
     }
 
     /// <summary>Cluster status and config.</summary>
     [HttpGet("clusters")]
     public IActionResult GetClusters()
     {
-        // Get dynamic config for source and created time info
-        var dynConfig = _dynamicConfig.GetDynamicConfig();
-        
-        var clusters = _proxyState.GetClusters()
-            .Select(cluster =>
-            {
-                var config = cluster.Model?.Config;
-                var destinations = cluster.Destinations.Select(d =>
-                {
-                    var dc = d.Value.Model?.Config;
-                    return new
-                    {
-                        name = d.Key,
-                        address = dc?.Address,
-                        health = dc?.Health,
-                        host = dc?.Host,
-                        metadata = dc?.Metadata?.Count > 0
-                            ? dc.Metadata.ToDictionary(kv => kv.Key, kv => kv.Value) : null,
-                        activeHealth = d.Value.Health.Active.ToString(),
-                        passiveHealth = d.Value.Health.Passive.ToString()
-                    };
-                }).ToList();
-
-                // Determine if cluster is editable (not from static config)
-                var isEditable = true;
-                var source = "config"; // Default to config file
-                var createdAt = DateTime.MinValue;
-                
-                var dynCluster = dynConfig?.Clusters.FirstOrDefault(dc => 
-                    string.Equals(dc.ClusterId, cluster.ClusterId, StringComparison.OrdinalIgnoreCase));
-                if (dynCluster != null)
-                {
-                    isEditable = dynCluster.Source != "config";
-                    source = dynCluster.Source;
-                    createdAt = dynCluster.CreatedAt;
-                }
-
-                return new
-                {
-                    clusterId = cluster.ClusterId,
-                    loadBalancingPolicy = config?.LoadBalancingPolicy ?? "Default",
-                    source = source,
-                    createdAt = createdAt.ToString("yyyy-MM-dd HH:mm:ss"),
-
-                    sessionAffinity = config?.SessionAffinity != null ? new
-                {
-                    enabled = config.SessionAffinity.Enabled,
-                    policy = config.SessionAffinity.Policy?.ToString(),
-                    failurePolicy = config.SessionAffinity.FailurePolicy?.ToString(),
-                    affinityKeyName = config.SessionAffinity.AffinityKeyName,
-                    cookie = config.SessionAffinity.Cookie != null ? new
-                    {
-                        domain = config.SessionAffinity.Cookie.Domain,
-                        path = config.SessionAffinity.Cookie.Path,
-                        expiration = config.SessionAffinity.Cookie.Expiration?.ToString(),
-                        maxAge = config.SessionAffinity.Cookie.MaxAge?.ToString(),
-                        securePolicy = config.SessionAffinity.Cookie.SecurePolicy?.ToString(),
-                        httpOnly = config.SessionAffinity.Cookie.HttpOnly,
-                        sameSite = config.SessionAffinity.Cookie.SameSite?.ToString(),
-                        isEssential = config.SessionAffinity.Cookie.IsEssential
-                    } : null
-                } : null,
-
-                healthCheck = config?.HealthCheck != null ? new
-                {
-                    active = config.HealthCheck.Active != null ? new
-                    {
-                        enabled = config.HealthCheck.Active.Enabled,
-                        interval = config.HealthCheck.Active.Interval?.ToString(),
-                        timeout = config.HealthCheck.Active.Timeout?.ToString(),
-                        policy = config.HealthCheck.Active.Policy,
-                        path = config.HealthCheck.Active.Path,
-                        query = config.HealthCheck.Active.Query
-                    } : null,
-                    passive = config.HealthCheck.Passive != null ? new
-                    {
-                        enabled = config.HealthCheck.Passive.Enabled,
-                        policy = config.HealthCheck.Passive.Policy,
-                        reactivationPeriod = config.HealthCheck.Passive.ReactivationPeriod?.ToString()
-                    } : null,
-                    availableDestinationsPolicy = config.HealthCheck.AvailableDestinationsPolicy
-                } : null,
-
-                httpClient = config?.HttpClient != null ? new
-                {
-                    sslProtocols = config.HttpClient.SslProtocols,
-                    dangerousAcceptAnyServerCertificate = config.HttpClient.DangerousAcceptAnyServerCertificate,
-                    maxConnectionsPerServer = config.HttpClient.MaxConnectionsPerServer,
-                    enableMultipleHttp2Connections = config.HttpClient.EnableMultipleHttp2Connections,
-                    requestHeaderEncoding = config?.HttpClient?.RequestHeaderEncoding,
-                    responseHeaderEncoding = config?.HttpClient?.ResponseHeaderEncoding,
-                    webProxy = config!.HttpClient.WebProxy != null ? new
-                    {
-                        address = config!.HttpClient.WebProxy.Address?.ToString(),
-                        bypassOnLocal = config!.HttpClient.WebProxy.BypassOnLocal,
-                        useDefaultCredentials = config!.HttpClient.WebProxy.UseDefaultCredentials
-                    } : null
-                } : null,
-
-                httpRequest = config?.HttpRequest != null ? new
-                {
-                    activityTimeout = config.HttpRequest.ActivityTimeout?.ToString(),
-                    version = config.HttpRequest.Version?.ToString(),
-                    versionPolicy = config.HttpRequest.VersionPolicy?.ToString(),
-                    allowResponseBuffering = config.HttpRequest.AllowResponseBuffering
-                } : null,
-
-                metadata = config?.Metadata?.Count > 0
-                    ? config.Metadata.ToDictionary(kv => kv.Key, kv => kv.Value) : null,
-
-                destinations,
-                healthyCount = destinations.Count(d => d.activeHealth == "Healthy"),
-                unknownCount = destinations.Count(d => d.activeHealth == "Unknown"),
-                unhealthyCount = destinations.Count(d => d.activeHealth == "Unhealthy"),
-                totalCount = destinations.Count,
-                isEditable = isEditable
-            };
-        })
-        .OrderBy(c => c.source == "config" ? 0 : 1) // config first
-        .ThenByDescending(c => DateTime.TryParse(c.createdAt, out var dt) ? dt : DateTime.MinValue)
-        .ToList();
-
+        var clusters = _clusterQuery.GetClusters();
         return Json(new { code = 200, data = clusters });
     }
 
@@ -275,115 +127,7 @@ public class DashboardController : Controller
     [HttpGet("routes")]
     public IActionResult GetRoutes()
     {
-        var clusterDest = _proxyState.GetClusters()
-            .ToDictionary(c => c.ClusterId, c => c.Destinations.Values.Select(d => (object)new
-            {
-                name = d.DestinationId,
-                address = d.Model?.Config?.Address
-            }).ToList(), StringComparer.OrdinalIgnoreCase);
-
-        // Transforms from DynamicYarpConfigService (covers both file-based and dynamic routes)
-        Dictionary<string, List<Dictionary<string, string>>?>? configTransforms = null;
-        Dictionary<string, string>? routeSources = null;
-        Dictionary<string, DateTime>? routeCreatedAt = null;
-        try
-        {
-            var dr = _dynamicConfig.GetRoutes();
-            if (dr?.Count > 0)
-            {
-                configTransforms = new(StringComparer.OrdinalIgnoreCase);
-                routeSources = new(StringComparer.OrdinalIgnoreCase);
-                routeCreatedAt = new(StringComparer.OrdinalIgnoreCase);
-                
-                // Get dynamic config for created time
-                var dynConfig = _dynamicConfig.GetDynamicConfig();
-                
-                foreach (var r in dr)
-                {
-                    if (r.Transforms?.Count > 0)
-                        configTransforms[r.RouteId] = r.Transforms.Select(t => new Dictionary<string, string>(t)).ToList();
-                    
-                    // Get route source and created time from dynamic config
-                    var dynRoute = dynConfig?.Routes.FirstOrDefault(drc => 
-                        string.Equals(drc.RouteId, r.RouteId, StringComparison.OrdinalIgnoreCase));
-                    if (dynRoute != null)
-                    {
-                        routeSources[r.RouteId] = dynRoute.Source;
-                        routeCreatedAt[r.RouteId] = dynRoute.CreatedAt;
-                    }
-                }
-            }
-        }
-        catch (Exception)
-        {
-            // Log transform extraction failure but continue rendering routes
-        }
-
-        var routes = _proxyState.GetRoutes().Select(route =>
-        {
-            var rc = route.Config;
-            var match = rc.Match;
-
-            List<object>? destinations = null;
-            if (rc.ClusterId != null && clusterDest.TryGetValue(rc.ClusterId, out var dests))
-                destinations = dests;
-
-            List<Dictionary<string, string>>? transforms = null;
-            if (rc.Transforms?.Count > 0)
-                transforms = rc.Transforms.Select(t => new Dictionary<string, string>(t)).ToList();
-            else if (configTransforms != null && configTransforms.TryGetValue(rc.RouteId, out var ct) && ct != null)
-                transforms = ct;
-
-            // Determine if route is editable (not from static config)
-            var isEditable = true;
-            var source = "config"; // Default to config file
-            var createdAt = DateTime.MinValue;
-            
-            if (routeSources != null && routeSources.TryGetValue(rc.RouteId, out var src))
-            {
-                isEditable = src != "config";
-                source = src;
-            }
-            
-            if (routeCreatedAt != null && routeCreatedAt.TryGetValue(rc.RouteId, out var created))
-            {
-                createdAt = created;
-            }
-
-            return new
-            {
-                routeId = rc.RouteId,
-                clusterId = rc.ClusterId,
-                path = match.Path,
-                methods = match.Methods,
-                hosts = match.Hosts,
-                order = rc.Order,
-                source = source,
-                createdAt = createdAt.ToString("yyyy-MM-dd HH:mm:ss"),
-                authorizationPolicy = rc.AuthorizationPolicy,
-                corsPolicy = rc.CorsPolicy,
-                outputCachePolicy = rc.OutputCachePolicy,
-                maxRequestBodySize = rc.MaxRequestBodySize,
-                destinations,
-                transforms,
-                rateLimiterPolicy = rc.RateLimiterPolicy,
-                timeoutPolicy = rc.TimeoutPolicy,
-                timeout = rc.Timeout?.ToString(),
-                metadata = rc.Metadata?.Count > 0 ? rc.Metadata.ToDictionary(kv => kv.Key, kv => kv.Value) : null,
-                headers = match.Headers?.Count > 0
-                    ? match.Headers.Select(h => new { name = h.Name, values = h.Values, mode = h.Mode.ToString() }).ToList()
-                    : null,
-                queryParameters = match.QueryParameters?.Count > 0
-                    ? match.QueryParameters.Select(q => new { name = q.Name, values = q.Values, mode = q.Mode.ToString() }).ToList()
-                    : null,
-                isEditable = isEditable
-            };
-        })
-        .OrderBy(r => r.source == "config" ? 0 : 1) // config first
-        .ThenByDescending(r => DateTime.TryParse(r.createdAt, out var dt) ? dt : DateTime.MinValue)
-        .ThenBy(r => r.order)
-        .ToList();
-
+        var routes = _routeQuery.GetRoutes();
         return Json(new { code = 200, data = routes });
     }
 
@@ -391,10 +135,7 @@ public class DashboardController : Controller
     [HttpGet("logs")]
     public IActionResult GetLogs([FromQuery] int count = 100)
     {
-        if (!_options.EnableProxyLogging)
-            return Json(new { code = 200, data = new { entries = new List<LogEntry>(), bufferSize = 0, evictedCount = 0L } });
-
-        var snapshot = _logStore.GetRecent(count);
+        var snapshot = _logQuery.GetLogs(count);
         return Json(new { code = 200, data = snapshot });
     }
 
@@ -402,10 +143,35 @@ public class DashboardController : Controller
     [HttpDelete("logs")]
     public IActionResult ClearLogs()
     {
-        if (!_options.EnableProxyLogging)
-            return Json(new { code = 200 });
-
-        _logStore.Clear();
+        _logQuery.ClearLogs();
         return Json(new { code = 200, message = "Logs cleared" });
+    }
+
+    /// <summary>Get current authorization status and mode.</summary>
+    [HttpGet("auth/status")]
+    public IActionResult GetAuthStatus()
+    {
+        var authModeDescription = _authService.GetAuthModeDescription();
+        var isAuthEnabled = _options.AuthMode != DashboardAuthMode.None || _options.AuthorizeRequest != null;
+
+        return Json(new
+        {
+            code = 200,
+            data = new
+            {
+                isAuthEnabled,
+                authMode = _options.AuthMode.ToString(),
+                authModeDescription,
+                locale = _options.Locale
+            }
+        });
+    }
+
+    /// <summary>Logout - clear the auth token cookie.</summary>
+    [HttpPost("logout")]
+    public IActionResult Logout()
+    {
+        Response.Cookies.Delete("dashboard_token");
+        return Json(new { code = 200, message = "Logged out successfully" });
     }
 }

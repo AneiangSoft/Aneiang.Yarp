@@ -10,13 +10,13 @@ namespace Aneiang.Yarp.Dashboard.Services;
 public sealed class YarpEventSourceListener : EventListener
 {
     private const string YarpEventSourceName = "Yarp.ReverseProxy";
-    private readonly ProxyLogStore _store;
+    private readonly IProxyLogStore _store;
     private EventSource? _yarpEventSource;
 
     /// <summary>
     /// Creates a new listener linked to the specified store.
     /// </summary>
-    public YarpEventSourceListener(ProxyLogStore store)
+    public YarpEventSourceListener(IProxyLogStore store)
     {
         _store = store;
     }
@@ -63,6 +63,7 @@ public sealed class YarpEventSourceListener : EventListener
             _store.Add(new LogEntry
             {
                 Timestamp = DateTime.Now,
+                EventType = LogEventType.YarpEvent,
                 Level = level.ToString(),
                 Category = eventData.EventSource.Name,
                 Message = message,

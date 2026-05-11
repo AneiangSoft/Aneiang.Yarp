@@ -1,13 +1,12 @@
-# Aneiang.Yarp
+# Aneiang.Yarp.Dashboard
 
 <div align="center">
 
-**Dynamic Routing Gateway Management Library for .NET**
+**Give your YARP gateway a management dashboard — in just 3 lines of code**
 
-[![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp)
-[![NuGet Downloads](https://img.shields.io/nuget/dt/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp)
-[![License](https://img.shields.io/github/license/aneiang/Aneiang.Yarp.svg)](LICENSE)
-[![YARP Version](https://img.shields.io/badge/YARP-2.3.0-blue.svg)](https://github.com/microsoft/reverse-proxy)
+[![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard)
+[![YARP](https://img.shields.io/badge/YARP-2.3.0-blue.svg)](https://github.com/microsoft/reverse-proxy)
 [![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%209.0-purple.svg)](https://dotnet.microsoft.com/)
 
 [English](README.md) | [中文](README.zh-CN.md)
@@ -16,568 +15,399 @@
 
 ---
 
-A powerful **dynamic routing gateway management library** built on [Microsoft YARP](https://github.com/microsoft/reverse-proxy), providing runtime route registration, automatic service discovery, real-time monitoring dashboard, while preserving all YARP reverse proxy capabilities.
+Using YARP as your gateway, but still editing `appsettings.json` by hand to manage routes?
 
-## 📦 Project Architecture: Two Independent NuGet Packages
-
-Aneiang.Yarp uses a **modular design** with core functionality completely decoupled from the dashboard:
-
-```
-┌─────────────────────────────────────────────────┐
-│           Aneiang.Yarp.Dashboard                 │
-│      (Optional: Monitoring & Operations UI)      │
-│  • Cluster/Route visualization                   │
-│  • Real-time request log capture                 │
-│  • JWT login authentication                      │
-└─────────────────────────────────────────────────┘
-                        ▲
-                        │ Optional dependency
-                        │
-┌─────────────────────────────────────────────────┐
-│              Aneiang.Yarp (Core Library)         │
-│     (Independent: Dynamic Gateway Capabilities)  │
-│  • Dynamic routing API                           │
-│  • Auto-registration client                      │
-│  • YARP reverse proxy enhancements               │
-└─────────────────────────────────────────────────┘
-```
-
-**Core Design Principles:**
-- ✅ **Aneiang.Yarp works independently**: Runs fully without Dashboard
-- ✅ **Dashboard is an optional plugin**: Install and use, or skip it entirely
-- ✅ **Flexible combination**: Choose based on your needs
-
----
-
-## 🎯 Core Library: Aneiang.Yarp
-
-**Aneiang.Yarp** is the core library providing complete dynamic gateway management capabilities. **It can run completely independently without Dashboard.**
-
-### Features
-
-| Feature | Description |
-|---------|-------------|
-| 🚀 **Dynamic Routing** | REST API for runtime route registration/update/unregistration |
-| 🔄 **Auto-Registration** | Services auto-register on startup & unregister on shutdown — **1 line of code** |
-| 👥 **Instance Isolation** | Automatic namespace isolation for multi-developer debugging |
-| 🧠 **Smart Defaults** | Auto-detect assembly name, Kestrel address, resolve localhost to LAN IP |
-| 🛡️ **API Authorization** | Optional BasicAuth/ApiKey protection for registration APIs |
-| 🚪 **Conditional API Exposure** | Enable/disable registration API via `enableRegistration` parameter |
-
-### Quick Start (Core Library Only)
+**Aneiang.Yarp.Dashboard** lets you manage YARP right in the browser — visual CRUD, JSON editor, one-click rollback, real-time logs. Install and go.
 
 ```csharp
-// Program.cs
-using Aneiang.Yarp.Extensions;
-
-var builder = WebApplication.CreateBuilder(args);
-
-// ⭐ One-line gateway setup (no Dashboard dependency)
+// Program.cs — that's it
 builder.Services.AddAneiangYarp();
-
-var app = builder.Build();
-app.MapReverseProxy();
-app.Run();
+builder.Services.AddAneiangYarpDashboard();  // ← add this line
 ```
 
 ---
 
-## 🌟 Optional Plugin: Aneiang.Yarp.Dashboard
+## Dashboard Preview
 
-**Aneiang.Yarp.Dashboard** is the **recommended product** providing a comprehensive monitoring and operations UI. **It's optional — install it for enhanced visibility, or skip it for lightweight deployments.**
+<table>
+  <tr>
+    <td align="center"><b>Cluster Management</b></td>
+    <td align="center"><b>Route Management</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/cluster-list.png" alt="Cluster List" width="480"/></td>
+    <td><img src="docs/route-list.png" alt="Route List" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>JSON Editor</b></td>
+    <td align="center"><b>Request Logs</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/cluster-create.png" alt="Cluster Editor" width="480"/></td>
+    <td><img src="docs/log-list.png" alt="Request Logs" width="480"/></td>
+  </tr>
+</table>
 
-### Features
+<div align="center">
+<img src="docs/overview.png" alt="Overview" width="720"/>
+</div>
 
-| Feature | Description |
-|---------|-------------|
-| 📊 **Cluster Status** | Real-time view of all service clusters and health checks |
-| 🛣️ **Route Management** | Visualize route rules with expandable configuration details |
-| 📝 **Real-time Logs** | Capture YARP forwarding logs and request/response details |
-| 🔐 **Multi-Mode Auth** | JWT login, API Key, or custom delegate authentication |
-| 🌐 **i18n Support** | Runtime language switching: English / Chinese |
+---
 
-### Enable Dashboard
+## Get Started in 30 Seconds
+
+### 1. Install NuGet Packages
+
+```bash
+dotnet add package Aneiang.Yarp
+dotnet add package Aneiang.Yarp.Dashboard
+```
+
+### 2. Update Program.cs
 
 ```csharp
-// Program.cs
 using Aneiang.Yarp.Extensions;
 using Aneiang.Yarp.Dashboard.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Enable core gateway
 builder.Services.AddAneiangYarp();
-
-// Enable monitoring dashboard (optional)
-builder.Services.AddAneiangYarpDashboard();
+builder.Services.AddAneiangYarpDashboard();  // ← add this line, done
 
 var app = builder.Build();
 app.UseRouting();
+app.UseAneiangYarpDashboard();  // ← add this line, captures request logs
 app.MapControllers();
 app.MapReverseProxy();
 app.Run();
 ```
 
-Access dashboard at: `http://localhost:5000/apigateway`
----
+### 3. Open the Browser
 
-## 🚀 Client Service: Auto-Registration
+Visit `http://localhost:5000/apigateway` — the dashboard is already there.
 
-> **Note**: Auto-registration requires network connectivity between the client service and gateway. This feature is primarily designed for **development and debugging scenarios**.
-
-```csharp
-// Program.cs
-using Aneiang.Yarp.Extensions;
-
-var builder = WebApplication.CreateBuilder(args);
-
-// ⭐ One line: auto-register on startup → auto-unregister on shutdown
-builder.Services.AddAneiangYarpClient();
-
-builder.Services.AddControllers();
-
-var app = builder.Build();
-app.UseRouting();
-app.MapControllers();
-app.Run();
-```
-
-**`appsettings.json`** (minimum config):
+### Want a Login? (Optional)
 
 ```json
-{
-  "Gateway": {
-    "Registration": {
-      "GatewayUrl": "http://192.168.1.100:5000"
-    }
-  }
-}
-```
-
-That's it! Your service will automatically register to the gateway on startup and unregister on shutdown.
-
----
-
-## 📦 NuGet Packages
-
-| Package | Description | Independent? | Link |
-|---------|-------------|--------------|------|
-| **Aneiang.Yarp** | Core library: dynamic routing + auto-registration client | ✅ Yes | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp) |
-| **Aneiang.Yarp.Dashboard** | 🌟 **Recommended**: Dashboard for monitoring & operations | ❌ Requires core | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard) |
-
-**Requirements:**
-- Target Framework: `.NET 8.0` / `.NET 9.0`
-- YARP Version: `2.3.0`
-
----
-
-## 📸 Dashboard Screenshots
-
-### Cluster Status
-
-![Cluster List](docs/cluster-list.png)
-
-### Route Configuration
-
-![Route List](docs/route-list.png)
-
-### Log Viewer
-
-![Log List](docs/log-list.png)
-
----
-
-## ⚡ Advanced Usage
-
-<details>
-<summary><b>🔗 Multi-Level Gateway Chain</b></summary>
-
-```csharp
-// Intranet gateway also registers to external gateway
-builder.Services.AddAneiangYarp();
-builder.Services.AddAneiangYarpClient(o =>
-{
-    o.GatewayUrl = "http://outer-gateway:5000";
-});
-```
-
-</details>
-
-<details>
-<summary><b>🛡️ Gateway API Authorization (Optional)</b></summary>
-
-> **Important**: `AddGatewayApiAuth()` is **optional**. Without it, registration APIs are publicly accessible.
-
-**When to use:**
-- ✅ **Call it**: Production environment, public network, need access control
-- ❌ **Skip it**: Local development, isolated intranet (network-level protection)
-
-```csharp
-// Option 1: Auto-detect from Dashboard config (recommended)
-builder.Services.AddGatewayApiAuth();
-
-// Option 2: Explicit configuration
-builder.Services.AddGatewayApiAuth(o =>
-{
-    o.Mode = GatewayApiAuthMode.BasicAuth;
-    o.Username = "admin";
-    o.Password = "admin@2026";
-});
-```
-
-Config file:
-```json
-{
-  "Gateway": {
-    "ApiAuth": {
-      "Mode": "BasicAuth",
-      "Username": "admin",
-      "Password": "admin@2026"
-    }
-  }
-}
-```
-
-**Configuration Priority** (later overrides earlier):
-1. `Gateway:ApiAuth` config section
-2. Auto-detect from `Gateway:Dashboard` (if Dashboard JWT password configured)
-3. `configureOptions` callback (highest precedence)
-
-**Auto-Detection Logic:**
-When `AddGatewayApiAuth()` is called without explicit configuration:
-- If `Gateway:Dashboard:JwtPassword` exists → automatically uses BasicAuth with username `admin` and password from `JwtPassword`
-- This enables zero-config client auto-registration when Dashboard auth is configured
-
-</details>
-
-<details>
-<summary><b>🔐 Auto-Registration Authorization (3 Scenarios)</b></summary>
-
-When clients auto-register to gateway, authentication can be configured in three ways:
-
-| Scenario | Gateway Config | Client Config | Description |
-|----------|---------------|---------------|-------------|
-| **1: Aneiang.Yarp only** | Explicit API auth | Manual credentials | Requires explicit config |
-| **2: Dashboard (auth enabled)** | Dashboard JWT/ApiKey | **Auto-read** from Dashboard config | **Zero-config** (recommended) |
-| **3: Dashboard (no auth)** | No auth configured | No config needed | Local dev only |
-
-**Scenario 2 Example (Recommended):**
-```json
-// Gateway appsettings.json
+// appsettings.json
 {
   "Gateway": {
     "Dashboard": {
       "AuthMode": "DefaultJwt",
-      "JwtPassword": "your-strong-password"
+      "JwtPassword": "your-password"
     }
   }
 }
 ```
 
-```csharp
-// Gateway Program.cs
-builder.Services.AddAneiangYarp();
-builder.Services.AddAneiangYarpDashboard();
-builder.Services.AddGatewayApiAuth();  // Auto-reads Dashboard config
-
-// Client Program.cs - ZERO configuration needed!
-builder.Services.AddAneiangYarpClient();
-```
-
-</details>
-
-<details>
-<summary><b>👥 Instance Isolation (Multi-Developer)</b></summary>
-
-**Enabled by default** — automatically embeds machine identifier into routes:
-
-| Dimension | DevA (PC-JOHN) | DevB (PC-JANE) |
-|-----------|----------------|----------------|
-| routeName | `my-service-PC-JOHN` | `my-service-PC-JANE` |
-| matchPath | `/PC-JOHN/api/{**catch-all}` | `/PC-JANE/api/{**catch-all}` |
-
-**Special Handling:**
-- Automatically detects machine name as instance ID
-- Prevents route conflicts when multiple developers test against same gateway
-- Instance prefix is stripped before forwarding to downstream service
-
-Custom instance ID:
-```csharp
-builder.Services.AddAneiangYarpClient(options =>
-{
-    options.InstanceId = "dev-john";
-    options.InstancePrefixFormat = "dev-{instanceId}";
-});
-```
-
-Disable if not needed:
-```csharp
-options.InstanceIsolation = false;
-```
-
-</details>
-
-<details>
-<summary><b>🌐 Automatic LAN IP Resolution</b></summary>
-
-When `DestinationAddress` contains `localhost` / `127.0.0.1` / `0.0.0.0`:
-
-```
-Configured:  http://localhost:5001
-Resolved:    http://192.168.1.101:5001  (LAN IP)
-```
-
-**Special Handling:**
-- Automatically detects local loopback addresses
-- Resolves to first available LAN IP for cross-machine accessibility
-- Critical for auto-registration: other machines can reach the service
-
-Disable: `AutoResolveIp = false`
-
-</details>
-
-<details>
-<summary><b>🚪 Conditional API Exposure (enableRegistration)</b></summary>
-
-Control whether the gateway exposes dynamic route registration APIs:
-
-```csharp
-// Enable registration API (default)
-builder.Services.AddAneiangYarp(enableRegistration: true);
-
-// Disable registration API (security hardening)
-builder.Services.AddAneiangYarp(enableRegistration: false);
-```
-
-**Special Handling:**
-- When `enableRegistration = false`, `GatewayConfigController` is completely removed from MVC application model
-- Returns **404 Not Found** (not 401/403) — no endpoint exists at all
-- Recommended for production gateways that should not accept external route changes
-- Does NOT affect YARP proxy functionality or Dashboard access
-
-</details>
-
-<details>
-<summary><b>🔧 Custom Middleware Pipeline</b></summary>
-
-```csharp
-var app = builder.Build();
-
-app.UseAuthentication();
-app.UseAuthorization();
-app.UseRequestLogging();
-app.UseRateLimiter();
-
-app.UseRouting();
-app.MapControllers();
-app.MapReverseProxy();  // Must be last
-```
-
-</details>
+Add the config, and the dashboard redirects to a login page. Default username: `admin`.
 
 ---
 
-## 📖 Configuration
+## What You Get
 
-<details>
-<summary><b>Gateway:Registration</b> — Full Configuration Options</summary>
+| Feature | What It Does |
+|---------|-------------|
+| 📊 **Cluster Management** | Browse, create, edit, delete, rename clusters — or use the JSON editor |
+| 🛣️ **Route Management** | Full CRUD + JSON editor, supports standard YARP format |
+| 💾 **Config Import/Export** | One-click export of full YARP config, import with auto-validation |
+| ⏪ **Config Rollback** | Auto-snapshot on every change, one-click rollback if something breaks |
+| 📝 **Real-time Logs** | Full request/response capture, filter by route/status/TraceID |
+| 🔐 **Multi-mode Auth** | JWT login / API Key / custom delegate — works out of the box |
+| 🌐 **i18n** | Switch language at runtime, no restart needed |
+| 🛡️ **Log Sanitization** | Auto-mask Authorization, password, and other sensitive fields |
+| 📈 **Log Sampling** | Sample by rate in production to control log volume |
 
-```json
-{
-  "Gateway": {
-    "Registration": {
-      "GatewayUrl": "http://192.168.1.100:5000",
-      "RouteName": "my-service",
-      "ClusterName": "my-service-cluster",
-      "MatchPath": "/api/my-service/{**catch-all}",
-      "DestinationAddress": "http://localhost:5001",
-      "Order": 50,
-      "AutoResolveIp": true,
-      "TimeoutSeconds": 10,
-      "InstanceIsolation": true,
-      "InstanceId": "john",
-      "InstancePrefixFormat": "{instanceId}",
-      "StripInstancePrefix": true,
-      "DownstreamPathPrefix": null,
-      "Transforms": [],
-      "AuthToken": null,
-      "ApiKey": null,
-      "BasicAuthUsername": null,
-      "BasicAuthPassword": null
-    }
-  }
-}
-```
+**Design principle**: Zero intrusion — just 2 lines of code to enable, doesn't change your existing YARP config or proxy logic.
 
-**Configuration Priority:** Code `options => {}` > Environment Variables > `appsettings.json`
+---
 
-</details>
+## Feature Details
 
-<details>
-<summary><b>Gateway:Dashboard</b> — Dashboard Configuration</summary>
+### 📊 Cluster & Route Management
+
+Manage YARP clusters and routes right in the browser — no more hand-editing JSON config files:
+
+- **Form-based creation** — Fill in a few fields to create a route or cluster
+- **JSON editor** — Built-in code editor with syntax highlighting, live validation, auto-formatting
+- **Format compatibility** — Accepts both camelCase and PascalCase, paste official YARP config directly
+- **Smart association** — Creating a route whose target cluster doesn't exist? It auto-creates the cluster
+- **Safe deletion** — Optionally clean up orphaned clusters when deleting routes; deleting a cluster auto-updates references
+
+### 💾 Config Version Management
+
+Broke something? One-click rollback.
+
+- **Auto-snapshot** — Before every create/edit/delete, the system automatically saves a config snapshot
+- **Change history** — View timestamp, operator IP, and change content for each change
+- **One-click rollback** — Pick any historical version and roll back instantly
+- **Export** — Export in full YARP standard format, ready to paste into `appsettings.json`
+- **Import** — Import from JSON, auto-validate format, merge and persist
+
+### 📝 Real-time Request Logs
+
+See what happens to every request passing through the gateway:
+
+- Request method, path, query parameters, headers
+- Response status code, headers
+- Request/response body (JSON auto-parsed)
+- Target cluster and route
+- Trace ID, request duration
+
+**Filtering**: by route ID / status code / Trace ID / time range
+
+**Security controls** (production-friendly):
+
+| Setting | One-liner |
+|---------|-----------|
+| `EnableProxyLogging` | Master switch — off stops the entire pipeline |
+| `EnableLogSampling` + `LogSamplingRate` | Sampling — 0.1 = only log 10% |
+| `LogErrorsOnly` | Only log 4xx/5xx |
+| `LogMaxBodyLength` | Truncate long bodies |
+| `LogRouteWhitelist` / `LogRouteBlacklist` | Filter by route |
+| `LogHeaderBlacklist` | `Authorization` → `***REDACTED***` |
+| `LogQueryBlacklist` | Mask sensitive query params |
+| `LogJsonFieldSanitizeList` | `password` in JSON → `***REDACTED***` |
+
+### 🔐 Authentication
+
+Four modes, pick what fits:
+
+| Mode | How It Works | Best For |
+|------|-------------|----------|
+| `None` | No protection | Local development |
+| `DefaultJwt` | Set a password, username is fixed as `admin` | Personal / small teams |
+| `CustomJwt` | Custom username + password | Enterprise |
+| `ApiKey` | Pass API Key via Header | API integrations |
+
+There's also an `AuthorizeRequest` delegate you can use to plug in your own auth system (highest priority).
+
+---
+
+## Configuration Reference
+
+All settings go under `Gateway:Dashboard`. Works out of the box without any config — every option has a default.
 
 ```json
 {
   "Gateway": {
     "Dashboard": {
       "EnableProxyLogging": true,
-      "AuthMode": "DefaultJwt",
-      "JwtPassword": "demo123",
       "RoutePrefix": "apigateway",
-      "Locale": "en-US"
+      "Locale": "en-US",
+
+      "AuthMode": "DefaultJwt",
+      "JwtPassword": "your-strong-password",
+      "JwtUsername": "admin",
+      "JwtSecret": "...",
+      "ApiKey": "your-api-key",
+      "ApiKeyHeaderName": "X-Api-Key",
+
+      "EnableLogSampling": false,
+      "LogSamplingRate": 1.0,
+      "LogErrorsOnly": false,
+      "LogMaxBodyLength": 8192,
+
+      "LogRouteWhitelist": [],
+      "LogRouteBlacklist": [],
+      "LogHeaderBlacklist": ["Authorization", "Cookie", "Set-Cookie"],
+      "LogQueryBlacklist": [],
+      "LogJsonFieldSanitizeList": ["password", "token", "secret", "apikey", "api-key"]
     }
   }
 }
 ```
 
-**Auth Modes:** `None` | `ApiKey` | `CustomJwt` | `DefaultJwt`
-
-**Special Handling:**
-- JWT tokens expire in **8 hours** by default
-- Login via `POST /apigateway/login` to get token
-- When `AuthMode` is configured, `AddGatewayApiAuth()` can auto-detect credentials from `JwtPassword`
-- `RoutePrefix` allows customizing the dashboard URL path (default: `apigateway`)
-- `Locale` supports runtime language switching: `en-US` | `zh-CN`
-
-</details>
-
-<details>
-<summary><b>ReverseProxy</b> — Standard YARP Configuration</b></summary>
-
-```json
-{
-  "ReverseProxy": {
-    "Routes": {
-      "my-route": {
-        "ClusterId": "my-cluster",
-        "Match": "/api/test/{**catch-all}"
-      }
-    },
-    "Clusters": {
-      "my-cluster": {
-        "Destinations": {
-          "d1": { "Address": "http://localhost:5000/" }
-        },
-        "LoadBalancingPolicy": "PowerOfTwoChoices"
-      }
-    }
-  }
-}
-```
-
-See [YARP docs](https://microsoft.github.io/reverse-proxy/articles/config-files.html) for details.
-
-</details>
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `EnableProxyLogging` | `true` | Master switch for request logging |
+| `RoutePrefix` | `"apigateway"` | Dashboard URL prefix |
+| `Locale` | `"en-US"` | Default language, switchable at runtime |
+| `AuthMode` | `None` | `None` / `ApiKey` / `CustomJwt` / `DefaultJwt` |
+| `JwtPassword` | null | JWT login password |
+| `JwtUsername` | null | CustomJwt username (DefaultJwt uses fixed `admin`) |
+| `JwtSecret` | null | JWT signing key — auto-generated if not set (resets on restart) |
+| `ApiKey` | null | API Key value |
+| `ApiKeyHeaderName` | `"X-Api-Key"` | Header name for API Key |
+| `EnableLogSampling` | `false` | Enable log sampling |
+| `LogSamplingRate` | `1.0` | Sampling rate 0.0–1.0 |
+| `LogErrorsOnly` | `false` | Only log errors |
+| `LogMaxBodyLength` | `8192` | Max body length in bytes |
+| `LogRouteWhitelist` | null | Route whitelist |
+| `LogRouteBlacklist` | null | Route blacklist |
+| `LogHeaderBlacklist` | null | Header sanitization list |
+| `LogQueryBlacklist` | null | Query param sanitization list |
+| `LogJsonFieldSanitizeList` | null | JSON field sanitization list |
 
 ---
 
-## 🔌 API Endpoints
+## API Endpoints
 
-<details>
-<summary><b>Gateway API</b> — <code>/api/gateway</code></summary>
+### Dashboard — `/{RoutePrefix}`
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/gateway/register-route` | `POST` | Register/update route |
-| `/api/gateway/{routeName}` | `DELETE` | Unregister route |
-| `/api/gateway/routes` | `GET` | Query all routes |
-| `/api/gateway/ping` | `GET` | Health check |
+| `/{prefix}` | GET | Dashboard home |
+| `/{prefix}/login` | GET/POST | Login page / authenticate |
+| `/{prefix}/logout` | POST | Logout |
+| `/{prefix}/info` | GET | Gateway runtime info |
+| `/{prefix}/clusters` | GET | Cluster list |
+| `/{prefix}/routes` | GET | Route list |
+| `/{prefix}/logs` | GET/DELETE | Query logs / clear all |
+| `/{prefix}/auth/status` | GET | Auth status |
 
-**Request Example:**
-```json
+### Config Management — `/{RoutePrefix}/api/config`
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/config/export` | GET | Export full YARP config |
+| `/api/config/import` | POST | Import config (validate + snapshot + persist) |
+| `/api/config/validate` | POST | Validate config format |
+| `/api/config/history` | GET | Change history |
+| `/api/config/rollback/{id}` | POST | Rollback to a specific version |
+| `/api/config/routes/{id}` | PUT/DELETE | Create/update / delete a route |
+| `/api/config/clusters/{id}` | PUT/DELETE | Create/update / delete a cluster |
+| `/api/config/clusters/{id}/rename` | PUT | Rename a cluster |
+
+> Default prefix is `apigateway`, customizable via `RoutePrefix`.
+
+---
+
+## Advanced Usage
+
+<details>
+<summary><b>🔐 Custom Authorization — Plug Into Your Own Auth System</b></summary>
+
+```csharp
+builder.Services.AddAneiangYarpDashboard(options =>
 {
-  "routeName": "my-service",
-  "clusterName": "my-service-cluster",
-  "matchPath": "/api/my-service/{**catch-all}",
-  "destinationAddress": "http://192.168.1.101:5001",
-  "order": 50,
-  "transforms": [
-    { "PathSet": "/api/backend/{**catch-all}" }
-  ]
-}
+    options.AuthorizeRequest = async (context) =>
+    {
+        // Return true = allow access
+        return context.User.Identity?.IsAuthenticated == true
+            && context.User.IsInRole("GatewayAdmin");
+    };
+});
 ```
 
-**Response Format:**
-```json
-{ "code": 200, "message": "Route registered successfully" }
+Priority: `AuthorizeRequest` > `ApiKey` > `JWT` > `None`
+
+</details>
+
+<details>
+<summary><b>🛡️ Dashboard + Zero-Config Client Registration</b></summary>
+
+When the gateway has Dashboard auth configured, `AddGatewayApiAuth()` auto-reads the password — zero config on the client side:
+
+```csharp
+// Gateway Program.cs
+builder.Services.AddAneiangYarp();
+builder.Services.AddAneiangYarpDashboard();
+builder.Services.AddGatewayApiAuth();  // Auto-reads Dashboard password
+
+// Client Program.cs — no auth config needed at all
+builder.Services.AddAneiangYarpClient();
 ```
 
 </details>
 
 <details>
-<summary><b>Dashboard API</b> — <code>/apigateway</code></summary>
+<summary><b>🔧 Middleware Order</b></summary>
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /apigateway` | Dashboard home page |
-| `GET /apigateway/login` | Login page |
-| `POST /apigateway/login` | Login (returns JWT token) |
-| `GET /apigateway/info` | Gateway runtime info |
-| `GET /apigateway/clusters` | Cluster status |
-| `GET /apigateway/routes` | Route configuration |
-| `GET /apigateway/routes/{routeId}` | Route details |
-| `GET /apigateway/logs` | Recent YARP logs |
-| `DELETE /apigateway/logs` | Clear logs |
+```csharp
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
+
+app.UseRouting();
+app.UseAneiangYarpDashboard();  // ← after UseRouting
+app.MapControllers();
+app.MapReverseProxy();           // ← must be last
+```
+
+The middleware captures YARP proxy request/response data and automatically skips dashboard's own requests.
+
+</details>
+
+<details>
+<summary><b>📋 Production Recommended Config</b></summary>
+
+```json
+{
+  "Gateway": {
+    "Dashboard": {
+      "AuthMode": "DefaultJwt",
+      "JwtPassword": "very-strong-password-here",
+      "EnableLogSampling": true,
+      "LogSamplingRate": 0.1,
+      "LogErrorsOnly": true,
+      "LogMaxBodyLength": 4096,
+      "LogHeaderBlacklist": ["Authorization", "Cookie", "Set-Cookie", "X-Api-Key"],
+      "LogJsonFieldSanitizeList": ["password", "token", "secret", "apikey", "creditCard", "ssn"]
+    }
+  }
+}
+```
 
 </details>
 
 ---
 
-## 📂 Project Structure
+## About Aneiang.Yarp
 
-```
-Aneiang.Yarp/
-├── src/
-│   ├── Aneiang.Yarp/                  # Core library
-│   │   ├── Controllers/               # Gateway REST API
-│   │   ├── Extensions/                # DI registration
-│   │   ├── Models/                    # DTOs & Options
-│   │   └── Services/                  # Core services
-│   │
-│   └── Aneiang.Yarp.Dashboard/        # Dashboard library
-│       ├── Controllers/               # Dashboard API
-│       ├── Views/                     # Razor views
-│       ├── Services/                  # Dashboard services
-│       ├── Models/                    # Dashboard models
-│       └── Extensions/                # DI registration
-│
-└── samples/
-    ├── SampleGateway/                 # Gateway example
-    └── SampleLocalService/            # Client example
-```
+The dashboard depends on [Aneiang.Yarp](https://www.nuget.org/packages/Aneiang.Yarp) core library, which provides:
+
+| Capability | Description |
+|------------|-------------|
+| 🚀 **Dynamic Routing API** | `/api/gateway` for runtime route registration/update/unregistration |
+| 🔄 **Auto-Registration Client** | `AddAneiangYarpClient()` — one line, registers on startup, unregisters on shutdown |
+| 👥 **Instance Isolation** | Multi-developer debugging with automatic namespace isolation |
+| 🧠 **Smart Defaults** | Auto-detect assembly name, Kestrel address, resolve localhost → LAN IP |
+| 🛡️ **API Authorization** | Optional BasicAuth/ApiKey protection for registration APIs |
+| 🚪 **Conditional API Exposure** | `enableRegistration: false` removes registration endpoints entirely |
+
+The core library works independently — no dashboard required.
 
 ---
 
-## 🧪 Sample Projects
+## Sample Projects
 
 ```bash
-# Terminal 1: Start gateway
+# Start the gateway (with dashboard)
 dotnet run --project samples/SampleGateway
 
-# Terminal 2: Start local service (auto-registers)
+# Start the client (auto-registers to gateway)
 dotnet run --project samples/SampleLocalService
 
-# Test the route
+# Test
 curl http://localhost:5000/api/your-endpoint
 ```
 
-**Sample Gateway Features:**
-- Dashboard at `/apigateway` (login: `admin` / `demo123`)
-- Serilog logging
-- JWT authentication
+Dashboard: `/apigateway`, login: `admin` / `demo123`
 
 ---
 
-## 📄 License
+## NuGet
 
-This project is licensed under the [MIT License](LICENSE).
+| Package | Description | Link |
+|---------|-------------|------|
+| **Aneiang.Yarp.Dashboard** | Dashboard | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard) |
+| **Aneiang.Yarp** | Core library (standalone) | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp) |
+
+**Supports** .NET 8.0 / .NET 9.0 · YARP 2.3.0
+
+---
+
+## License
+
+[MIT](LICENSE) — use it however you like.
 
 ---
 
 <div align="center">
 
-**Made with ❤️ for the .NET community**
-
-[⭐ Star this repo](https://github.com/aneiang/Aneiang.Yarp) if you find it useful!
+Find it useful? [⭐ Star this repo](https://github.com/aneiang/Aneiang.Yarp) to help others find it
 
 </div>

@@ -90,6 +90,58 @@ public class DashboardOptions
     /// </summary>
     public string Locale { get; set; } = "zh-CN";
 
+    // ─── Log sampling and filtering ───────────────────────
+
+    /// <summary>
+    /// Enable or disable log sampling. When enabled, only a percentage of requests are logged.
+    /// Default: false.
+    /// </summary>
+    public bool EnableLogSampling { get; set; } = false;
+
+    /// <summary>
+    /// Sampling rate (0.0 to 1.0). 1.0 means log all requests, 0.5 means log 50%.
+    /// Only effective when EnableLogSampling is true. Default: 1.0.
+    /// </summary>
+    public double LogSamplingRate { get; set; } = 1.0;
+
+    /// <summary>
+    /// Only log error requests (status code >= 400). Default: false.
+    /// </summary>
+    public bool LogErrorsOnly { get; set; } = false;
+
+    /// <summary>
+    /// Whitelist of route IDs to log. If empty, all routes are considered.
+    /// </summary>
+    public List<string>? LogRouteWhitelist { get; set; }
+
+    /// <summary>
+    /// Blacklist of route IDs to exclude from logging.
+    /// </summary>
+    public List<string>? LogRouteBlacklist { get; set; }
+
+    /// <summary>
+    /// Maximum request/response body length to log (in bytes). Default: 8192 (8KB).
+    /// Bodies exceeding this limit will be truncated.
+    /// </summary>
+    public int LogMaxBodyLength { get; set; } = 8192;
+
+    /// <summary>
+    /// Header names to exclude from logging (case-insensitive).
+    /// Default: ["Authorization", "Cookie", "Set-Cookie"]
+    /// </summary>
+    public List<string>? LogHeaderBlacklist { get; set; }
+
+    /// <summary>
+    /// Query parameter names to exclude from logging (case-insensitive).
+    /// </summary>
+    public List<string>? LogQueryBlacklist { get; set; }
+
+    /// <summary>
+    /// JSON field names to sanitize in request/response body (case-insensitive).
+    /// Default: ["password", "token", "secret", "apikey", "api-key"]
+    /// </summary>
+    public List<string>? LogJsonFieldSanitizeList { get; set; }
+
     // ─── Custom delegate (highest priority) ───────────────
 
     /// <summary>Custom auth delegate. If set, takes precedence over all other auth modes.</summary>
