@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Dashboard Config Module - Configuration import/export and history management
  */
 (function() {
@@ -9,7 +9,7 @@
     // ===== Export Configuration =====
     window.DashboardConfig.exportConfig = async function() {
         try {
-            window.DashboardModals.showInfo(__('config.exporting') || '正在导出配置...');
+            window.DashboardModals.showInfo(__('config.exporting'));
 
             const response = await window.DashboardApi.endpoints.exportConfig();
 
@@ -27,10 +27,10 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            window.DashboardModals.showSuccess(__('config.exported') || '配置已导出');
+            window.DashboardModals.showSuccess(__('config.exported'));
         } catch (error) {
             console.error('[Config] Export failed:', error);
-            window.DashboardModals.showError(__('config.exportFailed') || '导出失败: ' + error.message);
+            window.DashboardModals.showError(__('config.exportFailed') + error.message);
         }
     };
 
@@ -52,18 +52,18 @@
                                 <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:16px;">
                                     <i class="bi bi-upload"></i>
                                 </span>
-                                ${__('config.import') || '导入配置'}
+                                ${__('config.import')}
                             </h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body" style="padding:24px;">
                             <div id="import-drop-zone" style="border:2px dashed #cbd5e1;border-radius:12px;padding:40px;text-align:center;background:#f8fafc;cursor:pointer;transition:all 0.2s ease;">
                                 <i class="bi bi-file-earmark-arrow-up" style="font-size:48px;color:#6366f1;"></i>
-                                <p style="margin-top:12px;color:#64748b;font-size:14px;">${__('config.dropFile') || '拖拽文件到这里或点击选择'}</p>
+                                <p style="margin-top:12px;color:#64748b;font-size:14px;">${__('config.dropFile')}</p>
                                 <input type="file" id="import-file-input" accept=".json" style="display:none;">
                             </div>
                             <div id="import-preview" style="display:none;margin-top:16px;">
-                                <h6 style="font-weight:600;margin-bottom:8px;">${__('config.selectFile') || '选择的文件'}: <span id="import-file-name"></span></h6>
+                                <h6 style="font-weight:600;margin-bottom:8px;">${__('config.selectFile')}: <span id="import-file-name"></span></h6>
                                 <div id="import-json-preview" style="max-height:300px;overflow:auto;background:#1e293b;border-radius:8px;padding:12px;font-size:12px;color:#e2e8f0;font-family:monospace;"></div>
                             </div>
                             <div id="import-errors" style="display:none;margin-top:16px;">
@@ -72,10 +72,10 @@
                         </div>
                         <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
                             <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
-                                ${__('modal.cancelBtn') || '取消'}
+                                ${__('modal.cancelBtn')}
                             </button>
                             <button type="button" class="btn btn-primary btn-sm" id="import-btn" disabled style="min-width:80px;">
-                                <i class="bi bi-upload me-1"></i>${__('config.import') || '导入'}
+                                <i class="bi bi-upload me-1"></i>${__('config.import')}
                             </button>
                         </div>
                     </div>
@@ -154,7 +154,7 @@
                     // Validate structure
                     if (!importData.ReverseProxy || !importData.ReverseProxy.Routes || !importData.ReverseProxy.Clusters) {
                         errors.style.display = 'block';
-                        errors.querySelector('.alert').textContent = __('config.importInvalid') || '配置格式无效，需要包含 ReverseProxy.Routes 和 ReverseProxy.Clusters';
+                        errors.querySelector('.alert').textContent = __('config.importInvalid');
                         importBtn.disabled = true;
                         return;
                     }
@@ -167,7 +167,7 @@
 
                 } catch (err) {
                     errors.style.display = 'block';
-                    errors.querySelector('.alert').textContent = __('modal.invalidJson') || 'JSON格式错误: ' + err.message;
+                    errors.querySelector('.alert').textContent = __('modal.invalidJson') + err.message;
                     importBtn.disabled = true;
                 }
             };
@@ -179,12 +179,12 @@
             if (!importData) return;
 
             try {
-                window.DashboardModals.showInfo(__('config.importing') || '正在导入配置...');
+                window.DashboardModals.showInfo(__('config.importing'));
                 bsModal.hide();
 
                 const response = await window.DashboardApi.endpoints.importConfig(importData);
 
-                window.DashboardModals.showSuccess(__('config.imported') || '配置已导入');
+                window.DashboardModals.showSuccess(__('config.imported'));
 
                 // Reload page to reflect changes
                 setTimeout(function() {
@@ -193,7 +193,7 @@
 
             } catch (error) {
                 console.error('[Config] Import failed:', error);
-                window.DashboardModals.showError(__('config.importFailed') || '导入失败: ' + error.message);
+                window.DashboardModals.showError(__('config.importFailed') + error.message);
             }
         });
 
@@ -223,19 +223,19 @@
                                 <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:16px;">
                                     <i class="bi bi-clock-history"></i>
                                 </span>
-                                ${__('config.history') || '配置历史'}
+                                ${__('config.history')}
                             </h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body" id="${modalId}-body" style="padding:0;max-height:500px;overflow-y:auto;">
                             <div style="display:flex;align-items:center;justify-content:center;padding:60px 0;gap:10px;color:#64748b;">
                                 <div class="spinner-border spinner-border-sm" role="status"></div>
-                                <span>${__('config.loading') || '加载中...'}</span>
+                                <span>${__('config.loading')}</span>
                             </div>
                         </div>
                         <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
                             <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
-                                ${__('config.close') || 'Close'}
+                                ${__('config.close')}
                             </button>
                         </div>
                     </div>
@@ -261,18 +261,18 @@
                         <div class="history-item" style="display:flex;align-items:center;padding:14px 20px;border-bottom:1px solid #e2e8f0;transition:background 0.15s ease;">
                             <div style="flex:1;">
                                 <div style="font-weight:500;font-size:14px;color:#1e293b;">${item.description || __('config.manualSnapshot')}</div>
-                                <div style="font-size:12px;color:#64748b;margin-top:4px;">${__('config.time') || '时间'}: ${time}</div>
-                                <div style="font-size:12px;color:#64748b;">${__('config.operatorIp') || '操作IP'}: ${item.clientIp || '-'}</div>
-                                <div style="font-size:12px;color:#94a3b8;">${__('config.version') || '版本'}: ${item.versionId}</div>
+                                <div style="font-size:12px;color:#64748b;margin-top:4px;">${__('config.time')}: ${time}</div>
+                                <div style="font-size:12px;color:#64748b;">${__('config.operatorIp')}: ${item.clientIp || '-'}</div>
+                                <div style="font-size:12px;color:#94a3b8;">${__('config.version')}: ${item.versionId}</div>
                             </div>
                             <button class="btn btn-sm btn-outline-warning" onclick="DashboardConfig.rollbackTo('${item.versionId}')" style="padding:6px 12px;border-radius:8px;">
-                                <i class="bi bi-arrow-counterclockwise me-1"></i>${__('config.rollback') || '回滚'}
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>${__('config.rollback')}
                             </button>
                         </div>
                     `;
                 });
             } else {
-                historyHtml = `<div class="text-center py-4 text-muted">${__('config.noHistory') || '暂无历史版本'}</div>`;
+                historyHtml = `<div class="text-center py-4 text-muted">${__('config.noHistory')}</div>`;
             }
 
             // Update modal body with loaded content
@@ -284,7 +284,7 @@
             // Update modal body with error state
             const body = document.getElementById(modalId + '-body');
             if (body) {
-                body.innerHTML = `<div class="text-center py-4 text-danger"><i class="bi bi-exclamation-circle me-2"></i>${__('config.getHistoryFailed') || '加载历史失败'}: ${window.DashboardUtils.escapeHtml(error.message)}</div>`;
+                body.innerHTML = `<div class="text-center py-4 text-danger"><i class="bi bi-exclamation-circle me-2"></i>${__('config.getHistoryFailed')}: ${window.DashboardUtils.escapeHtml(error.message)}</div>`;
             } else {
                 window.DashboardModals.showError(__('config.getHistoryFailed') + ': ' + error.message);
             }
@@ -299,7 +299,7 @@
             __('config.rollbackConfirm') || `确认回滚到版本 ${versionId}？`,
             async function() {
                 try {
-                    window.DashboardModals.showInfo(__('config.rollbacking') || '正在回滚...');
+                    window.DashboardModals.showInfo(__('config.rollbacking'));
 
                     // Close history modal
                     const historyModal = document.getElementById('dashboard-history-modal');
@@ -309,7 +309,7 @@
 
                     await window.DashboardApi.endpoints.rollbackConfig(versionId);
 
-                    window.DashboardModals.showSuccess(__('config.rollbacked') || '已回滚');
+                    window.DashboardModals.showSuccess(__('config.rollbacked'));
 
                     // Reload page
                     setTimeout(function() {
@@ -318,11 +318,11 @@
 
                 } catch (error) {
                     console.error('[Config] Rollback failed:', error);
-                    window.DashboardModals.showError(__('config.rollbackFailed') || '回滚失败: ' + error.message);
+                    window.DashboardModals.showError(__('config.rollbackFailed') + error.message);
                 }
             },
             null,
-            { title: __('config.rollback') || '回滚', danger: true }
+            { title: __('config.rollback'), danger: true }
         );
     };
 

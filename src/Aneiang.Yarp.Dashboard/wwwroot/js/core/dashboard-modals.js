@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Dashboard Modals - Unified modal and notification system
  * Provides: showToast, showConfirm, showFormModal, showJsonModal
  */
@@ -108,9 +108,9 @@
      */
     window.DashboardModals.showConfirm = function(message, onConfirm, onCancel, options) {
         options = options || {};
-        const title = options.title || (window.__('modal.confirm') || '确认');
-        const confirmText = options.confirmText || (window.__('modal.confirmBtn') || '确认');
-        const cancelText = options.cancelText || (window.__('modal.cancelBtn') || '取消');
+        const title = options.title || (window.__('modal.confirm'));
+        const confirmText = options.confirmText || (window.__('modal.confirmBtn'));
+        const cancelText = options.cancelText || (window.__('modal.cancelBtn'));
         const danger = options.danger || false;
 
         // Remove existing modal
@@ -175,7 +175,7 @@
      */
     window.DashboardModals.showFormModal = function(config) {
         const modalId = 'dashboard-form-modal-' + Date.now();
-        const title = config.title || (window.__('modal.edit') || '编辑');
+        const title = config.title || (window.__('modal.edit'));
         const size = config.size || 'lg';
         const fields = config.fields || [];
         const data = config.data || {};
@@ -261,10 +261,10 @@
                         </div>
                         <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
                             <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
-                                ${window.__('modal.cancelBtn') || '取消'}
+                                ${window.__('modal.cancelBtn')}
                             </button>
                             <button type="button" class="btn btn-primary btn-sm" id="${modalId}-save" style="min-width:80px;">
-                                <i class="bi bi-check-lg me-1"></i>${window.__('modal.saveBtn') || '保存'}
+                                <i class="bi bi-check-lg me-1"></i>${window.__('modal.saveBtn')}
                             </button>
                         </div>
                     </div>
@@ -318,7 +318,7 @@
             });
 
             if (!valid) {
-                DashboardModals.showWarning(window.__('modal.validationError') || '请填写所有必填字段');
+                DashboardModals.showWarning(window.__('modal.validationError'));
                 return;
             }
 
@@ -425,7 +425,7 @@
      */
     window.DashboardModals.showJsonModal = function(config) {
         const modalId = 'dashboard-json-modal-' + Date.now();
-        const title = config.title || (window.__('modal.jsonEdit') || 'JSON编辑');
+        const title = config.title || (window.__('modal.jsonEdit'));
         const readOnly = config.readOnly || false;
         const data = config.data || {};
         const schemaType = config.schemaType || null;
@@ -449,7 +449,7 @@
                            style="border-radius:8px;padding:8px 12px;font-size:14px;border:1.5px solid #e2e8f0;transition:border-color 0.2s,box-shadow 0.2s;"
                            onfocus="this.style.borderColor='#6366f1';this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.1)'"
                            onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
-                    ${editableId.original ? `<span style="font-size:12px;color:#94a3b8;white-space:nowrap;">${window.__('modal.renameHint') || '修改ID将创建新条目并删除旧条目'}</span>` : ''}
+                    ${editableId.original ? `<span style="font-size:12px;color:#94a3b8;white-space:nowrap;">${window.__('modal.renameHint')}</span>` : ''}
                 </div>
             </div>
         ` : '';
@@ -473,25 +473,25 @@
                         </div>
                         <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
                             <div style="flex:1;display:flex;align-items:center;gap:8px;">
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="DashboardModals.formatJson('${modalId}')" title="${window.__('modal.format') || '格式化'}">
-                                    <i class="bi bi-code-slash me-1"></i>${window.__('modal.format') || '格式化'}
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="DashboardModals.formatJson('${modalId}')" title="${window.__('modal.format')}">
+                                    <i class="bi bi-code-slash me-1"></i>${window.__('modal.format')}
                                 </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="DashboardModals.copyJsonFromEditor('${modalId}')" title="${window.__('modal.copy') || '复制'}">
-                                    <i class="bi bi-clipboard me-1"></i>${window.__('modal.copy') || '复制'}
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="DashboardModals.copyJsonFromEditor('${modalId}')" title="${window.__('modal.copy')}">
+                                    <i class="bi bi-clipboard me-1"></i>${window.__('modal.copy')}
                                 </button>
                             </div>
                             <div style="display:flex;align-items:center;gap:8px;">
                                 ${readOnly ? '' : `
                                 <button type="button" class="btn btn-outline-warning btn-sm" onclick="DashboardModals.validateJson('${modalId}')">
-                                    <i class="bi bi-check-circle me-1"></i>${window.__('modal.validate') || '验证'}
+                                    <i class="bi bi-check-circle me-1"></i>${window.__('modal.validate')}
                                 </button>
                                 `}
                                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
-                                    ${window.__('modal.cancelBtn') || '取消'}
+                                    ${window.__('modal.cancelBtn')}
                                 </button>
                                 ${readOnly ? '' : `
                                 <button type="button" class="btn btn-primary btn-sm" id="${modalId}-save" style="min-width:80px;">
-                                    <i class="bi bi-check-lg me-1"></i>${window.__('modal.saveBtn') || '保存'}
+                                    <i class="bi bi-check-lg me-1"></i>${window.__('modal.saveBtn')}
                                 </button>
                                 `}
                             </div>
@@ -587,7 +587,7 @@
                         const idInput = document.getElementById(modalId + '-id-input');
                         newId = idInput ? idInput.value.trim() : null;
                         if (editableId && !newId) {
-                            DashboardModals.showError(window.__('modal.idRequired') || 'ID不能为空');
+                            DashboardModals.showError(window.__('modal.idRequired'));
                             return;
                         }
                     }
@@ -601,7 +601,7 @@
                         bsModal.hide();
                     }
                 } catch (e) {
-                    DashboardModals.showError(window.__('modal.invalidJson') || 'JSON格式错误: ' + e.message);
+                    DashboardModals.showError(window.__('modal.invalidJson') + e.message);
                 }
             });
         }
@@ -627,17 +627,17 @@
         if (window.DashboardUtils?.copyToClipboard) {
             window.DashboardUtils.copyToClipboard(value).then(function(success) {
                 if (success) {
-                    DashboardModals.showSuccess(window.__('modal.copied') || '已复制到剪贴板');
+                    DashboardModals.showSuccess(window.__('modal.copied'));
                 } else {
-                    DashboardModals.showError(window.__('modal.copyFailed') || '复制失败');
+                    DashboardModals.showError(window.__('modal.copyFailed'));
                 }
             });
         } else {
             // Fallback
             navigator.clipboard.writeText(value).then(function() {
-                DashboardModals.showSuccess(window.__('modal.copied') || '已复制到剪贴板');
+                DashboardModals.showSuccess(window.__('modal.copied'));
             }).catch(function() {
-                DashboardModals.showError(window.__('modal.copyFailed') || '复制失败');
+                DashboardModals.showError(window.__('modal.copyFailed'));
             });
         }
     };
@@ -662,9 +662,9 @@
                 const textarea = document.getElementById(modalId + '-textarea');
                 if (textarea) textarea.value = formatted;
             }
-            DashboardModals.showSuccess(window.__('modal.formatted') || '格式化成功');
+            DashboardModals.showSuccess(window.__('modal.formatted'));
         } catch (e) {
-            DashboardModals.showError(window.__('modal.invalidJson') || 'JSON格式错误，无法格式化: ' + e.message);
+            DashboardModals.showError(window.__('modal.invalidJson') + e.message);
         }
     };
 
@@ -679,9 +679,9 @@
 
         try {
             JSON.parse(value);
-            DashboardModals.showSuccess(window.__('modal.validJson') || 'JSON格式有效');
+            DashboardModals.showSuccess(window.__('modal.validJson'));
         } catch (e) {
-            DashboardModals.showError(window.__('modal.invalidJson') || 'JSON格式错误: ' + e.message);
+            DashboardModals.showError(window.__('modal.invalidJson') + e.message);
         }
     };
 
