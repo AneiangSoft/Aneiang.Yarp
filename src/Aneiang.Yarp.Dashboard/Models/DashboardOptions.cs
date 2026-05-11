@@ -120,12 +120,6 @@ public class DashboardOptions
     public List<string>? LogRouteBlacklist { get; set; }
 
     /// <summary>
-    /// Whitelist of content types to log body for. If empty, only JSON is logged.
-    /// Example: ["application/json", "text/plain"]
-    /// </summary>
-    public List<string>? LogContentTypeWhitelist { get; set; }
-
-    /// <summary>
     /// Maximum request/response body length to log (in bytes). Default: 8192 (8KB).
     /// Bodies exceeding this limit will be truncated.
     /// </summary>
