@@ -85,14 +85,15 @@ internal static class DashboardRouteMapper
 
     /// <summary>
     /// Determines editability and source for a route.
+    /// All routes are editable. Source is preserved for display purposes only.
     /// </summary>
     private static (bool isEditable, string source) GetRouteEditability(string routeId, IReadOnlyDictionary<string, string>? routeSources)
     {
         if (routeSources != null && routeSources.TryGetValue(routeId, out var source))
         {
-            return (source != "config", source);
+            return (true, source);
         }
 
-        return (false, "config"); // Not in route sources means it's from static config
+        return (true, "config"); // Not in route sources means it's from static config
     }
 }

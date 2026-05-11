@@ -557,10 +557,7 @@
             });
 
             const isConfigSource = (route.source || 'config') === 'config';
-            // No action buttons for config source
-            if (isConfigSource) {
-                return container;
-            }
+            // All routes are editable now, show action buttons
 
             // Edit button
             const editBtn = window.DashboardDOM.create('button', {
@@ -616,9 +613,7 @@
             detailHtml.push('<div class="detail-actions-bar">');
             detailHtml.push(`<div class="detail-actions-left"><span class="detail-actions-label"><i class="bi bi-signpost-split"></i> ${__('index.route.title') || '路由'}</span></div>`);
             detailHtml.push('<div class="detail-actions-right">');
-            if ((route.source || 'config') !== 'config') {
-                detailHtml.push(`<button class="btn btn-sm btn-outline-secondary detail-action-btn" onclick="RoutesModule.showEditModal('${window.DashboardUtils.escapeHtml(route.routeId)}')" title="${__('index.route.edit') || '编辑'}"><i class="bi bi-pencil"></i> ${__('index.route.edit') || '编辑'}</button>`);
-            }
+            detailHtml.push(`<button class="btn btn-sm btn-outline-secondary detail-action-btn" onclick="RoutesModule.showEditModal('${window.DashboardUtils.escapeHtml(route.routeId)}')" title="${__('index.route.edit') || '编辑'}"><i class="bi bi-pencil"></i> ${__('index.route.edit') || '编辑'}</button>`);
             detailHtml.push(`<button class="btn btn-sm btn-outline-primary detail-action-btn" onclick="RoutesModule.copyRouteJson('${window.DashboardUtils.escapeHtml(route.routeId)}')" title="${__('index.copyJson.title') || '复制JSON'}"><i class="bi bi-clipboard-data"></i> ${__('index.copyJson') || '复制JSON'}</button>`);
             detailHtml.push('</div>');
             detailHtml.push('</div>');
@@ -1177,11 +1172,7 @@
                 return;
             }
         
-            // Check if editable
-            if (route.source === 'config') {
-                window.DashboardModals.showWarning(__('index.route.notEditable') || '静态配置的路由无法通过Dashboard编辑');
-                return;
-            }
+            // All routes are editable now
         
             // Build YARP format route config for JSON editor
             const yarpRoute = {
@@ -1240,11 +1231,17 @@
             }
         
             window.DashboardModals.showJsonModal({
-                title: __('modal.editRoute') || '编辑路由 (JSON模式) - ' + routeId,
+                title: __('modal.editRoute') || '编辑路由 (JSON模式)',
                 data: yarpRoute,
                 schemaType: 'route',
                 size: 'xl',
-                onSave: function(parsedData) {
+                editableId: {
+                    label: 'Route ID',
+                    value: routeId,
+                    original: routeId,
+                    placeholder: __('modal.routeIdPlaceholder') || '例如: my-service-route'
+                },
+                onSave: function(parsedData, newId) {
                     // Validate route config
                     if (!parsedData.ClusterId || !parsedData.ClusterId.trim()) {
                         window.DashboardModals.showError(__('index.route.invalidCluster') || 'ClusterId 必须指定有效的集群');
@@ -1254,12 +1251,46 @@
                         window.DashboardModals.showError(__('index.route.invalidMatch') || 'Match 配置无效，必须指定 Path 或 Hosts');
                         return false;
                     }
-        
-                    // Save route directly with existing ID
-                    self.saveRouteFromJson(parsedData, routeId);
+
+                    // Handle rename: only if ID actually changed (case-sensitive comparison)
+                    if (newId && newId !== routeId) {
+                        self.renameRoute(routeId, newId, parsedData);
+                    } else {
+                        self.saveRouteFromJson(parsedData, routeId);
+                    }
                     return true;
                 }
             });
+        },
+
+        // ===== Rename Route =====
+        renameRoute: async function(oldId, newId, routeConfig) {
+            const self = this;
+            try {
+                window.DashboardModals.showInfo(__('index.route.renaming') || '正在重命名路由...');
+
+                // Create new route with new ID FIRST (cluster already exists via old route)
+                await window.DashboardApi.endpoints.saveRoute(newId, routeConfig);
+
+                // Delete old route AFTER (new route already references the cluster, so don't delete it)
+                if (oldId !== newId) {
+                    try {
+                        await window.DashboardApi.delete(`/api/config/routes/${encodeURIComponent(oldId)}?removeOrphanedCluster=false`);
+                    } catch (e) {
+                        console.warn('[Routes] Failed to delete old route after rename:', e);
+                    }
+                }
+
+                window.DashboardModals.showSuccess(__('index.route.renamed') || '路由重命名成功');
+                await self.loadRoutes();
+
+                document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
+                    detail: { type: 'route', id: newId, oldId: oldId, action: 'rename' }
+                }));
+            } catch (error) {
+                console.error('[Routes] Rename failed:', error);
+                window.DashboardModals.showError(__('index.route.renameFailed') || '路由重命名失败: ' + error.message);
+            }
         },
 
         // ===== Delete Route =====
@@ -1272,7 +1303,7 @@
                     try {
                         window.DashboardModals.showInfo(__('index.route.deleting') || '正在删除路由...');
                         
-                        await window.DashboardApi.endpoints.deleteRoute(routeId);
+                        await window.DashboardApi.endpoints.deleteRouteConfig(routeId);
                         await self.loadRoutes();
                         
                         window.DashboardModals.showSuccess(__('index.route.deleted') || '路由删除成功');

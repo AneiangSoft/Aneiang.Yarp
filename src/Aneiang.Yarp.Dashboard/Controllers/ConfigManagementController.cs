@@ -233,6 +233,75 @@ public class ConfigManagementController : ControllerBase
     }
 
     /// <summary>
+    /// Rename a cluster. Updates all referencing routes atomically.
+    /// </summary>
+    [HttpPut("clusters/{clusterId}/rename")]
+    public async Task<IActionResult> RenameCluster(string clusterId, [FromBody] JsonElement config)
+    {
+        try
+        {
+            _logger.LogInformation("Rename cluster requested: {OldClusterId}", clusterId);
+
+            // Get new cluster ID
+            string? newClusterId = null;
+            if (config.TryGetProperty("newClusterId", out var newIdProp))
+                newClusterId = newIdProp.GetString();
+            else if (config.TryGetProperty("clusterId", out var newIdProp2))
+                newClusterId = newIdProp2.GetString();
+
+            if (string.IsNullOrWhiteSpace(newClusterId))
+                return BadRequest(new { code = 400, message = "newClusterId is required" });
+
+            // Parse destinations
+            Dictionary<string, string> destinations = new();
+            if (config.TryGetProperty("destinations", out var destsProp) || config.TryGetProperty("Destinations", out destsProp))
+            {
+                if (destsProp.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var dest in destsProp.EnumerateObject())
+                    {
+                        var address = dest.Value.ValueKind == JsonValueKind.String
+                            ? dest.Value.GetString() ?? string.Empty
+                            : dest.Value.TryGetProperty("address", out var addrProp)
+                                ? addrProp.GetString() ?? string.Empty
+                                : dest.Value.TryGetProperty("Address", out var addrPascalProp)
+                                    ? addrPascalProp.GetString() ?? string.Empty
+                                    : string.Empty;
+                        if (!string.IsNullOrEmpty(address))
+                        {
+                            destinations[dest.Name] = address;
+                        }
+                    }
+                }
+            }
+
+            if (destinations.Count == 0)
+                return BadRequest(new { code = 400, message = "destinations is required and must have at least one entry" });
+
+            // Parse optional fields
+            string? loadBalancingPolicy = null;
+            if (config.TryGetProperty("loadBalancingPolicy", out var lbpProp))
+                loadBalancingPolicy = lbpProp.GetString();
+
+            // Save snapshot BEFORE rename
+            await _persistenceService.SaveSnapshotAsync($"Before cluster '{clusterId}' renamed to '{newClusterId}' via dashboard", GetClientIp());
+
+            var result = _dynamicConfig.TryRenameCluster(
+                clusterId, newClusterId, destinations, loadBalancingPolicy,
+                source: "dashboard", createdBy: "dashboard-user");
+
+            return result.Success
+                ? Ok(new { code = 200, message = result.Message, oldClusterId = clusterId, newClusterId = newClusterId })
+                : BadRequest(new { code = 400, message = result.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to rename cluster: {ClusterId}", clusterId);
+            return StatusCode(500, new { code = 500, message = $"Rename failed: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
     /// Save or update a single route.
     /// </summary>
     [HttpPut("routes/{routeId}")]
@@ -361,7 +430,7 @@ public class ConfigManagementController : ControllerBase
     /// Delete a route.
     /// </summary>
     [HttpDelete("routes/{routeId}")]
-    public async Task<IActionResult> DeleteRoute(string routeId)
+    public async Task<IActionResult> DeleteRoute(string routeId, [FromQuery] bool removeOrphanedCluster = false)
     {
         try
         {
@@ -370,7 +439,7 @@ public class ConfigManagementController : ControllerBase
             // Save snapshot BEFORE deletion
             await _persistenceService.SaveSnapshotAsync($"Before route '{routeId}' deleted via dashboard", GetClientIp());
             
-            var result = _dynamicConfig.TryRemoveRoute(routeId);
+            var result = _dynamicConfig.TryRemoveRoute(routeId, removeOrphanedCluster);
             
             return result.Success
                 ? Ok(new { code = 200, message = result.Message, routeId = routeId })
