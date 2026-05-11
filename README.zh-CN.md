@@ -25,6 +25,9 @@ builder.Services.AddAneiangYarp();
 builder.Services.AddAneiangYarpDashboard();  // ← 加上这行
 ```
 
+在线预览地址：http://113.45.65.71:8930/apigateway   
+账号：admin  密码：demo123
+
 ---
 
 ## 仪表盘预览

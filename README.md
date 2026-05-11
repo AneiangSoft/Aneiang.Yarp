@@ -25,6 +25,9 @@ builder.Services.AddAneiangYarp();
 builder.Services.AddAneiangYarpDashboard();  // ← add this line
 ```
 
+Demo：http://113.45.65.71:8930/apigateway   
+admin/demo123  
+
 ---
 
 ## Dashboard Preview
