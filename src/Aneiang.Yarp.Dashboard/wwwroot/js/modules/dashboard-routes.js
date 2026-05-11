@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Dashboard Routes Module - Route management and configuration
  */
 (function() {
@@ -78,8 +78,8 @@
                     <td colspan="8" class="text-center py-5">
                         <div class="empty-state">
                             <i class="bi bi-signpost-split" style="font-size: 2.5rem; opacity: 0.4; color: #64748b;"></i>
-                            <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.route.empty') || '暂无路由数据'}</div>
-                            <div class="mt-2 text-muted small">${__('index.route.emptyHelp') || '点击右上角 "+" 添加路由'}</div>
+                            <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.route.empty')}</div>
+                            <div class="mt-2 text-muted small">${__('index.route.emptyHelp')}</div>
                         </div>
                     </td>
                 `; 
@@ -119,13 +119,13 @@
                                     <i class="bi bi-search text-muted"></i>
                                 </span>
                                 <input type="text" class="form-control border-start-0" id="route-search-input" 
-                                       placeholder="${__('index.route.search') || '搜索路由ID、集群、路径...'}" 
+                                       placeholder="${__('index.route.search')}" 
                                        autocomplete="off">
                             </div>
                         </div>
                         <div class="col-auto">
                             <select class="form-select form-select-sm" id="route-method-select" style="width:100px;">
-                                <option value="all">${__('index.route.method.all') || '全部'} (${methodCounts.all})</option>
+                                <option value="all">${__('index.route.method.all')} (${methodCounts.all})</option>
                                 <option value="GET">GET (${methodCounts.GET})</option>
                                 <option value="POST">POST (${methodCounts.POST})</option>
                                 <option value="PUT">PUT (${methodCounts.PUT})</option>
@@ -134,11 +134,11 @@
                         </div>
                         <div class="col-auto">
                             <select class="form-select form-select-sm" id="route-source-select" style="width:110px;">
-                                <option value="all">${__('index.source.all') || '全部来源'} (${sourceCounts.all})</option>
-                                <option value="config">${__('index.source.config') || '静态配置'} (${sourceCounts.config})</option>
-                                <option value="dynamic">${__('index.source.dynamic') || '动态'} (${sourceCounts.dynamic})</option>
-                                <option value="dashboard">${__('index.source.dashboard') || '仪表盘'} (${sourceCounts.dashboard})</option>
-                                <option value="auto-register">${__('index.source.autoRegister') || '自动注册'} (${sourceCounts['auto-register']})</option>
+                                <option value="all">${__('index.source.all')} (${sourceCounts.all})</option>
+                                <option value="config">${__('index.source.config')} (${sourceCounts.config})</option>
+                                <option value="dynamic">${__('index.source.dynamic')} (${sourceCounts.dynamic})</option>
+                                <option value="dashboard">${__('index.source.dashboard')} (${sourceCounts.dashboard})</option>
+                                <option value="auto-register">${__('index.source.autoRegister')} (${sourceCounts['auto-register']})</option>
                             </select>
                         </div>
                         <div class="col-auto">
@@ -146,13 +146,13 @@
                         </div>
                         <div class="col-auto">
                             <div class="btn-group">
-                                <button class="btn btn-sm btn-outline-secondary" id="route-refresh-btn" title="${__('index.btn.refresh') || '刷新'}">
+                                <button class="btn btn-sm btn-outline-secondary" id="route-refresh-btn" title="${__('index.btn.refresh')}">
                                     <i class="bi bi-arrow-clockwise"></i>
                                 </button>
-                                <button class="btn btn-sm btn-outline-danger" id="route-clear-btn" title="${__('index.search.clear') || '清除搜索'}" style="display:none;">
+                                <button class="btn btn-sm btn-outline-danger" id="route-clear-btn" title="${__('index.search.clear')}" style="display:none;">
                                     <i class="bi bi-x-circle"></i>
                                 </button>
-                                <button class="btn btn-sm btn-success" id="route-add-btn" title="${__('index.route.add') || '新增路由'}">
+                                <button class="btn btn-sm btn-success" id="route-add-btn" title="${__('index.route.add')}">
                                     <i class="bi bi-plus-circle"></i>
                                 </button>
                             </div>
@@ -294,20 +294,8 @@
                 });
             }
         },
-                
-        // ===== Do Search =====
-        _doSearch: function() {
-            const searchInput = document.getElementById('route-search-input');
-            if (searchInput) {
-                window.DashboardState.set('filters.routes.search', searchInput.value);
-                this.renderRoutes();
-            }
-        },
-                
-        // ===== Legacy methods (removed) =====
-        initFilterHandlers: function() { /* deprecated */ },
-        restoreFilterValues: function() { /* deprecated */ },
 
+                
         // ===== Render Route Rows =====
         renderRouteRows: function(routes, tbody) {
             window.DashboardDOM.clear(tbody);
@@ -512,18 +500,7 @@
             return badge;
         },
 
-        // ===== Get Method Badge Class =====
-        getMethodBadgeClass: function(method) {
-            const methodMap = {
-                'GET': 'bg-success',
-                'POST': 'bg-primary',
-                'PUT': 'bg-info',
-                'DELETE': 'bg-danger',
-                'PATCH': 'bg-warning text-dark'
-            }; 
-            return methodMap[method] || 'bg-secondary';
-        },
-        
+
         // ===== Create Method Badge =====
         createMethodBadge: function(method) {
             const methodMap = {
@@ -556,13 +533,10 @@
                 className: 'btn-group btn-group-sm'
             });
 
-            const isConfigSource = (route.source || 'config') === 'config';
-            // All routes are editable now, show action buttons
-
             // Edit button
             const editBtn = window.DashboardDOM.create('button', {
                 className: 'btn btn-outline-primary',
-                attributes: { title: __('index.route.edit') || '编辑' },
+                attributes: { title: __('index.route.edit') },
                 events: {
                     click: (e) => {
                         e.stopPropagation();
@@ -579,7 +553,7 @@
             // Delete button
             const deleteBtn = window.DashboardDOM.create('button', {
                 className: 'btn btn-outline-danger',
-                attributes: { title: __('index.route.delete') || '删除' },
+                attributes: { title: __('index.route.delete') },
                 events: {
                     click: (e) => {
                         e.stopPropagation();
@@ -611,17 +585,17 @@
 
             // Quick actions bar
             detailHtml.push('<div class="detail-actions-bar">');
-            detailHtml.push(`<div class="detail-actions-left"><span class="detail-actions-label"><i class="bi bi-signpost-split"></i> ${__('index.route.title') || '路由'}</span></div>`);
+            detailHtml.push(`<div class="detail-actions-left"><span class="detail-actions-label"><i class="bi bi-signpost-split"></i> ${__('index.route.title')}</span></div>`);
             detailHtml.push('<div class="detail-actions-right">');
-            detailHtml.push(`<button class="btn btn-sm btn-outline-secondary detail-action-btn" onclick="RoutesModule.showEditModal('${window.DashboardUtils.escapeHtml(route.routeId)}')" title="${__('index.route.edit') || '编辑'}"><i class="bi bi-pencil"></i> ${__('index.route.edit') || '编辑'}</button>`);
-            detailHtml.push(`<button class="btn btn-sm btn-outline-primary detail-action-btn" onclick="RoutesModule.copyRouteJson('${window.DashboardUtils.escapeHtml(route.routeId)}')" title="${__('index.copyJson.title') || '复制JSON'}"><i class="bi bi-clipboard-data"></i> ${__('index.copyJson') || '复制JSON'}</button>`);
+            detailHtml.push(`<button class="btn btn-sm btn-outline-secondary detail-action-btn" onclick="RoutesModule.showEditModal('${window.DashboardUtils.escapeHtml(route.routeId)}')" title="${__('index.route.edit')}"><i class="bi bi-pencil"></i> ${__('index.route.edit')}</button>`);
+            detailHtml.push(`<button class="btn btn-sm btn-outline-primary detail-action-btn" onclick="RoutesModule.copyRouteJson('${window.DashboardUtils.escapeHtml(route.routeId)}')" title="${__('index.copyJson.title')}"><i class="bi bi-clipboard-data"></i> ${__('index.copyJson')}</button>`);
             detailHtml.push('</div>');
             detailHtml.push('</div>');
 
             // Overview (compact key-value)
             const sourceBadge = this.createSourceBadge(route.source);
             detailHtml.push('<div class="detail-section">');
-            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-info-circle"></i>${__('index.route.basicInfo') || 'Basic Info'}</div>`);
+            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-info-circle"></i>${__('index.route.basicInfo')}</div>`);
             detailHtml.push('<div class="detail-structured-config">');
             detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">RouteId</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.routeId)}</code></span></div>`);
             detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">ClusterId</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.clusterId || '-')}</code></span></div>`);
@@ -632,7 +606,7 @@
 
             // Match Rules
             detailHtml.push('<div class="detail-section">');
-            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-filter"></i>${__('index.route.match') || 'Match Rules'}</div>`);
+            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-filter"></i>${__('index.route.match')}</div>`);
             detailHtml.push('<div class="detail-structured-config">');
                                 
             const match = route.match || {};
@@ -653,16 +627,16 @@
             if ((match.headers && match.headers.length > 0) || (match.queryParameters && match.queryParameters.length > 0)) {
                 detailHtml.push('<div class="table-responsive mt-2">');
                 detailHtml.push('<table class="table table-sm detail-table">');
-                detailHtml.push('<thead><tr><th style="width:100px;">' + (__('index.detail.type') || 'Type') + '</th><th style="width:120px;">' + (__('index.detail.name') || 'Name') + '</th><th>' + (__('index.detail.values') || 'Values') + '</th><th style="width:80px;">' + (__('index.detail.mode') || 'Mode') + '</th></tr></thead>');
+                detailHtml.push('<thead><tr><th style="width:100px;">' + (__('index.detail.type')) + '</th><th style="width:120px;">' + (__('index.detail.name')) + '</th><th>' + (__('index.detail.values')) + '</th><th style="width:80px;">' + (__('index.detail.mode')) + '</th></tr></thead>');
                 detailHtml.push('<tbody>');
                 if (match.headers && match.headers.length > 0) {
                     match.headers.forEach(h => {
-                        detailHtml.push(`<tr><td><span class="badge bg-secondary">${__('index.detail.header') || 'Header'}</span></td><td><code>${h.name || '-'}</code></td><td>${(h.values || []).map(v => `<code>${v}</code>`).join(' ')}</td><td>${h.mode || '-'}</td></tr>`);
+                        detailHtml.push(`<tr><td><span class="badge bg-secondary">${__('index.detail.header')}</span></td><td><code>${h.name || '-'}</code></td><td>${(h.values || []).map(v => `<code>${v}</code>`).join(' ')}</td><td>${h.mode || '-'}</td></tr>`);
                     });
                 }
                 if (match.queryParameters && match.queryParameters.length > 0) {
                     match.queryParameters.forEach(q => {
-                        detailHtml.push(`<tr><td><span class="badge bg-info">${__('index.detail.query') || 'Query'}</span></td><td><code>${q.name || '-'}</code></td><td>${(q.values || []).map(v => `<code>${v}</code>`).join(' ')}</td><td>${q.mode || '-'}</td></tr>`);
+                        detailHtml.push(`<tr><td><span class="badge bg-info">${__('index.detail.query')}</span></td><td><code>${q.name || '-'}</code></td><td>${(q.values || []).map(v => `<code>${v}</code>`).join(' ')}</td><td>${q.mode || '-'}</td></tr>`);
                     });
                 }
                 detailHtml.push('</tbody></table></div>');
@@ -672,10 +646,10 @@
             // Destinations
             if (route.destinations && route.destinations.length > 0) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations') || 'Destinations'} <span class="badge bg-light text-dark ms-2">${route.destinations.length}</span></div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations')} <span class="badge bg-light text-dark ms-2">${route.destinations.length}</span></div>`);
                 detailHtml.push('<div class="table-responsive">');
                 detailHtml.push('<table class="table table-sm detail-table">');
-                detailHtml.push(`<thead><tr><th>${__('index.detail.name') || 'Name'}</th><th>${__('index.detail.address') || 'Address'}</th></tr></thead>`);
+                detailHtml.push(`<thead><tr><th>${__('index.detail.name')}</th><th>${__('index.detail.address')}</th></tr></thead>`);
                 detailHtml.push('<tbody>');
                 route.destinations.forEach(d => {
                     detailHtml.push(`<tr><td><code>${window.DashboardUtils.escapeHtml(d.name || '-')}</code></td><td><a href="${d.address || '#'}" target="_blank" class="text-decoration-none"><code>${window.DashboardUtils.escapeHtml(d.address || '-')}</code></a></td></tr>`);
@@ -687,7 +661,7 @@
             // Transforms - structured display
             if (route.transforms && route.transforms.length > 0) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-arrow-repeat"></i>${__('index.route.transforms') || 'Transforms'}</div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-arrow-repeat"></i>${__('index.route.transforms')}</div>`);
                 detailHtml.push(this.renderStructuredTransforms(route.transforms));
                 detailHtml.push('</div>');
             }
@@ -696,21 +670,21 @@
             const hasPolicies = route.authorizationPolicy || route.corsPolicy || route.timeout || route.timeoutPolicy || route.rateLimiterPolicy;
             if (hasPolicies) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield-check"></i>${__('index.route.policies') || 'Policies'}</div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield-check"></i>${__('index.route.policies')}</div>`);
                 detailHtml.push('<div class="detail-structured-config">');
                 if (route.authorizationPolicy) {
-                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield-lock"></i> ${__('index.route.policy.authorization') || 'Authorization'}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.authorizationPolicy)}</code></span></div>`);
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield-lock"></i> ${__('index.route.policy.authorization')}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.authorizationPolicy)}</code></span></div>`);
                 }
                 if (route.corsPolicy) {
-                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield"></i> ${__('index.route.policy.cors') || 'CORS'}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.corsPolicy)}</code></span></div>`);
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield"></i> ${__('index.route.policy.cors')}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.corsPolicy)}</code></span></div>`);
                 }
                 if (route.timeout || route.timeoutPolicy) {
                     const timeoutVal = route.timeout ? `<code>${route.timeout}</code>` : '<span class="text-muted">-</span>';
                     const timeoutNote = route.timeoutPolicy ? ` <span class="text-muted small">(${route.timeoutPolicy})</span>` : '';
-                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-clock"></i> ${__('index.route.policy.timeout') || 'Timeout'}</span><span class="detail-kv-value">${timeoutVal}${timeoutNote}</span></div>`);
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-clock"></i> ${__('index.route.policy.timeout')}</span><span class="detail-kv-value">${timeoutVal}${timeoutNote}</span></div>`);
                 }
                 if (route.rateLimiterPolicy) {
-                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-speedometer2"></i> ${__('index.route.policy.rateLimiter') || 'Rate Limiter'}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.rateLimiterPolicy)}</code></span></div>`);
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-speedometer2"></i> ${__('index.route.policy.rateLimiter')}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.rateLimiterPolicy)}</code></span></div>`);
                 }
                 detailHtml.push('</div>');
                 detailHtml.push('</div>');
@@ -719,7 +693,7 @@
             // Metadata - structured key-value display
             if (route.metadata && Object.keys(route.metadata).length > 0) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-tags"></i>${__('index.route.metadata') || 'Metadata'}</div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-tags"></i>${__('index.route.metadata')}</div>`);
                 detailHtml.push(this.renderStructuredConfig(route.metadata, 'metadata'));
                 detailHtml.push('</div>');
             }
@@ -775,7 +749,7 @@
                     } else if (typeof val === 'boolean') {
                         const label = key.replace(/([A-Z])/g, ' $1').trim();
                         if (val) {
-                            detailParts.push(`<span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes') || 'Yes'}: ${label}</span>`);
+                            detailParts.push(`<span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}: ${label}</span>`);
                         }
                     } else if (typeof val === 'object' && val !== null) {
                         detailParts.push(`<span class="detail-kv-key">${key}</span> <code>${window.DashboardUtils.escapeHtml(JSON.stringify(val))}</code>`);
@@ -819,8 +793,8 @@
                     html.push(`<div class="detail-kv-row"${indent}><span class="detail-kv-key">${label}</span><span class="detail-kv-value text-muted">-</span></div>`);
                 } else if (typeof value === 'boolean') {
                     const badge = value
-                        ? `<span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes') || 'Yes'}</span>`
-                        : `<span class="badge bg-secondary"><i class="bi bi-x-circle-fill"></i> ${__('index.bool.no') || 'No'}</span>`;
+                        ? `<span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span>`
+                        : `<span class="badge bg-secondary"><i class="bi bi-x-circle-fill"></i> ${__('index.bool.no')}</span>`;
                     html.push(`<div class="detail-kv-row"${indent}><span class="detail-kv-key">${label}</span><span class="detail-kv-value">${badge}</span></div>`);
                 } else if (typeof value === 'number' || typeof value === 'string') {
                     const valHtml = `<code>${window.DashboardUtils.escapeHtml(String(value))}</code>`;
@@ -843,7 +817,7 @@
             });
 
             // Collapsible raw JSON toggle
-            html.push(`<div class="detail-raw-json-toggle"><details><summary><i class="bi bi-code-slash"></i> ${__('index.viewRawJson') || '查看原始JSON'}</summary><pre class="detail-raw-json">${window.DashboardUtils.escapeHtml(JSON.stringify(obj, null, 2))}</pre></details></div>`);
+            html.push(`<div class="detail-raw-json-toggle"><details><summary><i class="bi bi-code-slash"></i> ${__('index.viewRawJson')}</summary><pre class="detail-raw-json">${window.DashboardUtils.escapeHtml(JSON.stringify(obj, null, 2))}</pre></details></div>`);
 
             html.push('</div>');
             return html.join('');
@@ -877,7 +851,7 @@
 
             const json = JSON.stringify(yarpRoute, null, 2);
             navigator.clipboard.writeText(json).then(function() {
-                window.DashboardModals.showSuccess(__('index.copied') || '已复制到剪贴板');
+                window.DashboardModals.showSuccess(__('index.copied'));
             });
         },
         
@@ -885,7 +859,7 @@
         createCopyButton: function(text) {
             const btn = window.DashboardDOM.create('button', {
                 className: 'copy-btn',
-                attributes: { title: __('index.copy') || '复制' },
+                attributes: { title: __('index.copy') },
                 events: {
                     click: (e) => {
                         e.stopPropagation();
@@ -956,10 +930,6 @@
             return `<span class="badge ${config.css}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;margin-right:4px;"><i class="bi ${config.icon}"></i>${method}</span>`;
         },
 
-        // ===== Render JSON Block (delegates to shared utility) =====
-        renderJsonBlock: function(obj, title) {
-            return window.DashboardUtils.renderJsonBlock(obj, title);
-        },
 
         // ===== Toggle Route (Direct DOM Manipulation) =====
         toggleRoute: function(routeId) {
@@ -1017,7 +987,7 @@
                     
             // If no clusters, show warning
             if (clusterIds.length === 0) {
-                window.DashboardModals.showWarning(__('index.route.noClusters') || '请先添加集群');
+                window.DashboardModals.showWarning(__('index.route.noClusters'));
                 return;
             }
         
@@ -1031,23 +1001,23 @@
             }; 
         
             window.DashboardModals.showJsonModal({
-                title: __('modal.addRoute') || '添加路由 (JSON模式)',
+                title: __('modal.addRoute'),
                 data: defaultRoute,
                 schemaType: 'route',
                 size: 'xl',
                 onSave: function(parsedData) {
                     // Validate route config
                     if (!parsedData.ClusterId || !parsedData.ClusterId.trim()) {
-                        window.DashboardModals.showError(__('index.route.invalidCluster') || 'ClusterId 必须指定有效的集群');
+                        window.DashboardModals.showError(__('index.route.invalidCluster'));
                         return false;
                     }
                     if (!parsedData.Match || (!parsedData.Match.Path && !parsedData.Match.Hosts)) {
-                        window.DashboardModals.showError(__('index.route.invalidMatch') || 'Match 配置无效，必须指定 Path 或 Hosts');
+                        window.DashboardModals.showError(__('index.route.invalidMatch'));
                         return false;
                     }
                     // Check cluster exists
                     if (clusterIds.indexOf(parsedData.ClusterId) === -1) {
-                        window.DashboardModals.showWarning(__('index.route.clusterNotFound') || '指定的集群不存在: ' + parsedData.ClusterId);
+                        window.DashboardModals.showWarning(__('index.route.clusterNotFound') + parsedData.ClusterId);
                         // Still allow save for flexibility
                     }
         
@@ -1068,12 +1038,12 @@
                     routeId = id;
                 }
         
-                window.DashboardModals.showInfo(__('index.route.saving') || '正在保存路由...');
+                window.DashboardModals.showInfo(__('index.route.saving'));
         
                 // Convert to API format (YARP format is already correct)
                 const response = await window.DashboardApi.endpoints.saveRoute(routeId, routeConfig);
         
-                window.DashboardModals.showSuccess(__('index.route.saved') || '路由保存成功');
+                window.DashboardModals.showSuccess(__('index.route.saved'));
                 await this.loadRoutes();
         
                 document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
@@ -1081,7 +1051,7 @@
                 }));
             } catch (error) {
                 console.error('[Routes] Save failed:', error);
-                window.DashboardModals.showError(__('index.route.saveFailed') || '路由保存失败: ' + error.message);
+                window.DashboardModals.showError(__('index.route.saveFailed') + error.message);
             }
         },
         
@@ -1098,7 +1068,7 @@
                                         <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:16px;">
                                             <i class="bi bi-tag"></i>
                                         </span>
-                                        ${__('modal.routeId') || '输入路由ID'}
+                                        ${__('modal.routeId')}
                                     </h5>
                                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                 </div>
@@ -1106,7 +1076,7 @@
                                     <div style="margin-bottom:12px;">
                                         <label class="form-label" style="font-weight:500;font-size:13px;color:#334155;">Route ID</label>
                                         <input type="text" class="form-control" id="${modalId}-input" 
-                                               placeholder="${__('modal.routeIdPlaceholder') || '例如: my-service-route'}"
+                                               placeholder="${__('modal.routeIdPlaceholder')}"
                                                required
                                                style="border-radius:8px;padding:10px 14px;font-size:14px;border:1.5px solid #e2e8f0;transition:border-color 0.2s,box-shadow 0.2s;"
                                                onfocus="this.style.borderColor='#6366f1';this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.1)'"
@@ -1114,12 +1084,12 @@
                                     </div>
                                     <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;font-size:12px;color:#0369a1;display:flex;align-items:flex-start;gap:8px;">
                                         <i class="bi bi-info-circle" style="font-size:14px;margin-top:2px;flex-shrink:0;"></i>
-                                        <span>${__('modal.routeIdHelp') || '路由ID用于标识此路由规则，建议使用服务名+Route作为ID'}</span>
+                                        <span>${__('modal.routeIdHelp')}</span>
                                     </div>
                                 </div>
                                 <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
-                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">${__('modal.cancelBtn') || '取消'}</button>
-                                    <button type="button" class="btn btn-primary btn-sm" id="${modalId}-confirm" style="min-width:70px;">${__('modal.confirmBtn') || '确认'}</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">${__('modal.cancelBtn')}</button>
+                                    <button type="button" class="btn btn-primary btn-sm" id="${modalId}-confirm" style="min-width:70px;">${__('modal.confirmBtn')}</button>
                                 </div>
                             </div>
                         </div>
@@ -1168,12 +1138,10 @@
             const route = routes.find(r => r.routeId === routeId);
                     
             if (!route) {
-                window.DashboardModals.showError(__('index.route.notFound') || '路由不存在');
+                window.DashboardModals.showError(__('index.route.notFound'));
                 return;
             }
-        
-            // All routes are editable now
-        
+
             // Build YARP format route config for JSON editor
             const yarpRoute = {
                 "ClusterId": route.clusterId || "",
@@ -1231,7 +1199,7 @@
             }
         
             window.DashboardModals.showJsonModal({
-                title: __('modal.editRoute') || '编辑路由 (JSON模式)',
+                title: __('modal.editRoute'),
                 data: yarpRoute,
                 schemaType: 'route',
                 size: 'xl',
@@ -1239,16 +1207,16 @@
                     label: 'Route ID',
                     value: routeId,
                     original: routeId,
-                    placeholder: __('modal.routeIdPlaceholder') || '例如: my-service-route'
+                    placeholder: __('modal.routeIdPlaceholder')
                 },
                 onSave: function(parsedData, newId) {
                     // Validate route config
                     if (!parsedData.ClusterId || !parsedData.ClusterId.trim()) {
-                        window.DashboardModals.showError(__('index.route.invalidCluster') || 'ClusterId 必须指定有效的集群');
+                        window.DashboardModals.showError(__('index.route.invalidCluster'));
                         return false;
                     }
                     if (!parsedData.Match || (!parsedData.Match.Path && !parsedData.Match.Hosts)) {
-                        window.DashboardModals.showError(__('index.route.invalidMatch') || 'Match 配置无效，必须指定 Path 或 Hosts');
+                        window.DashboardModals.showError(__('index.route.invalidMatch'));
                         return false;
                     }
 
@@ -1267,7 +1235,7 @@
         renameRoute: async function(oldId, newId, routeConfig) {
             const self = this;
             try {
-                window.DashboardModals.showInfo(__('index.route.renaming') || '正在重命名路由...');
+                window.DashboardModals.showInfo(__('index.route.renaming'));
 
                 // Create new route with new ID FIRST (cluster already exists via old route)
                 await window.DashboardApi.endpoints.saveRoute(newId, routeConfig);
@@ -1281,7 +1249,7 @@
                     }
                 }
 
-                window.DashboardModals.showSuccess(__('index.route.renamed') || '路由重命名成功');
+                window.DashboardModals.showSuccess(__('index.route.renamed'));
                 await self.loadRoutes();
 
                 document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
@@ -1289,7 +1257,7 @@
                 }));
             } catch (error) {
                 console.error('[Routes] Rename failed:', error);
-                window.DashboardModals.showError(__('index.route.renameFailed') || '路由重命名失败: ' + error.message);
+                window.DashboardModals.showError(__('index.route.renameFailed') + error.message);
             }
         },
 
@@ -1301,12 +1269,12 @@
                 __('index.route.deleteConfirm').replace('{id}', routeId) || `确认删除路由 '${routeId}'？此操作不可撤销。`,
                 async function() {
                     try {
-                        window.DashboardModals.showInfo(__('index.route.deleting') || '正在删除路由...');
+                        window.DashboardModals.showInfo(__('index.route.deleting'));
                         
                         await window.DashboardApi.endpoints.deleteRouteConfig(routeId);
                         await self.loadRoutes();
                         
-                        window.DashboardModals.showSuccess(__('index.route.deleted') || '路由删除成功');
+                        window.DashboardModals.showSuccess(__('index.route.deleted'));
 
                         // Trigger config deleted event
                         document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
@@ -1314,11 +1282,11 @@
                         }));
                     } catch (error) {
                         console.error('[Routes] Delete failed:', error);
-                        window.DashboardModals.showError(__('index.route.deleteFailed') || '路由删除失败: ' + error.message);
+                        window.DashboardModals.showError(__('index.route.deleteFailed') + error.message);
                     }
                 },
                 null,
-                { title: __('modal.deleteRoute') || '删除路由', danger: true }
+                { title: __('modal.deleteRoute'), danger: true }
             );
         },
 

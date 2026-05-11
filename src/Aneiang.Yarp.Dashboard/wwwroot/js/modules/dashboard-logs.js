@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Dashboard Logs Module - Log viewer with filtering and polling
  */
 (function() {
@@ -316,9 +316,9 @@
             // Event type tag (for proxy request/response)
             let eventTypeTag = '';
             if (entry.eventType === 'ProxyRequest') {
-                eventTypeTag = `<span class="log-event-tag log-event-request">${__('index.log.eventType.request') || 'REQ'}</span>`;
+                eventTypeTag = `<span class="log-event-tag log-event-request">${__('index.log.eventType.request')}</span>`;
             } else if (entry.eventType === 'ProxyResponse') {
-                eventTypeTag = `<span class="log-event-tag log-event-response">${__('index.log.eventType.response') || 'RES'}</span>`;
+                eventTypeTag = `<span class="log-event-tag log-event-response">${__('index.log.eventType.response')}</span>`;
             } else {
                 eventTypeTag = `<span class="log-event-tag log-event-yarp">YARP</span>`;
             }
@@ -429,7 +429,7 @@
 
                 // Upstream Section
                 dtHtml.push('<div class="log-flow-section">');
-                dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-in-down"></i> ${__('index.log.upstream') || '上游请求'}</div>`);
+                dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-in-down"></i> ${__('index.log.upstream')}</div>`);
                 dtHtml.push('<div class="log-flow-body">');
                 if (entry.method) {
                     const methodColors = {
@@ -437,18 +437,18 @@
                         'DELETE': 'bg-danger', 'PATCH': 'bg-warning text-dark'
                     };
                     const methodClass = methodColors[entry.method] || 'bg-secondary';
-                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.method') || 'Method'}</span><span class="badge ${methodClass}">${entry.method}</span></div>`);
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.method')}</span><span class="badge ${methodClass}">${entry.method}</span></div>`);
                 }
                 if (entry.upstreamPath) {
-                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.path') || 'Path'}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(entry.upstreamPath)}</code></div>`);
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.path')}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(entry.upstreamPath)}</code></div>`);
                 }
                 if (entry.requestBody) {
-                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.body') || 'Body'}</span>`);
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.body')}</span>`);
                     dtHtml.push(this.renderBodyContent(entry.requestBody, entry.requestBodyTruncated));
                     dtHtml.push('</div>');
                 }
                 if (entry.requestHeaders && Object.keys(entry.requestHeaders).length > 0) {
-                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.headers') || 'Headers'}</span>`);
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.headers')}</span>`);
                     dtHtml.push(this.renderHeadersInline(entry.requestHeaders));
                     dtHtml.push('</div>');
                 }
@@ -459,7 +459,7 @@
 
                 // Downstream Section
                 dtHtml.push('<div class="log-flow-section">');
-                dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-up-right"></i> ${__('index.log.downstream') || '下游请求'}</div>`);
+                dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-up-right"></i> ${__('index.log.downstream')}</div>`);
                 dtHtml.push('<div class="log-flow-body">');
                 const dsMethod = entry.downstreamMethod || entry.method;
                 if (dsMethod) {
@@ -468,13 +468,13 @@
                         'DELETE': 'bg-danger', 'PATCH': 'bg-warning text-dark'
                     };
                     const methodClass = methodColors[dsMethod] || 'bg-secondary';
-                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.method') || 'Method'}</span><span class="badge ${methodClass}">${dsMethod}</span></div>`);
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.method')}</span><span class="badge ${methodClass}">${dsMethod}</span></div>`);
                 }
                 if (entry.downstreamUrl) {
-                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.url') || 'URL'}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(entry.downstreamUrl)}</code></div>`);
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.url')}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(entry.downstreamUrl)}</code></div>`);
                 }
                 if (entry.downstreamBody) {
-                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.body') || 'Body'}</span>`);
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.body')}</span>`);
                     dtHtml.push(this.renderBodyContent(entry.downstreamBody, entry.downstreamBodyTruncated));
                     dtHtml.push('</div>');
                 }
@@ -495,25 +495,25 @@
 
                 // Downstream Response Section (from destination server)
                 dtHtml.push('<div class="log-flow-section">');
-                dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-up-right"></i> ${__('index.log.downstream.response') || '下游响应'}</div>`);
+                dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-up-right"></i> ${__('index.log.downstream.response')}</div>`);
                 dtHtml.push('<div class="log-flow-body">');
                 if (entry.downstreamUrl) {
-                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.url') || 'URL'}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(entry.downstreamUrl)}</code></div>`);
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.url')}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(entry.downstreamUrl)}</code></div>`);
                 }
                 if (entry.statusCode != null) {
-                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.status') || 'Status'}</span><span class="badge ${this.getStatusCodeBadge(entry.statusCode)}">${entry.statusCode}</span></div>`);
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.status')}</span><span class="badge ${this.getStatusCodeBadge(entry.statusCode)}">${entry.statusCode}</span></div>`);
                 }
                 if (entry.elapsedMs != null) {
                     const elapsedClass = entry.elapsedMs < 200 ? 'text-success' : entry.elapsedMs < 1000 ? 'text-warning' : 'text-danger';
-                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.duration') || 'Duration'}</span><strong class="${elapsedClass}">${entry.elapsedMs.toFixed(1)} ms</strong></div>`);
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.duration')}</span><strong class="${elapsedClass}">${entry.elapsedMs.toFixed(1)} ms</strong></div>`);
                 }
                 if (entry.responseBody) {
-                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.body') || 'Body'}</span>`);
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.body')}</span>`);
                     dtHtml.push(this.renderBodyContent(entry.responseBody, entry.responseBodyTruncated));
                     dtHtml.push('</div>');
                 }
                 if (entry.responseHeaders && Object.keys(entry.responseHeaders).length > 0) {
-                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.headers') || 'Headers'}</span>`);
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.headers')}</span>`);
                     dtHtml.push(this.renderHeadersInline(entry.responseHeaders));
                     dtHtml.push('</div>');
                 }
@@ -524,13 +524,13 @@
 
                 // Upstream Response Section (returned to client)
                 dtHtml.push('<div class="log-flow-section">');
-                dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-in-down"></i> ${__('index.log.upstream.response') || '上游返回'}</div>`);
+                dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-in-down"></i> ${__('index.log.upstream.response')}</div>`);
                 dtHtml.push('<div class="log-flow-body">');
                 if (entry.upstreamPath) {
-                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.path') || 'Path'}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(entry.upstreamPath)}</code></div>`);
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.path')}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(entry.upstreamPath)}</code></div>`);
                 }
                 if (entry.statusCode != null) {
-                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.status') || 'Status'}</span><span class="badge ${this.getStatusCodeBadge(entry.statusCode)}">${entry.statusCode}</span></div>`);
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.status')}</span><span class="badge ${this.getStatusCodeBadge(entry.statusCode)}">${entry.statusCode}</span></div>`);
                 }
                 dtHtml.push('</div></div>'); // end upstream response
 
@@ -583,7 +583,7 @@
         renderBodyContent: function(body, truncated) {
             if (!body) return '<span class="text-muted">-</span>';
             const escaped = window.DashboardUtils.escapeHtml(body);
-            const truncatedNotice = truncated ? `<span class="text-muted small">(${__('index.log.truncated') || 'truncated'})</span>` : '';
+            const truncatedNotice = truncated ? `<span class="text-muted small">(${__('index.log.truncated')})</span>` : '';
             
             // Try to format as JSON
             try {
@@ -702,12 +702,12 @@
                     }, 1500);
                 }
                 if (window.DashboardModals) {
-                    window.DashboardModals.showSuccess(__('index.copied') || '已复制');
+                    window.DashboardModals.showSuccess(__('index.copied'));
                 }
             }).catch(err => {
                 console.error('[Logs] Failed to copy:', err);
                 if (window.DashboardModals) {
-                    window.DashboardModals.showError(__('index.copyFailed') || '复制失败');
+                    window.DashboardModals.showError(__('index.copyFailed'));
                 }
             });
         },

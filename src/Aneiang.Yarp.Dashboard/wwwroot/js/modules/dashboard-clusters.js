@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Dashboard Clusters Module - Cluster management and monitoring
  */
 (function() {
@@ -85,8 +85,8 @@
                     <td colspan="9" class="text-center py-5">
                         <div class="empty-state">
                             <i class="bi bi-hdd-rack" style="font-size: 2.5rem; opacity: 0.4; color: #64748b;"></i>
-                            <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.cluster.empty') || '暂无集群数据'}</div>
-                            <div class="mt-2 text-muted small">${__('index.cluster.emptyHelp') || '点击右上角 "+" 添加集群'}</div>
+                            <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.cluster.empty')}</div>
+                            <div class="mt-2 text-muted small">${__('index.cluster.emptyHelp')}</div>
                         </div>
                     </td>
                 `; 
@@ -126,25 +126,25 @@
                                     <i class="bi bi-search text-muted"></i>
                                 </span>
                                 <input type="text" class="form-control border-start-0" id="cluster-search-input" 
-                                       placeholder="${__('index.cluster.search') || '搜索集群ID、地址...'}" 
+                                       placeholder="${__('index.cluster.search')}" 
                                        autocomplete="off">
                             </div>
                         </div>
                         <div class="col-auto">
                             <select class="form-select form-select-sm" id="cluster-health-select" style="width:100px;">
-                                <option value="all">${__('index.cluster.health.all') || '全部'} (${healthCounts.all})</option>
-                                <option value="Healthy">${__('index.cluster.health.healthy') || '健康'} (${healthCounts.Healthy})</option>
-                                <option value="Unknown">${__('index.cluster.health.unknown') || '未知'} (${healthCounts.Unknown})</option>
-                                <option value="Unhealthy">${__('index.cluster.health.unhealthy') || '不健康'} (${healthCounts.Unhealthy})</option>
+                                <option value="all">${__('index.cluster.health.all')} (${healthCounts.all})</option>
+                                <option value="Healthy">${__('index.cluster.health.healthy')} (${healthCounts.Healthy})</option>
+                                <option value="Unknown">${__('index.cluster.health.unknown')} (${healthCounts.Unknown})</option>
+                                <option value="Unhealthy">${__('index.cluster.health.unhealthy')} (${healthCounts.Unhealthy})</option>
                             </select>
                         </div>
                         <div class="col-auto">
                             <select class="form-select form-select-sm" id="cluster-source-select" style="width:110px;">
-                                <option value="all">${__('index.source.all') || '全部来源'} (${sourceCounts.all})</option>
-                                <option value="config">${__('index.source.config') || '静态配置'} (${sourceCounts.config})</option>
-                                <option value="dynamic">${__('index.source.dynamic') || '动态'} (${sourceCounts.dynamic})</option>
-                                <option value="dashboard">${__('index.source.dashboard') || '仪表盘'} (${sourceCounts.dashboard})</option>
-                                <option value="auto-register">${__('index.source.autoRegister') || '自动注册'} (${sourceCounts['auto-register']})</option>
+                                <option value="all">${__('index.source.all')} (${sourceCounts.all})</option>
+                                <option value="config">${__('index.source.config')} (${sourceCounts.config})</option>
+                                <option value="dynamic">${__('index.source.dynamic')} (${sourceCounts.dynamic})</option>
+                                <option value="dashboard">${__('index.source.dashboard')} (${sourceCounts.dashboard})</option>
+                                <option value="auto-register">${__('index.source.autoRegister')} (${sourceCounts['auto-register']})</option>
                             </select>
                         </div>
                         <div class="col-auto">
@@ -152,13 +152,13 @@
                         </div>
                         <div class="col-auto">
                             <div class="btn-group">
-                                <button class="btn btn-sm btn-outline-secondary" id="cluster-refresh-btn" title="${__('index.btn.refresh') || '刷新'}">
+                                <button class="btn btn-sm btn-outline-secondary" id="cluster-refresh-btn" title="${__('index.btn.refresh')}">
                                     <i class="bi bi-arrow-clockwise"></i>
                                 </button>
-                                <button class="btn btn-sm btn-outline-danger" id="cluster-clear-btn" title="${__('index.search.clear') || '清除搜索'}" style="display:none;">
+                                <button class="btn btn-sm btn-outline-danger" id="cluster-clear-btn" title="${__('index.search.clear')}" style="display:none;">
                                     <i class="bi bi-x-circle"></i>
                                 </button>
-                                <button class="btn btn-sm btn-success" id="cluster-add-btn" title="${__('index.cluster.add') || '新增集群'}">
+                                <button class="btn btn-sm btn-success" id="cluster-add-btn" title="${__('index.cluster.add')}">
                                     <i class="bi bi-plus-circle"></i>
                                 </button>
                             </div>
@@ -295,19 +295,9 @@
                 });
             }
         },
-        
-        // ===== Do Search =====
-        _doSearch: function() {
-            const searchInput = document.getElementById('cluster-search-input');
-            if (searchInput) {
-                window.DashboardState.set('filters.clusters.search', searchInput.value);
-                this.renderClusters();
-            }
-        },
-        
-        // ===== Legacy methods (removed) =====
-        initFilterHandlers: function() { /* deprecated */ },
-        restoreFilterValues: function() { /* deprecated */ },
+
+
+
 
         // ===== Render Cluster Rows =====
         renderClusterRows: function(clusters, tbody) {
@@ -329,8 +319,7 @@
             const rows = [];
             const destinations = cluster.destinations || []; 
             const rowspan = destinations.length || 1;
-            const isConfigSource = (cluster.source || 'config') === 'config';
-                    
+
             // Determine overall health status for color bar
             let overallHealth = 'Unknown';
             if (cluster.healthyCount > 0) overallHealth = 'Healthy';
@@ -478,9 +467,9 @@
         // ===== Create Health Badge =====
         createHealthBadge: function(health) {
             const healthMap = {
-                'Healthy': { css: 'bg-success', icon: 'bi-check-circle-fill', text: __('index.cluster.health.healthy') || 'Healthy' },
-                'Unhealthy': { css: 'bg-danger', icon: 'bi-x-circle-fill', text: __('index.cluster.health.unhealthy') || 'Unhealthy' },
-                'Unknown': { css: 'bg-secondary', icon: 'bi-question-circle-fill', text: __('index.cluster.health.unknown') || 'Unknown' }
+                'Healthy': { css: 'bg-success', icon: 'bi-check-circle-fill', text: __('index.cluster.health.healthy') },
+                'Unhealthy': { css: 'bg-danger', icon: 'bi-x-circle-fill', text: __('index.cluster.health.unhealthy') },
+                'Unknown': { css: 'bg-secondary', icon: 'bi-question-circle-fill', text: __('index.cluster.health.unknown') }
             }; 
         
             const config = healthMap[health] || healthMap['Unknown'];
@@ -513,13 +502,10 @@
                 className: 'btn-group btn-group-sm'
             });
 
-            const isConfigSource = (cluster.source || 'config') === 'config';
-            // All clusters are editable now, show action buttons
-
             // Edit button
             const editBtn = window.DashboardDOM.create('button', {
                 className: 'btn btn-outline-primary',
-                attributes: { title: __('index.cluster.edit') || '编辑' },
+                attributes: { title: __('index.cluster.edit') },
                 events: {
                     click: (e) => {
                         e.stopPropagation();
@@ -536,7 +522,7 @@
             // Delete button
             const deleteBtn = window.DashboardDOM.create('button', {
                 className: 'btn btn-outline-danger',
-                attributes: { title: __('index.cluster.delete') || '删除' },
+                attributes: { title: __('index.cluster.delete') },
                 events: {
                     click: (e) => {
                         e.stopPropagation();
@@ -568,31 +554,31 @@
 
             // Quick actions bar
             detailHtml.push('<div class="detail-actions-bar">');
-            detailHtml.push(`<div class="detail-actions-left"><span class="detail-actions-label"><i class="bi bi-gear"></i> ${__('index.cluster.title') || '集群'}</span></div>`);
+            detailHtml.push(`<div class="detail-actions-left"><span class="detail-actions-label"><i class="bi bi-gear"></i> ${__('index.cluster.title')}</span></div>`);
             detailHtml.push('<div class="detail-actions-right">');
-            detailHtml.push(`<button class="btn btn-sm btn-outline-secondary detail-action-btn" onclick="ClustersModule.showEditModal('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('index.cluster.edit') || '编辑'}"><i class="bi bi-pencil"></i> ${__('index.cluster.edit') || '编辑'}</button>`);
-            detailHtml.push(`<button class="btn btn-sm btn-outline-primary detail-action-btn" onclick="ClustersModule.copyClusterJson('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('index.copyJson.title') || '复制JSON'}"><i class="bi bi-clipboard-data"></i> ${__('index.copyJson') || '复制JSON'}</button>`);
+            detailHtml.push(`<button class="btn btn-sm btn-outline-secondary detail-action-btn" onclick="ClustersModule.showEditModal('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('index.cluster.edit')}"><i class="bi bi-pencil"></i> ${__('index.cluster.edit')}</button>`);
+            detailHtml.push(`<button class="btn btn-sm btn-outline-primary detail-action-btn" onclick="ClustersModule.copyClusterJson('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('index.copyJson.title')}"><i class="bi bi-clipboard-data"></i> ${__('index.copyJson')}</button>`);
             detailHtml.push('</div>');
             detailHtml.push('</div>');
 
             // Overview (compact key-value)
             const sourceBadge = this.createSourceBadge(cluster.source);
             detailHtml.push('<div class="detail-section">');
-            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-info-circle"></i>${__('index.route.basicInfo') || 'Basic Info'}</div>`);
+            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-info-circle"></i>${__('index.route.basicInfo')}</div>`);
             detailHtml.push('<div class="detail-structured-config">');
             detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">ClusterId</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(cluster.clusterId)}</code></span></div>`);
             detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Source</span><span class="detail-kv-value">${sourceBadge}</span></div>`);
-            detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">${__('index.cluster.loadBalancing') || 'Load Balancing'}</span><span class="detail-kv-value"><span class="badge bg-light text-dark">${window.DashboardUtils.escapeHtml(cluster.loadBalancingPolicy || 'RoundRobin')}</span></span></div>`);
+            detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">${__('index.cluster.loadBalancing')}</span><span class="detail-kv-value"><span class="badge bg-light text-dark">${window.DashboardUtils.escapeHtml(cluster.loadBalancingPolicy || 'RoundRobin')}</span></span></div>`);
             detailHtml.push('</div>');
             detailHtml.push('</div>');
 
             // Destinations detail (with health info)
             if (cluster.destinations && cluster.destinations.length > 0) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations') || 'Destinations'} <span class="badge bg-light text-dark ms-2">${cluster.destinations.length}</span></div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations')} <span class="badge bg-light text-dark ms-2">${cluster.destinations.length}</span></div>`);
                 detailHtml.push('<div class="table-responsive">');
                 detailHtml.push('<table class="table table-sm detail-table">');
-                detailHtml.push(`<thead><tr><th>${__('index.detail.name') || 'Name'}</th><th>${__('index.detail.address') || 'Address'}</th><th>${__('index.detail.active') || 'Active'}</th><th>${__('index.detail.passive') || 'Passive'}</th></tr></thead>`);
+                detailHtml.push(`<thead><tr><th>${__('index.detail.name')}</th><th>${__('index.detail.address')}</th><th>${__('index.detail.active')}</th><th>${__('index.detail.passive')}</th></tr></thead>`);
                 detailHtml.push('<tbody>');
                 (cluster.destinations || []).forEach(dest => {
                     const activeBadge = this.createHealthBadgeInline(dest.activeHealth || 'Unknown');
@@ -611,7 +597,7 @@
             // Health Check - structured display
             if (cluster.healthCheck) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-heart-pulse"></i>${__('index.cluster.healthCheck') || 'Health Check'}</div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-heart-pulse"></i>${__('index.cluster.healthCheck')}</div>`);
                 detailHtml.push(this.renderStructuredConfig(cluster.healthCheck, 'healthCheck'));
                 detailHtml.push('</div>');
             }
@@ -619,7 +605,7 @@
             // Session Affinity - structured display
             if (cluster.sessionAffinity) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-link-45deg"></i>${__('index.cluster.sessionAffinity') || 'Session Affinity'}</div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-link-45deg"></i>${__('index.cluster.sessionAffinity')}</div>`);
                 detailHtml.push(this.renderStructuredConfig(cluster.sessionAffinity, 'sessionAffinity'));
                 detailHtml.push('</div>');
             }
@@ -627,7 +613,7 @@
             // HTTP Client - structured display
             if (cluster.httpClient) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-globe"></i>${__('index.cluster.httpClient') || 'HTTP Client'}</div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-globe"></i>${__('index.cluster.httpClient')}</div>`);
                 detailHtml.push(this.renderStructuredConfig(cluster.httpClient, 'httpClient'));
                 detailHtml.push('</div>');
             }
@@ -635,7 +621,7 @@
             // Metadata - structured key-value display
             if (cluster.metadata && Object.keys(cluster.metadata).length > 0) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-tags"></i>${__('index.route.metadata') || 'Metadata'}</div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-tags"></i>${__('index.route.metadata')}</div>`);
                 detailHtml.push(this.renderStructuredConfig(cluster.metadata, 'metadata'));
                 detailHtml.push('</div>');
             }
@@ -682,8 +668,8 @@
                     html.push(`<div class="detail-kv-row"${indent}><span class="detail-kv-key">${label}</span><span class="detail-kv-value text-muted">-</span></div>`);
                 } else if (typeof value === 'boolean') {
                     const badge = value
-                        ? `<span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes') || 'Yes'}</span>`
-                        : `<span class="badge bg-secondary"><i class="bi bi-x-circle-fill"></i> ${__('index.bool.no') || 'No'}</span>`;
+                        ? `<span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span>`
+                        : `<span class="badge bg-secondary"><i class="bi bi-x-circle-fill"></i> ${__('index.bool.no')}</span>`;
                     html.push(`<div class="detail-kv-row"${indent}><span class="detail-kv-key">${label}</span><span class="detail-kv-value">${badge}</span></div>`);
                 } else if (typeof value === 'number' || typeof value === 'string') {
                     const isUrl = typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'));
@@ -713,7 +699,7 @@
             });
 
             // Always add a collapsible raw JSON toggle at the bottom
-            html.push(`<div class="detail-raw-json-toggle"><details><summary><i class="bi bi-code-slash"></i> ${__('index.viewRawJson') || '查看原始JSON'}</summary><pre class="detail-raw-json">${window.DashboardUtils.escapeHtml(JSON.stringify(obj, null, 2))}</pre></details></div>`);
+            html.push(`<div class="detail-raw-json-toggle"><details><summary><i class="bi bi-code-slash"></i> ${__('index.viewRawJson')}</summary><pre class="detail-raw-json">${window.DashboardUtils.escapeHtml(JSON.stringify(obj, null, 2))}</pre></details></div>`);
 
             html.push('</div>');
             return html.join('');
@@ -740,7 +726,7 @@
 
             const json = JSON.stringify(yarpCluster, null, 2);
             navigator.clipboard.writeText(json).then(function() {
-                window.DashboardModals.showSuccess(__('index.copied') || '已复制到剪贴板');
+                window.DashboardModals.showSuccess(__('index.copied'));
             });
         },
 
@@ -748,7 +734,7 @@
         createCopyButton: function(text) {
             const btn = window.DashboardDOM.create('button', {
                 className: 'copy-btn',
-                attributes: { title: __('index.copy') || '复制' },
+                attributes: { title: __('index.copy') },
                 events: {
                     click: (e) => {
                         e.stopPropagation();
@@ -795,10 +781,6 @@
             </span>`;
         },
 
-        // ===== Render JSON Block (delegates to shared utility) =====
-        renderJsonBlock: function(obj, title) {
-            return window.DashboardUtils.renderJsonBlock(obj, title);
-        },
 
         // ===== Toggle Cluster =====
         toggleCluster: function(clusterId) {
@@ -873,14 +855,14 @@
             }; 
         
             window.DashboardModals.showJsonModal({
-                title: __('modal.addCluster') || '添加集群 (JSON模式)',
+                title: __('modal.addCluster'),
                 data: defaultCluster,
                 schemaType: 'cluster',
                 size: 'xl',
                 onSave: function(parsedData) {
                     // Validate cluster config
                     if (!parsedData.Destinations || typeof parsedData.Destinations !== 'object') {
-                        window.DashboardModals.showError(__('index.cluster.invalidDestinations') || 'Destinations 配置无效');
+                        window.DashboardModals.showError(__('index.cluster.invalidDestinations'));
                         return false;
                     }
         
@@ -894,7 +876,7 @@
                         }
                     }
                     if (!hasValidAddress) {
-                        window.DashboardModals.showError(__('index.cluster.invalidAddress') || '目标地址必须以 http:// 或 https:// 开头');
+                        window.DashboardModals.showError(__('index.cluster.invalidAddress'));
                         return false;
                     }
         
@@ -916,7 +898,7 @@
                     clusterId = id;
                 }
         
-                window.DashboardModals.showInfo(__('index.cluster.saving') || '正在保存集群...');
+                window.DashboardModals.showInfo(__('index.cluster.saving'));
         
                 // Convert to API format
                 const apiConfig = {
@@ -932,7 +914,7 @@
         
                 const response = await window.DashboardApi.endpoints.saveCluster(clusterId, apiConfig);
         
-                window.DashboardModals.showSuccess(__('index.cluster.saved') || '集群保存成功');
+                window.DashboardModals.showSuccess(__('index.cluster.saved'));
                 await this.loadClusters();
         
                 document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
@@ -940,7 +922,7 @@
                 }));
             } catch (error) {
                 console.error('[Clusters] Save failed:', error);
-                window.DashboardModals.showError(__('index.cluster.saveFailed') || '集群保存失败: ' + error.message);
+                window.DashboardModals.showError(__('index.cluster.saveFailed') + error.message);
             }
         },
         
@@ -958,7 +940,7 @@
                                         <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:16px;">
                                             <i class="bi bi-tag"></i>
                                         </span>
-                                        ${__('modal.clusterId') || '输入集群ID'}
+                                        ${__('modal.clusterId')}
                                     </h5>
                                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                 </div>
@@ -966,7 +948,7 @@
                                     <div style="margin-bottom:12px;">
                                         <label class="form-label" style="font-weight:500;font-size:13px;color:#334155;">Cluster ID</label>
                                         <input type="text" class="form-control" id="${modalId}-input" 
-                                               placeholder="${__('modal.clusterIdPlaceholder') || '例如: my-service-cluster'}"
+                                               placeholder="${__('modal.clusterIdPlaceholder')}"
                                                required
                                                style="border-radius:8px;padding:10px 14px;font-size:14px;border:1.5px solid #e2e8f0;transition:border-color 0.2s,box-shadow 0.2s;"
                                                onfocus="this.style.borderColor='#6366f1';this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.1)'"
@@ -974,12 +956,12 @@
                                     </div>
                                     <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;font-size:12px;color:#0369a1;display:flex;align-items:flex-start;gap:8px;">
                                         <i class="bi bi-info-circle" style="font-size:14px;margin-top:2px;flex-shrink:0;"></i>
-                                        <span>${__('modal.clusterIdHelp') || '集群ID用于标识和引用此集群，建议使用服务名作为ID'}</span>
+                                        <span>${__('modal.clusterIdHelp')}</span>
                                     </div>
                                 </div>
                                 <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
-                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">${__('modal.cancelBtn') || '取消'}</button>
-                                    <button type="button" class="btn btn-primary btn-sm" id="${modalId}-confirm" style="min-width:70px;">${__('modal.confirmBtn') || '确认'}</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">${__('modal.cancelBtn')}</button>
+                                    <button type="button" class="btn btn-primary btn-sm" id="${modalId}-confirm" style="min-width:70px;">${__('modal.confirmBtn')}</button>
                                 </div>
                             </div>
                         </div>
@@ -1022,11 +1004,11 @@
         // ===== Save Cluster =====
         saveCluster: async function(clusterId, config) {
             try {
-                window.DashboardModals.showInfo(__('index.cluster.saving') || '正在保存集群...');
+                window.DashboardModals.showInfo(__('index.cluster.saving'));
 
                 const response = await window.DashboardApi.endpoints.saveCluster(clusterId, config);
 
-                window.DashboardModals.showSuccess(__('index.cluster.saved') || '集群保存成功');
+                window.DashboardModals.showSuccess(__('index.cluster.saved'));
 
                 // Reload clusters
                 await this.loadClusters();
@@ -1037,7 +1019,7 @@
                 }));
             } catch (error) {
                 console.error('[Clusters] Save failed:', error);
-                window.DashboardModals.showError(__('index.cluster.saveFailed') || '集群保存失败: ' + error.message);
+                window.DashboardModals.showError(__('index.cluster.saveFailed') + error.message);
             }
         },
 
@@ -1049,11 +1031,9 @@
             const clusters = window.DashboardState.get('data.clusters') || [];
             const cluster = clusters.find(c => c.clusterId === clusterId);
             if (!cluster) {
-                window.DashboardModals.showError(__('index.cluster.notFound') || '集群不存在');
+                window.DashboardModals.showError(__('index.cluster.notFound'));
                 return;
             }
-
-            // All clusters are editable now
 
             // Build YARP format cluster config for JSON editor
             const yarpCluster = {
@@ -1089,7 +1069,7 @@
             }
 
             window.DashboardModals.showJsonModal({
-                title: __('modal.editCluster') || '编辑集群 (JSON模式)',
+                title: __('modal.editCluster'),
                 data: yarpCluster,
                 schemaType: 'cluster',
                 size: 'xl',
@@ -1097,12 +1077,12 @@
                     label: 'Cluster ID',
                     value: clusterId,
                     original: clusterId,
-                    placeholder: __('modal.clusterIdPlaceholder') || '例如: my-service-cluster'
+                    placeholder: __('modal.clusterIdPlaceholder')
                 },
                 onSave: function(parsedData, newId) {
                     // Validate cluster config
                     if (!parsedData.Destinations || typeof parsedData.Destinations !== 'object') {
-                        window.DashboardModals.showError(__('index.cluster.invalidDestinations') || 'Destinations 配置无效');
+                        window.DashboardModals.showError(__('index.cluster.invalidDestinations'));
                         return false;
                     }
 
@@ -1116,7 +1096,7 @@
                         }
                     }
                     if (!hasValidAddress) {
-                        window.DashboardModals.showError(__('index.cluster.invalidAddress') || '目标地址必须以 http:// 或 https:// 开头');
+                        window.DashboardModals.showError(__('index.cluster.invalidAddress'));
                         return false;
                     }
 
@@ -1136,7 +1116,7 @@
         renameCluster: async function(oldId, newId, clusterConfig) {
             const self = this;
             try {
-                window.DashboardModals.showInfo(__('index.cluster.renaming') || '正在重命名集群...');
+                window.DashboardModals.showInfo(__('index.cluster.renaming'));
 
                 if (oldId !== newId) {
                     // Use atomic rename API - handles creating new cluster, updating routes, and deleting old cluster in one operation
@@ -1161,7 +1141,7 @@
                     await window.DashboardApi.endpoints.saveCluster(newId, apiConfig);
                 }
 
-                window.DashboardModals.showSuccess(__('index.cluster.renamed') || '集群重命名成功');
+                window.DashboardModals.showSuccess(__('index.cluster.renamed'));
                 await self.loadClusters();
 
                 document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
@@ -1169,7 +1149,7 @@
                 }));
             } catch (error) {
                 console.error('[Clusters] Rename failed:', error);
-                window.DashboardModals.showError(__('index.cluster.renameFailed') || '集群重命名失败: ' + error.message);
+                window.DashboardModals.showError(__('index.cluster.renameFailed') + error.message);
             }
         },
 
@@ -1180,12 +1160,12 @@
                 __('index.cluster.deleteConfirm').replace('{id}', clusterId) || `确认删除集群 '${clusterId}'？此操作不可撤销。`,
                 async function() {
                     try {
-                        window.DashboardModals.showInfo(__('index.cluster.deleting') || '正在删除集群...');
+                        window.DashboardModals.showInfo(__('index.cluster.deleting'));
                         
                         await window.DashboardApi.endpoints.deleteClusterConfig(clusterId);
                         await self.loadClusters();
                         
-                        window.DashboardModals.showSuccess(__('index.cluster.deleted') || '集群删除成功');
+                        window.DashboardModals.showSuccess(__('index.cluster.deleted'));
 
                         // Trigger config deleted event
                         document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
@@ -1193,11 +1173,11 @@
                         }));
                     } catch (error) {
                         console.error('[Clusters] Delete failed:', error);
-                        window.DashboardModals.showError(__('index.cluster.deleteFailed') || '集群删除失败: ' + error.message);
+                        window.DashboardModals.showError(__('index.cluster.deleteFailed') + error.message);
                     }
                 },
                 null,
-                { title: __('modal.deleteCluster') || '删除集群', danger: true }
+                { title: __('modal.deleteCluster'), danger: true }
             );
         },
 
@@ -1226,7 +1206,7 @@
     // Global functions for onclick handlers
     window.manualRefresh = async function(btn) {
         const originalText = btn.innerHTML;
-        btn.innerHTML = '<i class="bi bi-arrow-clockwise spin me-1"></i>' + (window.__('index.btn.loading') || 'Loading...');
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise spin me-1"></i>' + (window.__('index.btn.loading'));
         btn.disabled = true;
         try {
             await ClustersModule.loadClusters();

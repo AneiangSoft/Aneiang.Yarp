@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Dashboard Utilities - Common helper functions
  */
 (function() {
@@ -233,10 +233,10 @@
     // ===== Create Source Badge HTML (shared across modules) =====
     window.DashboardUtils.createSourceBadge = function(source) {
         const sourceMap = {
-            'config': { css: 'bg-secondary', icon: 'bi-file-earmark-code', label: __('index.source.config') || 'Static Config' },
-            'dynamic': { css: 'bg-success', icon: 'bi-lightning-charge-fill', label: __('index.source.dynamic') || 'Dynamic' },
-            'dashboard': { css: 'bg-primary', icon: 'bi-speedometer2', label: __('index.source.dashboard') || 'Dashboard' },
-            'auto-register': { css: 'bg-info', icon: 'bi-cloud-arrow-up-fill', label: __('index.source.autoRegister') || 'Auto Register' }
+            'config': { css: 'bg-secondary', icon: 'bi-file-earmark-code', label: __('index.source.config') },
+            'dynamic': { css: 'bg-success', icon: 'bi-lightning-charge-fill', label: __('index.source.dynamic') },
+            'dashboard': { css: 'bg-primary', icon: 'bi-speedometer2', label: __('index.source.dashboard') },
+            'auto-register': { css: 'bg-info', icon: 'bi-cloud-arrow-up-fill', label: __('index.source.autoRegister') }
         };
         const s = source || 'config';
         const cfg = sourceMap[s] || { css: 'bg-secondary', icon: 'bi-question-circle-fill', label: s };
