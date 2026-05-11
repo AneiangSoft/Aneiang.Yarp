@@ -1,0 +1,297 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "YARP Cluster Configuration",
+  "description": "YARP Reverse Proxy Cluster Configuration Schema for Monaco Editor",
+  "type": "object",
+  "properties": {
+    "Destinations": {
+      "type": "object",
+      "description": "Named destinations where traffic is forwarded.",
+      "patternProperties": {
+        ".": {
+          "type": "object",
+          "properties": {
+            "Address": {
+              "type": "string",
+              "description": "Destination address (must include scheme like http:// or https://)"
+            },
+            "Health": {
+              "type": ["string", "null"],
+              "description": "Optional override URL accepting active health check probes."
+            },
+            "Host": {
+              "type": ["string", "null"],
+              "description": "Optional fallback host header value used if a host is not already specified by request transforms."
+            },
+            "Metadata": {
+              "type": ["object", "null"],
+              "description": "Arbitrary key-value pairs for custom destination logic.",
+              "additionalProperties": {
+                "type": ["null", "number", "string", "boolean"]
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": ["Address"]
+        }
+      }
+    },
+    "LoadBalancingPolicy": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "PowerOfTwoChoices",
+            "FirstAlphabetical",
+            "Random",
+            "RoundRobin",
+            "LeastRequests"
+          ]
+        },
+        {
+          "type": ["string", "null"]
+        }
+      ],
+      "description": "Determines traffic distribution among destinations. Default: RoundRobin"
+    },
+    "SessionAffinity": {
+      "type": ["object", "null"],
+      "description": "Session affinity binds a request sequence to the destination that handled the first request.",
+      "properties": {
+        "Enabled": {
+          "anyOf": [
+            { "type": ["boolean", "null"] },
+            { "type": "string", "enum": ["true", "false", "True", "False"] }
+          ]
+        },
+        "Policy": {
+          "anyOf": [
+            { "type": "string", "enum": ["HashCookie", "ArrCookie", "Cookie", "CustomHeader"] },
+            { "type": ["string", "null"] }
+          ],
+          "description": "Determines how the session will be stored and retrieved."
+        },
+        "FailurePolicy": {
+          "anyOf": [
+            { "type": "string", "enum": ["Redistribute", "Return503Error"] },
+            { "type": ["string", "null"] }
+          ],
+          "description": "Strategy for handling a missing destination for an affinitized request."
+        },
+        "AffinityKeyName": {
+          "type": "string",
+          "description": "Identifies the name of the field where the affinity value is stored (cookie or header name)."
+        },
+        "Cookie": {
+          "type": ["object", "null"],
+          "properties": {
+            "Domain": { "type": ["string", "null"] },
+            "Path": { "type": ["string", "null"] },
+            "Expiration": { "type": ["string", "null"], "pattern": "^\\d*?\\.?\\d\\d?:\\d\\d?:\\d\\d?\\.?\\d{0,7}$" },
+            "MaxAge": { "type": ["string", "null"], "pattern": "^\\d*?\\.?\\d\\d?:\\d\\d?:\\d\\d?\\.?\\d{0,7}$" },
+            "SecurePolicy": { "type": ["string", "null"], "enum": ["Always", "None", "SameAsRequest"] },
+            "HttpOnly": {
+              "anyOf": [
+                { "type": ["boolean", "null"] },
+                { "type": "string", "enum": ["true", "false", "True", "False"] }
+              ]
+            },
+            "SameSite": { "type": ["string", "null"], "enum": ["Lax", "None", "Strict", "Unspecified"] },
+            "IsEssential": {
+              "anyOf": [
+                { "type": ["boolean", "null"] },
+                { "type": "string", "enum": ["true", "false", "True", "False"] }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": ["AffinityKeyName"]
+    },
+    "HealthCheck": {
+      "type": ["object", "null"],
+      "description": "Health check configuration for destinations.",
+      "properties": {
+        "Active": {
+          "type": ["object", "null"],
+          "description": "Active health checks based on sending health probing requests.",
+          "properties": {
+            "Enabled": {
+              "anyOf": [
+                { "type": ["boolean", "null"] },
+                { "type": "string", "enum": ["true", "false", "True", "False"] }
+              ],
+              "description": "Determines if active health checks are enabled. Default: false",
+              "default": false
+            },
+            "Interval": {
+              "type": ["string", "null"],
+              "pattern": "^\\d*?\\.?\\d\\d?:\\d\\d?:\\d\\d?\\.?\\d{0,7}$",
+              "description": "Period of sending health probing requests. Format: 'hh:mm:ss'. Default: 00:00:15",
+              "default": "00:00:15"
+            },
+            "Timeout": {
+              "type": ["string", "null"],
+              "pattern": "^\\d*?\\.?\\d\\d?:\\d\\d?:\\d\\d?\\.?\\d{0,7}$",
+              "description": "Period of waiting for a health check response. Format: 'hh:mm:ss'. Default: 00:00:10",
+              "default": "00:00:10"
+            },
+            "Policy": {
+              "anyOf": [
+                { "type": "string", "enum": ["ConsecutiveFailures"] },
+                { "type": ["string", "null"] }
+              ],
+              "description": "Determines the health check policy."
+            },
+            "Path": {
+              "type": ["string", "null"],
+              "description": "HTTP health check endpoint path. Default: /",
+              "default": "/"
+            },
+            "Query": {
+              "type": ["string", "null"],
+              "description": "Query string to append to the probe, including the leading '?'."
+            }
+          },
+          "additionalProperties": false
+        },
+        "Passive": {
+          "type": ["object", "null"],
+          "description": "Passive health checks based on observing the health of the responses.",
+          "properties": {
+            "Enabled": {
+              "anyOf": [
+                { "type": ["boolean", "null"] },
+                { "type": "string", "enum": ["true", "false", "True", "False"] }
+              ],
+              "description": "Determines if passive health checks are enabled. Default: false",
+              "default": false
+            },
+            "Policy": {
+              "anyOf": [
+                { "type": "string", "enum": ["TransportFailureRate"] },
+                { "type": ["string", "null"] }
+              ],
+              "description": "Determines the health check policy."
+            },
+            "ReactivationPeriod": {
+              "type": ["string", "null"],
+              "pattern": "^\\d*?\\.?\\d\\d?:\\d\\d?:\\d\\d?\\.?\\d{0,7}$",
+              "description": "Period after which an unhealthy destination reverts back to Unknown health state. Format: 'hh:mm:ss'."
+            }
+          },
+          "additionalProperties": false
+        },
+        "AvailableDestinationsPolicy": {
+          "anyOf": [
+            { "type": "string", "enum": ["HealthyAndUnknown", "HealthyOrPanic"] },
+            { "type": ["string", "null"] }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "HttpClient": {
+      "type": ["object", "null"],
+      "description": "Configuration for outbound HTTP connections.",
+      "properties": {
+        "SslProtocols": {
+          "type": "array",
+          "description": "Specifies the SSL protocols to use.",
+          "items": { "type": "string" }
+        },
+        "DangerousAcceptAnyServerCertificate": {
+          "anyOf": [
+            { "type": ["boolean", "null"] },
+            { "type": "string", "enum": ["true", "false", "True", "False"] }
+          ],
+          "description": "Whether to skip server SSL certificate validation. WARNING: Only for development! Default: false",
+          "default": false
+        },
+        "MaxConnectionsPerServer": {
+          "type": ["number", "null"],
+          "description": "Specifies the maximum number of connections per server."
+        },
+        "EnableMultipleHttp2Connections": {
+          "anyOf": [
+            { "type": ["boolean", "null"] },
+            { "type": "string", "enum": ["true", "false", "True", "False"] }
+          ],
+          "description": "Determines if multiple HTTP/2 connections are enabled. Default: true",
+          "default": true
+        },
+        "RequestHeaderEncoding": {
+          "type": ["string", "null"],
+          "description": "Specifies the encoding of request headers, e.g. 'utf-8'."
+        },
+        "ResponseHeaderEncoding": {
+          "type": ["string", "null"],
+          "description": "Specifies the encoding of response headers, e.g. 'utf-8'."
+        },
+        "WebProxy": {
+          "type": ["object", "null"],
+          "description": "Config used to construct a WebProxy instance for outgoing requests.",
+          "properties": {
+            "Address": { "type": ["string", "null"] },
+            "BypassOnLocal": {
+              "anyOf": [
+                { "type": ["boolean", "null"] },
+                { "type": "string", "enum": ["true", "false", "True", "False"] }
+              ],
+              "default": false
+            },
+            "UseDefaultCredentials": {
+              "anyOf": [
+                { "type": ["boolean", "null"] },
+                { "type": "string", "enum": ["true", "false", "True", "False"] }
+              ],
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "HttpRequest": {
+      "type": ["object", "null"],
+      "description": "Options controlling requests sent to destinations.",
+      "properties": {
+        "ActivityTimeout": {
+          "type": ["string", "null"],
+          "pattern": "^\\d*?\\.?\\d\\d?:\\d\\d?:\\d\\d?\\.?\\d{0,7}$",
+          "description": "Maximum idle time between operations. Format: 'hh:mm:ss'. Default: 00:01:40",
+          "default": "00:01:40"
+        },
+        "Version": {
+          "type": ["string", "null"],
+          "description": "Preferred HTTP version for outgoing request. Default: 2.0",
+          "default": "2.0"
+        },
+        "VersionPolicy": {
+          "type": ["string", "null"],
+          "description": "The policy applied to version selection.",
+          "default": "RequestVersionOrLower",
+          "enum": ["RequestVersionExact", "RequestVersionOrLower", "RequestVersionOrHigher"]
+        },
+        "AllowResponseBuffering": {
+          "anyOf": [
+            { "type": ["boolean", "null"] },
+            { "type": "string", "enum": ["true", "false", "True", "False"] }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Metadata": {
+      "type": ["object", "null"],
+      "description": "Arbitrary key-value pairs for custom cluster logic.",
+      "additionalProperties": {
+        "type": ["null", "number", "string", "boolean"]
+      }
+    }
+  },
+  "additionalProperties": false
+}

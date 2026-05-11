@@ -5,8 +5,9 @@ namespace Aneiang.Yarp.Dashboard.Services;
 /// <summary>
 /// Pre-allocated ring buffer for recent log entries (lock-based, O(1) add).
 /// Thread-safe, bounded memory usage, oldest entries are evicted when full.
+/// Default in-memory implementation of IProxyLogStore.
 /// </summary>
-public sealed class ProxyLogStore
+public sealed class ProxyLogStore : IProxyLogStore
 {
     private readonly LogEntry[] _buffer;
     private int _head;

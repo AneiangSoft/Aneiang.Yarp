@@ -1,6 +1,107 @@
 {
   "type": "object",
   "properties": {
+    "Gateway": {
+      "type": "object",
+      "description": "Aneiang.Yarp gateway configuration including Dashboard settings.",
+      "properties": {
+        "Dashboard": {
+          "type": "object",
+          "description": "Dashboard UI and logging configuration.",
+          "properties": {
+            "EnableProxyLogging": {
+              "type": "boolean",
+              "description": "Enable or disable proxy request/response logging. Default: true.",
+              "default": true
+            },
+            "RoutePrefix": {
+              "type": "string",
+              "description": "Route prefix for all dashboard pages. Default: 'apigateway'.",
+              "default": "apigateway"
+            },
+            "AuthMode": {
+              "type": "string",
+              "enum": ["None", "ApiKey", "CustomJwt", "DefaultJwt"],
+              "description": "Authorization mode for accessing the dashboard."
+            },
+            "ApiKey": {
+              "type": "string",
+              "description": "API key value for ApiKey auth mode."
+            },
+            "ApiKeyHeaderName": {
+              "type": "string",
+              "description": "Header name for ApiKey mode. Default: 'X-Api-Key'.",
+              "default": "X-Api-Key"
+            },
+            "JwtSecret": {
+              "type": "string",
+              "description": "JWT signing secret. Auto-generated if not set (invalidated on restart)."
+            },
+            "JwtUsername": {
+              "type": "string",
+              "description": "Username for CustomJwt mode."
+            },
+            "JwtPassword": {
+              "type": "string",
+              "description": "Password for JWT login (required for both CustomJwt and DefaultJwt)."
+            },
+            "Locale": {
+              "type": "string",
+              "enum": ["zh-CN", "en-US"],
+              "description": "Dashboard UI locale. Default: 'zh-CN'.",
+              "default": "zh-CN"
+            },
+            "EnableLogSampling": {
+              "type": "boolean",
+              "description": "Enable or disable log sampling. Default: false.",
+              "default": false
+            },
+            "LogSamplingRate": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0,
+              "description": "Sampling rate (0.0 to 1.0). 1.0 means log all requests. Default: 1.0.",
+              "default": 1.0
+            },
+            "LogErrorsOnly": {
+              "type": "boolean",
+              "description": "Only log error requests (status code >= 400). Default: false.",
+              "default": false
+            },
+            "LogRouteWhitelist": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Whitelist of route IDs to log. If empty, all routes are considered."
+            },
+            "LogRouteBlacklist": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Blacklist of route IDs to exclude from logging."
+            },
+            "LogMaxBodyLength": {
+              "type": "integer",
+              "description": "Maximum request/response body length to log (in bytes). Default: 8192 (8KB).",
+              "default": 8192
+            },
+            "LogHeaderBlacklist": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Header names to exclude from logging. Default: ['Authorization', 'Cookie', 'Set-Cookie']."
+            },
+            "LogQueryBlacklist": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Query parameter names to exclude from logging."
+            },
+            "LogJsonFieldSanitizeList": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "JSON field names to sanitize in request/response body. Default: ['password', 'token', 'secret', 'apikey', 'api-key']."
+            }
+          }
+        }
+      }
+    },
     "ReverseProxy": {
       "type": "object",
       "description": "Reverse proxy configuration for routes and clusters.",

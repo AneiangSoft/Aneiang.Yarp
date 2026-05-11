@@ -2,6 +2,7 @@
     Layout = null;
     var prefix = ViewBag.DashboardRoutePrefix ?? "apigateway";
     var authMode = (int)(ViewBag.AuthMode ?? 0);
+    var isEn = (ViewBag.Locale as string) == "en-US";
 }
 
 <!DOCTYPE html>
@@ -9,30 +10,40 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@(ViewBag.Locale != null && ViewBag.Locale.ToString() == "en-US" ? "Login - Gateway Dashboard" : "登录 - 网关仪表盘")</title>
+    <title>@(isEn ? "Login - Gateway Dashboard" : "登录 - 网关仪表盘")</title>
     <link href="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
     <link href="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet" />
     <style>
-        body { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); height: 100vh; display: flex; align-items: center; justify-content: center; }
-        .login-card { background: #fff; border-radius: 16px; padding: 40px; width: 100%; max-width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
-        .login-card .brand { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 28px; }
-        .login-card .brand i { color: #3b82f6; margin-right: 8px; }
-        .login-card .form-label { font-weight: 600; color: #475569; font-size: 14px; }
-        .login-card .btn-primary { padding: 10px; font-weight: 600; border-radius: 8px; }
-        .login-card .alert { border-radius: 8px; font-size: 14px; margin-bottom: 16px; display: none; }
+        * { box-sizing: border-box; }
+        body { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .login-card { background: #fff; border-radius: 20px; padding: 40px; width: 100%; max-width: 420px; box-shadow: 0 25px 60px rgba(0,0,0,.35); position: relative; overflow: hidden; }
+        .login-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #6366f1, #0ea5e9); }
+        .login-card .brand { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 32px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .login-card .brand-icon { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #818cf8); color: #fff; font-size: 20px; }
+        .login-card .form-label { font-weight: 600; color: #475569; font-size: 13px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+        .login-card .form-control { border-radius: 10px; padding: 10px 14px; border: 1.5px solid #e2e8f0; font-size: 14px; transition: border-color 0.2s, box-shadow 0.2s; }
+        .login-card .form-control:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+        .login-card .btn-primary { padding: 10px; font-weight: 600; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #818cf8); border: none; transition: transform 0.15s, box-shadow 0.15s; }
+        .login-card .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(99,102,241,0.35); }
+        .login-card .btn-primary:active { transform: translateY(0); }
+        .login-card .alert { border-radius: 10px; font-size: 14px; margin-bottom: 16px; display: none; }
+        .login-card .input-icon { color: #6366f1; font-size: 14px; }
     </style>
 </head>
 <body>
     <div class="login-card">
-        <div class="brand"><i class="bi bi-hdd-rack"></i><span data-i18n="login.brand">网关仪表盘</span></div>
+        <div class="brand">
+            <span class="brand-icon"><i class="bi bi-hdd-rack"></i></span>
+            <span data-i18n="login.brand">网关仪表盘</span>
+        </div>
         <div class="alert alert-danger" id="error-msg" role="alert"></div>
         <form id="login-form">
             <div class="mb-3">
-                <label class="form-label"><i class="bi bi-person me-1"></i><span data-i18n="login.username">用户名</span></label>
+                <label class="form-label"><i class="bi bi-person input-icon"></i><span data-i18n="login.username">用户名</span></label>
                 <input type="text" class="form-control" id="username" data-i18n-placeholder="login.username.placeholder" placeholder="请输入用户名" required autofocus />
             </div>
-            <div class="mb-3">
-                <label class="form-label"><i class="bi bi-lock me-1"></i><span data-i18n="login.password">密码</span></label>
+            <div class="mb-4">
+                <label class="form-label"><i class="bi bi-lock input-icon"></i><span data-i18n="login.password">密码</span></label>
                 <input type="password" class="form-control" id="password" data-i18n-placeholder="login.password.placeholder" placeholder="请输入密码" required />
             </div>
             <button type="submit" class="btn btn-primary w-100" id="login-btn">
@@ -41,8 +52,8 @@
             </button>
         </form>
         <div class="text-center mt-3">
-            <a href="#" onclick="switchLocale();return false;" class="text-muted" style="font-size:13px;text-decoration:none;" title="@(ViewBag.Locale != null && ViewBag.Locale.ToString() == "en-US" ? "切换到中文" : "Switch to English")">
-                <i class="bi bi-translate me-1"></i><span data-i18n="layout.lang.switch">@(ViewBag.Locale != null && ViewBag.Locale.ToString() == "en-US" ? "中文" : "English")</span>
+            <a href="#" onclick="switchLocale();return false;" class="text-muted" style="font-size:13px;text-decoration:none;" title="@(isEn ? "切换到中文" : "Switch to English")">
+                <i class="bi bi-translate me-1"></i><span data-i18n="layout.lang.switch">@(isEn ? "中文" : "English")</span>
             </a>
         </div>
     </div>
@@ -65,6 +76,10 @@
             document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
                 var key = el.getAttribute('data-i18n-placeholder');
                 if (key && I18N[key]) el.placeholder = I18N[key];
+            });
+            document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
+                var key = el.getAttribute('data-i18n-title');
+                if (key && I18N[key]) el.title = I18N[key];
             });
         });
     </script>
