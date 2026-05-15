@@ -29,7 +29,7 @@ try
 
     var app = builder.Build();
 
-    app.UseStaticFiles();
+    //app.UseStaticFiles();
     app.UseRouting();
 
     // Register Dashboard middleware (request capture, auth, etc.)

@@ -17,6 +17,7 @@ public static class DashboardApplicationBuilderExtensions
     /// <returns>The IApplicationBuilder for chaining.</returns>
     public static IApplicationBuilder UseAneiangYarpDashboard(this IApplicationBuilder app)
     {
+        app.UseStaticFiles();
         return app.UseMiddleware<YarpRequestCaptureMiddleware>();
     }
 }
