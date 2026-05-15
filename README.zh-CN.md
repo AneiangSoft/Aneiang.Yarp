@@ -324,7 +324,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 
-app.UseStaticFiles();  // ← 静态文件中间件放在前面，避免无法加载前端资源
 app.UseRouting();
 app.UseAneiangYarpDashboard();  // ← 在 UseRouting 之后
 app.MapControllers();
