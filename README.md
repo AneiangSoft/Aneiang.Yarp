@@ -324,6 +324,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 
+app.UseStaticFiles();  // ← place the static file middleware in front to avoid the inability to load front-end resources
 app.UseRouting();
 app.UseAneiangYarpDashboard();  // ← after UseRouting
 app.MapControllers();
