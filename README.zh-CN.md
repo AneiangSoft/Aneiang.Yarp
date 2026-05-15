@@ -334,7 +334,7 @@ app.MapReverseProxy();           // ← 必须最后
 
 </details>
 
-<details>
+<details> 
 <summary><b>📋 生产环境推荐配置</b></summary>
 
 ```json
