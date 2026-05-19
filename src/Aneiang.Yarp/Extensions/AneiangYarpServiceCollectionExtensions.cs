@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Yarp.ReverseProxy;
 using Yarp.ReverseProxy.Configuration;
+using Yarp.ReverseProxy.LoadBalancing;
 
 namespace Aneiang.Yarp.Extensions;
 
@@ -35,6 +36,10 @@ public static class AneiangYarpServiceCollectionExtensions
         bool enableRegistration = true)
     {
         var proxyBuilder = services.AddReverseProxy();
+
+        // Register custom load balancing policies
+        services.AddSingleton<ILoadBalancingPolicy, IpBasedLoadBalancingPolicy>();
+
         configureReverseProxy?.Invoke(proxyBuilder);
 
         // InMemoryConfigProvider: load static routes/clusters from IConfiguration

@@ -63,6 +63,7 @@ public class GatewayAutoRegistrationClient
         var destinationAddress = RegistrationOptionsResolver.GetDestinationAddress(_options, _serviceProvider);
         var order = RegistrationOptionsResolver.GetOrder(_options);
         var transforms = RegistrationOptionsResolver.GetTransforms(_options);
+        var useIpIsolation = RegistrationOptionsResolver.UseIpIsolation(_options);
 
         if (string.IsNullOrWhiteSpace(gatewayUrl) || string.IsNullOrWhiteSpace(destinationAddress))
         {
@@ -75,6 +76,12 @@ public class GatewayAutoRegistrationClient
 
         if (transforms != null && transforms.Count > 0)
             _logger.LogDebug("Transforms: {Transforms}", JsonSerializer.Serialize(transforms));
+
+        // If IP isolation is enabled, don't add prefix (routing is done by IP)
+        if (useIpIsolation)
+        {
+            _logger.LogInformation("IP-based isolation enabled. Gateway will route based on client IP address.");
+        }
 
         // Auto-resolve localhost to LAN IP
         if (RegistrationOptionsResolver.GetAutoResolveIp(_options))
@@ -113,7 +120,9 @@ public class GatewayAutoRegistrationClient
                 matchPath,
                 destinationAddress,
                 order,
-                transforms
+                transforms,
+                useIpIsolation,
+                clientIp = useIpIsolation ? GetLocalIpv4() : null
             }, _jsonOptions);
 
             var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -166,8 +175,13 @@ public class GatewayAutoRegistrationClient
             http.Timeout = TimeSpan.FromSeconds(RegistrationOptionsResolver.GetTimeoutSeconds(_options));
             ApplyAuthHeaders(http);
 
+            // For IP isolation, pass clientIp query parameter to remove only the matching destination
+            var clientIp = RegistrationOptionsResolver.UseIpIsolation(_options) ? GetLocalIpv4() : null;
             var url = $"{gatewayUrl.TrimEnd('/')}/api/gateway/{routeName}";
-            _logger.LogInformation("Unregistering: [{RouteName}]", routeName);
+            if (!string.IsNullOrWhiteSpace(clientIp))
+                url += $"?clientIp={Uri.EscapeDataString(clientIp)}";
+
+            _logger.LogInformation("Unregistering: [{RouteName}] (ClientIp: {ClientIp})", routeName, clientIp ?? "N/A");
 
             var response = await http.DeleteAsync(url, ct).ConfigureAwait(false);
 

@@ -30,4 +30,10 @@ public class RegisterRouteRequest
 
     /// <summary>Optional transforms, e.g. [{"PathSet": "/api/backend"}].</summary>
     public List<Dictionary<string, string>>? Transforms { get; set; }
+    
+    /// <summary>Client IP address for IP-based isolation. Auto-populated by gateway.</summary>
+    public string? ClientIp { get; set; }
+    
+    /// <summary>Whether to use IP-based isolation. If true, gateway routes based on client IP.</summary>
+    public bool UseIpIsolation { get; set; }
 }
