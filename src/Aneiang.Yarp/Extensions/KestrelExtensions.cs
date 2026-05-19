@@ -198,7 +198,7 @@ public static class KestrelExtensions
         }
 
         var port = uri.Port;
-        var isHttps = uri.Scheme == "https";
+        var isHttps = uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
         var host = uri.Host;
 
         // 判断是否需要监听 0.0.0.0
@@ -207,16 +207,20 @@ public static class KestrelExtensions
 
         if (shouldListenAnyIP)
         {
-            // 监听 0.0.0.0
-            // 注意：HTTPS 需要证书配置，建议用户在 appsettings.json 中配置
-            options.ListenAnyIP(port);
+            if (isHttps)
+                options.ListenAnyIP(port, listenOptions => listenOptions.UseHttps());
+            else
+                options.ListenAnyIP(port);
             return true;
         }
 
         // 如果指定了特定 IP，监听该 IP
         if (IPAddress.TryParse(host, out var ipAddress))
         {
-            options.Listen(ipAddress, port);
+            if (isHttps)
+                options.Listen(ipAddress, port, listenOptions => listenOptions.UseHttps());
+            else
+                options.Listen(ipAddress, port);
             return true;
         }
 
