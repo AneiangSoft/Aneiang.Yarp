@@ -1,5 +1,3 @@
-# Aneiang.Yarp.Dashboard
-
 <div align="center">
 
 **Give your YARP gateway a management dashboard — in just 3 lines of code**
