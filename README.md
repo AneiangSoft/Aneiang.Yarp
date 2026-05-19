@@ -366,7 +366,7 @@ The dashboard depends on [Aneiang.Yarp](https://www.nuget.org/packages/Aneiang.Y
 |------------|-------------|
 | 🚀 **Dynamic Routing API** | `/api/gateway` for runtime route registration/update/unregistration |
 | 🔄 **Auto-Registration Client** | `AddAneiangYarpClient()` — one line, registers on startup, unregisters on shutdown |
-| 👥 **Instance Isolation** | Multi-developer debugging with automatic namespace isolation |
+| 👥 **IP Isolation** | Multi-developer debugging with automatic IP-based routing isolation |
 | 🧠 **Smart Defaults** | Auto-detect assembly name, Kestrel address, resolve localhost → LAN IP |
 | 🛡️ **API Authorization** | Optional BasicAuth/ApiKey protection for registration APIs |
 | 🚪 **Conditional API Exposure** | `enableRegistration: false` removes registration endpoints entirely |

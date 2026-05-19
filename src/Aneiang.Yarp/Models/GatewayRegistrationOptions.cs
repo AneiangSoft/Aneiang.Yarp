@@ -41,20 +41,6 @@ public class GatewayRegistrationOptions
     /// <summary>HTTP timeout in seconds. Default: 5.</summary>
     public int? TimeoutSeconds { get; set; }
 
-    /// <summary>
-    /// Instance isolation for multi-developer debugging.
-    /// Embeds machine name into route/cluster/path so instances don't conflict. Default: true.
-    /// </summary>
-    public bool? InstanceIsolation { get; set; }
-
-    /// <summary>Custom instance ID (default: Environment.MachineName).</summary>
-    public string? InstanceId { get; set; }
-
-    /// <summary>
-    /// Instance prefix format. Placeholders: {instanceId}, {machineName}, {userName}. Default: "{instanceId}".
-    /// </summary>
-    public string? InstancePrefixFormat { get; set; }
-
     /// <summary>Bearer token for gateway API auth.</summary>
     public string? AuthToken { get; set; }
 
@@ -68,14 +54,7 @@ public class GatewayRegistrationOptions
     public string? BasicAuthPassword { get; set; }
 
     /// <summary>
-    /// Strip instance prefix from path when forwarding to downstream. Default: true.
-    /// When enabled, automatically adds PathRemovePrefix transform to remove instance prefix.
-    /// </summary>
-    public bool? StripInstancePrefix { get; set; }
-
-    /// <summary>
     /// Override downstream path prefix. If set, requests will be forwarded to this path prefix.
-    /// Higher priority than StripInstancePrefix.
     /// </summary>
     public string? DownstreamPathPrefix { get; set; }
 
@@ -87,7 +66,7 @@ public class GatewayRegistrationOptions
     /// <summary>
     /// Use IP-based instance isolation. Routes requests based on client IP address.
     /// When enabled, the gateway uses YARP's IpBased load balancing policy to automatically
-    /// route requests to the correct backend instance. No path prefix is added.
+    /// route requests to the correct backend instance. No path prefix is needed.
     /// Default: false.
     /// </summary>
     public bool? UseIpIsolation { get; set; }

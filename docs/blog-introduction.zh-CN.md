@@ -157,16 +157,21 @@ builder.Services.AddAneiangYarpClient();
 
 ## 功能六：多人开发不冲突
 
-团队多人共用一个网关调试？Aneiang.Yarp 自动按机器名隔离路由：
+团队多人共用一个网关调试？Aneiang.Yarp 基于 YARP 原生的 `ILoadBalancingPolicy`，自动按客户端 IP 路由到对应后端实例：
 
-| 开发者 | 路由名 | 匹配路径 |
-|--------|--------|---------|
-| 小明（PC-MING） | `my-service-PC-MING` | `/PC-MING/api/{**catch-all}` |
-| 小红（PC-HONG） | `my-service-PC-HONG` | `/PC-HONG/api/{**catch-all}` |
+```json
+// appsettings.json
+{
+  "Gateway": {
+    "Registration": {
+      "GatewayUrl": "http://网关地址:端口",
+      "UseIpIsolation": true
+    }
+  }
+}
+```
 
-各走各的，互不干扰。实例前缀转发时自动剥离，下游服务无感。
-
-不需要可以关掉：`options.InstanceIsolation = false`。
+启用后，多个开发者各自启动服务，网关自动按客户端 IP 将请求路由到对应实例，无需路径前缀，前端完全无感。
 
 ---
 

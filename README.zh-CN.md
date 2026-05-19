@@ -366,7 +366,7 @@ app.MapReverseProxy();           // ← 必须最后
 |------|------|
 | 🚀 **动态路由 API** | `/api/gateway` 运行时注册/更新/注销路由 |
 | 🔄 **客户端自动注册** | `AddAneiangYarpClient()` 一行搞定，启动注册、关闭注销 |
-| 👥 **实例隔离** | 多人调试自动隔离，互不干扰 |
+| 👥 **IP 隔离** | 多人调试按客户端 IP 自动路由隔离，互不干扰 |
 | 🧠 **智能默认值** | 自动取程序集名、Kestrel 地址，localhost → 内网 IP |
 | 🛡️ **API 授权** | 可选 BasicAuth/ApiKey 保护注册 API |
 | 🚪 **条件化暴露** | `enableRegistration: false` 直接移除注册端点 |
