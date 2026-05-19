@@ -76,18 +76,66 @@ internal static class RegistrationOptionsResolver
     {
         if (!string.IsNullOrWhiteSpace(options.DestinationAddress)) return options.DestinationAddress;
 
-        // Auto-detect from Kestrel urls
         var config = sp.GetRequiredService<IConfiguration>();
+        var endpoints = new List<string>();
+
+        // Collect all available endpoints
+        // 1. From "Kestrel:EndPoints" (explicit config, highest priority)
+        var kestrelSection = config.GetSection("Kestrel:EndPoints");
+        if (kestrelSection.Exists())
+        {
+            foreach (var ep in kestrelSection.GetChildren())
+            {
+                var url = ep["Url"]?.Trim();
+                if (!string.IsNullOrEmpty(url) && url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                    endpoints.Add(url);
+            }
+        }
+
+        // 2. From "Urls" / "urls" config (may come from launchSettings.json)
         var urls = config["urls"] ?? config["Urls"];
         if (!string.IsNullOrWhiteSpace(urls))
         {
-            var first = urls.Split(';')[0].Trim();
-            if (first.StartsWith("http", StringComparison.OrdinalIgnoreCase)) return first;
+            foreach (var u in urls.Split(';'))
+            {
+                var trimmed = u.Trim();
+                if (trimmed.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                    endpoints.Add(trimmed);
+            }
         }
 
+        // 3. From ASPNETCORE_URLS environment variable
+        var envUrls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+        if (!string.IsNullOrWhiteSpace(envUrls))
+        {
+            foreach (var u in envUrls.Split(';'))
+            {
+                var trimmed = u.Trim();
+                if (trimmed.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                    endpoints.Add(trimmed);
+            }
+        }
+
+        // Determine preferred scheme based on gateway URL protocol
+        var gwUrl = options.GatewayUrl;
+        var preferHttps = !string.IsNullOrWhiteSpace(gwUrl) &&
+                          gwUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
+        // Select matching endpoint by protocol
+        var preferred = preferHttps
+            ? endpoints.FirstOrDefault(e => e.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            : endpoints.FirstOrDefault(e => e.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                                           && !e.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
+
+        if (preferred != null) return preferred;
+
+        // Fallback: use first available endpoint
+        if (endpoints.Count > 0) return endpoints[0];
+
+        // Default fallback
         var env = sp.GetRequiredService<IHostEnvironment>();
         var port = env.IsDevelopment() ? "5001" : "5000";
-        return $"http://localhost:{port}";
+        return preferHttps ? $"https://localhost:{port}" : $"http://localhost:{port}";
     }
 
     /// <summary>Gets whether IP-based isolation is enabled.</summary>

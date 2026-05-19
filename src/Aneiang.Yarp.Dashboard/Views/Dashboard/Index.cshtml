@@ -227,7 +227,9 @@
     dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
     
     if (dash.logPanelEnabled) {
+        dash.tabPanels = dash.tabPanels || {};
         dash.tabPanels.logs = ['log-panel'];
+        dash.allPanels = dash.allPanels || [];
         dash.allPanels.push('log-panel');
     }
 </script>
