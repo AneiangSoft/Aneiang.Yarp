@@ -39,6 +39,35 @@ public static class KestrelExtensions
         return builder;
     }
 
+
+    /// <summary>
+    /// 自动配置 Kestrel 监听 0.0.0.0，支持跨机器访问
+    /// 自动检测并覆盖以下配置：
+    /// 1. "Urls" 配置项
+    /// 2. "Kestrel:EndPoints" 配置节
+    /// 3. ASPNETCORE_URLS 环境变量
+    /// </summary>
+    /// <param name="builder">WebApplicationBuilder</param>
+    /// <param name="forceAnyIP">是否强制监听 0.0.0.0（即使配置中是 localhost）</param>
+    /// <returns>WebApplicationBuilder</returns>
+    /// <example>
+    /// <code>
+    /// var builder = WebApplication.CreateBuilder(args);
+    /// builder.UseYarpKestrelAutoConfig();
+    /// </code>
+    /// </example>
+    public static IWebHostBuilder UseYarpKestrelAutoConfig(
+        this IWebHostBuilder builder,
+        bool forceAnyIP = true)
+    {
+        builder.ConfigureKestrel((context, options) =>
+        {
+            ConfigureFromAllSources(context.Configuration, options, forceAnyIP);
+        });
+
+        return builder;
+    }
+
     /// <summary>
     /// 从所有配置源读取并配置 Kestrel 端点
     /// </summary>
