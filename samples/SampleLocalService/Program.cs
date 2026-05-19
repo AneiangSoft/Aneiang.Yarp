@@ -2,6 +2,7 @@ using Aneiang.Yarp.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.UseYarpKestrelAutoConfig();
 // Client: one-liner — auto-register on startup, auto-unregister on shutdown
 // Minimal config: just GatewayUrl in code or appsettings.json
 builder.Services.AddAneiangYarpClient();
