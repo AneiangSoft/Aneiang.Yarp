@@ -1,5 +1,3 @@
-# Aneiang.Yarp.Dashboard
-
 <div align="center">
 
 **给 YARP 网关装上管理后台，只需 3 行代码**
