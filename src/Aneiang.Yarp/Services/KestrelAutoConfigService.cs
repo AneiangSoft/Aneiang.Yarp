@@ -1,12 +1,12 @@
 using System.Net;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Services;
 
 /// <summary>
-/// Service to automatically configure Kestrel to listen on 0.0.0.0 for cross-machine access.
-/// Detects localhost binding and auto-configures launchSettings.json or suggests manual configuration.
+/// Service to check if Kestrel is listening on 0.0.0.0 for cross-machine access.
+/// Provides warnings and suggestions if the service is only listening on localhost.
+/// For automatic configuration, use builder.UseYarpKestrelAutoConfig() extension method.
 /// </summary>
 public class KestrelAutoConfigService
 {
@@ -22,10 +22,11 @@ public class KestrelAutoConfigService
     }
 
     /// <summary>
-    /// Check if service needs to listen on 0.0.0.0 and attempt auto-configuration.
+    /// Check if service is listening on 0.0.0.0 and log warnings if not.
+    /// Does NOT modify any files. For automatic configuration, use UseYarpKestrelAutoConfig() extension method.
     /// </summary>
     /// <param name="port">The port the service is running on.</param>
-    /// <returns>True if already listening on 0.0.0.0 or successfully auto-configured.</returns>
+    /// <returns>True if already listening on 0.0.0.0.</returns>
     public bool EnsureListeningOnAny(int port)
     {
         // Check current listening status
@@ -35,47 +36,22 @@ public class KestrelAutoConfigService
             return true;
         }
 
+
+        // Not listening on 0.0.0.0, log warning with suggestions
         _logger.LogWarning(
-            "Service is listening on localhost only (port {Port}). " +
-            "Attempting to auto-configure for cross-machine access...", 
-            port);
-
-        bool anyModified = false;
-
-        // Try to auto-configure launchSettings.json
-        if (TryConfigureLaunchSettings(port))
-        {
-            _logger.LogInformation("Successfully updated launchSettings.json");
-            anyModified = true;
-        }
-
-        // Try to auto-configure appsettings.json
-        if (TryConfigureAppSettings(port))
-        {
-            _logger.LogInformation("Successfully updated appsettings.json");
-            anyModified = true;
-        }
-
-        if (anyModified)
-        {
-            _logger.LogInformation(
-                "Configuration updated. Please restart the service for changes to take effect. " +
-                "Service will register with LAN IP, but cross-machine access requires restart.");
-            return false; // Need restart
-        }
-
-        // Fallback: log instructions
-        _logger.LogWarning(
-            "Could not auto-configure. Please manually configure Kestrel to listen on 0.0.0.0:\n" +
-            "  Option 1 - appsettings.json:\n" +
-            "    \"Urls\": \"http://0.0.0.0:{0}\"\n" +
-            "  Option 2 - launchSettings.json:\n" +
-            "    \"applicationUrl\": \"http://0.0.0.0:{1}\"\n" +
-            "  Option 3 - Program.cs:\n" +
-            "    builder.WebHost.UseUrls(\"http://0.0.0.0:{2}\")\n" +
-            "  Option 4 - Environment variable:\n" +
-            "    ASPNETCORE_URLS=http://0.0.0.0:{3}",
-            port, port, port, port);
+            "Service is listening on localhost only (port {Port}), other machines cannot access! " +
+            "To enable cross-machine access, configure Kestrel to listen on 0.0.0.0:\n" +
+            "  Option 1 (Recommended): Add in Program.cs before Build():\n" +
+            "    builder.UseYarpKestrelAutoConfig();\n" +
+            "  Option 2 - appsettings.json:\n" +
+            "    \"Urls\": \"http://0.0.0.0:{Port1}\"\n" +
+            "  Option 3 - launchSettings.json:\n" +
+            "    \"applicationUrl\": \"http://0.0.0.0:{Port2}\"\n" +
+            "  Option 4 - Program.cs:\n" +
+            "    builder.WebHost.UseUrls(\"http://0.0.0.0:{Port3}\")\n" +
+            "  Option 5 - Environment variable:\n" +
+            "    ASPNETCORE_URLS=http://0.0.0.0:{Port4}",
+            port, port, port, port, port);
 
         return false;
     }
@@ -83,7 +59,7 @@ public class KestrelAutoConfigService
     /// <summary>
     /// Check if any TCP listener is on 0.0.0.0:port.
     /// </summary>
-    private static bool IsListeningOnAnyAddress(int port)
+    public static bool IsListeningOnAnyAddress(int port)
     {
         try
         {
@@ -106,184 +82,5 @@ public class KestrelAutoConfigService
         {
             return true; // Optimistic: assume it's listening
         }
-    }
-
-    /// <summary>
-    /// Try to auto-configure launchSettings.json to listen on 0.0.0.0.
-    /// </summary>
-    private bool TryConfigureLaunchSettings(int port)
-    {
-        try
-        {
-            // Find launchSettings.json
-            var launchSettingsPath = FindLaunchSettingsFile();
-            if (string.IsNullOrEmpty(launchSettingsPath))
-            {
-                _logger.LogDebug("launchSettings.json not found");
-                return false;
-            }
-
-            var json = File.ReadAllText(launchSettingsPath);
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-
-            // Check if profiles exist
-            if (!root.TryGetProperty("profiles", out var profiles))
-            {
-                _logger.LogDebug("No profiles section in launchSettings.json");
-                return false;
-            }
-
-            bool modified = false;
-            var modifiedJson = json;
-
-            foreach (var profile in profiles.EnumerateObject())
-            {
-                if (profile.Value.TryGetProperty("applicationUrl", out var appUrlProp))
-                {
-                    var appUrl = appUrlProp.GetString();
-                    if (!string.IsNullOrEmpty(appUrl) && 
-                        appUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
-                    {
-                        // Replace localhost with 0.0.0.0
-                        var newUrl = appUrl.Replace("localhost", "0.0.0.0", StringComparison.OrdinalIgnoreCase);
-                        
-                        // Replace in the original JSON string
-                        modifiedJson = modifiedJson.Replace(
-                            $"\"applicationUrl\": \"{appUrl}\"",
-                            $"\"applicationUrl\": \"{newUrl}\"");
-                        
-                        modified = true;
-
-                        _logger.LogInformation(
-                            "Updated applicationUrl in profile '{Profile}': {OldUrl} -> {NewUrl}",
-                            profile.Name, appUrl, newUrl);
-                    }
-                }
-            }
-
-            if (modified)
-            {
-                File.WriteAllText(launchSettingsPath, modifiedJson);
-                
-                _logger.LogInformation(
-                    "Successfully updated launchSettings.json at {Path}", 
-                    launchSettingsPath);
-                
-                return true;
-            }
-
-            return false;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to auto-configure launchSettings.json");
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Try to auto-configure appsettings.json to listen on 0.0.0.0.
-    /// </summary>
-    private bool TryConfigureAppSettings(int port)
-    {
-        try
-        {
-            // Find appsettings.json
-            var appSettingsPath = FindAppSettingsFile();
-            if (string.IsNullOrEmpty(appSettingsPath))
-            {
-                _logger.LogDebug("appsettings.json not found");
-                return false;
-            }
-
-            var json = File.ReadAllText(appSettingsPath);
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-
-            // Check if Urls property exists
-            if (!root.TryGetProperty("Urls", out var urlsProp))
-            {
-                _logger.LogDebug("No Urls property in appsettings.json");
-                return false;
-            }
-
-            var urls = urlsProp.GetString();
-            if (string.IsNullOrEmpty(urls) || 
-                !urls.Contains("localhost", StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogDebug("Urls does not contain localhost");
-                return false;
-            }
-
-            // Replace localhost with 0.0.0.0
-            var newUrls = urls.Replace("localhost", "0.0.0.0", StringComparison.OrdinalIgnoreCase);
-            
-            // Replace in the original JSON string
-            var modifiedJson = json.Replace(
-                $"\"Urls\": \"{urls}\"",
-                $"\"Urls\": \"{newUrls}\"");
-
-            File.WriteAllText(appSettingsPath, modifiedJson);
-
-            _logger.LogInformation(
-                "Updated Urls in appsettings.json: {OldUrl} -> {NewUrl}",
-                urls, newUrls);
-            
-            _logger.LogInformation(
-                "Successfully updated appsettings.json at {Path}", 
-                appSettingsPath);
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to auto-configure appsettings.json");
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Find launchSettings.json file (searches in Properties/ folder relative to current directory).
-    /// </summary>
-    private static string? FindLaunchSettingsFile()
-    {
-        var searchPaths = new[]
-        {
-            Path.Combine(Directory.GetCurrentDirectory(), "Properties", "launchSettings.json"),
-            Path.Combine(AppContext.BaseDirectory, "Properties", "launchSettings.json"),
-        };
-
-        foreach (var path in searchPaths)
-        {
-            if (File.Exists(path))
-            {
-                return path;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Find appsettings.json file (searches in current directory).
-    /// </summary>
-    private static string? FindAppSettingsFile()
-    {
-        var searchPaths = new[]
-        {
-            Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json"),
-            Path.Combine(AppContext.BaseDirectory, "appsettings.json"),
-        };
-
-        foreach (var path in searchPaths)
-        {
-            if (File.Exists(path))
-            {
-                return path;
-            }
-        }
-
-        return null;
     }
 }
