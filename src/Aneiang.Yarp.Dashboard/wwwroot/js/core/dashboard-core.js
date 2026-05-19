@@ -6,16 +6,21 @@
 
     // ===== Tab Configuration =====
     const tabConfig = {
-        overview: ['stat-bar', 'preview-bar', 'cluster-panel', 'route-panel'],
+        overview: ['stat-bar'],
         services: ['stat-bar', 'cluster-panel'],
-        routes: ['stat-bar', 'route-panel'],
-        logs: ['stat-bar', 'log-panel']
+        routes:   ['stat-bar', 'route-panel'],
+        logs:     ['stat-bar', 'log-panel']
     };
+
+    let _initialized = false;
 
     // ===== Initialize Tab System =====
     window.DashboardCore = window.DashboardCore || {};
 
     window.DashboardCore.init = function() {
+        if (_initialized) return;
+        _initialized = true;
+
         console.log('[Core] Initializing tab system...');
         this.setupTabHandlers();
         this.setupPanelConfig();
@@ -31,11 +36,10 @@
 
     // ===== Setup Panel Configuration =====
     window.DashboardCore.setupPanelConfig = function() {
-        // Initialize window.__dashboard with panel config if not exists
         window.__dashboard = window.__dashboard || {};
-        window.__dashboard.tabPanels = window.__dashboard.tabPanels || tabConfig;
-        window.__dashboard.allPanels = window.__dashboard.allPanels || 
-            ['stat-bar', 'cluster-panel', 'route-panel', 'log-panel'];
+        // Always assign the full config to prevent incomplete overrides from inline scripts
+        window.__dashboard.tabPanels = tabConfig;
+        window.__dashboard.allPanels = ['stat-bar', 'cluster-panel', 'route-panel', 'log-panel'];
     };
 
     // ===== Setup Tab Click Handlers =====
@@ -66,7 +70,7 @@
 
         // Hide all panels
         const allPanels = window.__dashboard?.allPanels || 
-            ['stat-bar', 'preview-bar', 'cluster-panel', 'route-panel', 'log-panel'];
+            ['stat-bar', 'cluster-panel', 'route-panel', 'log-panel'];
         
         allPanels.forEach(function(panelId) {
             const panel = document.getElementById(panelId);
