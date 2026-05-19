@@ -77,7 +77,7 @@ public class GatewayAutoRegistrationClient
         if (transforms != null && transforms.Count > 0)
             _logger.LogDebug("Transforms: {Transforms}", JsonSerializer.Serialize(transforms));
 
-        // If IP isolation is enabled, don't add prefix (routing is done by IP)
+        // If IP isolation is enabled, log it
         if (useIpIsolation)
         {
             _logger.LogInformation("IP-based isolation enabled. Gateway will route based on client IP address.");
@@ -312,25 +312,6 @@ public class GatewayAutoRegistrationClient
         }
     }
     
-    /// <summary>Resolve localhost/127.0.0.1/0.0.0.0 in destination to LAN IPv4 (legacy).</summary>
-    private static string ResolveLocalAddress(string address)
-    {
-        if (string.IsNullOrWhiteSpace(address)) return address;
-        try
-        {
-            var uri = new Uri(address);
-            var host = uri.Host;
-            if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-                host.Equals("127.0.0.1") || host.Equals("0.0.0.0"))
-            {
-                var ip = GetLocalIpv4();
-                if (ip != null) return $"{uri.Scheme}://{ip}:{uri.Port}{uri.PathAndQuery}";
-            }
-        }
-        catch (UriFormatException) { }
-        return address;
-    }
-
     private static string? GetLocalIpv4()
     {
         try

@@ -19,20 +19,16 @@ internal static class RegistrationOptionsResolver
     /// <summary>Gets the resolved route name.</summary>
     public static string GetRouteName(GatewayRegistrationOptions options)
     {
-        var prefix = GetPrefix(options);
-        var name = !string.IsNullOrWhiteSpace(options.RouteName)
+        return !string.IsNullOrWhiteSpace(options.RouteName)
             ? options.RouteName : Assembly.GetEntryAssembly()?.GetName().Name ?? "my-service";
-        return !string.IsNullOrEmpty(prefix) ? $"{name}-{prefix}" : name;
     }
 
     /// <summary>Gets the resolved cluster name.</summary>
     public static string GetClusterName(GatewayRegistrationOptions options)
     {
-        var prefix = GetPrefix(options);
-        var baseName = !string.IsNullOrWhiteSpace(options.ClusterName)
+        return !string.IsNullOrWhiteSpace(options.ClusterName)
             ? options.ClusterName
             : (!string.IsNullOrWhiteSpace(options.RouteName) ? options.RouteName : Assembly.GetEntryAssembly()?.GetName().Name ?? "my-service");
-        return !string.IsNullOrEmpty(prefix) ? $"{baseName}-cluster-{prefix}" : baseName;
     }
 
     /// <summary>Gets the resolved match path.</summary>
@@ -40,8 +36,7 @@ internal static class RegistrationOptionsResolver
     {
         var path = !string.IsNullOrWhiteSpace(options.MatchPath) ? options.MatchPath : "/{**catch-all}";
         if (!path.StartsWith("/")) path = "/" + path;
-        var prefix = GetPrefix(options);
-        return !string.IsNullOrEmpty(prefix) ? $"/{prefix}{path}" : path;
+        return path;
     }
 
     /// <summary>Gets the resolved route order. Default: 50.</summary>
@@ -53,14 +48,10 @@ internal static class RegistrationOptionsResolver
     /// <summary>Gets the HTTP timeout in seconds. Default: 5.</summary>
     public static int GetTimeoutSeconds(GatewayRegistrationOptions options) => options.TimeoutSeconds ?? 5;
 
-    /// <summary>Gets whether instance prefix stripping is enabled. Default: true.</summary>
-    public static bool GetStripInstancePrefix(GatewayRegistrationOptions options) => options.StripInstancePrefix ?? true;
-
     /// <summary>
     /// Build transforms list based on configuration priority:
     /// 1. Custom Transforms (highest)
     /// 2. DownstreamPathPrefix
-    /// 3. StripInstancePrefix (default)
     /// </summary>
     public static List<Dictionary<string, string>>? GetTransforms(GatewayRegistrationOptions options)
     {
@@ -75,19 +66,6 @@ internal static class RegistrationOptionsResolver
             {
                 new() { { "PathSet", options.DownstreamPathPrefix + "/{**catch-all}" } }
             };
-        }
-
-        // Priority 3: Auto strip instance prefix (default behavior)
-        if (GetStripInstancePrefix(options))
-        {
-            var prefix = GetPrefix(options);
-            if (!string.IsNullOrEmpty(prefix))
-            {
-                return new List<Dictionary<string, string>>
-                {
-                    new() { { "PathRemovePrefix", $"/{prefix}" } }
-                };
-            }
         }
 
         return null;
@@ -112,27 +90,6 @@ internal static class RegistrationOptionsResolver
         return $"http://localhost:{port}";
     }
 
-    // -- Instance isolation helpers
-        
-    private static bool IsInstanceIsolation(GatewayRegistrationOptions options) => options.InstanceIsolation != false;
-
-    private static string ResolveInstanceId(GatewayRegistrationOptions options) =>
-        !string.IsNullOrWhiteSpace(options.InstanceId) ? options.InstanceId : Environment.MachineName;
-
     /// <summary>Gets whether IP-based isolation is enabled.</summary>
     public static bool UseIpIsolation(GatewayRegistrationOptions options) => options.UseIpIsolation ?? false;
-
-    private static string GetPrefix(GatewayRegistrationOptions options)
-    {
-        // IP-based isolation: routing is handled by YARP's IpBased load balancing policy, no prefix needed
-        if (UseIpIsolation(options))
-            return string.Empty;
-
-        if (!IsInstanceIsolation(options)) return string.Empty;
-        var fmt = !string.IsNullOrWhiteSpace(options.InstancePrefixFormat) ? options.InstancePrefixFormat : "{instanceId}";
-        var id = ResolveInstanceId(options);
-        return fmt.Replace("{instanceId}", id)
-                  .Replace("{machineName}", Environment.MachineName)
-                  .Replace("{userName}", Environment.UserName);
-    }
 }
