@@ -439,7 +439,7 @@ public class ConfigManagementController : ControllerBase
             // Save snapshot BEFORE deletion
             await _persistenceService.SaveSnapshotAsync($"Before route '{routeId}' deleted via dashboard", GetClientIp());
             
-            var result = _dynamicConfig.TryRemoveRoute(routeId, removeOrphanedCluster);
+            var result = _dynamicConfig.TryRemoveRoute(routeId, null, removeOrphanedCluster);
             
             return result.Success
                 ? Ok(new { code = 200, message = result.Message, routeId = routeId })

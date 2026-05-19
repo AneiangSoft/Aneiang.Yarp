@@ -252,6 +252,7 @@ public class DynamicYarpConfigService
             var newRoutes = new List<RouteConfig>(routes);
             var newClusters = new List<ClusterConfig>(clusters);
 
+            // -- Route: create or update
             var routeConfig = new RouteConfig
             {
                 RouteId = request.RouteName,
@@ -278,22 +279,74 @@ public class DynamicYarpConfigService
                 _logger.LogInformation("Route '{RouteName}' is new, adding", request.RouteName);
             }
 
-            var clusterConfig = new ClusterConfig
+            // -- Cluster: create or update
+            if (request.UseIpIsolation && !string.IsNullOrWhiteSpace(request.ClientIp))
             {
-                ClusterId = request.ClusterName,
-                Destinations = new Dictionary<string, DestinationConfig>
+                // IP isolation: add destination with ClientIp metadata to shared cluster
+                var destKey = $"ip-{request.ClientIp.Replace(".", "-")}";
+                var existingClusterIdx = newClusters.FindIndex(c =>
+                    string.Equals(c.ClusterId, request.ClusterName, StringComparison.OrdinalIgnoreCase));
+
+                if (existingClusterIdx >= 0)
                 {
-                    ["d1"] = new() { Address = request.DestinationAddress }
+                    var existingCluster = newClusters[existingClusterIdx];
+                    var destinations = existingCluster.Destinations?.ToDictionary(
+                        d => d.Key, d => d.Value) ?? new Dictionary<string, DestinationConfig>();
+
+                    destinations[destKey] = new DestinationConfig
+                    {
+                        Address = request.DestinationAddress,
+                        Metadata = new Dictionary<string, string> { { "ClientIp", request.ClientIp } }
+                    };
+
+                    newClusters[existingClusterIdx] = new ClusterConfig
+                    {
+                        ClusterId = request.ClusterName,
+                        Destinations = destinations,
+                        LoadBalancingPolicy = existingCluster.LoadBalancingPolicy ?? "IpBased"
+                    };
                 }
-            };
+                else
+                {
+                    newClusters.Add(new ClusterConfig
+                    {
+                        ClusterId = request.ClusterName,
+                        Destinations = new Dictionary<string, DestinationConfig>
+                        {
+                            [destKey] = new DestinationConfig
+                            {
+                                Address = request.DestinationAddress,
+                                Metadata = new Dictionary<string, string> { { "ClientIp", request.ClientIp } }
+                            }
+                        },
+                        LoadBalancingPolicy = "IpBased"
+                    });
+                }
 
-            var existingClusterIdx = newClusters.FindIndex(c =>
-                string.Equals(c.ClusterId, request.ClusterName, StringComparison.OrdinalIgnoreCase));
-
-            if (existingClusterIdx >= 0)
-                newClusters[existingClusterIdx] = clusterConfig;
+                _logger.LogInformation(
+                    "IP isolation enabled for route '{RouteName}'. Client IP: {ClientIp}, Destination: {Dest}",
+                    request.RouteName, request.ClientIp, request.DestinationAddress);
+            }
             else
-                newClusters.Add(clusterConfig);
+            {
+                // Normal: create/replace cluster with single destination
+                var clusterConfig = new ClusterConfig
+                {
+                    ClusterId = request.ClusterName,
+                    Destinations = new Dictionary<string, DestinationConfig>
+                    {
+                        ["d1"] = new() { Address = request.DestinationAddress }
+                    }
+                };
+
+                var existingClusterIdx = newClusters.FindIndex(c =>
+                    string.Equals(c.ClusterId, request.ClusterName, StringComparison.OrdinalIgnoreCase));
+
+                if (existingClusterIdx >= 0)
+                    newClusters[existingClusterIdx] = clusterConfig;
+                else
+                    newClusters.Add(clusterConfig);
+            }
 
             _configProvider.Update(newRoutes, newClusters);
             
@@ -332,24 +385,45 @@ public class DynamicYarpConfigService
                 }
             }
             
-            // Update or add cluster in dynamic config - only add if doesn't exist
+            // Update or add cluster in dynamic config
             var dynCluster = _dynamicConfig.Clusters.FirstOrDefault(c => 
                 string.Equals(c.ClusterId, request.ClusterName, StringComparison.OrdinalIgnoreCase));
             
             if (dynCluster == null)
             {
-                // Cluster doesn't exist in dynamic config - create new
-                dynCluster = new DynamicClusterConfig
+                if (request.UseIpIsolation && !string.IsNullOrWhiteSpace(request.ClientIp))
                 {
-                    ClusterId = request.ClusterName,
-                    Destinations = new Dictionary<string, string> { ["d1"] = request.DestinationAddress },
-                    Source = source,
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = createdBy
-                }; 
+                    var destKey = $"ip-{request.ClientIp.Replace(".", "-")}";
+                    dynCluster = new DynamicClusterConfig
+                    {
+                        ClusterId = request.ClusterName,
+                        Destinations = new Dictionary<string, string> { [destKey] = request.DestinationAddress },
+                        LoadBalancingPolicy = "IpBased",
+                        Source = source,
+                        CreatedAt = DateTime.UtcNow,
+                        CreatedBy = createdBy
+                    };
+                }
+                else
+                {
+                    dynCluster = new DynamicClusterConfig
+                    {
+                        ClusterId = request.ClusterName,
+                        Destinations = new Dictionary<string, string> { ["d1"] = request.DestinationAddress },
+                        Source = source,
+                        CreatedAt = DateTime.UtcNow,
+                        CreatedBy = createdBy
+                    };
+                }
                 _dynamicConfig.Clusters.Add(dynCluster);
             }
-            // else: Cluster exists - keep its existing destinations (don't modify)
+            else if (request.UseIpIsolation && !string.IsNullOrWhiteSpace(request.ClientIp))
+            {
+                // IP isolation: add/update destination in existing cluster
+                var destKey = $"ip-{request.ClientIp.Replace(".", "-")}";
+                dynCluster.Destinations[destKey] = request.DestinationAddress;
+                dynCluster.LoadBalancingPolicy ??= "IpBased";
+            }
             
             SaveDynamicConfig();
 
@@ -364,9 +438,10 @@ public class DynamicYarpConfigService
     /// Delete a route. Optionally removes the cluster if no remaining routes reference it.
     /// </summary>
     /// <param name="routeName">Route name to delete.</param>
+    /// <param name="clientIp">Optional client IP for IP-based isolation: only removes the matching destination instead of the whole cluster.</param>
     /// <param name="removeOrphanedCluster">If true, also remove the cluster when no other routes reference it. Default: true.</param>
     /// <returns>Route operation result.</returns>
-    public RouteOperationResult TryRemoveRoute(string routeName, bool removeOrphanedCluster = true)
+    public RouteOperationResult TryRemoveRoute(string routeName, string? clientIp = null, bool removeOrphanedCluster = true)
     {
         if (string.IsNullOrWhiteSpace(routeName))
             return new RouteOperationResult(false, "Route name cannot be empty");
@@ -382,18 +457,87 @@ public class DynamicYarpConfigService
             if (route == null)
                 return new RouteOperationResult(false, $"Route '{routeName}' not found");
 
-            var newRoutes = routes.Where(r =>
+            var clusterId = route.ClusterId;
+
+            // IP isolation: only remove the matching destination, keep the route and cluster
+            if (!string.IsNullOrWhiteSpace(clientIp) && clusterId != null)
+            {
+                var destKey = $"ip-{clientIp.Replace(".", "-")}";
+                var cluster = clusters.FirstOrDefault(c =>
+                    string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+
+                if (cluster != null)
+                {
+                    var destinations = cluster.Destinations?.ToDictionary(
+                        d => d.Key, d => d.Value) ?? new Dictionary<string, DestinationConfig>();
+
+                    destinations.Remove(destKey);
+
+                    var newClusters = new List<ClusterConfig>(clusters);
+                    var clusterIdx = newClusters.FindIndex(c =>
+                        string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+
+                    if (clusterIdx >= 0)
+                    {
+                        if (destinations.Count == 0)
+                        {
+                            // No more destinations, remove cluster and route
+                            newClusters.RemoveAt(clusterIdx);
+                            var newRoutes = routes.Where(r =>
+                                !string.Equals(r.RouteId, routeName, StringComparison.OrdinalIgnoreCase)).ToList();
+                            _configProvider.Update(newRoutes, newClusters);
+
+                            EnsureDynamicConfigInitialized();
+                            _dynamicConfig!.Routes.RemoveAll(r =>
+                                string.Equals(r.RouteId, routeName, StringComparison.OrdinalIgnoreCase));
+                            _dynamicConfig.Clusters.RemoveAll(c =>
+                                string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+                        }
+                        else
+                        {
+                            // Update cluster without the removed destination
+                            newClusters[clusterIdx] = new ClusterConfig
+                            {
+                                ClusterId = cluster.ClusterId,
+                                Destinations = destinations,
+                                LoadBalancingPolicy = cluster.LoadBalancingPolicy,
+                                Metadata = cluster.Metadata
+                            };
+                            _configProvider.Update(routes, newClusters);
+
+                            EnsureDynamicConfigInitialized();
+                            var dynCluster = _dynamicConfig!.Clusters.FirstOrDefault(c =>
+                                string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+                            if (dynCluster != null)
+                            {
+                                dynCluster.Destinations.Remove(destKey);
+                            }
+                        }
+
+                        SaveDynamicConfig();
+                        _logger.LogInformation(
+                            "IP isolation: removed destination '{DestKey}' from cluster '{ClusterId}' (client IP: {ClientIp})",
+                            destKey, clusterId, clientIp);
+                        return new RouteOperationResult(true,
+                            $"Destination for IP '{clientIp}' removed from cluster '{clusterId}'");
+                    }
+                }
+
+                return new RouteOperationResult(false, $"Cluster '{clusterId}' not found");
+            }
+
+            // Normal: delete route and optionally the orphaned cluster
+            var newRoutes2 = routes.Where(r =>
                 !string.Equals(r.RouteId, routeName, StringComparison.OrdinalIgnoreCase)).ToList();
 
-            var clusterId = route.ClusterId;
-            var orphaned = clusterId != null && !newRoutes.Any(r =>
+            var orphaned = clusterId != null && !newRoutes2.Any(r =>
                 string.Equals(r.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
 
-            var newClusters = (orphaned && removeOrphanedCluster)
+            var newClusters2 = (orphaned && removeOrphanedCluster)
                 ? clusters.Where(c => !string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase)).ToList()
                 : new List<ClusterConfig>(clusters);
 
-            _configProvider.Update(newRoutes, newClusters);
+            _configProvider.Update(newRoutes2, newClusters2);
             
             // Remove from dynamic config
             EnsureDynamicConfigInitialized();

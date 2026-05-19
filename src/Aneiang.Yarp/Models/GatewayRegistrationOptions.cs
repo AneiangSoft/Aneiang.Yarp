@@ -83,4 +83,12 @@ public class GatewayRegistrationOptions
     /// Custom YARP transforms for fine-grained control. Highest priority.
     /// </summary>
     public List<Dictionary<string, string>>? Transforms { get; set; }
+
+    /// <summary>
+    /// Use IP-based instance isolation. Routes requests based on client IP address.
+    /// When enabled, the gateway uses YARP's IpBased load balancing policy to automatically
+    /// route requests to the correct backend instance. No path prefix is added.
+    /// Default: false.
+    /// </summary>
+    public bool? UseIpIsolation { get; set; }
 }

@@ -35,12 +35,14 @@ public class GatewayConfigController : ControllerBase
     }
 
     /// <summary>Delete a route. Also removes the cluster if no remaining routes reference it.</summary>
+    /// <param name="routeName">Route name to delete.</param>
+    /// <param name="clientIp">Optional client IP for IP-based isolation: only removes the matching destination.</param>
     [HttpDelete("{routeName}")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
-    public IActionResult DeleteRoute(string routeName)
+    public IActionResult DeleteRoute(string routeName, [FromQuery] string? clientIp = null)
     {
-        var result = _dynamicConfig.TryRemoveRoute(routeName);
+        var result = _dynamicConfig.TryRemoveRoute(routeName, clientIp);
         return result.Success
             ? Ok(new { code = 200, message = result.Message })
             : NotFound(new { code = 404, message = result.Message });

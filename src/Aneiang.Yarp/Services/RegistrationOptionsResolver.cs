@@ -113,14 +113,21 @@ internal static class RegistrationOptionsResolver
     }
 
     // -- Instance isolation helpers
-
+        
     private static bool IsInstanceIsolation(GatewayRegistrationOptions options) => options.InstanceIsolation != false;
 
     private static string ResolveInstanceId(GatewayRegistrationOptions options) =>
         !string.IsNullOrWhiteSpace(options.InstanceId) ? options.InstanceId : Environment.MachineName;
 
+    /// <summary>Gets whether IP-based isolation is enabled.</summary>
+    public static bool UseIpIsolation(GatewayRegistrationOptions options) => options.UseIpIsolation ?? false;
+
     private static string GetPrefix(GatewayRegistrationOptions options)
     {
+        // IP-based isolation: routing is handled by YARP's IpBased load balancing policy, no prefix needed
+        if (UseIpIsolation(options))
+            return string.Empty;
+
         if (!IsInstanceIsolation(options)) return string.Empty;
         var fmt = !string.IsNullOrWhiteSpace(options.InstancePrefixFormat) ? options.InstancePrefixFormat : "{instanceId}";
         var id = ResolveInstanceId(options);
