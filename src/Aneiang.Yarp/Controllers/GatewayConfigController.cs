@@ -22,7 +22,7 @@ public class GatewayConfigController : ControllerBase
     [HttpPost("register-route")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
-    public IActionResult RegisterRoute([FromBody] RegisterRouteRequest request)
+    public async Task<IActionResult> RegisterRoute([FromBody] RegisterRouteRequest request)
     {
         if (!ModelState.IsValid)
         {
@@ -30,7 +30,7 @@ public class GatewayConfigController : ControllerBase
             return BadRequest(new { code = 400, message = string.Join("; ", errors) });
         }
 
-        var result = _dynamicConfig.TryAddRoute(request);
+        var result = await _dynamicConfig.TryAddRoute(request);
         return Ok(new { code = 200, message = result.Message });
     }
 
@@ -40,9 +40,9 @@ public class GatewayConfigController : ControllerBase
     [HttpDelete("{routeName}")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
-    public IActionResult DeleteRoute(string routeName, [FromQuery] string? clientIp = null)
+    public async Task<IActionResult> DeleteRoute(string routeName, [FromQuery] string? clientIp = null)
     {
-        var result = _dynamicConfig.TryRemoveRoute(routeName, clientIp);
+        var result = await _dynamicConfig.TryRemoveRoute(routeName, clientIp);
         return result.Success
             ? Ok(new { code = 200, message = result.Message })
             : NotFound(new { code = 404, message = result.Message });
@@ -77,7 +77,7 @@ public class GatewayConfigController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
-    public IActionResult UpdateRoute(string routeId, [FromBody] JsonElement config)
+    public async Task<IActionResult> UpdateRoute(string routeId, [FromBody] JsonElement config)
     {
         try
         {
@@ -99,7 +99,7 @@ public class GatewayConfigController : ControllerBase
                     : null
             };
 
-            var result = _dynamicConfig.TryAddRoute(request, "dynamic");
+            var result = await _dynamicConfig.TryAddRoute(request, "dynamic");
             return result.Success
                 ? Ok(new { code = 200, message = result.Message })
                 : BadRequest(new { code = 400, message = result.Message });
@@ -114,9 +114,9 @@ public class GatewayConfigController : ControllerBase
     [HttpDelete("clusters/{clusterId}")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
-    public IActionResult DeleteCluster(string clusterId)
+    public async Task<IActionResult> DeleteCluster(string clusterId)
     {
-        var result = _dynamicConfig.TryRemoveCluster(clusterId);
+        var result = await _dynamicConfig.TryRemoveCluster(clusterId);
         return result.Success
             ? Ok(new { code = 200, message = result.Message })
             : BadRequest(new { code = 400, message = result.Message });
@@ -126,7 +126,7 @@ public class GatewayConfigController : ControllerBase
     [HttpPost("clusters")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
-    public IActionResult CreateCluster([FromBody] CreateClusterRequest request)
+    public async Task<IActionResult> CreateCluster([FromBody] CreateClusterRequest request)
     {
         if (!ModelState.IsValid)
         {
@@ -134,7 +134,7 @@ public class GatewayConfigController : ControllerBase
             return BadRequest(new { code = 400, message = string.Join("; ", errors) });
         }
 
-        var result = _dynamicConfig.TryAddCluster(request);
+        var result = await _dynamicConfig.TryAddCluster(request);
         return result.Success
             ? Ok(new { code = 200, message = result.Message })
             : BadRequest(new { code = 400, message = result.Message });
@@ -145,12 +145,12 @@ public class GatewayConfigController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
-    public IActionResult UpdateCluster(string clusterId, [FromBody] UpdateClusterRequest request)
+    public async Task<IActionResult> UpdateCluster(string clusterId, [FromBody] UpdateClusterRequest request)
     {
-        var result = _dynamicConfig.TryUpdateCluster(clusterId, request);
+        var result = await _dynamicConfig.TryUpdateCluster(clusterId, request);
         return result.Success
             ? Ok(new { code = 200, message = result.Message })
-            : (result.Message.Contains("not found") 
+            : (result.Message.Contains("not found")
                 ? NotFound(new { code = 404, message = result.Message })
                 : BadRequest(new { code = 400, message = result.Message }));
     }
