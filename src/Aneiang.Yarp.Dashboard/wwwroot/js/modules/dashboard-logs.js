@@ -45,6 +45,7 @@
                 
                 // Update state
                 state.set('data.logs', result.entries || []);
+                state.set('data.logMeta', { evictedCount: result.evictedCount || 0, bufferSize: result.bufferSize || 0, bufferCapacity: result.bufferCapacity || 0 });
 
                 // Render logs
                 this.renderLogs();
@@ -128,6 +129,9 @@
                                 <option value="100" selected>100</option>
                                 <option value="200">200</option>
                                 <option value="500">500</option>
+                                <option value="1000">1K</option>
+                                <option value="2000">2K</option>
+                                <option value="5000">5K</option>
                             </select>
                         </div>
                         <div class="col-auto">
@@ -264,14 +268,252 @@
 
             const fragment = document.createDocumentFragment();
 
+            // Group entries by traceId for request-response pairing
+            const processed = new Set();
+            const self = this;
+
             entries.forEach((entry, index) => {
+                if (processed.has(index)) return;
+
+                // Try to find paired entry by traceId
+                if (entry.traceId && entry.eventType !== 'YarpEvent') {
+                    const pairedIndex = entries.findIndex((e, i) =>
+                        i !== index && e.traceId === entry.traceId && e.eventType !== 'YarpEvent' && !processed.has(i));
+
+                    if (pairedIndex >= 0) {
+                        // Found a pair - create grouped item
+                        const pairedEntry = entries[pairedIndex];
+                        const requestEntry = entry.eventType === 'ProxyRequest' ? entry : pairedEntry;
+                        const responseEntry = entry.eventType === 'ProxyResponse' ? entry : pairedEntry;
+
+                        const logKey = `paired:${requestEntry.timestamp}|${responseEntry.timestamp}|${requestEntry.traceId}`;
+                        const isExpanded = window.DashboardState.get(`ui.expandedLogs.${logKey}`) || false;
+                        const item = self.createPairedLogItem(requestEntry, responseEntry, logKey, isExpanded);
+                        fragment.appendChild(item);
+
+                        processed.add(index);
+                        processed.add(pairedIndex);
+                        return;
+                    }
+                }
+
+                // No pair found - render as single entry
                 const logKey = `${entry.timestamp}|${entry.level}|${(entry.message || '').substring(0, 80)}`;
                 const isExpanded = window.DashboardState.get(`ui.expandedLogs.${logKey}`) || false;
-                const item = this.createLogItem(entry, logKey, isExpanded);
+                const item = self.createLogItem(entry, logKey, isExpanded);
                 fragment.appendChild(item);
             });
 
             container.appendChild(fragment);
+        },
+
+        // ===== Create Paired Log Item (Request + Response grouped) =====
+        createPairedLogItem: function(requestEntry, responseEntry, logKey, isExpanded) {
+            // Determine level from response (error if status >= 500)
+            const hasError = (responseEntry.statusCode || 0) >= 500;
+            const levelClass = hasError ? 'level-error' : 'level-info';
+
+            const item = window.DashboardDOM.create('div', {
+                className: `log-item ${levelClass} log-paired-item`,
+                attributes: { 'data-log-key': logKey }
+            });
+
+            // Clickable row
+            const row = window.DashboardDOM.create('div', {
+                className: 'log-row',
+                events: {
+                    click: (e) => this.toggleLogEntryDirect(logKey, e)
+                }
+            });
+
+            // Time (use response time as it's later)
+            const timeSpan = window.DashboardDOM.create('span', {
+                textContent: window.DashboardI18n.formatTime(new Date(responseEntry.timestamp)),
+                style: { color: '#64748b', whiteSpace: 'nowrap', minWidth: '70px', fontSize: '12px' }
+            });
+
+            // Status badge
+            const statusCode = responseEntry.statusCode || 0;
+            const statusBadge = window.DashboardDOM.create('span', {
+                className: `badge ${this.getStatusCodeBadge(statusCode)}`,
+                textContent: statusCode,
+                style: { minWidth: '40px', textAlign: 'center', fontSize: '11px' }
+            });
+
+            // Method badge
+            const method = requestEntry.method || '-';
+            const methodColors = {
+                'GET': 'bg-success', 'POST': 'bg-primary', 'PUT': 'bg-info',
+                'DELETE': 'bg-danger', 'PATCH': 'bg-warning text-dark'
+            };
+            const methodClass = methodColors[method] || 'bg-secondary';
+            const methodBadge = window.DashboardDOM.create('span', {
+                className: `badge ${methodClass}`,
+                textContent: method,
+                style: { minWidth: '45px', textAlign: 'center', fontSize: '10px', fontWeight: '700' }
+            });
+
+            // Path
+            const path = requestEntry.upstreamPath || responseEntry.upstreamPath || '-';
+            const pathSpan = window.DashboardDOM.create('code', {
+                textContent: path,
+                style: {
+                    background: '#f1f5f9', padding: '1px 6px', borderRadius: '3px',
+                    fontSize: '11px', color: '#0f172a', flex: '1',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                }
+            });
+
+            // Duration
+            let durationSpan = null;
+            const elapsed = responseEntry.elapsedMs;
+            if (elapsed != null) {
+                const elapsedClass = elapsed < 200 ? 'text-success' : elapsed < 1000 ? 'text-warning' : 'text-danger';
+                durationSpan = window.DashboardDOM.create('span', {
+                    className: elapsedClass,
+                    textContent: `${elapsed.toFixed(0)}ms`,
+                    style: { fontSize: '11px', fontWeight: '600', minWidth: '50px', textAlign: 'right', whiteSpace: 'nowrap' }
+                });
+            }
+
+            // Copy button
+            const copyBtn = window.DashboardDOM.create('button', {
+                className: 'btn btn-sm btn-link p-0',
+                innerHTML: '<i class="bi bi-clipboard" style="color:#94a3b8"></i>',
+                style: { marginLeft: '4px', opacity: '0.6', transition: 'all 0.2s ease' },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        const combined = { request: requestEntry, response: responseEntry };
+                        this.copyLogEntry(combined, copyBtn);
+                    }
+                }
+            });
+
+            // Arrow
+            const arrowSpan = window.DashboardDOM.create('i', {
+                className: `bi bi-chevron-right log-arrow ${isExpanded ? 'expanded' : ''}`,
+                style: { color: '#94a3b8', fontSize: '12px', transition: 'transform 0.2s ease' }
+            });
+
+            // Paired tag
+            const pairedTag = document.createElement('span');
+            pairedTag.innerHTML = '<span class="log-event-tag log-event-paired"><i class="bi bi-link-45deg"></i> REQ+RES</span>';
+
+            row.appendChild(timeSpan);
+            row.appendChild(statusBadge);
+            row.appendChild(methodBadge);
+            if (pairedTag.firstChild) row.appendChild(pairedTag.firstChild);
+            row.appendChild(pathSpan);
+            if (durationSpan) row.appendChild(durationSpan);
+            row.appendChild(copyBtn);
+            row.appendChild(arrowSpan);
+
+            // Detail section
+            const detail = this.createPairedLogDetail(requestEntry, responseEntry, isExpanded);
+
+            item.appendChild(row);
+            item.appendChild(detail);
+
+            return item;
+        },
+
+        // ===== Create Paired Log Detail (Request → Response flow) =====
+        createPairedLogDetail: function(requestEntry, responseEntry, isExpanded) {
+            const detail = window.DashboardDOM.create('div', {
+                className: `log-detail ${isExpanded ? 'expanded' : ''}`
+            });
+
+            const dtHtml = [];
+            dtHtml.push('<div class="log-flow">');
+
+            // ─── Upstream Request ───
+            dtHtml.push('<div class="log-flow-section">');
+            dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-in-down"></i> ${__('index.log.upstream')} Request</div>`);
+            dtHtml.push('<div class="log-flow-body">');
+            if (requestEntry.method) {
+                const methodColors = { 'GET': 'bg-success', 'POST': 'bg-primary', 'PUT': 'bg-info', 'DELETE': 'bg-danger', 'PATCH': 'bg-warning text-dark' };
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.method')}</span><span class="badge ${methodColors[requestEntry.method] || 'bg-secondary'}">${requestEntry.method}</span></div>`);
+            }
+            if (requestEntry.upstreamPath) {
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.path')}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(requestEntry.upstreamPath)}</code></div>`);
+            }
+            if (requestEntry.requestBody) {
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.body')}</span>`);
+                dtHtml.push(this.renderBodyContent(requestEntry.requestBody, requestEntry.requestBodyTruncated));
+                dtHtml.push('</div>');
+            }
+            if (requestEntry.requestHeaders && Object.keys(requestEntry.requestHeaders).length > 0) {
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.headers')}</span>`);
+                dtHtml.push(this.renderHeadersInline(requestEntry.requestHeaders));
+                dtHtml.push('</div>');
+            }
+            dtHtml.push('</div></div>');
+
+            // Arrow down
+            dtHtml.push('<div class="log-flow-arrow"><i class="bi bi-arrow-down-circle-fill"></i></div>');
+
+            // ─── Downstream Request ───
+            dtHtml.push('<div class="log-flow-section">');
+            dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-up-right"></i> ${__('index.log.downstream')} Request</div>`);
+            dtHtml.push('<div class="log-flow-body">');
+            const dsMethod = requestEntry.downstreamMethod || requestEntry.method;
+            if (dsMethod) {
+                const methodColors = { 'GET': 'bg-success', 'POST': 'bg-primary', 'PUT': 'bg-info', 'DELETE': 'bg-danger', 'PATCH': 'bg-warning text-dark' };
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.method')}</span><span class="badge ${methodColors[dsMethod] || 'bg-secondary'}">${dsMethod}</span></div>`);
+            }
+            if (requestEntry.downstreamUrl) {
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.url')}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(requestEntry.downstreamUrl)}</code></div>`);
+            }
+            if (requestEntry.downstreamBody) {
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.body')}</span>`);
+                dtHtml.push(this.renderBodyContent(requestEntry.downstreamBody, requestEntry.downstreamBodyTruncated));
+                dtHtml.push('</div>');
+            }
+            dtHtml.push('</div></div>');
+
+            // Arrow up
+            dtHtml.push('<div class="log-flow-arrow"><i class="bi bi-arrow-up-circle-fill"></i></div>');
+
+            // ─── Response (combined from downstream + upstream) ───
+            dtHtml.push('<div class="log-flow-section">');
+            dtHtml.push(`<div class="log-flow-title"><i class="bi bi-reply-all"></i> ${__('index.log.eventType.response')}</div>`);
+            dtHtml.push('<div class="log-flow-body">');
+            if (responseEntry.statusCode != null) {
+                const elapsed = responseEntry.elapsedMs;
+                const elapsedClass = elapsed != null ? (elapsed < 200 ? 'text-success' : elapsed < 1000 ? 'text-warning' : 'text-danger') : '';
+                const elapsedText = elapsed != null ? ` <strong class="${elapsedClass}">(${elapsed.toFixed(1)}ms)</strong>` : '';
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.status')}</span><span class="badge ${this.getStatusCodeBadge(responseEntry.statusCode)}">${responseEntry.statusCode}</span>${elapsedText}</div>`);
+            }
+            if (responseEntry.responseBody) {
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.body')}</span>`);
+                dtHtml.push(this.renderBodyContent(responseEntry.responseBody, responseEntry.responseBodyTruncated));
+                dtHtml.push('</div>');
+            }
+            if (responseEntry.responseHeaders && Object.keys(responseEntry.responseHeaders).length > 0) {
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.headers')}</span>`);
+                dtHtml.push(this.renderHeadersInline(responseEntry.responseHeaders));
+                dtHtml.push('</div>');
+            }
+            dtHtml.push('</div></div>');
+
+            dtHtml.push('</div>'); // end log-flow
+
+            // Metadata row
+            dtHtml.push('<div class="log-meta-row">');
+            if (requestEntry.routeId) dtHtml.push(`<span><strong>RouteId:</strong> <code>${window.DashboardUtils.escapeHtml(requestEntry.routeId)}</code></span>`);
+            if (requestEntry.clusterId) dtHtml.push(`<span><strong>ClusterId:</strong> <code>${window.DashboardUtils.escapeHtml(requestEntry.clusterId)}</code></span>`);
+            if (requestEntry.traceId) dtHtml.push(`<span><strong>TraceId:</strong> <code class="text-muted">${window.DashboardUtils.escapeHtml(requestEntry.traceId)}</code></span>`);
+            dtHtml.push('</div>');
+
+            // Exception
+            if (responseEntry.exception) {
+                dtHtml.push(`<div style="color:#dc2626;margin-top:6px"><strong>${__('index.log.exception')}</strong></div>`);
+                dtHtml.push(`<pre style="background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:11px;color:#991b1b;">${window.DashboardUtils.escapeHtml(responseEntry.exception)}</pre>`);
+            }
+
+            detail.innerHTML = dtHtml.join('');
+            return detail;
         },
 
         // ===== Create Log Item =====
@@ -715,12 +957,17 @@
         // ===== Update Log Counts =====
         updateLogCounts: function(entries) {
             const allLogs = window.DashboardState.get('data.logs') || [];
+            const meta = window.DashboardState.get('data.logMeta') || {};
             
             const displayEl = window.DashboardDOM.safe('#log-display-count');
             if (displayEl) displayEl.textContent = entries.length;
 
             const totalEl = window.DashboardDOM.safe('#log-total-count');
-            if (totalEl) totalEl.textContent = allLogs.length;
+            if (totalEl) {
+                let text = `${allLogs.length}/${meta.bufferCapacity || '?'}`;
+                if (meta.evictedCount > 0) text += ` (${meta.evictedCount} evicted)`;
+                totalEl.textContent = text;
+            }
 
             const timeEl = window.DashboardDOM.safe('#log-refresh-time');
             if (timeEl) timeEl.textContent = __('index.log.updated') + window.DashboardI18n.formatTime(new Date());

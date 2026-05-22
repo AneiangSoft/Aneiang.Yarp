@@ -46,7 +46,11 @@ public static class DashboardServiceCollectionExtensions
         services.AddMvcCore().AddApplicationPart(typeof(DashboardController).Assembly);
 
         // YARP log capture (zero dependency on logging frameworks)
-        services.AddSingleton<IProxyLogStore, ProxyLogStore>();
+        services.AddSingleton<IProxyLogStore>(sp =>
+        {
+            var opts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
+            return new ProxyLogStore(opts.LogBufferCapacity);
+        });
         services.AddSingleton<ProxyLogStore>(sp => (ProxyLogStore)sp.GetRequiredService<IProxyLogStore>());
         services.AddSingleton<LogSanitizer>();
         services.AddSingleton<YarpEventSourceListener>();

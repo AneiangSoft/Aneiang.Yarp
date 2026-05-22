@@ -163,4 +163,9 @@ public class ProxyLogStoreSnapshot
     /// Current number of entries in the buffer.
     /// </summary>
     public int BufferSize { get; set; }
+
+    /// <summary>
+    /// Maximum capacity of the ring buffer.
+    /// </summary>
+    public int BufferCapacity { get; set; }
 }

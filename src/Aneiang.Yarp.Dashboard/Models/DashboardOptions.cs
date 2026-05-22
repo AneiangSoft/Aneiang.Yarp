@@ -93,6 +93,13 @@ public class DashboardOptions
     // ─── Log sampling and filtering ───────────────────────
 
     /// <summary>
+    /// Maximum number of log entries kept in the in-memory ring buffer.
+    /// Minimum: 100. When the buffer is full, oldest entries are overwritten.
+    /// Default: 500.
+    /// </summary>
+    public int LogBufferCapacity { get; set; } = 500;
+
+    /// <summary>
     /// Enable or disable log sampling. When enabled, only a percentage of requests are logged.
     /// Default: false.
     /// </summary>
