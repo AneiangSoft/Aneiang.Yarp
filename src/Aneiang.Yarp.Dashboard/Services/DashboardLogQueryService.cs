@@ -33,7 +33,8 @@ internal sealed class DashboardLogQueryService : IDashboardLogQueryService
             {
                 Entries = new List<LogEntry>(),
                 BufferSize = 0,
-                EvictedCount = 0
+                EvictedCount = 0,
+                BufferCapacity = _options.LogBufferCapacity
             };
         }
 

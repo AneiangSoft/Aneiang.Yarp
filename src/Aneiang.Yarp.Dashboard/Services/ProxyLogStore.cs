@@ -61,7 +61,8 @@ public sealed class ProxyLogStore : IProxyLogStore
         {
             Entries = entries,
             EvictedCount = Volatile.Read(ref _evictedCount),
-            BufferSize = actualCount
+            BufferSize = actualCount,
+            BufferCapacity = _buffer.Length
         };
     }
 
