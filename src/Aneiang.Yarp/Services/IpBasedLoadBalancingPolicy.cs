@@ -39,8 +39,11 @@ public sealed class IpBasedLoadBalancingPolicy : ILoadBalancingPolicy
             // Fallback: check destination key for persistence-reload (ip-{address})
             if (dest.DestinationId.StartsWith("ip-", StringComparison.OrdinalIgnoreCase))
             {
-                var ipFromKey = dest.DestinationId.Substring(3).Replace("-", ".");
-                if (string.Equals(ipFromKey, clientIp, StringComparison.OrdinalIgnoreCase))
+                // Avoid string.Replace allocation: parse key directly
+                // Key format: ip-192-168-1-100 → 192.168.1.100
+                var keySpan = dest.DestinationId.AsSpan(3);
+                var ipFromKey = RestoreIpAddress(keySpan);
+                if (MemoryExtensions.Equals(ipFromKey, clientIp.AsSpan(), StringComparison.OrdinalIgnoreCase))
                 {
                     return dest;
                 }
@@ -53,18 +56,47 @@ public sealed class IpBasedLoadBalancingPolicy : ILoadBalancingPolicy
 
     private static string? GetClientIpAddress(HttpContext context)
     {
-        // Check X-Forwarded-For header first (if behind proxy)
+        // Prefer direct connection IP (most reliable, no parsing needed)
+        if (context.Connection.RemoteIpAddress != null)
+            return context.Connection.RemoteIpAddress.ToString();
+
+        // Fallback: check X-Forwarded-For header (if behind proxy)
         if (context.Request.Headers.TryGetValue("X-Forwarded-For", out var forwardedFor))
         {
-            var ip = forwardedFor.FirstOrDefault()?.Split(',').FirstOrDefault()?.Trim();
-            if (!string.IsNullOrWhiteSpace(ip))
+            var value = forwardedFor[0];
+            if (value.Length > 0)
             {
-                var colonIndex = ip.IndexOf(':');
-                if (colonIndex > 0) ip = ip.Substring(0, colonIndex);
-                return ip;
+                // Avoid Split() allocation: find first comma and trim
+                var commaIdx = value.IndexOf(',');
+                var ipSegment = commaIdx > 0 ? value.AsSpan(0, commaIdx).Trim() : value.AsSpan().Trim();
+
+                // Strip IPv6 port suffix (e.g. ::ffff:192.168.1.1:8080 → ::ffff:192.168.1.1)
+                var colonIdx = ipSegment.LastIndexOf(':');
+                if (colonIdx > 0 && !ipSegment.Slice(0, colonIdx).Contains(':'))
+                {
+                    // Only one colon → it's a port separator, not IPv6
+                    ipSegment = ipSegment.Slice(0, colonIdx);
+                }
+
+                return ipSegment.ToString();
             }
         }
 
-        return context.Connection.RemoteIpAddress?.ToString();
+        return null;
+    }
+
+    /// <summary>
+    /// Convert "192-168-1-100" back to "192.168.1.100".
+    /// </summary>
+    private static string RestoreIpAddress(ReadOnlySpan<char> keySpan)
+    {
+        if (keySpan.IsEmpty)
+            return string.Empty;
+
+        return string.Create(keySpan.Length, keySpan.ToString(), static (span, src) =>
+        {
+            for (int i = 0; i < src.Length; i++)
+                span[i] = src[i] == '-' ? '.' : src[i];
+        });
     }
 }

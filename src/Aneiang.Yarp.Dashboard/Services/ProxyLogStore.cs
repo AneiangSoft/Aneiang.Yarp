@@ -3,15 +3,15 @@ using Aneiang.Yarp.Dashboard.Models;
 namespace Aneiang.Yarp.Dashboard.Services;
 
 /// <summary>
-/// Pre-allocated ring buffer for recent log entries (lock-based, O(1) add).
+/// Pre-allocated ring buffer for recent log entries (lock-free, O(1) add).
 /// Thread-safe, bounded memory usage, oldest entries are evicted when full.
 /// Default in-memory implementation of IProxyLogStore.
 /// </summary>
 public sealed class ProxyLogStore : IProxyLogStore
 {
     private readonly LogEntry[] _buffer;
-    private int _head;
-    private int _count;
+    private int _head; // modified only via Interlocked
+    private int _count; // approximate, for capacity info
     private long _evictedCount;
 
     /// <summary>
@@ -21,18 +21,21 @@ public sealed class ProxyLogStore : IProxyLogStore
     public ProxyLogStore(int capacity = 500) => _buffer = new LogEntry[Math.Max(100, capacity)];
 
     /// <summary>
-    /// Add a log entry. Thread-safe, O(1).
-    /// When buffer is full, oldest entry is evicted.
+    /// Add a log entry. Lock-free, O(1).
+    /// When buffer is full, oldest entry is overwritten.
     /// </summary>
     /// <param name="entry">Log entry to add.</param>
     public void Add(LogEntry entry)
     {
-        lock (_buffer)
-        {
-            _buffer[_head] = entry;
-            _head = (_head + 1) % _buffer.Length;
-            if (_count < _buffer.Length) _count++; else _evictedCount++;
-        }
+        var index = Interlocked.Increment(ref _head) - 1;
+        _buffer[index % _buffer.Length] = entry;
+
+        // Track approximate count for reporting
+        var snapshotCount = Volatile.Read(ref _head);
+        if (snapshotCount < _buffer.Length)
+            Volatile.Write(ref _count, snapshotCount);
+        else
+            Interlocked.Increment(ref _evictedCount);
     }
 
     /// <summary>
@@ -42,15 +45,24 @@ public sealed class ProxyLogStore : IProxyLogStore
     /// <returns>Snapshot containing entries, evicted count, and buffer size.</returns>
     public ProxyLogStoreSnapshot GetRecent(int count = 200)
     {
-        lock (_buffer)
-        {
-            int take = Math.Min(_count, Math.Max(1, count));
-            var entries = new List<LogEntry>(take);
-            for (int i = 0; i < take; i++)
-                entries.Add(_buffer[(_head - 1 - i + _buffer.Length) % _buffer.Length]);
+        // Take a consistent snapshot of _head
+        var head = Volatile.Read(ref _head);
+        var actualCount = Math.Min(head, _buffer.Length);
+        var take = Math.Min(actualCount, Math.Max(1, count));
+        var entries = new List<LogEntry>(take);
 
-            return new ProxyLogStoreSnapshot { Entries = entries, EvictedCount = _evictedCount, BufferSize = _count };
+        for (int i = 0; i < take; i++)
+        {
+            var idx = (head - 1 - i + _buffer.Length) % _buffer.Length;
+            entries.Add(_buffer[idx]);
         }
+
+        return new ProxyLogStoreSnapshot
+        {
+            Entries = entries,
+            EvictedCount = Volatile.Read(ref _evictedCount),
+            BufferSize = actualCount
+        };
     }
 
     /// <summary>
@@ -58,6 +70,9 @@ public sealed class ProxyLogStore : IProxyLogStore
     /// </summary>
     public void Clear()
     {
-        lock (_buffer) { Array.Clear(_buffer, 0, _buffer.Length); _head = 0; _count = 0; _evictedCount = 0; }
+        // Reset head to 0; new writes will overwrite old entries
+        Interlocked.Exchange(ref _head, 0);
+        Volatile.Write(ref _count, 0);
+        Interlocked.Exchange(ref _evictedCount, 0);
     }
 }

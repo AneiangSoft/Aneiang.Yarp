@@ -65,6 +65,9 @@ public static class AneiangYarpServiceCollectionExtensions
         });
         
         services.AddSingleton<DynamicYarpConfigService>();
+        
+        // Config change audit log
+        services.AddSingleton<ConfigChangeAuditLog>();
 
         // Register controllers + views so this library's controllers/MVC are discoverable
         services.AddControllersWithViews()

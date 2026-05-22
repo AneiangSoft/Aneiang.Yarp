@@ -193,7 +193,7 @@ public class ConfigManagementController : ControllerBase
             // Save snapshot BEFORE modification (so rollback restores previous state)
             await _persistenceService.SaveSnapshotAsync($"Before cluster '{clusterId}' saved via dashboard", GetClientIp());
             
-            var result = _dynamicConfig.TryAddCluster(clusterId, destinations, loadBalancingPolicy, healthCheck, "dashboard", "dashboard-user");
+            var result = await _dynamicConfig.TryAddCluster(clusterId, destinations, loadBalancingPolicy, healthCheck, "dashboard", "dashboard-user");
 
             return result.Success
                 ? Ok(new { code = 200, message = result.Message, clusterId = clusterId })
@@ -219,7 +219,7 @@ public class ConfigManagementController : ControllerBase
             // Save snapshot BEFORE deletion
             await _persistenceService.SaveSnapshotAsync($"Before cluster '{clusterId}' deleted via dashboard", GetClientIp());
             
-            var result = _dynamicConfig.TryRemoveCluster(clusterId);
+            var result = await _dynamicConfig.TryRemoveCluster(clusterId);
             
             return result.Success
                 ? Ok(new { code = 200, message = result.Message, clusterId = clusterId })
@@ -286,7 +286,7 @@ public class ConfigManagementController : ControllerBase
             // Save snapshot BEFORE rename
             await _persistenceService.SaveSnapshotAsync($"Before cluster '{clusterId}' renamed to '{newClusterId}' via dashboard", GetClientIp());
 
-            var result = _dynamicConfig.TryRenameCluster(
+            var result = await _dynamicConfig.TryRenameCluster(
                 clusterId, newClusterId, destinations, loadBalancingPolicy,
                 source: "dashboard", createdBy: "dashboard-user");
 
@@ -413,7 +413,7 @@ public class ConfigManagementController : ControllerBase
             // Save snapshot BEFORE modification
             await _persistenceService.SaveSnapshotAsync($"Before route '{routeId}' saved via dashboard", GetClientIp());
             
-            var result = _dynamicConfig.TryAddRoute(request, "dashboard", "dashboard-user");
+            var result = await _dynamicConfig.TryAddRoute(request, "dashboard", "dashboard-user");
 
             return result.Success
                 ? Ok(new { code = 200, message = result.Message, routeId = routeId })
@@ -439,7 +439,7 @@ public class ConfigManagementController : ControllerBase
             // Save snapshot BEFORE deletion
             await _persistenceService.SaveSnapshotAsync($"Before route '{routeId}' deleted via dashboard", GetClientIp());
             
-            var result = _dynamicConfig.TryRemoveRoute(routeId, null, removeOrphanedCluster);
+            var result = await _dynamicConfig.TryRemoveRoute(routeId, null, removeOrphanedCluster);
             
             return result.Success
                 ? Ok(new { code = 200, message = result.Message, routeId = routeId })

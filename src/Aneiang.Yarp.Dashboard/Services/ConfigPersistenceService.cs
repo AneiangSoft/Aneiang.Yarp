@@ -260,7 +260,7 @@ public class ConfigPersistenceService
             }
 
             // Save merged config to file
-            _filePersistence.SaveConfig(dynamicConfig);
+            await _filePersistence.SaveConfigAsync(dynamicConfig);
 
             // Apply imported routes/clusters to YARP in-memory runtime (merge, not replace)
             if (_dynamicConfig != null)
@@ -270,7 +270,7 @@ public class ConfigPersistenceService
                 {
                     if (c.Destinations != null && c.Destinations.Count > 0)
                     {
-                        _dynamicConfig.TryAddCluster(c.ClusterId, c.Destinations, c.LoadBalancingPolicy, null, "import", "dashboard-user");
+                        await _dynamicConfig.TryAddCluster(c.ClusterId, c.Destinations, c.LoadBalancingPolicy, null, "import", "dashboard-user");
                     }
                 }
 
@@ -285,7 +285,7 @@ public class ConfigPersistenceService
                         Order = r.Order,
                         Transforms = r.Transforms
                     };
-                    _dynamicConfig.TryAddRoute(request, "import", "dashboard-user");
+                    await _dynamicConfig.TryAddRoute(request, "import", "dashboard-user");
                 }
             }
 
@@ -556,18 +556,18 @@ public class ConfigPersistenceService
             if (_dynamicConfig != null && (yarpRoutes.Count > 0 || yarpClusters.Count > 0))
             {
                 _logger.LogInformation("Rollback: replacing config with {Routes} routes and {Clusters} clusters", yarpRoutes.Count, yarpClusters.Count);
-                _dynamicConfig.ReplaceAllConfig(yarpRoutes, yarpClusters, "rollback", "dashboard-user");
+                await _dynamicConfig.ReplaceAllConfig(yarpRoutes, yarpClusters, "rollback", "dashboard-user");
             }
             else if (_dynamicConfig != null)
             {
                 // No config to restore, clear everything
-                _dynamicConfig.ReplaceAllConfig(Array.Empty<RouteConfig>(), Array.Empty<ClusterConfig>(), "rollback", "dashboard-user");
+                await _dynamicConfig.ReplaceAllConfig(Array.Empty<RouteConfig>(), Array.Empty<ClusterConfig>(), "rollback", "dashboard-user");
             }
             else
             {
                 // No DynamicYarpConfigService available, just save to file
                 var emptyConfig = new GatewayDynamicConfig();
-                _filePersistence.SaveConfig(emptyConfig);
+                await _filePersistence.SaveConfigAsync(emptyConfig);
             }
             
             _logger.LogInformation("Rolled back to version: {VersionId}", versionId);
