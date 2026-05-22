@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Aneiang.Yarp\Aneiang.Yarp.csproj" />
+    <ProjectReference Include="..\..\src\Aneiang.Yarp.Client\Aneiang.Yarp.Client.csproj" />
   </ItemGroup>
 
 </Project>

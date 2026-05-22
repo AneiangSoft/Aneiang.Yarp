@@ -18,4 +18,8 @@
     <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Aneiang.Yarp.Client\Aneiang.Yarp.Client.csproj" />
+  </ItemGroup>
+
 </Project>

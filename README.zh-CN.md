@@ -307,6 +307,7 @@ builder.Services.AddAneiangYarpDashboard();
 builder.Services.AddGatewayApiAuth();  // 自动读取 Dashboard 密码
 
 // 客户端 Program.cs — 不用配任何认证信息
+// 引用 Aneiang.Yarp.Client 包即可
 builder.Services.AddAneiangYarpClient();
 ```
 
@@ -363,13 +364,14 @@ app.MapReverseProxy();           // ← 必须最后
 | 能力 | 说明 |
 |------|------|
 | 🚀 **动态路由 API** | `/api/gateway` 运行时注册/更新/注销路由 |
-| 🔄 **客户端自动注册** | `AddAneiangYarpClient()` 一行搞定，启动注册、关闭注销 |
 | 👥 **IP 隔离** | 多人调试按客户端 IP 自动路由隔离，互不干扰 |
 | 🧠 **智能默认值** | 自动取程序集名、Kestrel 地址，localhost → 内网 IP |
 | 🛡️ **API 授权** | 可选 BasicAuth/ApiKey 保护注册 API |
 | 🚪 **条件化暴露** | `enableRegistration: false` 直接移除注册端点 |
 
 核心库可独立使用，不需要仪表盘。
+
+客户端服务推荐使用轻量的 [Aneiang.Yarp.Client](https://www.nuget.org/packages/Aneiang.Yarp.Client)，只需 `AddAneiangYarpClient()` 一行代码，启动自动注册、关闭自动注销，**不依赖 YARP SDK**。
 
 ---
 
@@ -395,7 +397,8 @@ curl http://localhost:5000/api/your-endpoint
 | 包 | 说明 | 链接 |
 |----|------|------|
 | **Aneiang.Yarp.Dashboard** | 仪表盘 | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard) |
-| **Aneiang.Yarp** | 核心库（可独立用） | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp) |
+| **Aneiang.Yarp** | 网关核心库（可独立用） | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp) |
+| **Aneiang.Yarp.Client** | 客户端自动注册（轻量，无 YARP 依赖） | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Client.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Client) |
 
 **支持** .NET 8.0 / .NET 9.0 · YARP 2.3.0
 

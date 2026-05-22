@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Aneiang.Yarp\Aneiang.Yarp.csproj" />
+    <ProjectReference Include="..\..\src\Aneiang.Yarp.Client\Aneiang.Yarp.Client.csproj" />
     <ProjectReference Include="..\..\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj" />
   </ItemGroup>
 

@@ -307,6 +307,7 @@ builder.Services.AddAneiangYarpDashboard();
 builder.Services.AddGatewayApiAuth();  // Auto-reads Dashboard password
 
 // Client Program.cs — no auth config needed at all
+// Reference Aneiang.Yarp.Client package
 builder.Services.AddAneiangYarpClient();
 ```
 
@@ -363,13 +364,14 @@ The dashboard depends on [Aneiang.Yarp](https://www.nuget.org/packages/Aneiang.Y
 | Capability | Description |
 |------------|-------------|
 | 🚀 **Dynamic Routing API** | `/api/gateway` for runtime route registration/update/unregistration |
-| 🔄 **Auto-Registration Client** | `AddAneiangYarpClient()` — one line, registers on startup, unregisters on shutdown |
 | 👥 **IP Isolation** | Multi-developer debugging with automatic IP-based routing isolation |
 | 🧠 **Smart Defaults** | Auto-detect assembly name, Kestrel address, resolve localhost → LAN IP |
 | 🛡️ **API Authorization** | Optional BasicAuth/ApiKey protection for registration APIs |
 | 🚪 **Conditional API Exposure** | `enableRegistration: false` removes registration endpoints entirely |
 
 The core library works independently — no dashboard required.
+
+For client services, the lightweight [Aneiang.Yarp.Client](https://www.nuget.org/packages/Aneiang.Yarp.Client) is recommended. Just `AddAneiangYarpClient()` to auto-register on startup and unregister on shutdown — **no YARP SDK dependency**.
 
 ---
 
@@ -395,7 +397,8 @@ Dashboard: `/apigateway`, login: `admin` / `demo123`
 | Package | Description | Link |
 |---------|-------------|------|
 | **Aneiang.Yarp.Dashboard** | Dashboard | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard) |
-| **Aneiang.Yarp** | Core library (standalone) | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp) |
+| **Aneiang.Yarp** | Gateway core library (standalone) | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp) |
+| **Aneiang.Yarp.Client** | Client auto-registration (lightweight, no YARP dependency) | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Client.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Client) |
 
 **Supports** .NET 8.0 / .NET 9.0 · YARP 2.3.0
 
