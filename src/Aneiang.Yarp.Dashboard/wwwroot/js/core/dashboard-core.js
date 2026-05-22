@@ -10,7 +10,8 @@
         services: ['stat-bar', 'cluster-panel'],
         routes:   ['stat-bar', 'route-panel'],
         logs:     ['stat-bar', 'log-panel'],
-        history:  ['stat-bar', 'history-panel']
+        history:  ['stat-bar', 'history-panel'],
+        audit:    ['stat-bar', 'audit-panel']
     };
 
     let _initialized = false;
@@ -40,7 +41,7 @@
         window.__dashboard = window.__dashboard || {};
         // Always assign the full config to prevent incomplete overrides from inline scripts
         window.__dashboard.tabPanels = tabConfig;
-        window.__dashboard.allPanels = ['stat-bar', 'cluster-panel', 'route-panel', 'stats-panel', 'log-panel', 'history-panel'];
+        window.__dashboard.allPanels = ['stat-bar', 'cluster-panel', 'route-panel', 'stats-panel', 'log-panel', 'history-panel', 'audit-panel'];
     };
 
     // ===== Setup Tab Click Handlers =====

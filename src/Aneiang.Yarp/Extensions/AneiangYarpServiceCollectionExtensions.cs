@@ -1,6 +1,7 @@
 using Aneiang.Yarp.Controllers;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
+using Aneiang.Yarp.Middleware;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
@@ -76,6 +77,10 @@ public static class AneiangYarpServiceCollectionExtensions
         
         // Config change audit log
         services.AddSingleton<ConfigChangeAuditLog>();
+
+        // Built-in transform options
+        services.AddOptions<BuiltinTransformOptions>()
+            .BindConfiguration(BuiltinTransformOptions.SectionName);
 
         // Register controllers + views so this library's controllers/MVC are discoverable
         services.AddControllersWithViews()

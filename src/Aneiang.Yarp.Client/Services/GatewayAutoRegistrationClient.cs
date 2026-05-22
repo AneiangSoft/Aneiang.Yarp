@@ -326,4 +326,37 @@ public class GatewayAutoRegistrationClient
             return null;
         }
     }
+
+    /// <summary>
+    /// Send a heartbeat to the gateway to keep the registration alive.
+    /// Gateway uses heartbeat to detect stale registrations.
+    /// </summary>
+    public async Task<bool> HeartbeatAsync(CancellationToken ct = default)
+    {
+        var gatewayUrl = _options.GatewayUrl;
+        var routeName = RegistrationOptionsResolver.GetRouteName(_options);
+
+        if (string.IsNullOrWhiteSpace(gatewayUrl))
+            return false;
+
+        try
+        {
+            using var http = _httpClientFactory.CreateClient();
+            http.Timeout = TimeSpan.FromSeconds(10);
+            ApplyAuthHeaders(http);
+
+            var clientIp = RegistrationOptionsResolver.UseIpIsolation(_options) ? GetLocalIpv4() : null;
+            var url = $"{gatewayUrl.TrimEnd('/')}/api/gateway/{routeName}/heartbeat";
+            if (!string.IsNullOrWhiteSpace(clientIp))
+                url += $"?clientIp={Uri.EscapeDataString(clientIp)}";
+
+            var response = await http.PostAsync(url, null, ct).ConfigureAwait(false);
+
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

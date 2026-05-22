@@ -117,6 +117,8 @@
                 window.StatsModule.loadStats();
             } else if (tab === 'history' && window.HistoryModule) {
                 window.HistoryModule.loadHistory();
+            } else if (tab === 'audit' && window.AuditModule) {
+                window.AuditModule.loadAuditLogs();
             }
         });
     };

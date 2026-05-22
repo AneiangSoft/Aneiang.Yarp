@@ -11,6 +11,8 @@
     <PackageTags>yarp;reverse-proxy;gateway;dashboard;monitoring;dotnet</PackageTags>
   </PropertyGroup>
 
+  <Target Name="DiscoverPrecompressedAssets" />
+
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>

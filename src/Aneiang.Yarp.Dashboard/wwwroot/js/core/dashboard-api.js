@@ -248,7 +248,14 @@
         deleteRouteConfig: (routeId) => DashboardApi.delete(`/api/config/routes/${routeId}`),
         getConfigHistory: () => DashboardApi.get('/api/config/history'),
         rollbackConfig: (versionId) => DashboardApi.post(`/api/config/rollback/${versionId}`),
-        validateConfig: (config) => DashboardApi.post('/api/config/validate', config)
+        validateConfig: (config) => DashboardApi.post('/api/config/validate', config),
+
+        // Audit Logs
+        getAuditLogs: (count, action) => DashboardApi.get('/audit-logs', { count: count || 100, action: action || '' }),
+
+        // Circuit Breaker
+        getCircuitBreakerStatus: () => DashboardApi.get('/circuit-breaker/status'),
+        resetCircuitBreakers: () => DashboardApi.post('/circuit-breaker/reset')
     };
 
 })();

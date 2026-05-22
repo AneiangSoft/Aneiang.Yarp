@@ -5,12 +5,13 @@ namespace Aneiang.Yarp.Services;
 
 /// <summary>
 /// Auto-registration hosted service: registers on start (with exponential backoff retry),
-/// unregisters on stop.
+/// sends periodic heartbeat, unregisters on stop.
 /// </summary>
 internal sealed class GatewayRegistrationHostedService : IHostedService
 {
     private readonly GatewayAutoRegistrationClient _client;
     private readonly ILogger<GatewayRegistrationHostedService> _logger;
+    private Timer? _heartbeatTimer;
 
     private const int MaxRetries = 5;
     private static readonly TimeSpan[] RetryDelays =
@@ -21,6 +22,8 @@ internal sealed class GatewayRegistrationHostedService : IHostedService
         TimeSpan.FromSeconds(16),
         TimeSpan.FromSeconds(30)
     };
+
+    private static readonly TimeSpan DefaultHeartbeatInterval = TimeSpan.FromSeconds(30);
 
     public GatewayRegistrationHostedService(GatewayAutoRegistrationClient client, ILogger<GatewayRegistrationHostedService> logger)
     {
@@ -39,6 +42,7 @@ internal sealed class GatewayRegistrationHostedService : IHostedService
                 if (await _client.RegisterAsync(ct).ConfigureAwait(false))
                 {
                     _logger.LogInformation("Auto-registration complete");
+                    StartHeartbeat(ct);
                     return;
                 }
 
@@ -86,6 +90,10 @@ internal sealed class GatewayRegistrationHostedService : IHostedService
 
     public async Task StopAsync(CancellationToken ct)
     {
+        // Stop heartbeat
+        _heartbeatTimer?.Dispose();
+        _heartbeatTimer = null;
+
         _logger.LogInformation("Auto-unregistration starting...");
         try
         {
@@ -96,5 +104,31 @@ internal sealed class GatewayRegistrationHostedService : IHostedService
         {
             _logger.LogWarning(ex, "Auto-unregistration error, service shuts down normally");
         }
+    }
+
+    /// <summary>
+    /// Start periodic heartbeat to keep the registration alive.
+    /// Gateway can detect stale registrations if heartbeat stops.
+    /// </summary>
+    private void StartHeartbeat(CancellationToken ct)
+    {
+        _heartbeatTimer = new Timer(async _ =>
+        {
+            try
+            {
+                await _client.HeartbeatAsync(ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Shutdown, stop heartbeat
+                _heartbeatTimer?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Heartbeat failed");
+            }
+        }, null, DefaultHeartbeatInterval, DefaultHeartbeatInterval);
+
+        _logger.LogInformation("Heartbeat started (interval: {Interval}s)", DefaultHeartbeatInterval.TotalSeconds);
     }
 }

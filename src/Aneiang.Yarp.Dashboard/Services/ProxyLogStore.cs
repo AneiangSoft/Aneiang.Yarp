@@ -23,6 +23,7 @@ public sealed class ProxyLogStore : IProxyLogStore
     /// <summary>
     /// Add a log entry. Lock-free, O(1).
     /// When buffer is full, oldest entry is overwritten.
+    /// Notifies all WebSocket subscribers.
     /// </summary>
     /// <param name="entry">Log entry to add.</param>
     public void Add(LogEntry entry)
@@ -36,6 +37,9 @@ public sealed class ProxyLogStore : IProxyLogStore
             Volatile.Write(ref _count, snapshotCount);
         else
             Interlocked.Increment(ref _evictedCount);
+
+        // Notify WebSocket subscribers
+        ProxyLogStoreExtensions.NotifySubscribers(this, entry);
     }
 
     /// <summary>

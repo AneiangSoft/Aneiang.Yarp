@@ -173,6 +173,17 @@
     <div id="history-content" class="card-body"></div>
 </div>
 
+<!-- Audit log panel -->
+<div id="audit-panel" class="card-panel mb-3" style="display:none;">
+    <div class="card-header">
+        <span><i class="bi bi-shield-check me-2"></i><span data-i18n="audit.title">审计日志</span></span>
+        <button class="btn btn-sm btn-outline-secondary" onclick="window.AuditModule?.loadAuditLogs()">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+    <div id="audit-content" class="card-body"></div>
+</div>
+
 @section Scripts {
 @{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
 <!-- 1. Core Infrastructure -->
@@ -240,6 +251,7 @@
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-logs.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-stats.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-history.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-audit.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-config.js?v=@v"></script>
 
 <script>

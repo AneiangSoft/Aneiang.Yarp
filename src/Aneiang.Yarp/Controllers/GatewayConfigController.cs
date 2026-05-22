@@ -159,4 +159,23 @@ public class GatewayConfigController : ControllerBase
     [HttpGet("ping")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public IActionResult Ping() => Ok(new { code = 200, message = "pong" });
+
+    /// <summary>
+    /// Heartbeat endpoint for registered services.
+    /// Services call this periodically to keep their registration alive.
+    /// Gateway tracks last heartbeat time to detect stale registrations.
+    /// </summary>
+    /// <param name="routeName">Route name to update heartbeat for.</param>
+    /// <param name="clientIp">Optional client IP for IP-based isolation.</param>
+    [HttpPost("{routeName}/heartbeat")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    public IActionResult Heartbeat(string routeName, [FromQuery] string? clientIp = null)
+    {
+        var updated = _dynamicConfig.UpdateHeartbeat(routeName, clientIp);
+        if (!updated)
+            return NotFound(new { code = 404, message = $"Route '{routeName}' not found" });
+
+        return Ok(new { code = 200, message = "heartbeat" });
+    }
 }
