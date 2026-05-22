@@ -1,9 +1,10 @@
 <div align="center">
 
-**给 YARP 网关装上管理后台，只需 3 行代码**
+**基于 YARP 的全功能 API 网关增强方案 — Dashboard、动态路由、自动注册、IP 隔离**
 
+[![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp)
 [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard)
-[![NuGet Downloads](https://img.shields.io/nuget/dt/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard)
+[![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Client.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Client)
 [![YARP](https://img.shields.io/badge/YARP-2.3.0-blue.svg)](https://github.com/microsoft/reverse-proxy)
 [![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%209.0-purple.svg)](https://dotnet.microsoft.com/)
 
@@ -13,22 +14,30 @@
 
 ---
 
-你用 YARP 做网关，但还在手动改 `appsettings.json` 管路由？
+Aneiang.Yarp 是基于 [微软 YARP](https://microsoft.github.io/reverse-proxy/) 2.3.0 构建的 API 网关增强方案，通过三个 NuGet 包解决实际网关使用中的痛点：
 
-**Aneiang.Yarp.Dashboard** 让你直接在浏览器里管理 YARP — 可视化 CRUD、JSON 编辑器、一键回滚、实时日志，装上就能用。
+| 包 | 用途 | 依赖 YARP |
+|----|------|:---:|
+| **Aneiang.Yarp** | 网关核心：动态路由、配置持久化、API 鉴权、IP 隔离负载均衡 | 是 |
+| **Aneiang.Yarp.Client** | 客户端自动注册：一行代码接入，启动注册、关闭注销 | 否 |
+| **Aneiang.Yarp.Dashboard** | 可视化管理面板：集群/路由 CRUD、配置导入导出、快照回滚、实时日志 | 通过核心库 |
 
-```csharp
-//Program.cs — 就这么简单
-builder.Services.AddAneiangYarp();
-builder.Services.AddAneiangYarpDashboard();  // ← 加上这行
+```
+依赖关系：
+
+Aneiang.Yarp.Dashboard
+  └── Aneiang.Yarp
+        └── Aneiang.Yarp.Client
+
+客户端服务 → 仅引用 Aneiang.Yarp.Client（不拉入 YARP SDK）
+网关服务   → 引用 Aneiang.Yarp + Aneiang.Yarp.Dashboard
 ```
 
-在线预览地址：http://113.45.65.71:8930/apigateway   
-账号：admin  密码：demo123
+在线预览：http://113.45.65.71:8930/apigateway &nbsp;&nbsp; admin/demo123
 
 ---
 
-## 仪表盘预览
+## Dashboard 预览
 
 <table>
   <tr>
@@ -55,137 +64,206 @@ builder.Services.AddAneiangYarpDashboard();  // ← 加上这行
 
 ---
 
-## 30 秒上手
+## 功能特性
 
-### 1. 安装 NuGet 包
+### 动态路由管理
+
+YARP 原生依赖 `appsettings.json` 管理路由，修改需要重启。Aneiang.Yarp 提供完整的运行时管理能力：
+
+- **双层配置源**：静态配置（`appsettings.json`）+ 动态配置（API 调用），统一到 YARP 的 `InMemoryConfigProvider`
+- **配置持久化**：所有动态变更自动持久化到 `gateway-dynamic.json`，重启后自动恢复
+- **线程安全**：所有操作通过 `lock` 保护，确保并发安全
+- **来源追踪**：每个路由/集群记录 `CreatedAt`、`CreatedBy`、`Source` 元数据
+
+RESTful API（`api/gateway`）：
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| POST | `/api/gateway/register-route` | 注册或更新路由 + 集群 |
+| DELETE | `/api/gateway/{routeName}?clientIp=` | 删除路由（支持 IP 隔离模式） |
+| GET | `/api/gateway/routes` | 查询所有路由 |
+| GET | `/api/gateway/dynamic-config` | 查询动态配置（含元数据） |
+| PUT | `/api/gateway/routes/{routeId}` | 更新路由 |
+| POST | `/api/gateway/clusters` | 创建集群 |
+| PUT | `/api/gateway/clusters/{clusterId}` | 更新集群 |
+| DELETE | `/api/gateway/clusters/{clusterId}` | 删除集群 |
+| GET | `/api/gateway/ping` | 健康检查 |
+
+### 客户端自动注册
+
+微服务一行代码接入网关，启动自动注册、关闭自动注销：
+
+```csharp
+builder.Services.AddAneiangYarpClient();
+```
+
+```json
+{
+  "Gateway": {
+    "Registration": {
+      "GatewayUrl": "http://192.168.1.100:5000"
+    }
+  }
+}
+```
+
+**智能默认值** — 只需配 `GatewayUrl`，其他全部自动推断：
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `RouteName` | 入口程序集名称 | 如 `MyService` |
+| `ClusterName` | 同 RouteName | |
+| `MatchPath` | `/{**catch-all}` | 匹配所有路径 |
+| `DestinationAddress` | Kestrel 绑定地址 | 自动检测，`localhost` 自动替换为局域网 IP |
+| `Order` | `50` | 路由优先级 |
+
+> `Aneiang.Yarp.Client` **不依赖 YARP SDK**，仅依赖 `Microsoft.AspNetCore.App` 框架引用。下游服务引用干净，不会间接拉入整个 YARP 包。
+
+### IP 隔离负载均衡
+
+专为**多人开发调试**设计的特色功能。多个开发者各自在本地启动同一个服务，网关按客户端 IP 自动路由 — 前端完全无感知。
+
+```
+开发者 A (192.168.1.10) → POST /api/user → 网关 → 192.168.1.10:5001
+开发者 B (192.168.1.20) → POST /api/user → 网关 → 192.168.1.20:5001
+其他请求                  → POST /api/user → 网关 → 第一个可用实例
+```
+
+客户端开启 IP 隔离：
+
+```json
+{
+  "Gateway": {
+    "Registration": {
+      "GatewayUrl": "http://localhost:5000",
+      "RouteName": "my-service",
+      "MatchPath": "/api/my-service/{**catch-all}",
+      "UseIpIsolation": true
+    }
+  }
+}
+```
+
+实现原理：自定义 `IpBasedLoadBalancingPolicy` 根据请求来源 IP（支持 `X-Forwarded-For` 和 `RemoteIpAddress`）匹配对应 Destination 的 Metadata。
+
+### Dashboard 可视化面板
+
+两行代码启用完整的管理界面：
+
+```csharp
+builder.Services.AddAneiangYarpDashboard();
+// ...
+app.UseAneiangYarpDashboard();
+```
+
+| 功能 | 说明 |
+|------|------|
+| 集群 & 路由 CRUD | 表单 + JSON 编辑器，支持 YARP 标准格式 |
+| 配置导入导出 | 一键导出/导入标准 YARP 格式配置，含自动校验 |
+| 快照与回滚 | 每次操作前自动保存快照，一键回滚到历史版本 |
+| 实时日志 | 请求/响应全记录，按路由/状态码/TraceID 过滤 |
+| 日志脱敏 | 自动遮蔽敏感 Header、查询参数、JSON 字段 |
+| 日志采样 | 按比例采样，控制生产环境日志量 |
+| 中英文切换 | 运行时切换语言，无需重启 |
+| 多模式认证 | 无认证 / API Key / JWT（默认 & 自定义）/ 自定义委托 |
+
+### API 鉴权
+
+为网关管理 API（`GatewayConfigController`）提供可选的鉴权保护：
+
+```csharp
+builder.Services.AddGatewayApiAuth();
+```
+
+| 模式 | 说明 |
+|------|------|
+| `BasicAuth` | HTTP Basic 认证 |
+| `ApiKey` | 通过 `X-Api-Key` 请求头认证 |
+| `None` | 无保护（默认） |
+
+```json
+{
+  "Gateway": {
+    "ApiAuth": {
+      "Mode": "BasicAuth",
+      "Username": "admin",
+      "Password": "secure-password"
+    }
+  }
+}
+```
+
+**智能推断**：如果未配置 `Gateway:ApiAuth`，但配置了 `Gateway:Dashboard` 的 JWT 密码，系统自动推断出认证凭据（用户名 `admin`，密码 = JWT 密码），无需重复配置。
+
+---
+
+## 快速开始
+
+### 1. 创建网关
 
 ```bash
+dotnet new web -n MyGateway
+cd MyGateway
 dotnet add package Aneiang.Yarp
 dotnet add package Aneiang.Yarp.Dashboard
 ```
 
-### 2. 改一行 Program.cs
-
 ```csharp
+// Program.cs
 using Aneiang.Yarp.Extensions;
 using Aneiang.Yarp.Dashboard.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddAneiangYarp();
-builder.Services.AddAneiangYarpDashboard();  // ← 加上这行，搞定
+builder.Services.AddAneiangYarpDashboard();
 
 var app = builder.Build();
 app.UseRouting();
-app.UseAneiangYarpDashboard();  // ← 加上这行，捕获请求日志
+app.UseAneiangYarpDashboard();
 app.MapControllers();
 app.MapReverseProxy();
 app.Run();
 ```
 
-### 3. 打开浏览器
+### 2. 创建微服务
 
-访问 `http://localhost:5000/apigateway` — 仪表盘已经在那了。
+```bash
+dotnet new web -n MyService
+cd MyService
+dotnet add package Aneiang.Yarp.Client
+```
 
-### 想加个登录？（可选）
+```csharp
+// Program.cs
+using Aneiang.Yarp.Extensions;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddAneiangYarpClient();
+builder.Services.AddControllers();
+
+var app = builder.Build();
+app.UseRouting();
+app.MapControllers();
+app.Run();
+```
 
 ```json
 // appsettings.json
 {
   "Gateway": {
-    "Dashboard": {
-      "AuthMode": "DefaultJwt",
-      "JwtPassword": "your-password"
+    "Registration": {
+      "GatewayUrl": "http://localhost:5000"
     }
   }
 }
 ```
 
-加上配置，访问就跳转登录页，默认用户名 `admin`。
+就这样。微服务启动时自动注册到网关，关闭时自动注销。
 
 ---
 
-## 你能得到什么
-
-| 功能 | 说说 |
-|------|------|
-| 📊 **集群管理** | 浏览、创建、编辑、删除、重命名集群，JSON 编辑器直接改 |
-| 🛣️ **路由管理** | 完整 CRUD + JSON 编辑器，支持 YARP 标准格式 |
-| 💾 **配置导入/导出** | 一键导出完整 YARP 配置，导入自动校验 |
-| ⏪ **配置回滚** | 每次变更自动快照，出问题一键回滚 |
-| 📝 **实时日志** | 请求/响应全记录，按路由/状态码/TraceID 过滤 |
-| 🔐 **多种认证** | JWT 登录 / API Key / 自定义委托，开箱即用 |
-| 🌐 **中英文** | 运行时切换，无需重启 |
-| 🛡️ **日志脱敏** | 自动遮蔽 Authorization、password 等敏感信息 |
-| 📈 **日志采样** | 生产环境按比例采样，控制日志量 |
-
-**设计原则**：零侵入 — 只需 2 行代码启用，不改你现有的 YARP 配置，不影响你现有的代理逻辑。
-
----
-
-## 功能详解
-
-### 📊 集群 & 路由管理
-
-在浏览器里直接操作 YARP 的集群和路由，不用再手改 JSON 配置文件：
-
-- **表单创建** — 填几个字段就建好一条路由或集群
-- **JSON 编辑器** — 内置代码编辑器，语法高亮 + 实时校验 + 自动格式化
-- **格式兼容** — camelCase 和 PascalCase 都认，粘贴 YARP 官方配置直接能用
-- **智能关联** — 创建路由时若目标集群不存在，自动创建
-- **安全删除** — 删除路由时可选清理孤立集群，删除集群自动更新引用
-
-### 💾 配置版本管理
-
-改坏了？一键回滚。
-
-- **自动快照** — 每次创建/编辑/删除操作前，系统自动保存当前配置快照
-- **变更历史** — 查看每次变更的时间、操作人 IP、变更内容
-- **一键回滚** — 选择任意历史版本，立即回滚
-- **导出** — 导出完整 YARP 标准格式，可直接粘贴到 `appsettings.json`
-- **导入** — 从 JSON 导入，自动校验格式，合并后持久化
-
-### 📝 实时请求日志
-
-看经过网关的每个请求发生了什么：
-
-- 请求方法、路径、查询参数、请求头
-- 响应状态码、响应头
-- 请求/响应 Body（JSON 自动解析）
-- 转发目标集群和路由
-- Trace ID、请求耗时
-
-**过滤**：按路由 ID / 状态码 / Trace ID / 时间范围
-
-**安全控制**（生产环境友好）：
-
-| 配置 | 一句话说明 |
-|------|-----------|
-| `EnableProxyLogging` | 总开关，关了全链路停 |
-| `EnableLogSampling` + `LogSamplingRate` | 采样，0.1 = 只记 10% |
-| `LogErrorsOnly` | 只记 4xx/5xx |
-| `LogMaxBodyLength` | Body 太长就截断 |
-| `LogRouteWhitelist` / `LogRouteBlacklist` | 按路由过滤 |
-| `LogHeaderBlacklist` | `Authorization` → `***REDACTED***` |
-| `LogQueryBlacklist` | 查询参数脱敏 |
-| `LogJsonFieldSanitizeList` | JSON 里 `password` → `***REDACTED***` |
-
-### 🔐 认证
-
-四种模式，按需选：
-
-| 模式 | 怎么用 | 适合 |
-|------|--------|------|
-| `None` | 不设防 | 本地开发 |
-| `DefaultJwt` | 配个密码，用户名固定 `admin` | 个人/小团队 |
-| `CustomJwt` | 自定义用户名 + 密码 | 企业 |
-| `ApiKey` | Header 传 API Key | API 对接 |
-
-还有个 `AuthorizeRequest` 委托，可以接你自己的认证体系（优先级最高）。
-
----
-
-## 配置参考
+## Dashboard 配置参考
 
 所有配置都在 `Gateway:Dashboard` 下，不配也能跑（全部有默认值）。
 
@@ -222,17 +300,17 @@ app.Run();
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
 | `EnableProxyLogging` | `true` | 日志总开关 |
-| `RoutePrefix` | `"apigateway"` | 仪表盘 URL 前缀 |
-| `Locale` | `"zh-CN"` | 默认语言，运行时可切换 |
+| `RoutePrefix` | `"apigateway"` | Dashboard URL 前缀 |
+| `Locale` | `"zh-CN"` | 默认语言，运行时可切换（`zh-CN` / `en-US`） |
 | `AuthMode` | `None` | `None` / `ApiKey` / `CustomJwt` / `DefaultJwt` |
 | `JwtPassword` | null | JWT 登录密码 |
-| `JwtUsername` | null | CustomJwt 用户名（DefaultJwt 固定 admin） |
-| `JwtSecret` | null | JWT 签名密钥，不配就自动生成（重启失效） |
+| `JwtUsername` | null | CustomJwt 用户名（DefaultJwt 固定 `admin`） |
+| `JwtSecret` | null | JWT 签名密钥，不配则自动生成（重启失效） |
 | `ApiKey` | null | API Key 值 |
 | `ApiKeyHeaderName` | `"X-Api-Key"` | API Key 的 Header 名 |
 | `EnableLogSampling` | `false` | 启用采样 |
 | `LogSamplingRate` | `1.0` | 采样率 0.0~1.0 |
-| `LogErrorsOnly` | `false` | 只记错误 |
+| `LogErrorsOnly` | `false` | 只记错误（4xx/5xx） |
 | `LogMaxBodyLength` | `8192` | Body 最大长度（字节） |
 | `LogRouteWhitelist` | null | 路由白名单 |
 | `LogRouteBlacklist` | null | 路由黑名单 |
@@ -240,15 +318,13 @@ app.Run();
 | `LogQueryBlacklist` | null | 查询参数脱敏列表 |
 | `LogJsonFieldSanitizeList` | null | JSON 字段脱敏列表 |
 
----
+### Dashboard 端点
 
-## API 端点
-
-### 仪表盘 — `/{RoutePrefix}`
+#### 页面 — `/{RoutePrefix}`
 
 | 端点 | 方法 | 说明 |
 |------|------|------|
-| `/{prefix}` | GET | 仪表盘首页 |
+| `/{prefix}` | GET | Dashboard 首页 |
 | `/{prefix}/login` | GET/POST | 登录页 / 登录验证 |
 | `/{prefix}/logout` | POST | 登出 |
 | `/{prefix}/info` | GET | 网关运行信息 |
@@ -257,7 +333,7 @@ app.Run();
 | `/{prefix}/logs` | GET/DELETE | 日志查询 / 清空 |
 | `/{prefix}/auth/status` | GET | 认证状态 |
 
-### 配置管理 — `/{RoutePrefix}/api/config`
+#### 配置管理 — `/{RoutePrefix}/api/config`
 
 | 端点 | 方法 | 说明 |
 |------|------|------|
@@ -270,14 +346,12 @@ app.Run();
 | `/api/config/clusters/{id}` | PUT/DELETE | 新增更新 / 删除集群 |
 | `/api/config/clusters/{id}/rename` | PUT | 重命名集群 |
 
-> 默认前缀 `apigateway`，可通过 `RoutePrefix` 自定义。
-
 ---
 
 ## 高级用法
 
 <details>
-<summary><b>🔐 自定义授权 — 接入你自己的认证体系</b></summary>
+<summary><b>自定义授权 — 接入你自己的认证体系</b></summary>
 
 ```csharp
 builder.Services.AddAneiangYarpDashboard(options =>
@@ -296,25 +370,23 @@ builder.Services.AddAneiangYarpDashboard(options =>
 </details>
 
 <details>
-<summary><b>🛡️ Dashboard + 客户端零配置注册</b></summary>
+<summary><b>网关 API 鉴权 — 智能凭据推断</b></summary>
 
-网关配了 Dashboard 认证后，`AddGatewayApiAuth()` 自动读取密码，客户端完全零配置：
+网关配了 Dashboard 认证后，`AddGatewayApiAuth()` 自动读取 JWT 密码作为 API 鉴权凭据：
 
 ```csharp
-// 网关 Program.cs
+// 网关
 builder.Services.AddAneiangYarp();
 builder.Services.AddAneiangYarpDashboard();
-builder.Services.AddGatewayApiAuth();  // 自动读取 Dashboard 密码
-
-// 客户端 Program.cs — 不用配任何认证信息
-// 引用 Aneiang.Yarp.Client 包即可
-builder.Services.AddAneiangYarpClient();
+builder.Services.AddGatewayApiAuth();  // 自动读取 Dashboard JWT 密码
 ```
+
+客户端无需额外配置。
 
 </details>
 
 <details>
-<summary><b>🔧 中间件顺序</b></summary>
+<summary><b>中间件顺序</b></summary>
 
 ```csharp
 var app = builder.Build();
@@ -329,12 +401,12 @@ app.MapControllers();
 app.MapReverseProxy();           // ← 必须最后
 ```
 
-中间件职责：捕获 YARP 代理的请求/响应数据，自动跳过仪表盘自身请求。
+中间件职责：捕获 YARP 代理的请求/响应数据，自动跳过 Dashboard 自身请求。
 
 </details>
 
-<details> 
-<summary><b>📋 生产环境推荐配置</b></summary>
+<details>
+<summary><b>生产环境推荐配置</b></summary>
 
 ```json
 {
@@ -342,6 +414,7 @@ app.MapReverseProxy();           // ← 必须最后
     "Dashboard": {
       "AuthMode": "DefaultJwt",
       "JwtPassword": "very-strong-password-here",
+      "JwtSecret": "your-persisted-secret-key",
       "EnableLogSampling": true,
       "LogSamplingRate": 0.1,
       "LogErrorsOnly": true,
@@ -357,28 +430,10 @@ app.MapReverseProxy();           // ← 必须最后
 
 ---
 
-## 关于 Aneiang.Yarp
-
-仪表盘依赖 [Aneiang.Yarp](https://www.nuget.org/packages/Aneiang.Yarp) 核心库，它提供：
-
-| 能力 | 说明 |
-|------|------|
-| 🚀 **动态路由 API** | `/api/gateway` 运行时注册/更新/注销路由 |
-| 👥 **IP 隔离** | 多人调试按客户端 IP 自动路由隔离，互不干扰 |
-| 🧠 **智能默认值** | 自动取程序集名、Kestrel 地址，localhost → 内网 IP |
-| 🛡️ **API 授权** | 可选 BasicAuth/ApiKey 保护注册 API |
-| 🚪 **条件化暴露** | `enableRegistration: false` 直接移除注册端点 |
-
-核心库可独立使用，不需要仪表盘。
-
-客户端服务推荐使用轻量的 [Aneiang.Yarp.Client](https://www.nuget.org/packages/Aneiang.Yarp.Client)，只需 `AddAneiangYarpClient()` 一行代码，启动自动注册、关闭自动注销，**不依赖 YARP SDK**。
-
----
-
 ## 示例项目
 
 ```bash
-# 启动网关（含仪表盘）
+# 启动网关（含 Dashboard）
 dotnet run --project samples/SampleGateway
 
 # 启动客户端（自动注册到网关）
@@ -388,7 +443,7 @@ dotnet run --project samples/SampleLocalService
 curl http://localhost:5000/api/your-endpoint
 ```
 
-仪表盘：`/apigateway`，登录：`admin` / `demo123`
+Dashboard：`/apigateway`，登录：`admin` / `demo123`
 
 ---
 
@@ -396,9 +451,9 @@ curl http://localhost:5000/api/your-endpoint
 
 | 包 | 说明 | 链接 |
 |----|------|------|
-| **Aneiang.Yarp.Dashboard** | 仪表盘 | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard) |
-| **Aneiang.Yarp** | 网关核心库（可独立用） | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp) |
+| **Aneiang.Yarp** | 网关核心：动态路由、IP 隔离、API 鉴权 | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp) |
 | **Aneiang.Yarp.Client** | 客户端自动注册（轻量，无 YARP 依赖） | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Client.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Client) |
+| **Aneiang.Yarp.Dashboard** | 可视化管理面板：认证、日志、配置管理 | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard) |
 
 **支持** .NET 8.0 / .NET 9.0 · YARP 2.3.0
 
