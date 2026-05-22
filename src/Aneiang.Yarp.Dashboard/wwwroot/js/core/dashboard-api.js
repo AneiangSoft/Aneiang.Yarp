@@ -223,6 +223,17 @@
         getLogs: (count = 100) => DashboardApi.get('/logs', { count }),
         clearLogs: () => DashboardApi.delete('/logs'),
 
+        // Statistics
+        getStats: () => DashboardApi.get('/stats'),
+
+        // Rate Limit Status
+        getRateLimitStatus: () => DashboardApi.get('/rate-limit'),
+
+        // Config History
+        getHistory: () => DashboardApi.get('/api/config/history'),
+        rollback: (versionId) => DashboardApi.post(`/api/config/rollback/${versionId}`),
+        createSnapshot: (description) => DashboardApi.post('/api/config/snapshot', { description }),
+
         // Auth
         login: (credentials) => DashboardApi.post('/login', credentials, { requireAuth: false }),
         getAuthStatus: () => DashboardApi.get('/auth/status'),

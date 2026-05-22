@@ -572,25 +572,43 @@
             detailHtml.push('</div>');
             detailHtml.push('</div>');
 
-            // Destinations detail (with health info)
+            // Destinations detail (with health info + weight)
             if (cluster.destinations && cluster.destinations.length > 0) {
                 detailHtml.push('<div class="detail-section">');
                 detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations')} <span class="badge bg-light text-dark ms-2">${cluster.destinations.length}</span></div>`);
+
+                // Check if cluster has PowerOfTwoChoices policy (weight-aware)
+                const hasWeights = (cluster.loadBalancingPolicy || '').toLowerCase().includes('poweroftwo');
+
                 detailHtml.push('<div class="table-responsive">');
                 detailHtml.push('<table class="table table-sm detail-table">');
-                detailHtml.push(`<thead><tr><th>${__('index.detail.name')}</th><th>${__('index.detail.address')}</th><th>${__('index.detail.active')}</th><th>${__('index.detail.passive')}</th></tr></thead>`);
+                if (hasWeights) {
+                    detailHtml.push(`<thead><tr><th>${__('index.detail.name')}</th><th>${__('index.detail.address')}</th><th>${__('cluster.weight')}</th><th>${__('index.detail.active')}</th><th>${__('index.detail.passive')}</th></tr></thead>`);
+                } else {
+                    detailHtml.push(`<thead><tr><th>${__('index.detail.name')}</th><th>${__('index.detail.address')}</th><th>${__('index.detail.active')}</th><th>${__('index.detail.passive')}</th></tr></thead>`);
+                }
                 detailHtml.push('<tbody>');
                 (cluster.destinations || []).forEach(dest => {
                     const activeBadge = this.createHealthBadgeInline(dest.activeHealth || 'Unknown');
                     const passiveBadge = this.createHealthBadgeInline(dest.passiveHealth || 'Unknown');
+                    const weight = (dest.metadata && dest.metadata.Weight) || '1';
                     detailHtml.push('<tr>');
                     detailHtml.push(`<td><code>${dest.name || '-'}</code></td>`);
                     detailHtml.push(`<td><a href="${dest.address || '#'}" target="_blank" style="text-decoration:none;color:#0ea5e9;">${dest.address || '-'}</a></td>`);
+                    if (hasWeights) {
+                        detailHtml.push(`<td><span class="badge bg-light text-dark">${weight}</span></td>`);
+                    }
                     detailHtml.push(`<td>${activeBadge}</td>`);
                     detailHtml.push(`<td>${passiveBadge}</td>`);
                     detailHtml.push('</tr>');
                 });
                 detailHtml.push('</tbody></table></div>');
+
+                // Weight help text
+                if (hasWeights) {
+                    detailHtml.push(`<div class="text-muted mt-1" style="font-size:11px"><i class="bi bi-info-circle me-1"></i>${__('cluster.weightHelp')}</div>`);
+                }
+
                 detailHtml.push('</div>');
             }
 

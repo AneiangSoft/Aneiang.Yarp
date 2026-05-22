@@ -398,7 +398,7 @@
 
             // Paired tag
             const pairedTag = document.createElement('span');
-            pairedTag.innerHTML = '<span class="log-event-tag log-event-paired"><i class="bi bi-link-45deg"></i> REQ+RES</span>';
+            pairedTag.innerHTML = `<span class="log-event-tag log-event-paired"><i class="bi bi-link-45deg"></i> ${__('index.log.pairedTag')}</span>`;
 
             row.appendChild(timeSpan);
             row.appendChild(statusBadge);
@@ -429,7 +429,7 @@
 
             // ─── Upstream Request ───
             dtHtml.push('<div class="log-flow-section">');
-            dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-in-down"></i> ${__('index.log.upstream')} Request</div>`);
+            dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-in-down"></i> ${__('index.log.upstream.request')}</div>`);
             dtHtml.push('<div class="log-flow-body">');
             if (requestEntry.method) {
                 const methodColors = { 'GET': 'bg-success', 'POST': 'bg-primary', 'PUT': 'bg-info', 'DELETE': 'bg-danger', 'PATCH': 'bg-warning text-dark' };
@@ -455,7 +455,7 @@
 
             // ─── Downstream Request ───
             dtHtml.push('<div class="log-flow-section">');
-            dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-up-right"></i> ${__('index.log.downstream')} Request</div>`);
+            dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-up-right"></i> ${__('index.log.downstream.request')}</div>`);
             dtHtml.push('<div class="log-flow-body">');
             const dsMethod = requestEntry.downstreamMethod || requestEntry.method;
             if (dsMethod) {
@@ -477,7 +477,7 @@
 
             // ─── Response (combined from downstream + upstream) ───
             dtHtml.push('<div class="log-flow-section">');
-            dtHtml.push(`<div class="log-flow-title"><i class="bi bi-reply-all"></i> ${__('index.log.eventType.response')}</div>`);
+            dtHtml.push(`<div class="log-flow-title"><i class="bi bi-reply-all"></i> ${__('index.log.pairedResponse')}</div>`);
             dtHtml.push('<div class="log-flow-body">');
             if (responseEntry.statusCode != null) {
                 const elapsed = responseEntry.elapsedMs;

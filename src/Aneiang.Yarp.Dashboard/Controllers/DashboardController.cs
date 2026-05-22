@@ -147,6 +147,100 @@ public class DashboardController : Controller
         return Json(new { code = 200, message = "Logs cleared" });
     }
 
+    /// <summary>Access statistics computed from the log buffer.</summary>
+    [HttpGet("stats")]
+    public IActionResult GetStats()
+    {
+        var snapshot = _logQuery.GetLogs(2000);
+        var responses = snapshot.Entries.Where(e => e.EventType == LogEventType.ProxyResponse).ToList();
+        var requests = snapshot.Entries.Where(e => e.EventType == LogEventType.ProxyRequest).ToList();
+
+        if (responses.Count == 0)
+            return Json(new { code = 200, data = new { hasData = false } });
+
+        var totalRequests = responses.Count;
+        var successCount = responses.Count(r => r.StatusCode >= 200 && r.StatusCode < 400);
+        var errorCount = responses.Count(r => r.StatusCode >= 400);
+        var latencies = responses.Where(r => r.ElapsedMs.HasValue).Select(r => r.ElapsedMs!.Value).OrderBy(l => l).ToList();
+
+        var avgLatency = latencies.Count > 0 ? latencies.Average() : 0;
+        var p50 = Percentile(latencies, 0.50);
+        var p90 = Percentile(latencies, 0.90);
+        var p99 = Percentile(latencies, 0.99);
+
+        // Status code distribution
+        var statusCodes = responses
+            .GroupBy(r => r.StatusCode ?? 0)
+            .Select(g => new { code = g.Key, count = g.Count() })
+            .OrderByDescending(g => g.count)
+            .ToList();
+
+        // Top routes by request count (from requests, matched by traceId)
+        var routeCounts = requests
+            .GroupBy(r => r.RouteId ?? "unknown")
+            .Select(g => new { route = g.Key, count = g.Count() })
+            .OrderByDescending(g => g.count)
+            .Take(10)
+            .ToList();
+
+        // Top clusters
+        var clusterCounts = requests
+            .GroupBy(r => r.ClusterId ?? "unknown")
+            .Select(g => new { cluster = g.Key, count = g.Count() })
+            .OrderByDescending(g => g.count)
+            .Take(10)
+            .ToList();
+
+        // Requests per minute (based on response timestamps)
+        var now = responses.Max(r => r.Timestamp);
+        var oneMinAgo = now.AddMinutes(-1);
+        var recentCount = responses.Count(r => r.Timestamp >= oneMinAgo);
+        var requestsPerMin = recentCount; // approximate
+
+        return Json(new { code = 200, data = new
+        {
+            hasData = true,
+            totalRequests,
+            successCount,
+            errorCount,
+            successRate = totalRequests > 0 ? Math.Round((double)successCount / totalRequests * 100, 1) : 0,
+            errorRate = totalRequests > 0 ? Math.Round((double)errorCount / totalRequests * 100, 1) : 0,
+            avgLatency = Math.Round(avgLatency, 1),
+            p50 = Math.Round(p50, 1),
+            p90 = Math.Round(p90, 1),
+            p99 = Math.Round(p99, 1),
+            requestsPerMin,
+            statusCodes,
+            topRoutes = routeCounts,
+            topClusters = clusterCounts,
+            computedAt = DateTime.UtcNow
+        }});
+    }
+
+    private static double Percentile(List<double> sorted, double p)
+    {
+        if (sorted.Count == 0) return 0;
+        if (sorted.Count == 1) return sorted[0];
+        var idx = p * (sorted.Count - 1);
+        var lower = (int)Math.Floor(idx);
+        var upper = (int)Math.Ceiling(idx);
+        if (lower == upper) return sorted[lower];
+        return sorted[lower] + (sorted[upper] - sorted[lower]) * (idx - lower);
+    }
+
+    /// <summary>Rate limiting configuration status.</summary>
+    [HttpGet("rate-limit")]
+    public IActionResult GetRateLimitStatus()
+    {
+        return Json(new { code = 200, data = new
+        {
+            enabled = _options.EnableRateLimiting,
+            permitLimit = _options.RateLimitPermitLimit,
+            window = _options.RateLimitWindow,
+            queueLimit = _options.RateLimitQueueLimit
+        }});
+    }
+
     /// <summary>Get current authorization status and mode.</summary>
     [HttpGet("auth/status")]
     public IActionResult GetAuthStatus()

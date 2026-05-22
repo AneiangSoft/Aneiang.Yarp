@@ -105,9 +105,18 @@
         // Listen for data changes
         document.addEventListener('dashboard:dataChanged', function(e) {
             console.log('[Events] Data changed:', e.detail.type);
-            // Auto-save state
             if (window.DashboardState) {
                 window.DashboardState.saveState();
+            }
+        });
+
+        // Load module data on tab switch
+        document.addEventListener('dashboard:tabChanged', function(e) {
+            var tab = e.detail.tab;
+            if (tab === 'overview' && window.StatsModule) {
+                window.StatsModule.loadStats();
+            } else if (tab === 'history' && window.HistoryModule) {
+                window.HistoryModule.loadHistory();
             }
         });
     };

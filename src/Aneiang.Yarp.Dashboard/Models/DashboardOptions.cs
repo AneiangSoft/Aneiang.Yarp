@@ -99,6 +99,33 @@ public class DashboardOptions
     /// </summary>
     public int LogBufferCapacity { get; set; } = 500;
 
+    // ─── Rate limiting ──────────────────────────────────
+
+    /// <summary>
+    /// Enable built-in rate limiting middleware for proxy routes.
+    /// When enabled, a default fixed-window rate limiter is applied to all proxy requests.
+    /// Default: false.
+    /// </summary>
+    public bool EnableRateLimiting { get; set; }
+
+    /// <summary>
+    /// Maximum number of requests allowed per time window. Default: 100.
+    /// Only effective when EnableRateLimiting is true.
+    /// </summary>
+    public int RateLimitPermitLimit { get; set; } = 100;
+
+    /// <summary>
+    /// Time window for rate limiting. Default: "1m" (1 minute).
+    /// Only effective when EnableRateLimiting is true.
+    /// </summary>
+    public string RateLimitWindow { get; set; } = "1m";
+
+    /// <summary>
+    /// Maximum number of queued requests when rate limit is exceeded. Default: 10.
+    /// Only effective when EnableRateLimiting is true.
+    /// </summary>
+    public int RateLimitQueueLimit { get; set; } = 10;
+
     /// <summary>
     /// Enable or disable log sampling. When enabled, only a percentage of requests are logged.
     /// Default: false.
