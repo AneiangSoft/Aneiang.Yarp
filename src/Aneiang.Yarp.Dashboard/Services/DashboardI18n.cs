@@ -477,6 +477,20 @@ public static class DashboardI18n
         ["index.log.downstream.request"] = "下游请求",
         ["index.log.pairedResponse"] = "响应",
         ["index.log.pairedTag"] = "请求+响应",
+
+        // ── Audit Log ──
+        ["layout.tab.audit"] = "审计日志",
+        ["audit.title"] = "审计日志",
+        ["audit.loading"] = "加载审计日志中...",
+        ["audit.loadFailed"] = "加载审计日志失败",
+        ["audit.empty"] = "暂无审计记录",
+        ["audit.success"] = "成功",
+        ["audit.failed"] = "失败",
+        ["audit.filterAll"] = "全部操作",
+        ["audit.before"] = "变更前",
+        ["audit.after"] = "变更后",
+        ["audit.error"] = "错误信息",
+        ["audit.total"] = "共 {total} 条 (已淘汰: {evicted})",
     };
 
     /// <summary>English translation dictionary.</summary>
@@ -947,6 +961,20 @@ public static class DashboardI18n
         ["index.log.downstream.request"] = "Downstream Request",
         ["index.log.pairedResponse"] = "Response",
         ["index.log.pairedTag"] = "REQ+RES",
+
+        // ── Audit Log ──
+        ["layout.tab.audit"] = "Audit Log",
+        ["audit.title"] = "Audit Log",
+        ["audit.loading"] = "Loading audit logs...",
+        ["audit.loadFailed"] = "Failed to load audit logs",
+        ["audit.empty"] = "No audit entries",
+        ["audit.success"] = "OK",
+        ["audit.failed"] = "FAIL",
+        ["audit.filterAll"] = "All Actions",
+        ["audit.before"] = "Before",
+        ["audit.after"] = "After",
+        ["audit.error"] = "Error",
+        ["audit.total"] = "{total} entries (evicted: {evicted})",
     };
 
     /// <summary>Returns the translation dictionary for the given locale.</summary>

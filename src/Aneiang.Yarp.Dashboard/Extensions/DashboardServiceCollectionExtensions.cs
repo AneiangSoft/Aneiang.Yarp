@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Aneiang.Yarp.Dashboard.Controllers;
 using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Dashboard.Services;
+using Aneiang.Yarp.Middleware;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -70,6 +71,10 @@ public static class DashboardServiceCollectionExtensions
 
         // Register authorization service
         services.AddSingleton<IDashboardAuthorizationService, DashboardAuthorizationService>();
+
+        // Register webhook notification service
+        services.AddHttpClient("webhook");
+        services.AddSingleton<WebhookNotificationService>();
 
         // Register configuration persistence service
         services.AddSingleton(sp =>

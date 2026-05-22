@@ -55,6 +55,9 @@ public class DynamicClusterConfig
 
     /// <summary>Who created this cluster (user name or "auto").</summary>
     public string? CreatedBy { get; set; }
+
+    /// <summary>Last heartbeat time from registered services. Used for stale detection.</summary>
+    public DateTime? LastHeartbeat { get; set; }
 }
 
 /// <summary>

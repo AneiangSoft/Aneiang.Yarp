@@ -14,6 +14,7 @@ public class DynamicYarpConfigService
 {
     private readonly InMemoryConfigProvider _configProvider;
     private readonly DynamicConfigPersistenceService _persistence;
+    private readonly ConfigChangeAuditLog _auditLog;
     private readonly ILogger<DynamicYarpConfigService> _logger;
     private readonly ReaderWriterLockSlim _rwLock = new();
     private GatewayDynamicConfig? _dynamicConfig;
@@ -32,10 +33,12 @@ public class DynamicYarpConfigService
     public DynamicYarpConfigService(
         InMemoryConfigProvider configProvider,
         DynamicConfigPersistenceService persistence,
+        ConfigChangeAuditLog auditLog,
         ILogger<DynamicYarpConfigService> logger)
     {
         _configProvider = configProvider;
         _persistence = persistence;
+        _auditLog = auditLog;
         _logger = logger;
 
         // Load dynamic config from file on startup (sync is fine for one-time init)
@@ -397,6 +400,8 @@ public class DynamicYarpConfigService
                 {
                     if (string.IsNullOrWhiteSpace(request.DestinationAddress))
                     {
+                        _auditLog.RecordFailure("AddRoute", request.RouteName,
+                            "Destination address is required when the cluster does not exist", createdBy);
                         return new RouteOperationResult(false,
                             "Destination address is required when the cluster does not exist");
                     }
@@ -491,6 +496,12 @@ public class DynamicYarpConfigService
             var action = isNew ? "registered" : "updated";
             _logger.LogInformation("Route '{RouteName}' {Action} ({MatchPath} -> {Address})",
                 request.RouteName, action, request.MatchPath, request.DestinationAddress);
+            _auditLog.RecordSuccess(
+                isNew ? "AddRoute" : "UpdateRoute",
+                request.RouteName,
+                createdBy, null,
+                new { clusterId = request.ClusterName, matchPath = request.MatchPath },
+                new { clusterId = request.ClusterName, matchPath = request.MatchPath, destination = request.DestinationAddress });
             return new RouteOperationResult(true, $"Route '{request.RouteName}' {action}");
         }
         finally
@@ -525,7 +536,10 @@ public class DynamicYarpConfigService
             var route = routes.FirstOrDefault(r =>
                 string.Equals(r.RouteId, routeName, StringComparison.OrdinalIgnoreCase));
             if (route == null)
+            {
+                _auditLog.RecordFailure("RemoveRoute", routeName, $"Route '{routeName}' not found");
                 return new RouteOperationResult(false, $"Route '{routeName}' not found");
+            }
 
             var clusterId = route.ClusterId;
 
@@ -631,6 +645,8 @@ public class DynamicYarpConfigService
             saveNeeded = true;
 
             _logger.LogInformation("Route '{RouteName}' deleted", routeName);
+            _auditLog.RecordSuccess("RemoveRoute", routeName, null, null,
+                new { clusterId, matchPath = route.Match?.Path });
             return new RouteOperationResult(true, $"Route '{routeName}' deleted");
         }
         finally
@@ -664,7 +680,10 @@ public class DynamicYarpConfigService
             return new RouteOperationResult(false, "Cluster ID cannot be empty");
 
         if (destinations == null || destinations.Count == 0)
+        {
+            _auditLog.RecordFailure("AddCluster", clusterId ?? "", "At least one destination is required");
             return new RouteOperationResult(false, "At least one destination is required");
+        }
 
         bool saveNeeded = false;
         _rwLock.EnterWriteLock();
@@ -740,6 +759,11 @@ public class DynamicYarpConfigService
             var action = isNew ? "created" : "updated";
             _logger.LogInformation("Cluster '{ClusterId}' {Action} with {DestCount} destinations",
                 clusterId, action, destinations.Count);
+            _auditLog.RecordSuccess(
+                isNew ? "AddCluster" : "UpdateCluster",
+                clusterId, createdBy, null,
+                null,
+                new { destinations, loadBalancingPolicy });
             return new RouteOperationResult(true, $"Cluster '{clusterId}' {action}");
         }
         finally
@@ -789,6 +813,8 @@ public class DynamicYarpConfigService
 
             if (hasReferencingRoutes)
             {
+                _auditLog.RecordFailure("RemoveCluster", clusterId,
+                    $"Cluster '{clusterId}' is referenced by route(s)");
                 return new RouteOperationResult(false,
                     $"Cluster '{clusterId}' is referenced by route(s). Delete routes first.");
             }
@@ -796,7 +822,10 @@ public class DynamicYarpConfigService
             var cluster = clusters.FirstOrDefault(c =>
                 string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
             if (cluster == null)
+            {
+                _auditLog.RecordFailure("RemoveCluster", clusterId, $"Cluster '{clusterId}' not found");
                 return new RouteOperationResult(false, $"Cluster '{clusterId}' not found");
+            }
 
             var newClusters = new List<ClusterConfig>(clusters.Where(c =>
                 !string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase)));
@@ -811,6 +840,8 @@ public class DynamicYarpConfigService
             saveNeeded = true;
 
             _logger.LogInformation("Cluster '{ClusterId}' deleted", clusterId);
+            _auditLog.RecordSuccess("RemoveCluster", clusterId, null, null,
+                new { destinations = cluster.Destinations?.Count });
             return new RouteOperationResult(true, $"Cluster '{clusterId}' deleted");
         }
         finally
@@ -843,10 +874,16 @@ public class DynamicYarpConfigService
         string? createdBy = "dashboard-user")
     {
         if (string.IsNullOrWhiteSpace(oldClusterId) || string.IsNullOrWhiteSpace(newClusterId))
+        {
+            _auditLog.RecordFailure("RenameCluster", oldClusterId ?? "", "Cluster ID cannot be empty");
             return new RouteOperationResult(false, "Cluster ID cannot be empty");
+        }
 
         if (string.Equals(oldClusterId, newClusterId, StringComparison.OrdinalIgnoreCase))
+        {
+            _auditLog.RecordFailure("RenameCluster", oldClusterId, "Old and new cluster IDs are the same");
             return new RouteOperationResult(false, "Old and new cluster IDs are the same");
+        }
 
         bool saveNeeded = false;
         _rwLock.EnterWriteLock();
@@ -861,12 +898,18 @@ public class DynamicYarpConfigService
             var oldCluster = newClusters.FirstOrDefault(c =>
                 string.Equals(c.ClusterId, oldClusterId, StringComparison.OrdinalIgnoreCase));
             if (oldCluster == null)
+            {
+                _auditLog.RecordFailure("RenameCluster", oldClusterId, $"Cluster '{oldClusterId}' not found");
                 return new RouteOperationResult(false, $"Cluster '{oldClusterId}' not found");
+            }
 
             // Check if new cluster ID already exists (and is not the old one)
             if (newClusters.Any(c =>
                 string.Equals(c.ClusterId, newClusterId, StringComparison.OrdinalIgnoreCase)))
+            {
+                _auditLog.RecordFailure("RenameCluster", oldClusterId, $"Cluster '{newClusterId}' already exists");
                 return new RouteOperationResult(false, $"Cluster '{newClusterId}' already exists");
+            }
 
             // Step 1: Create new cluster with new ID
             var newCluster = new ClusterConfig
@@ -936,6 +979,9 @@ public class DynamicYarpConfigService
             _logger.LogInformation(
                 "Cluster '{OldClusterId}' renamed to '{NewClusterId}', updated {RouteCount} referencing routes",
                 oldClusterId, newClusterId, updatedRouteCount);
+            _auditLog.RecordSuccess("RenameCluster", $"{oldClusterId} → {newClusterId}", createdBy, null,
+                new { oldClusterId, routesUpdated = updatedRouteCount },
+                new { newClusterId, destinations, loadBalancingPolicy });
             return new RouteOperationResult(true,
                 $"Cluster '{oldClusterId}' renamed to '{newClusterId}', {updatedRouteCount} route(s) updated");
         }
@@ -1002,6 +1048,8 @@ public class DynamicYarpConfigService
             // Check if cluster already exists
             if (clusters.Any(c => string.Equals(c.ClusterId, request.ClusterId, StringComparison.OrdinalIgnoreCase)))
             {
+                _auditLog.RecordFailure("AddCluster", request.ClusterId,
+                    $"Cluster '{request.ClusterId}' already exists", createdBy);
                 return new RouteOperationResult(false, $"Cluster '{request.ClusterId}' already exists. Use update instead.");
             }
 
@@ -1038,6 +1086,8 @@ public class DynamicYarpConfigService
             saveNeeded = true;
             _logger.LogInformation("Cluster '{ClusterId}' created with {DestCount} destinations",
                 request.ClusterId, request.Destinations.Count);
+            _auditLog.RecordSuccess("AddCluster", request.ClusterId, createdBy, null, null,
+                new { destinations = request.Destinations, loadBalancingPolicy = request.LoadBalancingPolicy });
             return new RouteOperationResult(true, $"Cluster '{request.ClusterId}' created successfully");
         }
         finally
@@ -1057,7 +1107,10 @@ public class DynamicYarpConfigService
     public async Task<RouteOperationResult> TryUpdateCluster(string clusterId, UpdateClusterRequest request)
     {
         if (string.IsNullOrWhiteSpace(clusterId))
+        {
+            _auditLog.RecordFailure("UpdateCluster", clusterId ?? "", "Cluster ID cannot be empty");
             return new RouteOperationResult(false, "Cluster ID cannot be empty");
+        }
 
         bool saveNeeded = false;
         _rwLock.EnterWriteLock();
@@ -1072,6 +1125,7 @@ public class DynamicYarpConfigService
 
             if (existingIdx < 0)
             {
+                _auditLog.RecordFailure("UpdateCluster", clusterId, $"Cluster '{clusterId}' not found");
                 return new RouteOperationResult(false, $"Cluster '{clusterId}' not found");
             }
 
@@ -1109,6 +1163,8 @@ public class DynamicYarpConfigService
 
             saveNeeded = true;
             _logger.LogInformation("Cluster '{ClusterId}' updated", clusterId);
+            _auditLog.RecordSuccess("UpdateCluster", clusterId, null, null, null,
+                new { destinations = request.Destinations, loadBalancingPolicy = request.LoadBalancingPolicy });
             return new RouteOperationResult(true, $"Cluster '{clusterId}' updated successfully");
         }
         finally
@@ -1228,11 +1284,53 @@ public class DynamicYarpConfigService
                 "Configuration replaced: {Routes} routes, {Clusters} clusters",
                 newRoutes.Count,
                 newClusters.Count);
+            _auditLog.RecordSuccess("RollbackConfig", "full config", createdBy, null,
+                null,
+                new { routeCount = newRoutes.Count, clusterCount = newClusters.Count });
         }
         finally
         {
             _rwLock.ExitWriteLock();
             await SaveDynamicConfigAsync();
+        }
+    }
+
+    /// <summary>
+    /// Update heartbeat timestamp for a registered service.
+    /// Used by auto-registered services to keep their registration alive.
+    /// </summary>
+    /// <param name="routeName">Route name to update.</param>
+    /// <param name="clientIp">Optional client IP for IP-based isolation.</param>
+    /// <returns>True if route was found and heartbeat updated.</returns>
+    public bool UpdateHeartbeat(string routeName, string? clientIp = null)
+    {
+        _rwLock.EnterWriteLock();
+        try
+        {
+            EnsureDynamicConfigInitialized();
+
+            // Find the route and its cluster
+            var route = _dynamicConfig!.Routes.FirstOrDefault(r =>
+                r.RouteId.Equals(routeName, StringComparison.OrdinalIgnoreCase));
+
+            if (route == null)
+                return false;
+
+            // Update heartbeat on the associated cluster
+            var cluster = _dynamicConfig.Clusters.FirstOrDefault(c =>
+                c.ClusterId.Equals(route.ClusterId, StringComparison.OrdinalIgnoreCase));
+
+            if (cluster != null)
+            {
+                cluster.LastHeartbeat = DateTime.UtcNow;
+                return true;
+            }
+
+            return false;
+        }
+        finally
+        {
+            _rwLock.ExitWriteLock();
         }
     }
 }

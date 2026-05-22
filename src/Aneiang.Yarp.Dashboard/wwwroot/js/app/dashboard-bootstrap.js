@@ -105,6 +105,7 @@
             'logs',
             'stats',
             'history',
+            'audit',
             'configEditor',
             'modals'
         ];

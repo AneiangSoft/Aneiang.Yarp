@@ -1325,6 +1325,111 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
         }
+
+        /* Audit Log Module */
+        .audit-list {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .audit-entry {
+            border-bottom: 1px solid var(--border-color);
+            transition: background 0.15s ease;
+            cursor: pointer;
+        }
+
+        .audit-entry:hover {
+            background: rgba(99, 102, 241, 0.04);
+        }
+
+        .audit-entry:last-child {
+            border-bottom: none;
+        }
+
+        .audit-row {
+            display: flex;
+            gap: 10px;
+            padding: 10px 16px;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .audit-time {
+            color: var(--text-muted);
+            font-size: 12px;
+            min-width: 130px;
+            white-space: nowrap;
+        }
+
+        .audit-action {
+            min-width: 100px;
+            text-align: center;
+        }
+
+        .audit-target {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .audit-target code {
+            background: #f1f5f9;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            color: #0f172a;
+        }
+
+        .audit-operator {
+            color: var(--text-secondary);
+            min-width: 80px;
+            font-size: 12px;
+        }
+
+        .audit-ip {
+            color: var(--text-muted);
+            font-size: 11px;
+            min-width: 100px;
+        }
+
+        .audit-arrow {
+            color: var(--text-muted);
+            font-size: 12px;
+            transition: transform 0.2s ease;
+        }
+
+        .audit-arrow.expanded {
+            transform: rotate(90deg);
+            color: var(--primary-color);
+        }
+
+        .audit-detail {
+            display: none;
+            padding: 12px 16px 16px;
+            background: #f8fafc;
+            border-top: 1px dashed var(--border-color);
+            font-size: 12px;
+        }
+
+        .audit-detail.expanded {
+            display: block;
+        }
+
+        .audit-json {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 11px;
+            line-height: 1.5;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 4px;
+        }
     </style>
 </head>
 <body>
@@ -1361,6 +1466,9 @@
             <div class="section-title" data-i18n="layout.section.config">配置</div>
             <a class="nav-link" href="#history" data-tab="history">
                 <i class="bi bi-clock-history"></i> <span data-i18n="layout.tab.history">配置历史</span>
+            </a>
+            <a class="nav-link" href="#audit" data-tab="audit">
+                <i class="bi bi-shield-check"></i> <span data-i18n="layout.tab.audit">审计日志</span>
             </a>
             <a class="nav-link" href="#" onclick="DashboardConfig.exportConfig();return false;">
                 <i class="bi bi-download"></i> <span data-i18n="config.export">导出配置</span>
