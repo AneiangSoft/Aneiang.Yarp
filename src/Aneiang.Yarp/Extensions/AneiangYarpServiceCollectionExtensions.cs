@@ -79,44 +79,8 @@ public static class AneiangYarpServiceCollectionExtensions
         }
 
         // Registration client (gateway can itself register with an upstream gateway)
-        services.AddSingleton<KestrelAutoConfigService>();
-        services.AddSingleton<GatewayAutoRegistrationClient>();
-        services.AddHttpClient();
+        services.AddAneiangYarpClientInternal();
 
-        return services;
-    }
-
-    // -- Client auto-registration
-
-    /// <summary>
-    /// Register this service as a YARP client with auto-registration to the gateway.
-    /// Auto-registers route on startup, auto-unregisters on shutdown.
-    /// The only required config is <c>GatewayUrl</c> (code or appsettings.json).
-    /// </summary>
-    /// <param name="services">IServiceCollection</param>
-    /// <param name="configureOptions">Optional override for registration options.</param>
-    /// <example>
-    /// <code>
-    /// // Minimal - only config file needed:
-    /// builder.Services.AddAneiangYarpClient();
-    /// // { "Gateway:Registration": { "GatewayUrl": "http://192.168.1.100:5000" } }
-    ///
-    /// // With code override:
-    /// builder.Services.AddAneiangYarpClient(o => {
-    ///     o.GatewayUrl = "http://gateway:5000";
-    ///     o.MatchPath = "/api/users/{**catch-all}";
-    /// });
-    /// </code>
-    /// </example>
-    public static IServiceCollection AddAneiangYarpClient(
-        this IServiceCollection services,
-        Action<GatewayRegistrationOptions>? configureOptions = null)
-    {
-        services.AddHttpClient();
-        services.AddSingleton<KestrelAutoConfigService>();
-        ConfigureRegistrationOptions(services, configureOptions);
-        services.AddSingleton<GatewayAutoRegistrationClient>();
-        services.AddHostedService<GatewayRegistrationHostedService>();
         return services;
     }
 
@@ -179,29 +143,5 @@ public static class AneiangYarpServiceCollectionExtensions
                 mvo.Conventions.Add(new GatewayApiAuthConvention())));
 
         return services;
-    }
-
-    // Internal helpers
-
-    private static void ConfigureRegistrationOptions(
-        IServiceCollection services,
-        Action<GatewayRegistrationOptions>? configureOptions)
-    {
-        services.AddOptions<GatewayRegistrationOptions>()
-            .Configure<IConfiguration>((o, c) =>
-                c.GetSection(GatewayRegistrationOptions.SectionName).Bind(o));
-
-        if (configureOptions != null)
-            services.Configure(configureOptions);
-
-        // Suppress validation - options are optional
-        services.AddSingleton<IValidateOptions<GatewayRegistrationOptions>, SkipValidation>();
-    }
-
-    /// <summary>Skips options validation (all config is optional).</summary>
-    private sealed class SkipValidation : IValidateOptions<GatewayRegistrationOptions>
-    {
-        public ValidateOptionsResult Validate(string? name, GatewayRegistrationOptions options)
-            => ValidateOptionsResult.Skip;
     }
 }

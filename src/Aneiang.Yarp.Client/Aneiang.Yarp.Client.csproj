@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <PackageId>Aneiang.Yarp.Client</PackageId>
+    <Description>YARP gateway client library: auto-register services to a YARP gateway with smart defaults and IP resolution.</Description>
+    <PackageTags>yarp;reverse-proxy;gateway;client;auto-registration;dotnet</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>

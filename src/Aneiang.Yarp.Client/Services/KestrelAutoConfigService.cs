@@ -1,4 +1,3 @@
-using System.Net;
 using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Services;
@@ -69,8 +68,8 @@ public class KestrelAutoConfigService
 
             foreach (var listener in listeners)
             {
-                if (listener.Address.Equals(IPAddress.Any) ||
-                    listener.Address.Equals(IPAddress.IPv6Any))
+                if (listener.Address.Equals(System.Net.IPAddress.Any) ||
+                    listener.Address.Equals(System.Net.IPAddress.IPv6Any))
                 {
                     return true;
                 }
