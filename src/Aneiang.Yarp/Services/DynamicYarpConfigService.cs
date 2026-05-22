@@ -1153,10 +1153,14 @@ public class DynamicYarpConfigService
             // Update dynamic config metadata
             EnsureDynamicConfigInitialized();
 
-            // Build a lookup of existing HealthCheck configs to preserve during rollback
-            var existingHealthChecks = _dynamicConfig!.Clusters.ToDictionary(
+            // Build lookups of existing metadata to preserve during rollback
+            var existingClusters = _dynamicConfig!.Clusters.ToDictionary(
                 c => c.ClusterId,
-                c => c.HealthCheck,
+                c => c,
+                StringComparer.OrdinalIgnoreCase);
+            var existingRoutes = _dynamicConfig.Routes.ToDictionary(
+                r => r.RouteId,
+                r => r,
                 StringComparer.OrdinalIgnoreCase);
 
             _dynamicConfig.Routes.Clear();
@@ -1164,37 +1168,59 @@ public class DynamicYarpConfigService
 
             foreach (var cluster in newClusters)
             {
-                existingHealthChecks.TryGetValue(cluster.ClusterId ?? string.Empty, out var healthCheck);
-
-                var dynCluster = new DynamicClusterConfig
+                // Preserve original source if the cluster existed before
+                if (existingClusters.TryGetValue(cluster.ClusterId ?? string.Empty, out var existing))
                 {
-                    ClusterId = cluster.ClusterId,
-                    Destinations = cluster.Destinations?.ToDictionary(
+                    var dynCluster = existing;
+                    dynCluster.Destinations = cluster.Destinations?.ToDictionary(
                         d => d.Key,
-                        d => d.Value.Address ?? string.Empty) ?? new Dictionary<string, string>(),
-                    LoadBalancingPolicy = cluster.LoadBalancingPolicy,
-                    HealthCheck = healthCheck,
-                    Source = source,
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = createdBy
-                };
-                _dynamicConfig.Clusters.Add(dynCluster);
+                        d => d.Value.Address ?? string.Empty) ?? new Dictionary<string, string>();
+                    dynCluster.LoadBalancingPolicy = cluster.LoadBalancingPolicy;
+                    _dynamicConfig.Clusters.Add(dynCluster);
+                }
+                else
+                {
+                    var dynCluster = new DynamicClusterConfig
+                    {
+                        ClusterId = cluster.ClusterId,
+                        Destinations = cluster.Destinations?.ToDictionary(
+                            d => d.Key,
+                            d => d.Value.Address ?? string.Empty) ?? new Dictionary<string, string>(),
+                        LoadBalancingPolicy = cluster.LoadBalancingPolicy,
+                        Source = source,
+                        CreatedAt = DateTime.UtcNow,
+                        CreatedBy = createdBy
+                    };
+                    _dynamicConfig.Clusters.Add(dynCluster);
+                }
             }
 
             foreach (var route in newRoutes)
             {
-                var dynRoute = new DynamicRouteConfig
+                // Preserve original source if the route existed before
+                if (existingRoutes.TryGetValue(route.RouteId ?? string.Empty, out var existing))
                 {
-                    RouteId = route.RouteId ?? string.Empty,
-                    ClusterId = route.ClusterId ?? string.Empty,
-                    MatchPath = route.Match?.Path ?? string.Empty,
-                    Order = route.Order ?? 50,
-                    Transforms = route.Transforms?.Select(t => new Dictionary<string, string>(t)).ToList(),
-                    Source = source,
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = createdBy
-                };
-                _dynamicConfig.Routes.Add(dynRoute);
+                    existing.ClusterId = route.ClusterId ?? string.Empty;
+                    existing.MatchPath = route.Match?.Path ?? string.Empty;
+                    existing.Order = route.Order ?? 50;
+                    existing.Transforms = route.Transforms?.Select(t => new Dictionary<string, string>(t)).ToList();
+                    _dynamicConfig.Routes.Add(existing);
+                }
+                else
+                {
+                    var dynRoute = new DynamicRouteConfig
+                    {
+                        RouteId = route.RouteId ?? string.Empty,
+                        ClusterId = route.ClusterId ?? string.Empty,
+                        MatchPath = route.Match?.Path ?? string.Empty,
+                        Order = route.Order ?? 50,
+                        Transforms = route.Transforms?.Select(t => new Dictionary<string, string>(t)).ToList(),
+                        Source = source,
+                        CreatedAt = DateTime.UtcNow,
+                        CreatedBy = createdBy
+                    };
+                    _dynamicConfig.Routes.Add(dynRoute);
+                }
             }
 
             // Save to file only once at the end

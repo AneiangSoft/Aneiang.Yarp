@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Dashboard.Services;
@@ -502,6 +503,25 @@ public class ConfigManagementController : ControllerBase
         {
             _logger.LogError(ex, "Failed to rollback to version: {VersionId}", versionId);
             return StatusCode(500, new { code = 500, message = $"Rollback failed: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Create a manual configuration snapshot.
+    /// </summary>
+    [HttpPost("snapshot")]
+    public async Task<IActionResult> CreateSnapshot([FromBody] SnapshotRequest? request)
+    {
+        try
+        {
+            var description = request?.Description ?? "Manual snapshot";
+            var snapshot = await _persistenceService.SaveSnapshotAsync(description, GetClientIp());
+            return Ok(new { code = 200, data = new { snapshot.VersionId, snapshot.Description, snapshot.Timestamp } });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create snapshot");
+            return StatusCode(500, new { code = 500, message = $"Snapshot failed: {ex.Message}" });
         }
     }
 

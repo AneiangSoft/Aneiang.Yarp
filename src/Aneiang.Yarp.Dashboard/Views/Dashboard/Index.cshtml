@@ -149,6 +149,30 @@
     </div>
 </div>
 
+<!-- Statistics panel -->
+<div id="stats-panel" class="card-panel mb-3" style="display:none;">
+    <div class="card-header">
+        <span><i class="bi bi-bar-chart-line me-2"></i><span data-i18n="stats.title">访问统计</span></span>
+        <div class="d-flex align-items-center" style="gap:12px;white-space:nowrap;">
+            <button class="btn btn-sm btn-outline-secondary" onclick="StatsModule.loadStats()">
+                <i class="bi bi-arrow-clockwise"></i> <span data-i18n="stats.refresh">刷新统计</span>
+            </button>
+        </div>
+    </div>
+    <div id="stats-content" class="card-body"></div>
+</div>
+
+<!-- History panel -->
+<div id="history-panel" class="card-panel mb-3" style="display:none;">
+    <div class="card-header">
+        <span><i class="bi bi-clock-history me-2"></i><span data-i18n="history.title">配置变更历史</span></span>
+        <button class="btn btn-sm btn-outline-secondary" onclick="HistoryModule.loadHistory()">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+    <div id="history-content" class="card-body"></div>
+</div>
+
 @section Scripts {
 @{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
 <!-- 1. Core Infrastructure -->
@@ -214,6 +238,8 @@
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-clusters.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-routes.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-logs.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-stats.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-history.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-config.js?v=@v"></script>
 
 <script>

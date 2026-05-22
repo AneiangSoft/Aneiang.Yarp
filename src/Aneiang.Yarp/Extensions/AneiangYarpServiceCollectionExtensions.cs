@@ -1,6 +1,8 @@
 using Aneiang.Yarp.Controllers;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,6 +38,12 @@ public static class AneiangYarpServiceCollectionExtensions
         bool enableRegistration = true)
     {
         var proxyBuilder = services.AddReverseProxy();
+
+        // Register rate limiting for proxy routes (configurable via Gateway:Dashboard:EnableRateLimiting)
+        // Note: DashboardOptions is defined in Aneiang.Yarp.Dashboard, but we bind from the same config section.
+        // The rate limiter is configured after DI is fully built via IConfigureOptions.
+        services.AddSingleton<RateLimitConfigProvider>();
+        services.AddRateLimiter(_ => { });
 
         // Register custom load balancing policies
         services.AddSingleton<ILoadBalancingPolicy, IpBasedLoadBalancingPolicy>();

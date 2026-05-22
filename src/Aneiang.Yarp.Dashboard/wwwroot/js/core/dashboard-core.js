@@ -6,10 +6,11 @@
 
     // ===== Tab Configuration =====
     const tabConfig = {
-        overview: ['stat-bar'],
+        overview: ['stat-bar', 'stats-panel'],
         services: ['stat-bar', 'cluster-panel'],
         routes:   ['stat-bar', 'route-panel'],
-        logs:     ['stat-bar', 'log-panel']
+        logs:     ['stat-bar', 'log-panel'],
+        history:  ['stat-bar', 'history-panel']
     };
 
     let _initialized = false;
@@ -39,7 +40,7 @@
         window.__dashboard = window.__dashboard || {};
         // Always assign the full config to prevent incomplete overrides from inline scripts
         window.__dashboard.tabPanels = tabConfig;
-        window.__dashboard.allPanels = ['stat-bar', 'cluster-panel', 'route-panel', 'log-panel'];
+        window.__dashboard.allPanels = ['stat-bar', 'cluster-panel', 'route-panel', 'stats-panel', 'log-panel', 'history-panel'];
     };
 
     // ===== Setup Tab Click Handlers =====

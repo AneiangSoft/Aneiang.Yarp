@@ -81,6 +81,12 @@
             this.initialized = true;
             console.log('[Dashboard] Initialization complete');
 
+            // Load initial tab data
+            var currentTab = window.DashboardState?.get?.('app.currentTab') || 'overview';
+            document.dispatchEvent(new CustomEvent('dashboard:tabChanged', {
+                detail: { tab: currentTab }
+            }));
+
             // Trigger custom event
             document.dispatchEvent(new CustomEvent('dashboard:ready'));
 
@@ -97,6 +103,8 @@
             'clusters',
             'routes',
             'logs',
+            'stats',
+            'history',
             'configEditor',
             'modals'
         ];
