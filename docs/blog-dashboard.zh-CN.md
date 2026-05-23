@@ -237,7 +237,7 @@ builder.Services.AddAneiangYarpDashboard(options =>
 | 四种认证 | None / ApiKey / JWT / 自定义 | 从开发到生产全覆盖 |
 | 多语言 | 中英文运行时切换 | 国际化友好 |
 
-**源码地址**：[https://github.com/aneiang/Aneiang.Yarp](https://github.com/aneiang/Aneiang.Yarp)
+**源码地址**：[GitHub](https://github.com/AneiangSoft/Aneiang.Yarp) | [Gitee](https://gitee.com/aneiangsoft/aneiang-yarp)
 
 **在线预览**：http://113.45.65.71:8930/apigateway（admin / demo123）
 
@@ -253,4 +253,4 @@ dotnet add package Aneiang.Yarp.Dashboard
 >
 > | [上一篇：网关核心模块](./blog-core.zh-CN.md) | [下一篇：IP 隔离负载均衡](./blog-ip-isolation.zh-CN.md) | [系列目录](./series-index.zh-CN.md) |
 >
-> 觉得有用？去 [GitHub 点个 Star](https://github.com/aneiang/Aneiang.Yarp) 支持一下。
+> 觉得有用？去 [GitHub](https://github.com/AneiangSoft/Aneiang.Yarp) 或 [Gitee](https://gitee.com/aneiangsoft/aneiang-yarp) 点个 Star 支持一下。

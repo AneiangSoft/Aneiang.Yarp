@@ -91,11 +91,12 @@
 
 ## 代码仓库
 
-- **GitHub**：[https://github.com/aneiang/Aneiang.Yarp](https://github.com/aneiang/Aneiang.Yarp)
+- **GitHub**：[https://github.com/AneiangSoft/Aneiang.Yarp](https://github.com/AneiangSoft/Aneiang.Yarp)
+- **Gitee**：[https://gitee.com/aneiangsoft/aneiang-yarp](https://gitee.com/aneiangsoft/aneiang-yarp)
 - **开源协议**：MIT
 
 ---
 
 > 本文是 **Aneiang.Yarp 源码解析系列** 的索引页。系列文章同步发布于微信公众号、CSDN、博客园。
 >
-> 觉得有用？去 [GitHub 点个 Star](https://github.com/aneiang/Aneiang.Yarp) 支持一下。
+> 觉得有用？去 [GitHub](https://github.com/AneiangSoft/Aneiang.Yarp) 或 [Gitee](https://gitee.com/aneiangsoft/aneiang-yarp) 点个 Star 支持一下。

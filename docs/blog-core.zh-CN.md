@@ -315,7 +315,7 @@ YARP 的 `InMemoryConfigProvider.Update()` 不是线程安全的。`ReaderWriter
 | API 鉴权 | 三级凭证 + 智能推断 | 配置最少，安全最大 |
 | 注册安全 | MVC Convention 移除路由 | 404 而非 403 |
 
-**源码地址**：[https://github.com/aneiang/Aneiang.Yarp](https://github.com/aneiang/Aneiang.Yarp)
+**源码地址**：[GitHub](https://github.com/AneiangSoft/Aneiang.Yarp) | [Gitee](https://gitee.com/aneiangsoft/aneiang-yarp)
 
 ```bash
 dotnet add package Aneiang.Yarp
@@ -328,4 +328,4 @@ dotnet add package Aneiang.Yarp
 >
 > | [上一篇：客户端自动注册](./blog-client.zh-CN.md) | [下一篇：可视化 Dashboard](./blog-dashboard.zh-CN.md) | [系列目录](./series-index.zh-CN.md) |
 >
-> 觉得有用？去 [GitHub 点个 Star](https://github.com/aneiang/Aneiang.Yarp) 支持一下。
+> 觉得有用？去 [GitHub](https://github.com/AneiangSoft/Aneiang.Yarp) 或 [Gitee](https://gitee.com/aneiangsoft/aneiang-yarp) 点个 Star 支持一下。
