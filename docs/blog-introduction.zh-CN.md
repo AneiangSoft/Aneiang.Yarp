@@ -15,7 +15,7 @@
 
 ## 它是什么
 
-[Aneiang.Yarp](https://github.com/aneiang/Aneiang.Yarp) 是基于微软官方 [YARP (Yet Another Reverse Proxy)](https://microsoft.github.io/reverse-proxy/) 2.3.0 构建的 API 网关增强方案，MIT 协议开源，支持 .NET 8.0 和 .NET 9.0。
+[Aneiang.Yarp](https://gitee.com/aneiangsoft/aneiang-yarp) 是基于微软官方 [YARP (Yet Another Reverse Proxy)](https://microsoft.github.io/reverse-proxy/) 2.3.0 构建的 API 网关增强方案，MIT 协议开源，支持 .NET 8.0 和 .NET 9.0。
 
 它通过三个 NuGet 包，提供 **Dashboard 管理面板 + 动态路由 + 自动注册 + IP 隔离** 四大能力：
 
@@ -210,7 +210,7 @@ YARP 本身很优秀，但缺少管理界面和动态配置能力一直是实际
 - 功能实用 — 配置回滚、日志脱敏、自动注册，都是刚需
 - MIT 协议 — 放心用
 
-**源码地址**：[https://github.com/aneiang/Aneiang.Yarp](https://github.com/aneiang/Aneiang.Yarp)
+**源码地址**：[GitHub](https://github.com/AneiangSoft/Aneiang.Yarp) | [Gitee](https://gitee.com/aneiangsoft/aneiang-yarp)
 
 如果你正在用 YARP，不妨花 5 分钟试一下。
 
@@ -220,4 +220,4 @@ YARP 本身很优秀，但缺少管理界面和动态配置能力一直是实际
 >
 > | 上一篇 — | [下一篇：微服务接入网关只需一行代码](./blog-client.zh-CN.md) | [系列目录](./series-index.zh-CN.md) |
 >
-> 觉得有用？去 [GitHub 点个 Star](https://github.com/aneiang/Aneiang.Yarp) 支持一下。
+> 觉得有用？去 [GitHub](https://github.com/AneiangSoft/Aneiang.Yarp) 或 [Gitee](https://gitee.com/aneiangsoft/aneiang-yarp) 点个 Star 支持一下。

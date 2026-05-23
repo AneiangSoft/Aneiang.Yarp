@@ -309,7 +309,7 @@ app.Run();
 | 优雅关闭 | IHostedService | K8s 下线不丢请求 |
 | 认证智能推断 | 读取 Dashboard JWT 密码 | 客户端零配置 |
 
-**源码地址**：[https://github.com/aneiang/Aneiang.Yarp](https://github.com/aneiang/Aneiang.Yarp)
+**源码地址**：[GitHub](https://github.com/AneiangSoft/Aneiang.Yarp) | [Gitee](https://gitee.com/aneiangsoft/aneiang-yarp)
 
 ```bash
 dotnet add package Aneiang.Yarp.Client
@@ -322,4 +322,4 @@ dotnet add package Aneiang.Yarp.Client
 >
 > | [上一篇：项目总览](./blog-introduction.zh-CN.md) | [下一篇：网关核心模块架构解析](./blog-core.zh-CN.md) | [系列目录](./series-index.zh-CN.md) |
 >
-> 觉得有用？去 [GitHub 点个 Star](https://github.com/aneiang/Aneiang.Yarp) 支持一下。
+> 觉得有用？去 [GitHub](https://github.com/AneiangSoft/Aneiang.Yarp) 或 [Gitee](https://gitee.com/aneiangsoft/aneiang-yarp) 点个 Star 支持一下。

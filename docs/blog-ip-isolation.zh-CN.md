@@ -311,7 +311,7 @@ curl http://网关:5000/api/local-service/ping
 | 自动兜底 | 无匹配返回第一个可用实例 | 未注册 IP 也能用 |
 | 代理兼容 | X-Forwarded-For 优先 | Nginx/Caddy 后正常工作 |
 
-**源码地址**：[https://github.com/aneiang/Aneiang.Yarp](https://github.com/aneiang/Aneiang.Yarp)
+**源码地址**：[GitHub](https://github.com/AneiangSoft/Aneiang.Yarp) | [Gitee](https://gitee.com/aneiangsoft/aneiang-yarp)
 
 ```bash
 # 客户端
@@ -327,4 +327,4 @@ dotnet add package Aneiang.Yarp.Client
 >
 > | [上一篇：可视化 Dashboard](./blog-dashboard.zh-CN.md) | [系列目录](./series-index.zh-CN.md) |
 >
-> 觉得有用？去 [GitHub 点个 Star](https://github.com/aneiang/Aneiang.Yarp) 支持一下。
+> 觉得有用？去 [GitHub](https://github.com/AneiangSoft/Aneiang.Yarp) 或 [Gitee](https://gitee.com/aneiangsoft/aneiang-yarp) 点个 Star 支持一下。
