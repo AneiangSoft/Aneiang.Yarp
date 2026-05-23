@@ -1,5 +1,7 @@
-# YARP 没有管理界面？这个开源项目直接给你装上！
+# [系列 00] YARP 没有管理界面？这个开源项目直接给你装上！
 
+> **Aneiang.Yarp 源码解析系列** — [目录](./series-index.zh-CN.md) | 下一篇：[01 - 客户端自动注册](./blog-client.zh-CN.md)
+>
 > 用 YARP 做网关的同学，一定遇到过这些场景：加个路由要改 appsettings.json，改完要重启；改坏了想回滚，翻遍 git log 也找不到完整的历史；想看请求日志，发现 YARP 本身不提供……今天推荐一个开源项目 **Aneiang.Yarp.Dashboard**，专门解决这些痛点。
 
 ---
@@ -253,3 +255,7 @@ YARP 本身很优秀，但缺少管理界面一直是个遗憾。Aneiang.Yarp.Da
 **觉得有用？去 GitHub 点个 Star 吧**：[https://github.com/aneiang/Aneiang.Yarp](https://github.com/aneiang/Aneiang.Yarp)
 
 *（全文完）*
+
+---
+
+> **Aneiang.Yarp 源码解析系列** — [目录](./series-index.zh-CN.md) | 下一篇：[01 - 客户端自动注册](./blog-client.zh-CN.md)
