@@ -255,7 +255,11 @@
 
         // Circuit Breaker
         getCircuitBreakerStatus: () => DashboardApi.get('/circuit-breaker/status'),
-        resetCircuitBreakers: () => DashboardApi.post('/circuit-breaker/reset')
+        resetCircuitBreakers: () => DashboardApi.post('/circuit-breaker/reset'),
+
+        // Webhook Settings
+        getWebhookSettings: () => DashboardApi.get('/api/config/webhook'),
+        saveWebhookSettings: (data) => DashboardApi.put('/api/config/webhook', data)
     };
 
 })();

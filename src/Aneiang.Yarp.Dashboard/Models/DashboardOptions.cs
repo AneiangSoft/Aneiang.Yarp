@@ -257,12 +257,20 @@ public class DashboardOptions
     /// <summary>
     /// List of webhook URLs to notify on configuration changes.
     /// Each URL will receive a POST request with the change details.
+    /// Platform is auto-detected from the URL host.
     /// </summary>
     public List<string>? WebhookUrls { get; set; }
 
     /// <summary>
-    /// Optional secret for HMAC-SHA256 webhook payload signature.
+    /// Optional secret for HMAC-SHA256 webhook payload signature (generic fallback).
     /// If set, an X-Webhook-Signature header will be included.
     /// </summary>
     public string? WebhookSecret { get; set; }
+
+    /// <summary>
+    /// Per-platform webhook signing secrets.
+    /// Key: platform identifier (e.g. "dingtalk", "feishu", "wecom").
+    /// Value: platform-specific signing secret.
+    /// </summary>
+    public Dictionary<string, string?>? WebhookSecrets { get; set; }
 }

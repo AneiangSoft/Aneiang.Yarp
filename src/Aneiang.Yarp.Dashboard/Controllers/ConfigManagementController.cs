@@ -5,6 +5,7 @@ using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Dashboard.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Aneiang.Yarp.Dashboard.Controllers;
 
@@ -18,15 +19,18 @@ public class ConfigManagementController : ControllerBase
     private readonly ConfigPersistenceService _persistenceService;
     private readonly DynamicYarpConfigService _dynamicConfig;
     private readonly ILogger<ConfigManagementController> _logger;
+    private readonly DashboardOptions _dashboardOptions;
 
     public ConfigManagementController(
         ConfigPersistenceService persistenceService,
         DynamicYarpConfigService dynamicConfig,
-        ILogger<ConfigManagementController> logger)
+        ILogger<ConfigManagementController> logger,
+        IOptions<DashboardOptions> dashboardOptions)
     {
         _persistenceService = persistenceService;
         _dynamicConfig = dynamicConfig;
         _logger = logger;
+        _dashboardOptions = dashboardOptions.Value;
     }
 
     /// <summary>
@@ -547,5 +551,122 @@ public class ConfigManagementController : ControllerBase
             _logger.LogError(ex, "Failed to validate configuration");
             return StatusCode(500, new { code = 500, message = $"Validation failed: {ex.Message}" });
         }
+    }
+
+    /// <summary>
+    /// Get current webhook notification settings, grouped by platform.
+    /// </summary>
+    [HttpGet("webhook")]
+    public IActionResult GetWebhookSettings()
+    {
+        try
+        {
+            var allUrls = _dashboardOptions.WebhookUrls ?? new List<string>();
+            var platforms = new Dictionary<string, object>
+            {
+                ["dingtalk"] = new
+                {
+                    urls = allUrls.Where(u => u.Contains("oapi.dingtalk.com", StringComparison.OrdinalIgnoreCase)).ToList(),
+                    hasSecret = HasPlatformSecret("dingtalk")
+                },
+                ["feishu"] = new
+                {
+                    urls = allUrls.Where(u => u.Contains("open.feishu.cn", StringComparison.OrdinalIgnoreCase)
+                                          || u.Contains("open.larksuite.com", StringComparison.OrdinalIgnoreCase)).ToList(),
+                    hasSecret = HasPlatformSecret("feishu")
+                },
+                ["wecom"] = new
+                {
+                    urls = allUrls.Where(u => u.Contains("qyapi.weixin.qq.com", StringComparison.OrdinalIgnoreCase)).ToList(),
+                    hasSecret = HasPlatformSecret("wecom")
+                },
+                ["generic"] = new
+                {
+                    urls = allUrls.Where(u => !u.Contains("oapi.dingtalk.com", StringComparison.OrdinalIgnoreCase)
+                                          && !u.Contains("open.feishu.cn", StringComparison.OrdinalIgnoreCase)
+                                          && !u.Contains("open.larksuite.com", StringComparison.OrdinalIgnoreCase)
+                                          && !u.Contains("qyapi.weixin.qq.com", StringComparison.OrdinalIgnoreCase)).ToList(),
+                    hasSecret = !string.IsNullOrEmpty(_dashboardOptions.WebhookSecret)
+                }
+            };
+
+            return Ok(new { code = 200, data = new { platforms } });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get webhook settings");
+            return StatusCode(500, new { code = 500, message = $"Failed: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Update webhook notification settings.
+    /// Accepts per-platform URL lists and secrets.
+    /// </summary>
+    [HttpPut("webhook")]
+    public IActionResult UpdateWebhookSettings([FromBody] WebhookSettingsRequest request)
+    {
+        try
+        {
+            if (request == null)
+                return BadRequest(new { code = 400, message = "Request body is required" });
+
+            var allUrls = new List<string>();
+
+            // Merge URLs from all platforms
+            if (request.Platforms != null)
+            {
+                foreach (var (platform, entry) in request.Platforms)
+                {
+                    if (entry.Urls != null)
+                    {
+                        foreach (var url in entry.Urls)
+                        {
+                            if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri)
+                                || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                            {
+                                return BadRequest(new { code = 400, message = $"Invalid webhook URL: {url}" });
+                            }
+                            allUrls.Add(url);
+                        }
+                    }
+
+                    // Update per-platform secret
+                    if (entry.Secret != null)
+                    {
+                        _dashboardOptions.WebhookSecrets ??= new();
+                        _dashboardOptions.WebhookSecrets[platform] =
+                            string.IsNullOrEmpty(entry.Secret) ? null : entry.Secret;
+                    }
+                }
+            }
+
+            // Update flat URL list (for notification dispatch)
+            _dashboardOptions.WebhookUrls = allUrls;
+
+            // Generic fallback secret
+            if (request.WebhookSecret != null)
+            {
+                _dashboardOptions.WebhookSecret = string.IsNullOrEmpty(request.WebhookSecret) ? null : request.WebhookSecret;
+            }
+
+            _logger.LogInformation("Webhook settings updated: {UrlCount} URLs configured",
+                allUrls.Count);
+
+            return Ok(new { code = 200, message = "Webhook settings updated successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update webhook settings");
+            return StatusCode(500, new { code = 500, message = $"Failed: {ex.Message}" });
+        }
+    }
+
+    private bool HasPlatformSecret(string platform)
+    {
+        if (_dashboardOptions.WebhookSecrets != null &&
+            _dashboardOptions.WebhookSecrets.TryGetValue(platform, out var secret))
+            return !string.IsNullOrEmpty(secret);
+        return false;
     }
 }
