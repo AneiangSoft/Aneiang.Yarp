@@ -6,6 +6,7 @@ using Aneiang.Yarp.Middleware;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Yarp.ReverseProxy.Transforms.Builder;
 
@@ -74,7 +75,15 @@ public static class DashboardServiceCollectionExtensions
 
         // Register webhook notification service
         services.AddHttpClient("webhook");
-        services.AddSingleton<WebhookNotificationService>();
+        services.AddSingleton<WebhookNotificationService>(sp =>
+        {
+            var webhook = new WebhookNotificationService(
+                sp.GetRequiredService<IOptions<DashboardOptions>>(),
+                sp.GetRequiredService<ILogger<WebhookNotificationService>>(),
+                sp.GetRequiredService<IHttpClientFactory>());
+            webhook.Subscribe(sp.GetRequiredService<ConfigChangeAuditLog>());
+            return webhook;
+        });
 
         // Register configuration persistence service
         services.AddSingleton(sp =>

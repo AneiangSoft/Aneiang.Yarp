@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Models;
+using Aneiang.Yarp.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -11,6 +12,7 @@ namespace Aneiang.Yarp.Dashboard.Services;
 
 /// <summary>
 /// Sends webhook notifications when gateway configuration changes.
+/// Subscribes to <see cref="ConfigChangeAuditLog.OnConfigChanged"/> automatically.
 /// Fire-and-forget with single retry on failure.
 /// Supports HMAC-SHA256 signature for payload verification.
 /// </summary>
@@ -34,6 +36,20 @@ public class WebhookNotificationService
         _options = options.Value;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
+    }
+
+    /// <summary>
+    /// Subscribe to audit log events. Call this once during DI setup.
+    /// </summary>
+    public void Subscribe(ConfigChangeAuditLog auditLog)
+    {
+        auditLog.OnConfigChanged += OnConfigChanged;
+        _logger.LogInformation("Webhook notification subscribed to config change audit log");
+    }
+
+    private void OnConfigChanged(string eventType, string target, string? operatorName, object? details)
+    {
+        NotifyConfigChange(eventType, target, operatorName, details);
     }
 
     /// <summary>

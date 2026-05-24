@@ -29,6 +29,7 @@ public class DynamicYarpConfigService
     /// </summary>
     /// <param name="configProvider">YARP in-memory config provider.</param>
     /// <param name="persistence">Dynamic config persistence service.</param>
+    /// <param name="auditLog">Config change audit log service.</param>
     /// <param name="logger">Logger instance.</param>
     public DynamicYarpConfigService(
         InMemoryConfigProvider configProvider,
@@ -100,9 +101,9 @@ public class DynamicYarpConfigService
                     {
                         _dynamicConfig.Routes.Add(new DynamicRouteConfig
                         {
-                            RouteId = route.RouteId,
+                            RouteId = route.RouteId ?? string.Empty,
                             ClusterId = route.ClusterId ?? string.Empty,
-                            MatchPath = route.Match?.Path ?? string.Empty,
+                            MatchPath = route.Match?.Path!,
                             Order = route.Order ?? 50,
                             Transforms = route.Transforms?.Select(t => new Dictionary<string, string>(t)).ToList(),
                             Source = "config",
@@ -131,9 +132,9 @@ public class DynamicYarpConfigService
 
                         _dynamicConfig.Clusters.Add(new DynamicClusterConfig
                         {
-                            ClusterId = cluster.ClusterId,
+                            ClusterId = cluster.ClusterId ?? string.Empty,
                             Destinations = destinations,
-                            LoadBalancingPolicy = cluster.LoadBalancingPolicy,
+                            LoadBalancingPolicy = cluster.LoadBalancingPolicy ?? string.Empty,
                             Source = "config",
                             CreatedAt = DateTime.UtcNow,
                             CreatedBy = "appsettings.json"
@@ -1238,11 +1239,11 @@ public class DynamicYarpConfigService
                 {
                     var dynCluster = new DynamicClusterConfig
                     {
-                        ClusterId = cluster.ClusterId,
+                        ClusterId = cluster.ClusterId ?? string.Empty,
                         Destinations = cluster.Destinations?.ToDictionary(
                             d => d.Key,
                             d => d.Value.Address ?? string.Empty) ?? new Dictionary<string, string>(),
-                        LoadBalancingPolicy = cluster.LoadBalancingPolicy,
+                        LoadBalancingPolicy = cluster.LoadBalancingPolicy ?? string.Empty,
                         Source = source,
                         CreatedAt = DateTime.UtcNow,
                         CreatedBy = createdBy
