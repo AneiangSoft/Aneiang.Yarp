@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Aneiang.Yarp.Dashboard.Controllers;
 using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Dashboard.Services;
+using Aneiang.Yarp.Dashboard.Services.Webhook;
 using Aneiang.Yarp.Middleware;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -75,12 +76,15 @@ public static class DashboardServiceCollectionExtensions
 
         // Register webhook notification service
         services.AddHttpClient("webhook");
+        services.AddSingleton<IWebhookProvider, DingTalkWebhookProvider>();
+        services.AddSingleton<IWebhookProvider, GenericWebhookProvider>();
         services.AddSingleton<WebhookNotificationService>(sp =>
         {
             var webhook = new WebhookNotificationService(
                 sp.GetRequiredService<IOptions<DashboardOptions>>(),
                 sp.GetRequiredService<ILogger<WebhookNotificationService>>(),
-                sp.GetRequiredService<IHttpClientFactory>());
+                sp.GetRequiredService<IHttpClientFactory>(),
+                sp.GetServices<IWebhookProvider>());
             webhook.Subscribe(sp.GetRequiredService<ConfigChangeAuditLog>());
             return webhook;
         });

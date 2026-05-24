@@ -1,9 +1,5 @@
-using System.Net.Http.Headers;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
 using Aneiang.Yarp.Dashboard.Models;
-using Aneiang.Yarp.Models;
+using Aneiang.Yarp.Dashboard.Services.Webhook;
 using Aneiang.Yarp.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,28 +10,31 @@ namespace Aneiang.Yarp.Dashboard.Services;
 /// Sends webhook notifications when gateway configuration changes.
 /// Subscribes to <see cref="ConfigChangeAuditLog.OnConfigChanged"/> automatically.
 /// Fire-and-forget with single retry on failure.
-/// Supports HMAC-SHA256 signature for payload verification.
+/// Supports multiple platforms via <see cref="IWebhookProvider"/> pipeline.
 /// </summary>
 public class WebhookNotificationService
 {
     private readonly DashboardOptions _options;
     private readonly ILogger<WebhookNotificationService> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
-
-    private static readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
+    private readonly IWebhookProvider[] _providers;
+    private readonly GenericWebhookProvider _genericProvider;
 
     public WebhookNotificationService(
         IOptions<DashboardOptions> options,
         ILogger<WebhookNotificationService> logger,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        IEnumerable<IWebhookProvider> providers)
     {
         _options = options.Value;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
+
+        // Separate generic provider (empty SupportedHosts = fallback) from platform-specific ones
+        var providerList = providers.ToList();
+        _genericProvider = providerList.OfType<GenericWebhookProvider>().FirstOrDefault()
+                         ?? new GenericWebhookProvider();
+        _providers = [.. providerList.Where(p => p is not GenericWebhookProvider)];
     }
 
     /// <summary>
@@ -54,6 +53,7 @@ public class WebhookNotificationService
 
     /// <summary>
     /// Send a config change notification to all configured webhook URLs.
+    /// Automatically selects the correct <see cref="IWebhookProvider"/> based on URL host.
     /// </summary>
     public void NotifyConfigChange(string eventType, string target, string? operatorName = null, object? details = null)
     {
@@ -70,38 +70,44 @@ public class WebhookNotificationService
             Details = details
         };
 
-        var json = JsonSerializer.Serialize(payload, _jsonOptions);
-
         foreach (var url in urls)
         {
             if (string.IsNullOrWhiteSpace(url))
                 continue;
 
             // Fire and forget
-            _ = SendAsync(url, json);
+            _ = SendAsync(url, payload);
         }
     }
 
-    private async Task SendAsync(string url, string json)
+    private async Task SendAsync(string url, WebhookPayload payload)
     {
         try
         {
+            var provider = ResolveProvider(url);
+            var secret = ResolveSecret(provider);
+            var request = provider.BuildRequest(url, payload, secret);
+
             using var http = _httpClientFactory.CreateClient("webhook");
             http.Timeout = TimeSpan.FromSeconds(10);
 
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var httpRequest = new HttpRequestMessage(
+                new HttpMethod(request.Method), request.Url);
 
-            // Add HMAC-SHA256 signature if secret is configured
-            if (!string.IsNullOrEmpty(_options.WebhookSecret))
+            if (request.Body != null)
             {
-                var signature = ComputeSignature(json, _options.WebhookSecret);
-                content.Headers.Add("X-Webhook-Signature", $"sha256={signature}");
+                httpRequest.Content = new StringContent(request.Body, System.Text.Encoding.UTF8, request.ContentType);
             }
 
-            var response = await http.PostAsync(url, content);
+            foreach (var (key, value) in request.Headers)
+            {
+                httpRequest.Headers.TryAddWithoutValidation(key, value);
+            }
+
+            var response = await http.SendAsync(httpRequest);
             _logger.LogDebug(
-                "Webhook sent to {Url}: {StatusCode}",
-                url, (int)response.StatusCode);
+                "Webhook sent to {Url} via {Provider}: {StatusCode}",
+                url, provider.GetType().Name, (int)response.StatusCode);
         }
         catch (Exception ex)
         {
@@ -109,22 +115,29 @@ public class WebhookNotificationService
         }
     }
 
-    private static string ComputeSignature(string payload, string secret)
+    private IWebhookProvider ResolveProvider(string url)
     {
-        var keyBytes = Encoding.UTF8.GetBytes(secret);
-        var payloadBytes = Encoding.UTF8.GetBytes(payload);
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return _genericProvider;
 
-        using var hmac = new HMACSHA256(keyBytes);
-        var hash = hmac.ComputeHash(payloadBytes);
-        return Convert.ToHexString(hash).ToLowerInvariant();
+        var host = uri.Host;
+        foreach (var provider in _providers)
+        {
+            if (provider.SupportedHosts.Any(h => string.Equals(host, h, StringComparison.OrdinalIgnoreCase)))
+                return provider;
+        }
+
+        return _genericProvider;
     }
-}
 
-public class WebhookPayload
-{
-    public string EventType { get; set; } = string.Empty;
-    public string Target { get; set; } = string.Empty;
-    public string? Operator { get; set; }
-    public DateTime Timestamp { get; set; }
-    public object? Details { get; set; }
+    private string? ResolveSecret(IWebhookProvider provider)
+    {
+        // Per-platform secret takes priority
+        if (_options.WebhookSecrets != null &&
+            _options.WebhookSecrets.TryGetValue(provider.PlatformName, out var secret))
+            return secret;
+
+        // Fallback to generic secret
+        return _options.WebhookSecret;
+    }
 }
