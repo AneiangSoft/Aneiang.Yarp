@@ -25,6 +25,12 @@ public class ConfigChangeAuditLog
     private readonly ILogger<ConfigChangeAuditLog> _logger;
 
     /// <summary>
+    /// Raised when a config change audit entry is recorded (success only).
+    /// Subscribers receive the action name and target name for notification.
+    /// </summary>
+    public event Action<string, string, string?, object?>? OnConfigChanged;
+
+    /// <summary>
     /// Creates a new audit log instance.
     /// </summary>
     /// <param name="logger">Logger instance.</param>
@@ -57,6 +63,12 @@ public class ConfigChangeAuditLog
         _logger.LogDebug("Audit: {Action} on '{Target}' by {Operator} - {Status}",
             entry.Action, entry.Target, entry.Operator ?? "unknown",
             entry.Success ? "OK" : $"FAIL: {entry.ErrorMessage}");
+
+        // Fire event for successful changes
+        if (entry.Success)
+        {
+            OnConfigChanged?.Invoke(entry.Action, entry.Target, entry.Operator, entry.After);
+        }
     }
 
     /// <summary>Record a successful configuration change.</summary>

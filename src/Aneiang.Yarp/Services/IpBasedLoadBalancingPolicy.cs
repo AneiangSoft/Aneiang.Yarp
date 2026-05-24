@@ -63,8 +63,8 @@ public sealed class IpBasedLoadBalancingPolicy : ILoadBalancingPolicy
         // Fallback: check X-Forwarded-For header (if behind proxy)
         if (context.Request.Headers.TryGetValue("X-Forwarded-For", out var forwardedFor))
         {
-            var value = forwardedFor[0];
-            if (value.Length > 0)
+            var value = forwardedFor.FirstOrDefault();
+            if (!string.IsNullOrEmpty(value))
             {
                 // Avoid Split() allocation: find first comma and trim
                 var commaIdx = value.IndexOf(',');

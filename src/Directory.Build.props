@@ -1,7 +1,7 @@
 <Project>
 
   <PropertyGroup>
-    <Version>2.3.0.9</Version>
+    <Version>2.3.0.10</Version>
     <Authors>AneiangSoft Team</Authors>
     <Company>AneiangSoft</Company>
     <Copyright>Copyright © AneiangSoft $([System.DateTime]::Now.Year)</Copyright>
@@ -17,6 +17,7 @@
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <DebugType>portable</DebugType>
     <PackageOutputPath>$(MSBuildThisFileDirectory)..\artifacts\nupkg</PackageOutputPath>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
