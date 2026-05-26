@@ -259,7 +259,8 @@
 
         // Webhook Settings
         getWebhookSettings: () => DashboardApi.get('/api/config/webhook'),
-        saveWebhookSettings: (data) => DashboardApi.put('/api/config/webhook', data)
+        saveWebhookSettings: (data) => DashboardApi.put('/api/config/webhook', data),
+        testWebhook: (data) => DashboardApi.post('/api/config/webhook/test', data)
     };
 
 })();

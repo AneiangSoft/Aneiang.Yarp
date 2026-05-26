@@ -1,16 +1,29 @@
   正在确定要还原的项目…
-  已还原 d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Client\Aneiang.Yarp.Client.csproj (用时 114 毫秒)。
-  已还原 d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj (用时 208 毫秒)。
-  已还原 d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp\Aneiang.Yarp.csproj (用时 208 毫秒)。
-  Aneiang.Yarp.Client -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Client\bin\Debug\net8.0\Aneiang.Yarp.Client.dll
+  所有项目均是最新的，无法还原。
+  Aneiang.Yarp.Client -> d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Client\bin\Debug\net8.0\Aneiang.Yarp.Client.dll
   Aneiang.Yarp.Client -> d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Client\bin\Debug\net9.0\Aneiang.Yarp.Client.dll
-  Aneiang.Yarp -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp\bin\Debug\net9.0\Aneiang.Yarp.dll
   Aneiang.Yarp -> d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp\bin\Debug\net8.0\Aneiang.Yarp.dll
-  Aneiang.Yarp.Dashboard -> d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\bin\Debug\net9.0\Aneiang.Yarp.Dashboard.dll
-  Aneiang.Yarp.Dashboard -> d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\bin\Debug\net8.0\Aneiang.Yarp.Dashboard.dll
+  Aneiang.Yarp -> d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp\bin\Debug\net9.0\Aneiang.Yarp.dll
+d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Controllers\ConfigManagementController.cs(620,17): warning CS8602: 解引用可能出现空引用。 [d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net8.0]
+d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Controllers\ConfigManagementController.cs(760,24): error CS0173: 无法确定条件表达式的类型，因为“Aneiang.Yarp.Dashboard.Services.Webhook.DingTalkWebhookProvider”和“Aneiang.Yarp.Dashboard.Services.Webhook.GenericWebhookProvider”之间没有隐式转换 [d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net8.0]
+d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Controllers\ConfigManagementController.cs(770,23): error CS8130: 无法推断隐式类型的析构变量“key”的类型。 [d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net8.0]
+d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Controllers\ConfigManagementController.cs(770,28): error CS8130: 无法推断隐式类型的析构变量“value”的类型。 [d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net8.0]
+d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Controllers\ConfigManagementController.cs(620,17): warning CS8602: 解引用可能出现空引用。 [d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net9.0]
+d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Controllers\ConfigManagementController.cs(760,24): error CS0173: 无法确定条件表达式的类型，因为“Aneiang.Yarp.Dashboard.Services.Webhook.DingTalkWebhookProvider”和“Aneiang.Yarp.Dashboard.Services.Webhook.GenericWebhookProvider”之间没有隐式转换 [d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net9.0]
+d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Controllers\ConfigManagementController.cs(770,23): error CS8130: 无法推断隐式类型的析构变量“key”的类型。 [d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net9.0]
+d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Controllers\ConfigManagementController.cs(770,28): error CS8130: 无法推断隐式类型的析构变量“value”的类型。 [d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net9.0]
 
-已成功生成。
-    0 个警告
-    0 个错误
+生成失败。
 
-已用时间 00:00:06.10
+d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Controllers\ConfigManagementController.cs(620,17): warning CS8602: 解引用可能出现空引用。 [d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net8.0]
+d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Controllers\ConfigManagementController.cs(620,17): warning CS8602: 解引用可能出现空引用。 [d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net9.0]
+d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Controllers\ConfigManagementController.cs(760,24): error CS0173: 无法确定条件表达式的类型，因为“Aneiang.Yarp.Dashboard.Services.Webhook.DingTalkWebhookProvider”和“Aneiang.Yarp.Dashboard.Services.Webhook.GenericWebhookProvider”之间没有隐式转换 [d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net8.0]
+d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Controllers\ConfigManagementController.cs(770,23): error CS8130: 无法推断隐式类型的析构变量“key”的类型。 [d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net8.0]
+d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Controllers\ConfigManagementController.cs(770,28): error CS8130: 无法推断隐式类型的析构变量“value”的类型。 [d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net8.0]
+d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Controllers\ConfigManagementController.cs(760,24): error CS0173: 无法确定条件表达式的类型，因为“Aneiang.Yarp.Dashboard.Services.Webhook.DingTalkWebhookProvider”和“Aneiang.Yarp.Dashboard.Services.Webhook.GenericWebhookProvider”之间没有隐式转换 [d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net9.0]
+d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Controllers\ConfigManagementController.cs(770,23): error CS8130: 无法推断隐式类型的析构变量“key”的类型。 [d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net9.0]
+d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Controllers\ConfigManagementController.cs(770,28): error CS8130: 无法推断隐式类型的析构变量“value”的类型。 [d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net9.0]
+    2 个警告
+    6 个错误
+
+已用时间 00:00:03.57
