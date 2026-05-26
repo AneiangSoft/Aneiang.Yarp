@@ -78,6 +78,12 @@ public static class DashboardServiceCollectionExtensions
         services.AddHttpClient("webhook");
         services.AddSingleton<IWebhookProvider, DingTalkWebhookProvider>();
         services.AddSingleton<IWebhookProvider, GenericWebhookProvider>();
+        services.AddSingleton(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<WebhookSettingsPersistenceService>>();
+            var configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "webhook-settings.json");
+            return new WebhookSettingsPersistenceService(configPath, logger);
+        });
         services.AddSingleton<WebhookNotificationService>(sp =>
         {
             var webhook = new WebhookNotificationService(
