@@ -1439,16 +1439,23 @@
             <span data-i18n="layout.brand">网关维护仪表盘</span>
         </div>
         
+        @{
+            var currentPage = ViewBag.CurrentPage as string ?? "overview";
+            var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
+        }
         <div class="nav-section">
             <div class="section-title" data-i18n="layout.section.monitor">监控</div>
-            <a class="nav-link active" href="#overview" data-tab="overview">
+            <a class="nav-link @(currentPage == "overview" ? "active" : "")" href="/@prefix">
                 <i class="bi bi-speedometer2"></i> <span data-i18n="layout.tab.overview">总览</span>
             </a>
-            <a class="nav-link" href="#services" data-tab="services">
+            <a class="nav-link @(currentPage == "clusters" ? "active" : "")" href="/@prefix/clusters">
                 <i class="bi bi-diagram-3"></i> <span data-i18n="layout.tab.services">服务集群</span>
             </a>
-            <a class="nav-link" href="#routes" data-tab="routes">
+            <a class="nav-link @(currentPage == "routes" ? "active" : "")" href="/@prefix/routes">
                 <i class="bi bi-signpost-split"></i> <span data-i18n="layout.tab.routes">路由配置</span>
+            </a>
+            <a class="nav-link @(currentPage == "stats" ? "active" : "")" href="/@prefix/stats">
+                <i class="bi bi-bar-chart-line"></i> <span data-i18n="layout.tab.stats">统计</span>
             </a>
         </div>
         
@@ -1456,7 +1463,7 @@
         {
         <div class="nav-section">
             <div class="section-title" data-i18n="layout.section.diag">诊断</div>
-            <a class="nav-link" href="#logs" data-tab="logs">
+            <a class="nav-link @(currentPage == "logs" ? "active" : "")" href="/@prefix/logs">
                 <i class="bi bi-journal-text"></i> <span data-i18n="layout.tab.logs">日志</span>
             </a>
         </div>
@@ -1464,20 +1471,14 @@
         
         <div class="nav-section">
             <div class="section-title" data-i18n="layout.section.config">配置</div>
-            <a class="nav-link" href="#history" data-tab="history">
+            <a class="nav-link @(currentPage == "history" ? "active" : "")" href="/@prefix/history">
                 <i class="bi bi-clock-history"></i> <span data-i18n="layout.tab.history">配置历史</span>
             </a>
-            <a class="nav-link" href="#audit" data-tab="audit">
+            <a class="nav-link @(currentPage == "audit" ? "active" : "")" href="/@prefix/audit">
                 <i class="bi bi-shield-check"></i> <span data-i18n="layout.tab.audit">审计日志</span>
             </a>
-            <a class="nav-link" href="#" onclick="DashboardConfig.exportConfig();return false;">
-                <i class="bi bi-download"></i> <span data-i18n="config.export">导出配置</span>
-            </a>
-            <a class="nav-link" href="#" onclick="DashboardConfig.showImportModal();return false;">
-                <i class="bi bi-upload"></i> <span data-i18n="config.import">导入配置</span>
-            </a>
-            <a class="nav-link" href="#" onclick="DashboardConfig.showWebhookModal();return false;">
-                <i class="bi bi-bell"></i> <span data-i18n="webhook.title">Webhook 通知设置</span>
+            <a class="nav-link @(currentPage == "settings" ? "active" : "")" href="/@prefix/settings">
+                <i class="bi bi-gear"></i> <span data-i18n="layout.tab.settings">设置</span>
             </a>
         </div>
         
@@ -1505,6 +1506,10 @@
         var I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
         var CURRENT_LOCALE = '@ViewBag.Locale';
         function __(key) { return I18N[key] || key; }
+
+        // DashboardApp - must exist before any module script loads
+        window.DashboardApp = window.DashboardApp || { version: '2.3.0', initialized: false, modules: {} };
+        window.DashboardApp.registerModule = function(name, module) { this.modules[name] = module; };
         function switchLocale() {
             var next = CURRENT_LOCALE === 'en-US' ? 'zh-CN' : 'en-US';
             document.cookie = 'dashboard_locale=' + next + ';path=/;max-age=' + (365*86400);

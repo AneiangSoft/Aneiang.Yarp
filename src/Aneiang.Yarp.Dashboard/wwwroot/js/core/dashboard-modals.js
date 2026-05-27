@@ -706,6 +706,9 @@
     `;
     document.head.appendChild(style);
 
+    // ===== Init (no-op, ensures guard checks pass) =====
+    window.DashboardModals.init = function() {};
+
     // ===== Global shortcuts =====
     window.showToast = window.DashboardModals.showToast;
     window.showConfirm = window.DashboardModals.showConfirm;
