@@ -86,12 +86,27 @@ public static class DashboardServiceCollectionExtensions
         });
         services.AddSingleton<WebhookNotificationService>(sp =>
         {
+            var options = sp.GetRequiredService<IOptions<DashboardOptions>>();
             var webhook = new WebhookNotificationService(
-                sp.GetRequiredService<IOptions<DashboardOptions>>(),
+                options,
                 sp.GetRequiredService<ILogger<WebhookNotificationService>>(),
                 sp.GetRequiredService<IHttpClientFactory>(),
                 sp.GetServices<IWebhookProvider>());
             webhook.Subscribe(sp.GetRequiredService<ConfigChangeAuditLog>());
+
+            // Load persisted webhook settings into DashboardOptions at startup
+            var persistence = sp.GetRequiredService<WebhookSettingsPersistenceService>();
+            var data = persistence.Load() ?? new WebhookSettingsData();
+            var opts = options.Value;
+            var allUrls = new List<string>();
+            allUrls.AddRange(data.DingTalkEndpoints.Select(e => e.Url));
+            allUrls.AddRange(data.GenericEndpoints.Select(e => e.Url));
+            opts.WebhookUrls = allUrls;
+            opts.WebhookSecrets = new Dictionary<string, string?>();
+            foreach (var ep in data.DingTalkEndpoints) opts.WebhookSecrets[ep.Url] = ep.Secret;
+            foreach (var ep in data.GenericEndpoints) opts.WebhookSecrets[ep.Url] = ep.Secret;
+            opts.WebhookEnabledEvents = data.EnabledEvents;
+
             return webhook;
         });
 
