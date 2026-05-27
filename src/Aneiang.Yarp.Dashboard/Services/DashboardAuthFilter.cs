@@ -1,4 +1,3 @@
-using Aneiang.Yarp.Dashboard.Controllers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
@@ -9,7 +8,8 @@ namespace Aneiang.Yarp.Dashboard.Services;
 
 /// <summary>
 /// Async auth filter for Dashboard controllers.
-/// Skips login actions. Redirects browser to login; returns 401 JSON for API calls.
+/// Applies to all controllers in the <see cref="Aneiang.Yarp.Dashboard.Controllers"/> namespace.
+/// Skips login/logout actions. Redirects browser to login; returns 401 JSON for API calls.
 /// Uses IDashboardAuthorizationService for unified authorization check.
 /// </summary>
 internal sealed class DashboardAuthFilter : IAsyncAuthorizationFilter
@@ -25,17 +25,17 @@ internal sealed class DashboardAuthFilter : IAsyncAuthorizationFilter
 
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
-        // Only apply to Dashboard controllers
+        // Only apply to Dashboard controllers (all types in Aneiang.Yarp.Dashboard.Controllers namespace)
         if (context.ActionDescriptor is not ControllerActionDescriptor { ControllerTypeInfo: var ci })
             return;
 
-        var controllerType = ci.AsType();
-        if (controllerType != typeof(DashboardController) && controllerType != typeof(ConfigManagementController))
+        if (!ci.Namespace?.StartsWith("Aneiang.Yarp.Dashboard.Controllers", StringComparison.Ordinal) == true)
             return;
 
-        // Skip login actions - they are public
+        // Skip login/logout actions - they are public
         var actionName = ((ControllerActionDescriptor)context.ActionDescriptor).ActionName;
-        if (string.Equals(actionName, "Login", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(actionName, "Login", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionName, "Logout", StringComparison.OrdinalIgnoreCase))
             return;
 
         // Use authorization service for unified check

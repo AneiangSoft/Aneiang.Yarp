@@ -45,14 +45,76 @@ public class DashboardController : Controller
         _options = options.Value;
     }
 
-    /// <summary>Dashboard home page.</summary>
-    [HttpGet("")]
-    public IActionResult Index()
+    private void SetCommonViewBag(string? currentPage = null)
     {
         ViewBag.DashboardRoutePrefix = RoutePrefix;
         ViewBag.EnableProxyLogging = _options.EnableProxyLogging;
         ViewBag.Locale = ResolveLocale();
         ViewBag.AllI18nJson = DashboardI18n.AllAsJson(ViewBag.Locale);
+        ViewBag.CurrentPage = currentPage ?? "overview";
+    }
+
+    /// <summary>Dashboard overview page.</summary>
+    [HttpGet("")]
+    public IActionResult Overview()
+    {
+        SetCommonViewBag("overview");
+        return View();
+    }
+
+    /// <summary>Dashboard clusters page.</summary>
+    [HttpGet("clusters")]
+    public IActionResult Clusters()
+    {
+        SetCommonViewBag("clusters");
+        return View();
+    }
+
+    /// <summary>Dashboard routes page.</summary>
+    [HttpGet("routes")]
+    public IActionResult Routes()
+    {
+        SetCommonViewBag("routes");
+        return View();
+    }
+
+    /// <summary>Dashboard logs page.</summary>
+    [HttpGet("logs")]
+    public IActionResult Logs()
+    {
+        SetCommonViewBag("logs");
+        return View();
+    }
+
+    /// <summary>Dashboard statistics page.</summary>
+    [HttpGet("stats")]
+    public IActionResult Stats()
+    {
+        SetCommonViewBag("stats");
+        return View();
+    }
+
+    /// <summary>Dashboard configuration history page.</summary>
+    [HttpGet("history")]
+    public IActionResult History()
+    {
+        SetCommonViewBag("history");
+        return View();
+    }
+
+    /// <summary>Dashboard audit log page.</summary>
+    [HttpGet("audit")]
+    public IActionResult Audit()
+    {
+        SetCommonViewBag("audit");
+        return View();
+    }
+
+    /// <summary>Dashboard settings page (webhook, import/export, etc.).</summary>
+    [HttpGet("settings")]
+    public IActionResult Settings()
+    {
+        SetCommonViewBag("settings");
         return View();
     }
 
@@ -108,7 +170,7 @@ public class DashboardController : Controller
     }
 
     /// <summary>Gateway basic info.</summary>
-    [HttpGet("info")]
+    [HttpGet("api/info")]
     public IActionResult GetInfo()
     {
         var info = _infoQuery.GetInfo();
@@ -116,7 +178,7 @@ public class DashboardController : Controller
     }
 
     /// <summary>Cluster status and config.</summary>
-    [HttpGet("clusters")]
+    [HttpGet("api/clusters")]
     public IActionResult GetClusters()
     {
         var clusters = _clusterQuery.GetClusters();
@@ -124,7 +186,7 @@ public class DashboardController : Controller
     }
 
     /// <summary>Route configuration.</summary>
-    [HttpGet("routes")]
+    [HttpGet("api/routes")]
     public IActionResult GetRoutes()
     {
         var routes = _routeQuery.GetRoutes();
@@ -132,7 +194,7 @@ public class DashboardController : Controller
     }
 
     /// <summary>Recent YARP proxy logs.</summary>
-    [HttpGet("logs")]
+    [HttpGet("api/logs")]
     public IActionResult GetLogs([FromQuery] int count = 100)
     {
         var snapshot = _logQuery.GetLogs(count);
@@ -140,7 +202,7 @@ public class DashboardController : Controller
     }
 
     /// <summary>Clear all logs.</summary>
-    [HttpDelete("logs")]
+    [HttpDelete("api/logs")]
     public IActionResult ClearLogs()
     {
         _logQuery.ClearLogs();
@@ -148,7 +210,7 @@ public class DashboardController : Controller
     }
 
     /// <summary>Access statistics computed from the log buffer.</summary>
-    [HttpGet("stats")]
+    [HttpGet("api/stats")]
     public IActionResult GetStats()
     {
         var snapshot = _logQuery.GetLogs(2000);
@@ -229,7 +291,7 @@ public class DashboardController : Controller
     }
 
     /// <summary>Rate limiting configuration status.</summary>
-    [HttpGet("rate-limit")]
+    [HttpGet("api/rate-limit")]
     public IActionResult GetRateLimitStatus()
     {
         return Json(new { code = 200, data = new
@@ -242,7 +304,7 @@ public class DashboardController : Controller
     }
 
     /// <summary>Get current authorization status and mode.</summary>
-    [HttpGet("auth/status")]
+    [HttpGet("api/auth/status")]
     public IActionResult GetAuthStatus()
     {
         var authModeDescription = _authService.GetAuthModeDescription();

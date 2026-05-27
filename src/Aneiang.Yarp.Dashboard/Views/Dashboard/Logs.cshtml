@@ -1,0 +1,65 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Logs" : "日志";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<!-- Log panel -->
+<div id="log-panel" class="card-panel mb-3">
+    <div class="card-header">
+        <span><i class="bi bi-journal-text me-2"></i><span data-i18n="index.log.title">YARP 实时日志</span></span>
+        <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
+            <span class="refresh-badge" id="log-refresh-time"></span>
+            <span class="refresh-badge"><span data-i18n="index.log.showing">显示 </span><strong id="log-display-count">0</strong><span data-i18n="index.log.of"> / </span><span id="log-total-count">0</span><span data-i18n="index.log.entries"> 条</span></span>
+        </div>
+    </div>
+    
+    <!-- Filter toolbar container -->
+    <div id="log-filter-container"></div>
+    
+    <div style="max-height:600px;overflow-y:auto;" id="log-scroll-container">
+        <div id="log-entries" class="log-entries-container">
+            <div class="text-center text-muted py-4" data-i18n="index.log.empty">暂无日志</div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+@{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-logs.js?v=@v"></script>
+
+<script>
+    window.__dashboard = window.__dashboard || {};
+    var dash = window.__dashboard;
+    dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
+    dash.token = localStorage.getItem('dashboard_token');
+    dash.CURRENT_LOCALE = '@ViewBag.Locale';
+    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
+    dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
+    dash.currentPage = '@ViewBag.CurrentPage';
+</script>
+
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+
+        if (window.DashboardApp?.modules?.logs?.init) await DashboardApp.modules.logs.init();
+        if (window.DashboardApp?.modules?.logs?.loadLogs) await DashboardApp.modules.logs.loadLogs();
+
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

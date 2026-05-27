@@ -110,17 +110,8 @@
             }
         });
 
-        // Load module data on tab switch
-        document.addEventListener('dashboard:tabChanged', function(e) {
-            var tab = e.detail.tab;
-            if (tab === 'overview' && window.StatsModule) {
-                window.StatsModule.loadStats();
-            } else if (tab === 'history' && window.HistoryModule) {
-                window.HistoryModule.loadHistory();
-            } else if (tab === 'audit' && window.AuditModule) {
-                window.AuditModule.loadAuditLogs();
-            }
-        });
+        // Tab switching is now handled by server-side routing
+        // Each page auto-loads its own data in its @section Scripts
     };
 
     // ===== Event Registration =====
