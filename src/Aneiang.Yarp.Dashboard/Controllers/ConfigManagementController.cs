@@ -583,7 +583,8 @@ public class ConfigManagementController : ControllerBase
                 data = new
                 {
                     dingtalk = data.DingTalkEndpoints.Select(e => new { url = e.Url, secret = e.Secret }),
-                    generic = data.GenericEndpoints.Select(e => new { url = e.Url, secret = e.Secret })
+                    generic = data.GenericEndpoints.Select(e => new { url = e.Url, secret = e.Secret }),
+                    enabledEvents = data.EnabledEvents ?? []
                 }
             });
         }
@@ -648,6 +649,21 @@ public class ConfigManagementController : ControllerBase
                     }
                     data.GenericEndpoints = validEndpoints;
                 }
+            }
+
+            // Update enabled event types
+            if (request.EnabledEvents != null)
+            {
+                var allValidEvents = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "AddRoute", "UpdateRoute", "RemoveRoute",
+                    "AddCluster", "UpdateCluster", "RemoveCluster", "RenameCluster",
+                    "RollbackConfig"
+                };
+                var validEvents = request.EnabledEvents
+                    .Where(e => allValidEvents.Contains(e))
+                    .ToList();
+                data.EnabledEvents = validEvents.Count == allValidEvents.Count ? null : validEvents;
             }
 
             // Persist to file
@@ -745,6 +761,9 @@ public class ConfigManagementController : ControllerBase
             _dashboardOptions.WebhookSecrets[ep.Url] = ep.Secret;
         foreach (var ep in data.GenericEndpoints)
             _dashboardOptions.WebhookSecrets[ep.Url] = ep.Secret;
+
+        // Sync enabled events
+        _dashboardOptions.WebhookEnabledEvents = data.EnabledEvents;
     }
 
     private async Task<bool> SendTestWebhookAsync(string url, WebhookPayload payload, string? secret, string platform)

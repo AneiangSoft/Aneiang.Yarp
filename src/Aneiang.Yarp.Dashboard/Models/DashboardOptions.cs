@@ -273,4 +273,10 @@ public class DashboardOptions
     /// Value: platform-specific signing secret.
     /// </summary>
     public Dictionary<string, string?>? WebhookSecrets { get; set; }
+
+    /// <summary>
+    /// List of enabled webhook event types. When null or empty, all events trigger notifications.
+    /// Supported values: AddRoute, UpdateRoute, RemoveRoute, AddCluster, UpdateCluster, RemoveCluster, RenameCluster, RollbackConfig.
+    /// </summary>
+    public List<string>? WebhookEnabledEvents { get; set; }
 }

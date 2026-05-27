@@ -73,4 +73,10 @@ public class WebhookSettingsData
 
     /// <summary>Generic webhook endpoints (each with URL and optional secret).</summary>
     public List<WebhookEndpoint> GenericEndpoints { get; set; } = [];
+
+    /// <summary>
+    /// List of enabled webhook event types. When empty or null, all events are enabled (backward compatible).
+    /// Supported values: AddRoute, UpdateRoute, RemoveRoute, AddCluster, UpdateCluster, RemoveCluster, RenameCluster, RollbackConfig.
+    /// </summary>
+    public List<string>? EnabledEvents { get; set; }
 }

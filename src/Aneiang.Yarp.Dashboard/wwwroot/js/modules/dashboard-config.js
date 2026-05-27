@@ -337,6 +337,17 @@
             { key: 'generic', icon: 'bi-link-45deg', color: '#6366f1', bgGrad: 'linear-gradient(135deg,#6366f1,#818cf8)', placeholder: 'https://example.com/webhook' }
         ];
 
+        var allEventTypes = [
+            { key: 'AddRoute', group: 'route' },
+            { key: 'UpdateRoute', group: 'route' },
+            { key: 'RemoveRoute', group: 'route' },
+            { key: 'AddCluster', group: 'cluster' },
+            { key: 'UpdateCluster', group: 'cluster' },
+            { key: 'RemoveCluster', group: 'cluster' },
+            { key: 'RenameCluster', group: 'cluster' },
+            { key: 'RollbackConfig', group: 'config' }
+        ];
+
         function tabHtml(pd) {
             return `<button type="button" class="webhook-platform-tab btn btn-sm" data-platform="${pd.key}" data-active="false"
                 style="display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:13px;font-weight:500;cursor:pointer;transition:all 0.2s;"
@@ -408,6 +419,43 @@
 
         const sectionsHtml = platformDefs.map(sectionHtml).join('');
 
+        // Event types section HTML
+        var eventGroups = [
+            { key: 'route', label: __('webhook.events.routeGroup') || '路由变更', icon: 'bi-signpost-split', color: '#3b82f6' },
+            { key: 'cluster', label: __('webhook.events.clusterGroup') || '集群变更', icon: 'bi-hdd-network', color: '#8b5cf6' },
+            { key: 'config', label: __('webhook.events.configGroup') || '配置管理', icon: 'bi-gear', color: '#f59e0b' }
+        ];
+
+        function eventSectionHtml() {
+            var html = '<div style="padding:20px;background:#fafbfc;border-radius:12px;border:1px solid #e8ecf1;">';
+            html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">';
+            html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#10b981,#34d399);color:#fff;font-size:16px;">';
+            html += '<i class="bi bi-broadcast"></i></span>';
+            html += '<div><div style="font-weight:600;font-size:15px;color:#1e293b;">' + (__('webhook.events.title') || '通知事件') + '</div>';
+            html += '<small style="color:#64748b;font-size:12px;">' + (__('webhook.events.help') || '选择需要推送通知的事件类型') + '</small></div>';
+            html += '<div style="margin-left:auto;display:flex;gap:6px;">';
+            html += '<button type="button" id="webhook-events-select-all" style="padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:11px;cursor:pointer;font-weight:500;">' + (__('webhook.events.selectAll') || '全选') + '</button>';
+            html += '<button type="button" id="webhook-events-deselect-all" style="padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:11px;cursor:pointer;font-weight:500;">' + (__('webhook.events.deselectAll') || '全不选') + '</button>';
+            html += '</div></div>';
+
+            eventGroups.forEach(function(eg) {
+                html += '<div style="margin-bottom:12px;">';
+                html += '<div style="font-weight:600;font-size:13px;color:#1e293b;margin-bottom:6px;display:flex;align-items:center;gap:6px;">';
+                html += '<i class="' + eg.icon + '" style="color:' + eg.color + ';"></i>';
+                html += '<span>' + eg.label + '</span></div>';
+                html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+                allEventTypes.filter(function(e) { return e.group === eg.key; }).forEach(function(ev) {
+                    html += '<label style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:13px;color:#334155;transition:all 0.15s;user-select:none;" class="webhook-event-label" data-event-key="' + ev.key + '">';
+                    html += '<input type="checkbox" class="webhook-event-checkbox" data-event-key="' + ev.key + '" checked style="accent-color:#10b981;width:16px;height:16px;cursor:pointer;">';
+                    html += '<span>' + (__('webhook.events.' + ev.key) || ev.key) + '</span></label>';
+                });
+                html += '</div></div>';
+            });
+
+            html += '</div>';
+            return html;
+        }
+
         const modalHtml = `
             <div class="modal fade" id="${modalId}" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -426,6 +474,9 @@
                                 ${tabsHtml}
                             </div>
                             ${sectionsHtml}
+                            <div style="margin-top:16px;">
+                                ${eventSectionHtml()}
+                            </div>
                         </div>
                         <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
                             <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
@@ -449,6 +500,7 @@
         platformDefs.forEach(function(pd) {
             platformData[pd.key] = { endpoints: [] };
         });
+        var enabledEvents = []; // empty = all enabled
 
         window.DashboardConfig._switchWebhookTab = function(platform) {
             document.querySelectorAll('.webhook-platform-tab').forEach(function(tab) {
@@ -598,7 +650,13 @@
                     };
                 });
 
-                await window.DashboardApi.endpoints.saveWebhookSettings({ platforms: platforms });
+                // Collect enabled events
+                var checked = [];
+                document.querySelectorAll('.webhook-event-checkbox').forEach(function(cb) {
+                    if (cb.checked) checked.push(cb.dataset.eventKey);
+                });
+
+                await window.DashboardApi.endpoints.saveWebhookSettings({ platforms: platforms, enabledEvents: checked });
                 window.DashboardModals.showSuccess(__('webhook.saved'));
                 bsModal.hide();
             } catch (error) {
@@ -607,6 +665,32 @@
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>' + __('webhook.save');
             }
+        });
+
+        // Event select all / deselect all
+        document.getElementById('webhook-events-select-all').addEventListener('click', function() {
+            document.querySelectorAll('.webhook-event-checkbox').forEach(function(cb) { cb.checked = true; updateEventLabelStyle(cb); });
+        });
+        document.getElementById('webhook-events-deselect-all').addEventListener('click', function() {
+            document.querySelectorAll('.webhook-event-checkbox').forEach(function(cb) { cb.checked = false; updateEventLabelStyle(cb); });
+        });
+
+        // Style event checkboxes based on checked state
+        function updateEventLabelStyle(cb) {
+            var label = cb.closest('.webhook-event-label');
+            if (!label) return;
+            if (cb.checked) {
+                label.style.borderColor = '#10b981';
+                label.style.background = '#f0fdf4';
+            } else {
+                label.style.borderColor = '#e2e8f0';
+                label.style.background = '#fff';
+            }
+        }
+
+        document.querySelectorAll('.webhook-event-checkbox').forEach(function(cb) {
+            cb.addEventListener('change', function() { updateEventLabelStyle(this); });
+            updateEventLabelStyle(cb);
         });
 
         // Load existing settings
@@ -620,6 +704,15 @@
                 });
                 renderEndpointList(pd.key);
             });
+
+            // Load enabled events
+            var loadedEvents = data.enabledEvents || [];
+            if (loadedEvents.length > 0) {
+                document.querySelectorAll('.webhook-event-checkbox').forEach(function(cb) {
+                    cb.checked = loadedEvents.some(function(e) { return e === cb.dataset.eventKey; });
+                });
+            }
+
             var firstActive = platformDefs.find(function(pd) { return platformData[pd.key].endpoints.length > 0; });
             window.DashboardConfig._switchWebhookTab(firstActive ? firstActive.key : 'dingtalk');
         } catch (error) {

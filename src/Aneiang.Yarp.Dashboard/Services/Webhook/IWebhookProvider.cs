@@ -54,9 +54,24 @@ public class WebhookRequest
 /// </summary>
 public class WebhookPayload
 {
+    /// <summary>Machine-readable event type key (e.g. "AddRoute", "UpdateCluster").</summary>
     public string EventType { get; set; } = string.Empty;
+
+    /// <summary>Human-readable event label (e.g. "➕ 路由新增", "✏️ 集群更新").</summary>
+    public string EventLabel { get; set; } = string.Empty;
+
+    /// <summary>Target object of the change (route name, cluster ID, etc.).</summary>
     public string Target { get; set; } = string.Empty;
+
+    /// <summary>Who performed the operation.</summary>
     public string? Operator { get; set; }
+
+    /// <summary>UTC timestamp of the event.</summary>
     public DateTime Timestamp { get; set; }
+
+    /// <summary>Event-specific details object.</summary>
     public object? Details { get; set; }
+
+    /// <summary>Gateway display name (from DashboardOptions.Title).</summary>
+    public string? GatewayName { get; set; }
 }
