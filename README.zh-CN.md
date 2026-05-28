@@ -1,5 +1,5 @@
 <div align="center">
-<img src="Logo.png" alt="LOGO" width="360"/>
+<img src="Logo.png" alt="LOGO" width="240" style="border-radius: 15px;"/>
 
 **基于 YARP 的全功能 API 网关增强方案 — Dashboard、动态路由、自动注册、IP 隔离**
 
