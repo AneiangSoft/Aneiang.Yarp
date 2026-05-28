@@ -69,30 +69,29 @@
             // Render filter toolbar (only once, then update counts)
             this.renderFilterToolbar();
             
-            const tbody = window.DashboardDOM.safe('#cluster-tbody');
-            if (!tbody) {
-                console.error('[Clusters] tbody not found, cannot render');
-                return;
-            }
+            // Render cards view
+            this.renderClusterCards(clusters);
 
-            // Always clear tbody content, not the parent table
-            window.DashboardDOM.clear(tbody);
-            
-            if (clusters.length === 0) {
-                // Show empty state INSIDE tbody, not replacing it
-                const emptyRow = document.createElement('tr');
-                emptyRow.innerHTML = `
-                    <td colspan="9" class="text-center py-5">
-                        <div class="empty-state">
-                            <i class="bi bi-hdd-rack" style="font-size: 2.5rem; opacity: 0.4; color: #64748b;"></i>
-                            <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.cluster.empty')}</div>
-                            <div class="mt-2 text-muted small">${__('index.cluster.emptyHelp')}</div>
-                        </div>
-                    </td>
-                `; 
-                tbody.appendChild(emptyRow);
-            } else {
-                this.renderClusterRows(clusters, tbody);
+            // Render table view
+            const tbody = window.DashboardDOM.safe('#cluster-tbody');
+            if (tbody) {
+                window.DashboardDOM.clear(tbody);
+                
+                if (clusters.length === 0) {
+                    const emptyRow = document.createElement('tr');
+                    emptyRow.innerHTML = `
+                        <td colspan="7" class="text-center py-5">
+                            <div class="empty-state">
+                                <i class="bi bi-hdd-rack" style="font-size: 2.5rem; opacity: 0.4; color: #64748b;"></i>
+                                <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.cluster.empty')}</div>
+                                <div class="mt-2 text-muted small">${__('index.cluster.emptyHelp')}</div>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(emptyRow);
+                } else {
+                    this.renderClusterRows(clusters, tbody);
+                }
             }
 
             // Update refresh time
@@ -299,165 +298,219 @@
 
 
 
+        // ===== Render Cluster Cards =====
+        renderClusterCards: function(clusters) {
+            var container = document.getElementById('cluster-cards-view');
+            if (!container) return;
+
+            if (clusters.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:48px 0;">' +
+                    '<i class="bi bi-hdd-rack" style="font-size:2.5rem;opacity:0.4;color:#64748b;display:block;margin-bottom:12px;"></i>' +
+                    '<div style="font-size:14px;color:#64748b;">' + __('index.cluster.empty') + '</div>' +
+                    '<div style="font-size:12px;color:#94a3b8;margin-top:6px;">' + __('index.cluster.emptyHelp') + '</div></div>';
+                return;
+            }
+
+            var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:16px;">';
+
+            clusters.forEach(function(cluster) {
+                var destinations = cluster.destinations || [];
+                var overallHealth = 'unknown';
+                if (cluster.healthyCount > 0) overallHealth = 'healthy';
+                else if (cluster.unhealthyCount > 0) overallHealth = 'unhealthy';
+
+                var borderColor = overallHealth === 'healthy' ? '#22c55e' : overallHealth === 'unhealthy' ? '#ef4444' : '#94a3b8';
+                var healthIcon = overallHealth === 'healthy' ? 'bi-heart-pulse-fill' : overallHealth === 'unhealthy' ? 'bi-heart-pulse-fill' : 'bi-heart-pulse';
+                var healthColor = overallHealth === 'healthy' ? '#22c55e' : overallHealth === 'unhealthy' ? '#ef4444' : '#94a3b8';
+                var healthLabel = overallHealth === 'healthy' ? __('index.cluster.health.healthy') : overallHealth === 'unhealthy' ? __('index.cluster.health.unhealthy') : __('index.cluster.health.unknown');
+
+                html += '<div style="border:1px solid var(--border-color);border-left:4px solid ' + borderColor +
+                    ';border-radius:12px;background:var(--card-bg);overflow:hidden;transition:box-shadow 0.2s,transform 0.15s;cursor:pointer;"' +
+                    ' onmouseover="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.08)\';this.style.transform=\'translateY(-1px)\'"' +
+                    ' onmouseout="this.style.boxShadow=\'none\';this.style.transform=\'none\'"' +
+                    ' onclick="window.DashboardApp.modules.clusters.toggleCluster(\'' + (cluster.clusterId || '').replace(/'/g, "\\'") + '\')"' +
+                    ' data-cluster-id="' + (cluster.clusterId || '') + '">';
+
+                // Card header
+                html += '<div style="padding:14px 16px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;gap:8px;">';
+                html += '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">';
+                html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#60a5fa);color:#fff;font-size:15px;flex-shrink:0;"><i class="bi bi-hdd-stack"></i></span>';
+                html += '<div style="min-width:0;flex:1;">';
+                html += '<div style="font-weight:600;font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(cluster.clusterId) : cluster.clusterId) + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(cluster.clusterId) : cluster.clusterId) + '</div>';
+                html += '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;">';
+                html += '<span>' + (window.DashboardUtils ? DashboardUtils.createSourceBadge(cluster.source) : cluster.source || '-') + '</span>';
+                html += '<span style="color:#cbd5e1;">|</span>';
+                html += '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:' + healthColor + ';"><i class="bi ' + healthIcon + '"></i>' + healthLabel + '</span>';
+                html += '</div></div></div>';
+
+                // Action buttons
+                html += '<div style="display:flex;gap:4px;flex-shrink:0;" onclick="event.stopPropagation()">';
+                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--primary-color);transition:background 0.15s;" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.clusters.showEditModal(\'' + (cluster.clusterId || '').replace(/'/g, "\\'") + '\')" title="' + __('index.cluster.edit') + '"><i class="bi bi-pencil"></i></button>';
+                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:#ef4444;transition:background 0.15s;" onmouseover="this.style.background=\'#fef2f2\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.clusters.deleteCluster(\'' + (cluster.clusterId || '').replace(/'/g, "\\'") + '\')" title="' + __('index.cluster.delete') + '"><i class="bi bi-trash"></i></button>';
+                html += '</div></div>';
+
+                // Destinations
+                html += '<div style="padding:12px 16px;">';
+                if (destinations.length === 0) {
+                    html += '<div style="text-align:center;padding:16px 0;color:#94a3b8;font-size:13px;"><i class="bi bi-inbox me-1"></i>' + __('index.cluster.noDestinations') + '</div>';
+                } else {
+                    html += '<div style="display:flex;flex-direction:column;gap:8px;">';
+                    destinations.forEach(function(dest) {
+                        var ah = dest.activeHealth || 'Unknown';
+                        var ph = dest.passiveHealth || 'Unknown';
+                        var ahColor = ah === 'Healthy' ? '#22c55e' : ah === 'Unhealthy' ? '#ef4444' : '#94a3b8';
+                        var phColor = ph === 'Healthy' ? '#22c55e' : ph === 'Unhealthy' ? '#ef4444' : '#94a3b8';
+
+                        html += '<div style="background:var(--bg-secondary,#f8fafc);border:1px solid var(--border-color);border-radius:8px;padding:10px 12px;">';
+                        html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">';
+                        html += '<div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;">';
+                        html += '<i class="bi bi-robot" style="color:#6366f1;font-size:13px;flex-shrink:0;"></i>';
+                        html += '<code style="font-size:12px;color:var(--text-secondary);flex-shrink:0;">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(dest.name || '-') : dest.name || '-') + '</code>';
+                        html += '<span style="font-size:12px;color:var(--text-secondary);font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(dest.address || '') : dest.address || '') + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(dest.address || '-') : dest.address || '-') + '</span>';
+                        html += '</div>';
+                        html += '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">';
+                        html += '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:500;background:' + (ah === 'Healthy' ? '#f0fdf4' : ah === 'Unhealthy' ? '#fef2f2' : '#f8fafc') + ';color:' + ahColor + ';border:1px solid ' + (ah === 'Healthy' ? '#bbf7d0' : ah === 'Unhealthy' ? '#fecaca' : '#e2e8f0') + ';"><i class="bi bi-activity"></i>' + ah + '</span>';
+                        html += '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:500;background:' + (ph === 'Healthy' ? '#f0fdf4' : ph === 'Unhealthy' ? '#fef2f2' : '#f8fafc') + ';color:' + phColor + ';border:1px solid ' + (ph === 'Healthy' ? '#bbf7d0' : ph === 'Unhealthy' ? '#fecaca' : '#e2e8f0') + ';"><i class="bi bi-shield-check"></i>' + ph + '</span>';
+                        html += '</div></div></div>';
+                    });
+                    html += '</div>';
+                }
+
+                // Footer
+                html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-color);">';
+                html += '<span style="font-size:11px;color:#64748b;"><i class="bi bi-nodes me-1"></i>' + destinations.length + ' ' + (__('index.cluster.destCount') || '节点') + '</span>';
+                html += '<span style="font-size:11px;color:#64748b;"><i class="bi bi-sliders me-1"></i>' + (cluster.loadBalancingPolicy || 'RoundRobin') + '</span>';
+                html += '</div>';
+
+                html += '</div></div>';
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        },
+
         // ===== Render Cluster Rows =====
         renderClusterRows: function(clusters, tbody) {
             window.DashboardDOM.clear(tbody);
 
-            const fragment = document.createDocumentFragment();
+            var fragment = document.createDocumentFragment();
 
-            clusters.forEach(cluster => {
-                const isExpanded = (window.DashboardState.get('ui.expandedClusters') || new Set()).has(cluster.clusterId);
-                const rows = this.createClusterRows(cluster, isExpanded);
-                rows.forEach(row => fragment.appendChild(row));
-            });
+            clusters.forEach(function(cluster) {
+                var isExpanded = (window.DashboardState.get('ui.expandedClusters') || new Set()).has(cluster.clusterId);
+                var rows = this.createClusterRows(cluster, isExpanded);
+                rows.forEach(function(row) { fragment.appendChild(row); });
+            }.bind(this));
 
             tbody.appendChild(fragment);
         },
 
         // ===== Create Cluster Rows =====
         createClusterRows: function(cluster, isExpanded) {
-            const rows = [];
-            const destinations = cluster.destinations || []; 
-            const rowspan = destinations.length || 1;
+            var rows = [];
+            var destinations = cluster.destinations || [];
 
-            // Determine overall health status for color bar
-            let overallHealth = 'Unknown';
+            // Determine overall health status
+            var overallHealth = 'Unknown';
             if (cluster.healthyCount > 0) overallHealth = 'Healthy';
             else if (cluster.unhealthyCount > 0) overallHealth = 'Unhealthy';
-                    
-            destinations.forEach((dest, index) => {
-                const tr = window.DashboardDOM.create('tr', {
-                    className: `cluster-row health-${overallHealth.toLowerCase()}`,
-                    attributes: index === 0 ? { 'data-cluster-id': cluster.clusterId } : {},
-                    style: { cursor: 'pointer' }
-                });
 
-                // Expand column (first row only)
-                if (index === 0) {
-                    const tdExpand = window.DashboardDOM.create('td', {
-                        attributes: { rowspan: rowspan },
-                        style: { verticalAlign: 'middle', textAlign: 'center' }
-                    });
-                    const expandIcon = window.DashboardDOM.create('i', {
-                        className: `bi bi-chevron-right row-expand-icon ${isExpanded ? 'expanded' : ''}`
-                    });
-                    tdExpand.appendChild(expandIcon);
-                    tr.appendChild(tdExpand);
-                }
-
-                // Cluster name column (first row only) - with copy button
-                if (index === 0) {
-                    const tdCluster = window.DashboardDOM.create('td', {
-                        attributes: { rowspan: rowspan },
-                        style: {
-                            fontWeight: '600',
-                            verticalAlign: 'middle',
-                            overflow: 'hidden'
-                        }
-                    });
-
-                    const nameWrapper = window.DashboardDOM.create('div', {
-                        className: 'cell-with-copy'
-                    });
-                    const nameSpan = window.DashboardDOM.create('span', {
-                        className: 'cell-text',
-                        textContent: cluster.clusterId,
-                        attributes: { title: cluster.clusterId }
-                    });
-                    const copyBtn = this.createCopyButton(cluster.clusterId);
-                    nameWrapper.appendChild(nameSpan);
-                    nameWrapper.appendChild(copyBtn);
-                    tdCluster.appendChild(nameWrapper);
-
-                    // Click to expand
-                    tr.addEventListener('click', (e) => {
-                        if (e.target.closest('.copy-btn')) return;
-                        this.toggleCluster(cluster.clusterId);
-                    });
-
-                    tr.appendChild(tdCluster);
-                }
-
-                // Source column (first row only)
-                if (index === 0) {
-                    const tdSource = window.DashboardDOM.create('td', {
-                        attributes: { rowspan: rowspan },
-                        style: { verticalAlign: 'middle' }
-                    });
-                    const sourceBadgeSpan = window.DashboardDOM.create('span', {});
-                    sourceBadgeSpan.innerHTML = this.createSourceBadge(cluster.source);
-                    tdSource.appendChild(sourceBadgeSpan);
-                    tr.appendChild(tdSource);
-                }
-
-                // Destination name
-                const tdName = window.DashboardDOM.create('td', {});
-                const code = window.DashboardDOM.create('code', {
-                    textContent: dest.name || '-'
-                });
-                tdName.appendChild(code);
-                tr.appendChild(tdName);
-
-                // Destination address - with copy button
-                const tdAddress = window.DashboardDOM.create('td', {
-                    style: { overflow: 'hidden' }
-                });
-                const addrWrapper = window.DashboardDOM.create('div', {
-                    className: 'cell-with-copy'
-                });
-                const addrText = window.DashboardDOM.create('span', {
-                    className: 'cell-text'
-                });
-                if (dest.address) {
-                    const link = window.DashboardDOM.create('a', {
-                        textContent: dest.address,
-                        attributes: { href: dest.address, target: '_blank', title: dest.address },
-                        style: { textDecoration: 'none', color: '#0ea5e9' }
-                    });
-                    addrText.appendChild(link);
-                } else {
-                    addrText.textContent = '-';
-                }
-                const addrCopyBtn = this.createCopyButton(dest.address || '');
-                addrWrapper.appendChild(addrText);
-                addrWrapper.appendChild(addrCopyBtn);
-                tdAddress.appendChild(addrWrapper);
-                tr.appendChild(tdAddress);
-
-                // Active health
-                const tdActive = window.DashboardDOM.create('td', {});
-                tdActive.appendChild(this.createHealthBadge(dest.activeHealth || 'Unknown'));
-                tr.appendChild(tdActive);
-
-                // Passive health
-                const tdPassive = window.DashboardDOM.create('td', {});
-                tdPassive.appendChild(this.createHealthBadge(dest.passiveHealth || 'Unknown'));
-                tr.appendChild(tdPassive);
-
-                // Load balancing policy (only on first row)
-                if (index === 0) {
-                    const tdPolicy = window.DashboardDOM.create('td', {
-                        attributes: { rowspan: rowspan },
-                        style: { verticalAlign: 'middle' }
-                    });
-                    tdPolicy.appendChild(this.createPolicyBadge(cluster.loadBalancingPolicy));
-                    tr.appendChild(tdPolicy);
-
-                    // Actions (only on first row)
-                    const tdActions = window.DashboardDOM.create('td', {
-                        attributes: { rowspan: rowspan },
-                        style: { verticalAlign: 'middle' }
-                    });
-                    tdActions.appendChild(this.createActionButtons(cluster));
-                    tr.appendChild(tdActions);
-                }
-
-                rows.push(tr);
+            // --- Cluster main row ---
+            var headerTr = window.DashboardDOM.create('tr', {
+                className: 'cluster-row health-' + overallHealth.toLowerCase(),
+                attributes: { 'data-cluster-id': cluster.clusterId },
+                style: { cursor: 'pointer' }
             });
 
+            // Expand icon
+            var tdExpand = window.DashboardDOM.create('td', {
+                style: { width: '38px', verticalAlign: 'middle', textAlign: 'center' }
+            });
+            var expandIcon = window.DashboardDOM.create('i', {
+                className: 'bi bi-chevron-right row-expand-icon' + (isExpanded ? ' expanded' : '')
+            });
+            tdExpand.appendChild(expandIcon);
+            headerTr.appendChild(tdExpand);
+
+            // Cluster name
+            var tdName = window.DashboardDOM.create('td', {
+                style: { overflow: 'hidden' }
+            });
+            var nameDiv = document.createElement('div');
+            nameDiv.style.cssText = 'display:flex;align-items:center;gap:6px;';
+            var nameStrong = document.createElement('strong');
+            nameStrong.style.cssText = 'font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+            nameStrong.textContent = cluster.clusterId;
+            nameStrong.title = cluster.clusterId;
+            nameDiv.appendChild(nameStrong);
+            var nameCopyBtn = this.createCopyButton(cluster.clusterId);
+            nameDiv.appendChild(nameCopyBtn);
+            tdName.appendChild(nameDiv);
+            headerTr.appendChild(tdName);
+
+            // Source
+            var tdSource = window.DashboardDOM.create('td', {
+                style: { width: '90px', verticalAlign: 'middle' }
+            });
+            var sourceSpan = document.createElement('span');
+            sourceSpan.innerHTML = this.createSourceBadge(cluster.source);
+            tdSource.appendChild(sourceSpan);
+            headerTr.appendChild(tdSource);
+
+            // Health
+            var tdHealth = window.DashboardDOM.create('td', {
+                style: { width: '90px', verticalAlign: 'middle' }
+            });
+            var healthColors = { 'Healthy': '#22c55e', 'Unhealthy': '#ef4444', 'Unknown': '#94a3b8' };
+            var healthLabels = {
+                'Healthy': __('index.cluster.health.healthy'),
+                'Unhealthy': __('index.cluster.health.unhealthy'),
+                'Unknown': __('index.cluster.health.unknown')
+            };
+            var healthDiv = document.createElement('div');
+            healthDiv.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:13px;color:' + (healthColors[overallHealth] || '#94a3b8') + ';';
+            var dotSpan = document.createElement('span');
+            dotSpan.className = 'health-dot ' + overallHealth.toLowerCase();
+            healthDiv.appendChild(dotSpan);
+            healthDiv.appendChild(document.createTextNode(healthLabels[overallHealth] || overallHealth));
+            tdHealth.appendChild(healthDiv);
+            headerTr.appendChild(tdHealth);
+
+            // Dest count
+            var tdCount = window.DashboardDOM.create('td', {
+                style: { width: '80px', verticalAlign: 'middle', textAlign: 'center' }
+            });
+            tdCount.textContent = destinations.length;
+            headerTr.appendChild(tdCount);
+
+            // Policy
+            var tdPolicy = window.DashboardDOM.create('td', {
+                style: { width: '110px', verticalAlign: 'middle' }
+            });
+            var policyBadge = document.createElement('span');
+            policyBadge.className = 'badge bg-light text-dark';
+            policyBadge.style.cssText = 'font-size:12px;font-weight:500;';
+            policyBadge.textContent = cluster.loadBalancingPolicy || 'RoundRobin';
+            tdPolicy.appendChild(policyBadge);
+            headerTr.appendChild(tdPolicy);
+
+            // Actions
+            var tdActions = window.DashboardDOM.create('td', {
+                style: { width: '80px', verticalAlign: 'middle', textAlign: 'center' }
+            });
+            tdActions.appendChild(this.createActionButtons(cluster));
+            headerTr.appendChild(tdActions);
+
+            // Click to expand
+            headerTr.addEventListener('click', function(e) {
+                if (e.target.closest('.copy-btn') || e.target.closest('.btn-group')) return;
+                this.toggleCluster(cluster.clusterId);
+            }.bind(this));
+
+            rows.push(headerTr);
+
             // Expanded detail row
-            if (isExpanded && destinations.length > 0) {
-                const detailTr = this.createClusterDetailRow(cluster);
+            if (isExpanded) {
+                var detailTr = this.createClusterDetailRow(cluster);
                 rows.push(detailTr);
             }
 
@@ -546,7 +599,7 @@
             });
 
             const td = window.DashboardDOM.create('td', {
-                attributes: { colspan: '9' }
+                attributes: { colspan: '7' }
             });
 
             const detailHtml = [];
@@ -805,46 +858,32 @@
             const state = window.DashboardState;
             const expandedSet = state.get('ui.expandedClusters');
             const current = expandedSet ? expandedSet.has(clusterId) : false;
-            
+
             // Update state
             if (current) {
                 expandedSet.delete(clusterId);
             } else {
                 expandedSet.add(clusterId);
             }
-            
-            // Direct DOM manipulation for better performance
-            // Find the first row of this cluster (with data-cluster-id attribute)
-            const clusterRow = document.querySelector(`.cluster-row[data-cluster-id="${CSS.escape(clusterId)}"]`);
-            if (clusterRow) {
+
+            // Find the cluster row
+            const headerRow = document.querySelector('.cluster-row[data-cluster-id="' + CSS.escape(clusterId) + '"]');
+            if (headerRow) {
                 // Update expand icon
-                const expandIcon = clusterRow.querySelector('.row-expand-icon');
+                const expandIcon = headerRow.querySelector('.row-expand-icon');
                 if (expandIcon) {
                     expandIcon.classList.toggle('expanded', !current);
                 }
-                
-                // Find all rows belonging to this cluster (rows following the first row until next cluster or end)
-                const clusterRows = [clusterRow];
-                let nextRow = clusterRow.nextElementSibling;
-                while (nextRow && nextRow.classList.contains('cluster-row') && !nextRow.hasAttribute('data-cluster-id')) {
-                    clusterRows.push(nextRow);
-                    nextRow = nextRow.nextElementSibling;
-                }
-                
-                // The last row is either a detail row or the last destination row
-                const lastRow = clusterRows[clusterRows.length - 1];
-                const existingDetailRow = lastRow.nextElementSibling;
-                
-                // Check if there's already a detail row
-                if (existingDetailRow && existingDetailRow.classList.contains('cluster-detail-row')) {
-                    // Remove existing detail row
-                    existingDetailRow.remove();
+
+                // Check if next row is a detail row
+                var detailRow = headerRow.nextElementSibling;
+                if (detailRow && detailRow.classList.contains('cluster-detail-row')) {
+                    detailRow.remove();
                 } else if (!current) {
-                    // Add detail row after the last cluster row
-                    const cluster = state.get('data.clusters').find(c => c.clusterId === clusterId);
+                    var cluster = state.get('data.clusters').find(function(c) { return c.clusterId === clusterId; });
                     if (cluster) {
-                        const detailTr = this.createClusterDetailRow(cluster);
-                        lastRow.after(detailTr);
+                        var detailTr = this.createClusterDetailRow(cluster);
+                        headerRow.after(detailTr);
                     }
                 }
             }
