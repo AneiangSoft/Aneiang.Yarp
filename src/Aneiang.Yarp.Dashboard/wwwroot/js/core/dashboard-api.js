@@ -260,7 +260,19 @@
         // Webhook Settings
         getWebhookSettings: () => DashboardApi.get('/api/config/webhook'),
         saveWebhookSettings: (data) => DashboardApi.put('/api/config/webhook', data),
-        testWebhook: (data) => DashboardApi.post('/api/config/webhook/test', data)
+        testWebhook: (data) => DashboardApi.post('/api/config/webhook/test', data),
+
+        // Health Check
+        getHealthCheckStatus: () => DashboardApi.get('/api/health-check/status'),
+        getClusterHealthConfigs: () => DashboardApi.get('/api/health-check/clusters'),
+
+        // Metrics
+        getMetrics: (options = {}) => DashboardApi.request('/api/metrics', { parseJson: false, ...options }),
+
+        // Response Cache
+        getCacheStats: () => DashboardApi.get('/api/response-cache/stats'),
+        clearCache: () => DashboardApi.delete('/api/response-cache'),
+        invalidateRouteCache: (routeId) => DashboardApi.delete(`/api/response-cache/routes/${encodeURIComponent(routeId)}`)
     };
 
 })();

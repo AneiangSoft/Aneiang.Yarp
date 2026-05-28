@@ -203,7 +203,8 @@ public class DynamicYarpConfigService
                 Destinations = dynCluster.Destinations.ToDictionary(
                     d => d.Key,
                     d => new DestinationConfig { Address = d.Value }),
-                LoadBalancingPolicy = dynCluster.LoadBalancingPolicy
+                LoadBalancingPolicy = dynCluster.LoadBalancingPolicy,
+                HealthCheck = BuildClusterHealthCheck(dynCluster.HealthCheck)
             };
 
             if (existingIdx >= 0)
@@ -218,7 +219,7 @@ public class DynamicYarpConfigService
     /// <summary>
     /// Save dynamic configuration to persistence file synchronously (startup only).
     /// </summary>
-    private void SaveDynamicConfigSync()
+    internal void SaveDynamicConfigSync()
     {
         if (_dynamicConfig == null)
             _dynamicConfig = new GatewayDynamicConfig();
@@ -351,7 +352,8 @@ public class DynamicYarpConfigService
                     {
                         ClusterId = request.ClusterName,
                         Destinations = destinations,
-                        LoadBalancingPolicy = existingCluster.LoadBalancingPolicy ?? "IpBased"
+                        LoadBalancingPolicy = existingCluster.LoadBalancingPolicy ?? "IpBased",
+                        HealthCheck = existingCluster.HealthCheck
                     };
                 }
                 else
@@ -367,7 +369,8 @@ public class DynamicYarpConfigService
                                 Metadata = new Dictionary<string, string> { { "ClientIp", request.ClientIp } }
                             }
                         },
-                        LoadBalancingPolicy = "IpBased"
+                        LoadBalancingPolicy = "IpBased",
+                        HealthCheck = BuildClusterHealthCheck(null)
                     });
                 }
 
@@ -386,13 +389,15 @@ public class DynamicYarpConfigService
                     // Cluster already exists - only update if we have a valid destination address
                     if (!string.IsNullOrWhiteSpace(request.DestinationAddress))
                     {
+                        var existingCluster = newClusters[existingClusterIdx];
                         newClusters[existingClusterIdx] = new ClusterConfig
                         {
                             ClusterId = request.ClusterName,
                             Destinations = new Dictionary<string, DestinationConfig>
                             {
                                 ["d1"] = new() { Address = request.DestinationAddress }
-                            }
+                            },
+                            HealthCheck = existingCluster.HealthCheck
                         };
                     }
                     // else: keep the existing cluster unchanged
@@ -413,7 +418,8 @@ public class DynamicYarpConfigService
                         Destinations = new Dictionary<string, DestinationConfig>
                         {
                             ["d1"] = new() { Address = request.DestinationAddress }
-                        }
+                        },
+                        HealthCheck = null
                     });
                 }
             }
@@ -701,7 +707,8 @@ public class DynamicYarpConfigService
                 Destinations = destinations.ToDictionary(
                     d => d.Key,
                     d => new DestinationConfig { Address = d.Value }),
-                LoadBalancingPolicy = loadBalancingPolicy
+                LoadBalancingPolicy = loadBalancingPolicy,
+                HealthCheck = BuildClusterHealthCheck(healthCheck)
             };
 
             var existingClusterIdx = newClusters.FindIndex(c =>
@@ -917,7 +924,8 @@ public class DynamicYarpConfigService
             {
                 ClusterId = newClusterId,
                 Destinations = destinations.ToDictionary(d => d.Key, d => new DestinationConfig { Address = d.Value }),
-                LoadBalancingPolicy = loadBalancingPolicy
+                LoadBalancingPolicy = loadBalancingPolicy,
+                HealthCheck = BuildClusterHealthCheck(healthCheck)
             };
             newClusters.Add(newCluster);
 
@@ -1061,7 +1069,16 @@ public class DynamicYarpConfigService
                 Destinations = request.Destinations.ToDictionary(
                     d => d.Key,
                     d => new DestinationConfig { Address = d.Value }),
-                LoadBalancingPolicy = request.LoadBalancingPolicy
+                LoadBalancingPolicy = request.LoadBalancingPolicy,
+                HealthCheck = BuildClusterHealthCheck(request.HealthCheck != null ? new Models.HealthCheckConfig
+                {
+                    Active = request.HealthCheck.Active?.Enabled ?? false,
+                    Endpoint = request.HealthCheck.Active?.Path,
+                    Passive = request.HealthCheck.Passive?.Enabled ?? false,
+                    PassivePolicy = request.HealthCheck.Passive?.Policy,
+                    PassiveReactivationPeriod = TimeSpan.TryParse(request.HealthCheck.Passive?.ReactivationPeriod, out var rp) ? rp : TimeSpan.FromSeconds(30),
+                    AvailableDestinationsPolicy = request.HealthCheck.AvailableDestinationsPolicy
+                } : null)
             };
 
             newClusters.Add(clusterConfig);
@@ -1077,7 +1094,11 @@ public class DynamicYarpConfigService
                 HealthCheck = request.HealthCheck != null ? new Aneiang.Yarp.Models.HealthCheckConfig
                 {
                     Active = request.HealthCheck.Active?.Enabled ?? false,
-                    Endpoint = request.HealthCheck.Active?.Path
+                    Endpoint = request.HealthCheck.Active?.Path,
+                    Passive = request.HealthCheck.Passive?.Enabled ?? false,
+                    PassivePolicy = request.HealthCheck.Passive?.Policy,
+                    PassiveReactivationPeriod = TimeSpan.TryParse(request.HealthCheck.Passive?.ReactivationPeriod, out var rp2) ? rp2 : TimeSpan.FromSeconds(30),
+                    AvailableDestinationsPolicy = request.HealthCheck.AvailableDestinationsPolicy
                 } : null,
                 Source = source,
                 CreatedAt = DateTime.UtcNow,
@@ -1137,7 +1158,18 @@ public class DynamicYarpConfigService
                 Destinations = request.Destinations?.ToDictionary(
                     d => d.Key,
                     d => new DestinationConfig { Address = d.Value }) ?? existing.Destinations,
-                LoadBalancingPolicy = request.LoadBalancingPolicy ?? existing.LoadBalancingPolicy
+                LoadBalancingPolicy = request.LoadBalancingPolicy ?? existing.LoadBalancingPolicy,
+                HealthCheck = request.HealthCheck != null
+                    ? BuildClusterHealthCheck(new Models.HealthCheckConfig
+                    {
+                        Active = request.HealthCheck.Active?.Enabled ?? false,
+                        Endpoint = request.HealthCheck.Active?.Path,
+                        Passive = request.HealthCheck.Passive?.Enabled ?? false,
+                        PassivePolicy = request.HealthCheck.Passive?.Policy,
+                        PassiveReactivationPeriod = TimeSpan.TryParse(request.HealthCheck.Passive?.ReactivationPeriod, out var rp) ? rp : TimeSpan.FromSeconds(30),
+                        AvailableDestinationsPolicy = request.HealthCheck.AvailableDestinationsPolicy
+                    })
+                    : existing.HealthCheck
             };
 
             newClusters[existingIdx] = updated;
@@ -1157,7 +1189,11 @@ public class DynamicYarpConfigService
                     dynCluster.HealthCheck = new Aneiang.Yarp.Models.HealthCheckConfig
                     {
                         Active = request.HealthCheck.Active?.Enabled ?? false,
-                        Endpoint = request.HealthCheck.Active?.Path
+                        Endpoint = request.HealthCheck.Active?.Path,
+                        Passive = request.HealthCheck.Passive?.Enabled ?? false,
+                        PassivePolicy = request.HealthCheck.Passive?.Policy,
+                        PassiveReactivationPeriod = TimeSpan.TryParse(request.HealthCheck.Passive?.ReactivationPeriod, out var rp3) ? rp3 : TimeSpan.FromSeconds(30),
+                        AvailableDestinationsPolicy = request.HealthCheck.AvailableDestinationsPolicy
                     };
                 }
             }
@@ -1184,6 +1220,72 @@ public class DynamicYarpConfigService
         if (_dynamicConfig == null)
         {
             _dynamicConfig = new GatewayDynamicConfig();
+        }
+    }
+
+    /// <summary>
+    /// Build YARP HealthCheckConfig from our internal HealthCheckConfig model.
+    /// </summary>
+    private static global::Yarp.ReverseProxy.Configuration.HealthCheckConfig? BuildClusterHealthCheck(Models.HealthCheckConfig? config)
+    {
+        if (config == null) return null;
+
+        var result = new global::Yarp.ReverseProxy.Configuration.HealthCheckConfig
+        {
+            Active = config.Active
+                ? new global::Yarp.ReverseProxy.Configuration.ActiveHealthCheckConfig
+                {
+                    Enabled = true,
+                    Interval = config.Interval,
+                    Timeout = config.Timeout,
+                    Path = config.Endpoint ?? "/health"
+                }
+                : null,
+            Passive = config.Passive
+                ? new global::Yarp.ReverseProxy.Configuration.PassiveHealthCheckConfig
+                {
+                    Enabled = true,
+                    Policy = config.PassivePolicy ?? "ConsecutiveFailures",
+                    ReactivationPeriod = config.PassiveReactivationPeriod
+                }
+                : null,
+            AvailableDestinationsPolicy = config.AvailableDestinationsPolicy ?? null
+        };
+
+        return result;
+    }
+
+    /// <summary>
+    /// Reapply dynamic configuration to YARP.
+    /// Called after programmatic modifications to the dynamic config object.
+    /// </summary>
+    public void RefreshConfig()
+    {
+        _rwLock.EnterWriteLock();
+        try
+        {
+            ApplyDynamicConfigToYarp();
+        }
+        finally
+        {
+            _rwLock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>
+    /// Save dynamic configuration to persistence file.
+    /// Called after programmatic modifications to the dynamic config object.
+    /// </summary>
+    public async Task SaveDynamicConfig()
+    {
+        _rwLock.EnterWriteLock();
+        try
+        {
+            await SaveDynamicConfigAsync();
+        }
+        finally
+        {
+            _rwLock.ExitWriteLock();
         }
     }
 

@@ -1472,15 +1472,24 @@
             </a>
         </div>
         
-        @if (ViewBag.EnableProxyLogging != false)
-        {
         <div class="nav-section">
             <div class="section-title" data-i18n="layout.section.diag">诊断</div>
+            @if (ViewBag.EnableProxyLogging != false)
+            {
             <a class="nav-link @(currentPage == "logs" ? "active" : "")" href="/@prefix/logs">
                 <i class="bi bi-journal-text"></i> <span data-i18n="layout.tab.logs">日志</span>
             </a>
+            }
+            <a class="nav-link @(currentPage == "healthcheck" ? "active" : "")" href="/@prefix/healthcheck">
+                <i class="bi bi-heart-pulse"></i> <span data-i18n="layout.tab.healthcheck">健康检查</span>
+            </a>
+            @if (ViewBag.EnableMetrics == true)
+            {
+            <a class="nav-link @(currentPage == "metrics" ? "active" : "")" href="/@prefix/metrics">
+                <i class="bi bi-graph-up"></i> <span data-i18n="layout.tab.metrics">指标监控</span>
+            </a>
+            }
         </div>
-        }
         
         <div class="nav-section">
             <div class="section-title" data-i18n="layout.section.config">配置</div>
@@ -1490,6 +1499,12 @@
             <a class="nav-link @(currentPage == "audit" ? "active" : "")" href="/@prefix/audit">
                 <i class="bi bi-shield-check"></i> <span data-i18n="layout.tab.audit">审计日志</span>
             </a>
+            @if (ViewBag.EnableResponseCache == true)
+            {
+            <a class="nav-link @(currentPage == "responsecache" ? "active" : "")" href="/@prefix/responsecache">
+                <i class="bi bi-database"></i> <span data-i18n="layout.tab.responsecache">响应缓存</span>
+            </a>
+            }
             <a class="nav-link @(currentPage == "settings" ? "active" : "")" href="/@prefix/settings">
                 <i class="bi bi-gear"></i> <span data-i18n="layout.tab.settings">设置</span>
             </a>
