@@ -11,6 +11,14 @@
                 <span><i class="bi bi-signpost-split"></i><span data-i18n="index.stat.routes">路由规则：</span><strong id="stat-routes">-</strong></span>
             </div>
             <div class="info-bar-actions">
+                <div class="btn-group btn-group-sm" style="border:1px solid var(--border-color);border-radius:8px;overflow:hidden;">
+                    <button class="btn px-2 py-1 view-toggle active" data-view="cards" onclick="RoutesView.toggle('cards')" title="卡片视图" style="font-size:13px;background:var(--primary-color);color:#fff;border:none;">
+                        <i class="bi bi-grid-3x3-gap"></i>
+                    </button>
+                    <button class="btn px-2 py-1 view-toggle" data-view="table" onclick="RoutesView.toggle('table')" title="表格视图" style="font-size:13px;background:var(--card-bg);color:var(--text-secondary);border:none;">
+                        <i class="bi bi-list-ul"></i>
+                    </button>
+                </div>
                 <button class="btn btn-icon btn-outline-primary" onclick="routesRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
                     <i class="bi bi-arrow-clockwise"></i>
                 </button>
@@ -31,25 +39,30 @@
     
     <!-- Filter toolbar container -->
     <div id="route-filter-container"></div>
-    
-    <div class="table-responsive">
-        <table class="table table-hover align-middle" style="table-layout:fixed;width:100%">
-            <thead>
-                <tr>
-                    <th style="width:40px"></th>
-                    <th style="width:60px"><span data-i18n="index.route.th.order">优先级</span></th>
-                    <th style="width:15%"><span data-i18n="index.route.th.name">路由名称</span></th>
-                    <th style="width:90px"><span data-i18n="index.route.th.source">来源</span></th>
-                    <th style="width:22%"><span data-i18n="index.route.th.path">匹配路径</span></th>
-                    <th style="width:14%"><span data-i18n="index.route.th.cluster">关联集群</span></th>
-                    <th style="width:14%"><span data-i18n="index.route.th.methods">允许方法</span></th>
-                    <th style="width:80px"><span data-i18n="index.route.th.actions">操作</span></th>
-                </tr>
-            </thead>
-            <tbody id="route-tbody">
-                <tr><td colspan="8" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
-            </tbody>
-        </table>
+
+    <!-- Cards view -->
+    <div id="route-cards-view" class="card-body"></div>
+
+    <!-- Table view (hidden by default) -->
+    <div id="route-table-view" style="display:none;">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th style="width:36px"></th>
+                        <th style="width:56px"><span data-i18n="index.route.orderCol">优先级</span></th>
+                        <th style="width:22%"><span data-i18n="index.route.th.name">路由名称</span></th>
+                        <th><span data-i18n="index.route.th.path">匹配路径</span></th>
+                        <th style="width:140px"><span data-i18n="index.route.clusterCol">集群</span></th>
+                        <th style="width:120px"><span data-i18n="index.route.methodCol">方法</span></th>
+                        <th style="width:80px"><span data-i18n="index.route.th.actions">操作</span></th>
+                    </tr>
+                </thead>
+                <tbody id="route-tbody">
+                    <tr><td colspan="7" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -116,6 +129,37 @@
     dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
     dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
     dash.currentPage = '@ViewBag.CurrentPage';
+</script>
+
+<script>
+    // View toggle for routes
+    window.RoutesView = {
+        current: localStorage.getItem('routes_view') || 'cards',
+        toggle: function(view) {
+            this.current = view;
+            localStorage.setItem('routes_view', view);
+            var cardsView = document.getElementById('route-cards-view');
+            var tableView = document.getElementById('route-table-view');
+            var btns = document.querySelectorAll('.view-toggle');
+            btns.forEach(function(b) {
+                if (b.dataset.view === view) {
+                    b.style.background = 'var(--primary-color)';
+                    b.style.color = '#fff';
+                    b.classList.add('active');
+                } else {
+                    b.style.background = 'var(--card-bg)';
+                    b.style.color = 'var(--text-secondary)';
+                    b.classList.remove('active');
+                }
+            });
+            if (cardsView) cardsView.style.display = view === 'cards' ? '' : 'none';
+            if (tableView) tableView.style.display = view === 'table' ? '' : 'none';
+        }
+    };
+    document.addEventListener('DOMContentLoaded', function() {
+        var saved = localStorage.getItem('routes_view') || 'cards';
+        RoutesView.toggle(saved);
+    });
 </script>
 
 <script>

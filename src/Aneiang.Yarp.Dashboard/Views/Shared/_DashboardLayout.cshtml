@@ -414,6 +414,29 @@
         .cluster-row.health-healthy { border-left: 4px solid #22c55e; }
         .cluster-row.health-unhealthy { border-left: 4px solid #ef4444; }
         .cluster-row.health-unknown { border-left: 4px solid #94a3b8; }
+        .cluster-row {
+            transition: background-color 0.15s ease;
+        }
+        .cluster-row:hover {
+            background-color: rgba(0, 0, 0, 0.03);
+        }
+        .cluster-row td {
+            padding: 12px 16px;
+            vertical-align: middle;
+        }
+
+        /* Route Row */
+        .route-row {
+            transition: background-color 0.15s ease;
+            border-left: 3px solid transparent;
+        }
+        .route-row:hover {
+            background-color: rgba(0, 0, 0, 0.03);
+        }
+        .route-row td {
+            padding: 12px 16px;
+            vertical-align: middle;
+        }
         
         /* Route Priority Badge Styles */
         .priority-badge {
@@ -508,16 +531,6 @@
         }
         
         /* Table Row Styles */
-        .cluster-row, .route-row {
-            transition: background-color 0.15s ease;
-        }
-        .cluster-row:hover, .route-row:hover {
-            background-color: rgba(0, 0, 0, 0.03);
-        }
-        .cluster-row td, .route-row td {
-            padding: 12px 16px;
-            vertical-align: middle;
-        }
         
         /* Detail Row Styles */
         .cluster-detail-row td, .route-detail-row td {

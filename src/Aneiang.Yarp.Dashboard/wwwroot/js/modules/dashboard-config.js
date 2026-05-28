@@ -326,6 +326,34 @@
         );
     };
 
+    // ===== Test All Webhooks =====
+    window.DashboardConfig._testAllWebhooks = async function() {
+        try {
+            window.DashboardModals.showInfo(__('webhook.testing') || 'Testing...');
+            var results = [];
+            var platforms = ['dingtalk', 'generic'];
+            for (var i = 0; i < platforms.length; i++) {
+                try {
+                    var resp = await window.DashboardApi.endpoints.testWebhook({ platform: platforms[i] });
+                    results.push({ platform: platforms[i], success: resp && resp.success > 0 });
+                } catch (e) {
+                    results.push({ platform: platforms[i], success: false, error: e.message });
+                }
+            }
+            var total = results.length;
+            var success = results.filter(function(r) { return r.success; }).length;
+            if (success === total) {
+                window.DashboardModals.showSuccess(__('webhook.testSuccess') || 'Success');
+            } else if (success > 0) {
+                window.DashboardModals.showWarning(__('webhook.testPartial') + '(' + success + '/' + total + ')');
+            } else {
+                window.DashboardModals.showError(__('webhook.testFailed') || 'Failed');
+            }
+        } catch (e) {
+            window.DashboardModals.showError(e.message);
+        }
+    };
+
     // ===== Webhook Settings Modal =====
     window.DashboardConfig.showWebhookModal = async function() {
         const modalId = 'dashboard-webhook-modal';
