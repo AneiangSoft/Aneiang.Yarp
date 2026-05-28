@@ -1,4 +1,5 @@
 <div align="center">
+<img src="Logo.png" alt="LOGO" width="240" style="border-radius: 15px;"/>
 
 **A full-featured YARP gateway enhancement — dashboard, dynamic routing, auto-registration, and IP isolation**
 
