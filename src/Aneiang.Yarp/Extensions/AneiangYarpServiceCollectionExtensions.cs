@@ -82,6 +82,16 @@ public static class AneiangYarpServiceCollectionExtensions
         services.AddOptions<BuiltinTransformOptions>()
             .BindConfiguration(BuiltinTransformOptions.SectionName);
 
+        // Prometheus metrics options
+        services.AddOptions<GatewayMetricsOptions>()
+            .BindConfiguration(GatewayMetricsOptions.SectionName);
+        services.AddSingleton<GatewayMetricsService>();
+
+        // Response cache
+        services.AddOptions<ResponseCacheOptions>()
+            .BindConfiguration(ResponseCacheOptions.SectionName);
+        services.AddSingleton<ResponseCacheService>();
+
         // Register controllers + views so this library's controllers/MVC are discoverable
         services.AddControllersWithViews()
             .AddApplicationPart(typeof(GatewayConfigController).Assembly);

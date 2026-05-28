@@ -49,6 +49,8 @@ public class DashboardController : Controller
     {
         ViewBag.DashboardRoutePrefix = RoutePrefix;
         ViewBag.EnableProxyLogging = _options.EnableProxyLogging;
+        ViewBag.EnableMetrics = _options.EnableMetrics;
+        ViewBag.EnableResponseCache = _options.EnableResponseCache;
         ViewBag.Locale = ResolveLocale();
         ViewBag.AllI18nJson = DashboardI18n.AllAsJson(ViewBag.Locale);
         ViewBag.CurrentPage = currentPage ?? "overview";
@@ -115,6 +117,30 @@ public class DashboardController : Controller
     public IActionResult Settings()
     {
         SetCommonViewBag("settings");
+        return View();
+    }
+
+    /// <summary>Dashboard health check page.</summary>
+    [HttpGet("healthcheck")]
+    public IActionResult HealthCheck()
+    {
+        SetCommonViewBag("healthcheck");
+        return View();
+    }
+
+    /// <summary>Dashboard metrics page.</summary>
+    [HttpGet("metrics")]
+    public IActionResult Metrics()
+    {
+        SetCommonViewBag("metrics");
+        return View();
+    }
+
+    /// <summary>Dashboard response cache page.</summary>
+    [HttpGet("responsecache")]
+    public IActionResult ResponseCache()
+    {
+        SetCommonViewBag("responsecache");
         return View();
     }
 
