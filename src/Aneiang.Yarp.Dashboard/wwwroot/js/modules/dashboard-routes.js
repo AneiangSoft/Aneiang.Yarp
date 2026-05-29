@@ -61,31 +61,30 @@
                     
             // Render filter toolbar (only once, then update counts)
             this.renderFilterToolbar();
-                    
+
+            // Render cards view
+            this.renderRouteCards(routes);
+
+            // Render table view
             const tbody = window.DashboardDOM.safe('#route-tbody');
-            if (!tbody) {
-                console.error('[Routes] tbody not found, cannot render');
-                return;
-            }
-        
-            // Always clear tbody content, not the parent table
-            window.DashboardDOM.clear(tbody);
-                    
-            if (routes.length === 0) {
-                // Show empty state INSIDE tbody, not replacing it
-                const emptyRow = document.createElement('tr');
-                emptyRow.innerHTML = `
-                    <td colspan="8" class="text-center py-5">
-                        <div class="empty-state">
-                            <i class="bi bi-signpost-split" style="font-size: 2.5rem; opacity: 0.4; color: #64748b;"></i>
-                            <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.route.empty')}</div>
-                            <div class="mt-2 text-muted small">${__('index.route.emptyHelp')}</div>
-                        </div>
-                    </td>
-                `; 
-                tbody.appendChild(emptyRow);
-            } else {
-                this.renderRouteRows(routes, tbody);
+            if (tbody) {
+                window.DashboardDOM.clear(tbody);
+                        
+                if (routes.length === 0) {
+                    const emptyRow = document.createElement('tr');
+                    emptyRow.innerHTML = `
+                        <td colspan="7" class="text-center py-5">
+                            <div class="empty-state">
+                                <i class="bi bi-signpost-split" style="font-size: 2.5rem; opacity: 0.4; color: #64748b;"></i>
+                                <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.route.empty')}</div>
+                                <div class="mt-2 text-muted small">${__('index.route.emptyHelp')}</div>
+                            </div>
+                        </td>
+                    `; 
+                    tbody.appendChild(emptyRow);
+                } else {
+                    this.renderRouteRows(routes, tbody);
+                }
             }
         
             // Update refresh time
@@ -297,6 +296,118 @@
 
                 
         // ===== Render Route Rows =====
+        // ===== Render Route Cards =====
+        renderRouteCards: function(routes) {
+            var container = document.getElementById('route-cards-view');
+            if (!container) return;
+
+            if (routes.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:48px 0;">' +
+                    '<i class="bi bi-signpost-split" style="font-size:2.5rem;opacity:0.4;color:#64748b;display:block;margin-bottom:12px;"></i>' +
+                    '<div style="font-size:14px;color:#64748b;">' + __('index.route.empty') + '</div>' +
+                    '<div style="font-size:12px;color:#94a3b8;margin-top:6px;">' + __('index.route.emptyHelp') + '</div></div>';
+                return;
+            }
+
+            // Sort by order
+            var sortedRoutes = routes.slice().sort(function(a, b) {
+                var orderA = a.order !== null && a.order !== undefined ? a.order : 999999;
+                var orderB = b.order !== null && b.order !== undefined ? b.order : 999999;
+                return orderA - orderB;
+            });
+
+            var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px;">';
+
+            sortedRoutes.forEach(function(route) {
+                var pathText = route.match && route.match.path || '-';
+                var methods = route.match && route.match.methods || [];
+                var hostText = route.match && route.match.hosts && route.match.hosts.length > 0 ? route.match.hosts[0] : '';
+                var hasTransforms = route.transforms && route.transforms.length > 0;
+                var hasAuthorization = route.authorizationPolicy || route.authorizationPolicy === '';
+
+                // Determine card accent color by cluster
+                var accentColor = route.clusterId ? '#3b82f6' : '#94a3b8';
+
+                html += '<div style="border:1px solid var(--border-color);border-left:4px solid ' + accentColor +
+                    ';border-radius:12px;background:var(--card-bg);overflow:hidden;transition:box-shadow 0.2s,transform 0.15s;cursor:pointer;"' +
+                    ' onmouseover="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.08)\';this.style.transform=\'translateY(-1px)\'"' +
+                    ' onmouseout="this.style.boxShadow=\'none\';this.style.transform=\'none\'"' +
+                    ' onclick="window.DashboardApp.modules.routes.toggleRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')"' +
+                    ' data-route-id="' + (route.routeId || '') + '">';
+
+                // Card header
+                html += '<div style="padding:14px 16px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;gap:8px;">';
+                html += '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">';
+
+                // Order badge
+                if (route.order !== null && route.order !== undefined) {
+                    html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:' +
+                        (route.order < 100 ? '#fef3c7' : route.order < 1000 ? '#e0e7ff' : '#f1f5f9') +
+                        ';color:' + (route.order < 100 ? '#92400e' : route.order < 1000 ? '#3730a3' : '#64748b') +
+                        ';font-size:12px;font-weight:700;flex-shrink:0;">' + route.order + '</span>';
+                } else {
+                    html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:#f1f5f9;color:#94a3b8;font-size:12px;flex-shrink:0;">-</span>';
+                }
+
+                html += '<div style="min-width:0;flex:1;">';
+                html += '<div style="font-weight:600;font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '</div>';
+                html += '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;">';
+                html += '<span>' + (window.DashboardUtils ? DashboardUtils.createSourceBadge(route.source) : route.source || '-') + '</span>';
+                if (hostText) {
+                    html += '<span style="color:#cbd5e1;">|</span><span style="font-size:11px;color:#64748b;"><i class="bi bi-globe me-1"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(hostText) : hostText) + '</span>';
+                }
+                var indicators = [];
+                if (hasTransforms) indicators.push('<i class="bi bi-arrow-left-right" style="color:#8b5cf6;" title="Transforms"></i>');
+                if (hasAuthorization) indicators.push('<i class="bi bi-shield-lock" style="color:#f59e0b;" title="Authorization"></i>');
+                if (indicators.length > 0) {
+                    html += '<span style="color:#cbd5e1;">|</span><span style="display:inline-flex;gap:4px;">' + indicators.join('') + '</span>';
+                }
+                html += '</div></div></div>';
+
+                // Action buttons
+                html += '<div style="display:flex;gap:4px;flex-shrink:0;" onclick="event.stopPropagation()">';
+                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--primary-color);transition:background 0.15s;" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.showEditModal(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + __('index.route.edit') + '"><i class="bi bi-pencil"></i></button>';
+                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:#ef4444;transition:background 0.15s;" onmouseover="this.style.background=\'#fef2f2\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.deleteRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + __('index.route.delete') + '"><i class="bi bi-trash"></i></button>';
+                html += '</div></div>';
+
+                // Card body
+                html += '<div style="padding:12px 16px;">';
+
+                // Path
+                html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">';
+                html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;background:#eff6ff;color:#3b82f6;font-size:12px;flex-shrink:0;"><i class="bi bi-signpost-2"></i></span>';
+                html += '<code style="font-size:13px;color:var(--text-secondary);background:var(--bg-secondary,#f8fafc);padding:3px 8px;border-radius:4px;word-break:break-all;border:1px solid var(--border-color);">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(pathText) : pathText) + '</code>';
+                html += '</div>';
+
+                // Cluster + Methods row
+                html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
+
+                // Cluster
+                if (route.clusterId) {
+                    html += '<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:500;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;"><i class="bi bi-diagram-3"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.clusterId) : route.clusterId) + '</span>';
+                }
+
+                // Methods
+                if (methods.length > 0) {
+                    methods.forEach(function(m) {
+                        var mColors = { 'GET': '#22c55e', 'POST': '#3b82f6', 'PUT': '#f59e0b', 'DELETE': '#ef4444', 'PATCH': '#8b5cf6', 'HEAD': '#64748b', 'OPTIONS': '#94a3b8' };
+                        var mBg = { 'GET': '#f0fdf4', 'POST': '#eff6ff', 'PUT': '#fffbeb', 'DELETE': '#fef2f2', 'PATCH': '#f5f3ff', 'HEAD': '#f8fafc', 'OPTIONS': '#f8fafc' };
+                        var mBorder = { 'GET': '#bbf7d0', 'POST': '#bfdbfe', 'PUT': '#fde68a', 'DELETE': '#fecaca', 'PATCH': '#ddd6fe', 'HEAD': '#e2e8f0', 'OPTIONS': '#e2e8f0' };
+                        var c = mColors[m] || '#64748b';
+                        html += '<span style="display:inline-flex;align-items:center;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;font-family:monospace;background:' + (mBg[m] || '#f8fafc') + ';color:' + c + ';border:1px solid ' + (mBorder[m] || '#e2e8f0') + ';">' + m + '</span>';
+                    });
+                } else {
+                    html += '<span style="font-size:11px;color:#94a3b8;">ANY</span>';
+                }
+
+                html += '</div>';
+                html += '</div></div>';
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        },
+
         renderRouteRows: function(routes, tbody) {
             window.DashboardDOM.clear(tbody);
 
@@ -309,26 +420,26 @@
                 return orderA - orderB;
             });
 
-            sortedRoutes.forEach(route => {
-                const isExpanded = (window.DashboardState.get('ui.expandedRoutes') || new Set()).has(route.routeId);
-                const rows = this.createRouteRows(route, isExpanded);
-                rows.forEach(row => fragment.appendChild(row));
-            });
+            sortedRoutes.forEach(function(route) {
+                var isExpanded = (window.DashboardState.get('ui.expandedRoutes') || new Set()).has(route.routeId);
+                var rows = this.createRouteRows(route, isExpanded);
+                rows.forEach(function(row) { fragment.appendChild(row); });
+            }.bind(this));
 
             tbody.appendChild(fragment);
         },
 
         // ===== Create Route Rows =====
         createRouteRows: function(route, isExpanded) {
-            const rows = [];
+            var rows = [];
 
             // Main row
-            const mainTr = this.createRouteMainRow(route, isExpanded);
+            var mainTr = this.createRouteMainRow(route, isExpanded);
             rows.push(mainTr);
 
             // Expanded detail row
             if (isExpanded) {
-                const detailTr = this.createRouteDetailRow(route);
+                var detailTr = this.createRouteDetailRow(route);
                 rows.push(detailTr);
             }
 
@@ -337,130 +448,142 @@
 
         // ===== Create Route Main Row =====
         createRouteMainRow: function(route, isExpanded) {
-            const tr = window.DashboardDOM.create('tr', {
+            var tr = window.DashboardDOM.create('tr', {
                 className: 'route-row',
                 attributes: { 'data-route-id': route.routeId },
                 style: { cursor: 'pointer' }
             });
 
-            // Expand column
-            const tdExpand = window.DashboardDOM.create('td', {
-                style: { verticalAlign: 'middle', textAlign: 'center' }
+            // Expand icon
+            var tdExpand = window.DashboardDOM.create('td', {
+                style: { width: '36px', verticalAlign: 'middle', textAlign: 'center' }
             });
-            const expandIcon = window.DashboardDOM.create('i', {
-                className: `bi bi-chevron-right row-expand-icon ${isExpanded ? 'expanded' : ''}`
+            var expandIcon = window.DashboardDOM.create('i', {
+                className: 'bi bi-chevron-right row-expand-icon' + (isExpanded ? ' expanded' : '')
             });
             tdExpand.appendChild(expandIcon);
             tr.appendChild(tdExpand);
 
             // Order
-            const tdOrder = window.DashboardDOM.create('td', {
-                style: { textAlign: 'center' }
+            var tdOrder = window.DashboardDOM.create('td', {
+                style: { width: '56px', verticalAlign: 'middle', textAlign: 'center' }
             });
-            tdOrder.appendChild(this.createOrderBadge(route.order));
+            if (route.order !== null && route.order !== undefined) {
+                var orderSpan = document.createElement('span');
+                orderSpan.className = 'priority-badge';
+                if (route.order < 50) orderSpan.classList.add('priority-high');
+                else if (route.order < 100) orderSpan.classList.add('priority-medium');
+                else orderSpan.classList.add('priority-low');
+                orderSpan.textContent = route.order;
+                tdOrder.appendChild(orderSpan);
+            } else {
+                tdOrder.innerHTML = '<span class="priority-badge priority-none">-</span>';
+            }
             tr.appendChild(tdOrder);
 
-            // Route ID - with copy button
-            const tdId = window.DashboardDOM.create('td', {
-                style: { fontWeight: '500', overflow: 'hidden' }
-            });
-            const nameWrapper = window.DashboardDOM.create('div', {
-                className: 'cell-with-copy'
-            });
-            const nameSpan = window.DashboardDOM.create('span', {
-                className: 'cell-text',
-                textContent: route.routeId,
-                attributes: { title: route.routeId }
-            });
-            const nameCopyBtn = this.createCopyButton(route.routeId);
-            nameWrapper.appendChild(nameSpan);
-            nameWrapper.appendChild(nameCopyBtn);
-            tdId.appendChild(nameWrapper);
-            tr.appendChild(tdId);
-
-            // Source column
-            const tdSource = window.DashboardDOM.create('td', {});
-            const sourceBadgeSpan = window.DashboardDOM.create('span', {});
-            sourceBadgeSpan.innerHTML = this.createSourceBadge(route.source);
-            tdSource.appendChild(sourceBadgeSpan);
-            tr.appendChild(tdSource);
-
-            // Click to expand (on the row)
-            tr.addEventListener('click', (e) => {
-                if (e.target.closest('.copy-btn')) return;
-                this.toggleRoute(route.routeId);
-            });
-
-            // Path - with copy button
-            const pathText = route.match?.path || '-';
-            const tdPath = window.DashboardDOM.create('td', {
+            // Route name
+            var tdName = window.DashboardDOM.create('td', {
                 style: { overflow: 'hidden' }
             });
-            const pathWrapper = window.DashboardDOM.create('div', {
-                className: 'cell-with-copy'
+            var nameDiv = document.createElement('div');
+            nameDiv.style.cssText = 'display:flex;align-items:center;gap:6px;';
+            var nameStrong = document.createElement('strong');
+            nameStrong.style.cssText = 'font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;';
+            nameStrong.textContent = route.routeId;
+            nameStrong.title = route.routeId;
+            nameDiv.appendChild(nameStrong);
+            var sourceSpan = document.createElement('span');
+            sourceSpan.innerHTML = this.createSourceBadge(route.source);
+            nameDiv.appendChild(sourceSpan);
+            // Indicators (transforms, auth)
+            var indicators = [];
+            if (route.transforms && route.transforms.length > 0) indicators.push('<i class="bi bi-arrow-left-right" style="color:#8b5cf6;font-size:12px;" title="Transforms"></i>');
+            if (route.authorizationPolicy || route.authorizationPolicy === '') indicators.push('<i class="bi bi-shield-lock" style="color:#f59e0b;font-size:12px;" title="Authorization"></i>');
+            if (indicators.length > 0) {
+                var indSpan = document.createElement('span');
+                indSpan.style.cssText = 'display:inline-flex;gap:3px;';
+                indSpan.innerHTML = indicators.join('');
+                nameDiv.appendChild(indSpan);
+            }
+            var nameCopyBtn = this.createCopyButton(route.routeId);
+            nameDiv.appendChild(nameCopyBtn);
+            tdName.appendChild(nameDiv);
+            tr.appendChild(tdName);
+
+            // Path
+            var tdPath = window.DashboardDOM.create('td', {
+                style: { overflow: 'hidden' }
             });
-            const pathSpan = window.DashboardDOM.create('span', {
-                className: 'cell-text'
-            });
-            const pathCode = window.DashboardDOM.create('code', {
-                textContent: pathText,
-                attributes: { title: pathText }
-            });
-            pathSpan.appendChild(pathCode);
-            const pathCopyBtn = this.createCopyButton(route.match?.path || '');
-            pathWrapper.appendChild(pathSpan);
-            pathWrapper.appendChild(pathCopyBtn);
-            tdPath.appendChild(pathWrapper);
+            var pathText = route.match && route.match.path || '-';
+            var pathDiv = document.createElement('div');
+            pathDiv.style.cssText = 'display:flex;align-items:center;gap:6px;';
+            var pathCode = document.createElement('code');
+            pathCode.style.cssText = 'font-size:13px;background:var(--bg-secondary,#f8fafc);padding:3px 8px;border-radius:4px;border:1px solid var(--border-color);word-break:break-all;';
+            pathCode.textContent = pathText;
+            pathDiv.appendChild(pathCode);
+            var pathCopyBtn = this.createCopyButton(route.match && route.match.path || '');
+            pathDiv.appendChild(pathCopyBtn);
+            tdPath.appendChild(pathDiv);
             tr.appendChild(tdPath);
 
-            // Cluster - with copy button and ellipsis
-            const tdCluster = window.DashboardDOM.create('td', {
-                style: { overflow: 'hidden' }
+            // Cluster
+            var tdCluster = window.DashboardDOM.create('td', {
+                style: { width: '140px', verticalAlign: 'middle', overflow: 'hidden' }
             });
             if (route.clusterId) {
-                const clusterWrapper = window.DashboardDOM.create('div', {
-                    className: 'cell-with-copy'
-                });
-                const clusterBadge = window.DashboardDOM.create('span', {
-                    className: 'badge bg-primary cell-text',
-                    textContent: route.clusterId,
-                    attributes: { title: route.clusterId },
-                    style: { fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }
-                });
-                const clusterCopyBtn = this.createCopyButton(route.clusterId);
-                clusterWrapper.appendChild(clusterBadge);
-                clusterWrapper.appendChild(clusterCopyBtn);
-                tdCluster.appendChild(clusterWrapper);
+                var clusterDiv = document.createElement('div');
+                clusterDiv.style.cssText = 'display:flex;align-items:center;gap:4px;';
+                var clusterBadge = document.createElement('span');
+                clusterBadge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:5px;font-size:12px;font-weight:600;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;';
+                clusterBadge.innerHTML = '<i class="bi bi-diagram-3" style="font-size:11px;flex-shrink:0;"></i><span style="overflow:hidden;text-overflow:ellipsis;">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.clusterId) : route.clusterId) + '</span>';
+                clusterBadge.title = route.clusterId;
+                clusterDiv.appendChild(clusterBadge);
+                tdCluster.appendChild(clusterDiv);
             } else {
-                const span = window.DashboardDOM.create('span', {
-                    className: 'text-muted',
-                    textContent: '-'
-                });
-                tdCluster.appendChild(span);
+                tdCluster.innerHTML = '<span class="text-muted">-</span>';
             }
             tr.appendChild(tdCluster);
 
             // Methods
-            const tdMethods = window.DashboardDOM.create('td', {});
-            const methods = route.match?.methods;
-            if (methods && methods.length > 0) {
-                methods.forEach(method => {
-                    const methodBadge = this.createMethodBadge(method);
-                    tdMethods.appendChild(methodBadge);
+            var tdMethods = window.DashboardDOM.create('td', {
+                style: { width: '120px', verticalAlign: 'middle' }
+            });
+            var methods = route.match && route.match.methods || [];
+            var methDiv = document.createElement('div');
+            methDiv.style.cssText = 'display:flex;align-items:center;gap:3px;flex-wrap:wrap;';
+            if (methods.length > 0) {
+                var mColors = { 'GET': '#22c55e', 'POST': '#3b82f6', 'PUT': '#f59e0b', 'DELETE': '#ef4444', 'PATCH': '#8b5cf6', 'HEAD': '#64748b', 'OPTIONS': '#94a3b8' };
+                var mBg = { 'GET': '#f0fdf4', 'POST': '#eff6ff', 'PUT': '#fffbeb', 'DELETE': '#fef2f2', 'PATCH': '#f5f3ff', 'HEAD': '#f8fafc', 'OPTIONS': '#f8fafc' };
+                var mBorder = { 'GET': '#bbf7d0', 'POST': '#bfdbfe', 'PUT': '#fde68a', 'DELETE': '#fecaca', 'PATCH': '#ddd6fe', 'HEAD': '#e2e8f0', 'OPTIONS': '#e2e8f0' };
+                methods.forEach(function(m) {
+                    var methSpan = document.createElement('span');
+                    var c = mColors[m] || '#64748b';
+                    methSpan.style.cssText = 'display:inline-flex;align-items:center;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;font-family:monospace;background:' + (mBg[m] || '#f8fafc') + ';color:' + c + ';border:1px solid ' + (mBorder[m] || '#e2e8f0') + ';';
+                    methSpan.textContent = m;
+                    methDiv.appendChild(methSpan);
                 });
             } else {
-                const span = window.DashboardDOM.create('span', {
-                    className: 'text-muted',
-                    textContent: __('index.route.allMethods')
-                });
-                tdMethods.appendChild(span);
+                var anySpan = document.createElement('span');
+                anySpan.className = 'text-muted';
+                anySpan.style.cssText = 'font-size:12px;';
+                anySpan.textContent = 'ANY';
+                methDiv.appendChild(anySpan);
             }
+            tdMethods.appendChild(methDiv);
             tr.appendChild(tdMethods);
 
             // Actions
-            const tdActions = window.DashboardDOM.create('td', {});
+            var tdActions = window.DashboardDOM.create('td', {
+                style: { width: '80px', verticalAlign: 'middle', textAlign: 'center' }
+            });
             tdActions.appendChild(this.createActionButtons(route));
             tr.appendChild(tdActions);
+
+            // Click to expand
+            tr.addEventListener('click', function(e) {
+                if (e.target.closest('.copy-btn') || e.target.closest('.btn-group')) return;
+                this.toggleRoute(route.routeId);
+            }.bind(this));
 
             return tr;
         },
@@ -577,7 +700,7 @@
             });
                 
             const td = window.DashboardDOM.create('td', {
-                attributes: { colspan: '8' }
+                attributes: { colspan: '7' }
             });
                 
             const detailHtml = []; 

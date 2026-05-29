@@ -205,29 +205,29 @@
     // ===== API Endpoints =====
     window.DashboardApi.endpoints = {
         // Info
-        getInfo: () => DashboardApi.get('/info'),
+        getInfo: () => DashboardApi.get('/api/info'),
 
         // Clusters
-        getClusters: () => DashboardApi.get('/clusters'),
-        addCluster: (data) => DashboardApi.post('/clusters', data),
-        updateCluster: (id, data) => DashboardApi.put(`/clusters/${id}`, data),
-        deleteCluster: (id) => DashboardApi.delete(`/clusters/${id}`),
+        getClusters: () => DashboardApi.get('/api/clusters'),
+        addCluster: (data) => DashboardApi.post('/api/clusters', data),
+        updateCluster: (id, data) => DashboardApi.put(`/api/clusters/${id}`, data),
+        deleteCluster: (id) => DashboardApi.delete(`/api/clusters/${id}`),
 
         // Routes
-        getRoutes: () => DashboardApi.get('/routes'),
-        addRoute: (data) => DashboardApi.post('/routes', data),
-        updateRoute: (id, data) => DashboardApi.put(`/routes/${id}`, data),
-        deleteRoute: (id) => DashboardApi.delete(`/routes/${id}`),
+        getRoutes: () => DashboardApi.get('/api/routes'),
+        addRoute: (data) => DashboardApi.post('/api/routes', data),
+        updateRoute: (id, data) => DashboardApi.put(`/api/routes/${id}`, data),
+        deleteRoute: (id) => DashboardApi.delete(`/api/routes/${id}`),
 
         // Logs
-        getLogs: (count = 100) => DashboardApi.get('/logs', { count }),
-        clearLogs: () => DashboardApi.delete('/logs'),
+        getLogs: (count = 100) => DashboardApi.get('/api/logs', { count }),
+        clearLogs: () => DashboardApi.delete('/api/logs'),
 
         // Statistics
-        getStats: () => DashboardApi.get('/stats'),
+        getStats: () => DashboardApi.get('/api/stats'),
 
         // Rate Limit Status
-        getRateLimitStatus: () => DashboardApi.get('/rate-limit'),
+        getRateLimitStatus: () => DashboardApi.get('/api/rate-limit'),
 
         // Config History
         getHistory: () => DashboardApi.get('/api/config/history'),
@@ -236,7 +236,7 @@
 
         // Auth
         login: (credentials) => DashboardApi.post('/login', credentials, { requireAuth: false }),
-        getAuthStatus: () => DashboardApi.get('/auth/status'),
+        getAuthStatus: () => DashboardApi.get('/api/auth/status'),
 
         // Configuration Management (Phase 6)
         exportConfig: () => DashboardApi.get('/api/config/export'),
@@ -259,7 +259,20 @@
 
         // Webhook Settings
         getWebhookSettings: () => DashboardApi.get('/api/config/webhook'),
-        saveWebhookSettings: (data) => DashboardApi.put('/api/config/webhook', data)
+        saveWebhookSettings: (data) => DashboardApi.put('/api/config/webhook', data),
+        testWebhook: (data) => DashboardApi.post('/api/config/webhook/test', data),
+
+        // Health Check
+        getHealthCheckStatus: () => DashboardApi.get('/api/health-check/status'),
+        getClusterHealthConfigs: () => DashboardApi.get('/api/health-check/clusters'),
+
+        // Metrics
+        getMetrics: (options = {}) => DashboardApi.request('/api/metrics', { parseJson: false, ...options }),
+
+        // Response Cache
+        getCacheStats: () => DashboardApi.get('/api/response-cache/stats'),
+        clearCache: () => DashboardApi.delete('/api/response-cache'),
+        invalidateRouteCache: (routeId) => DashboardApi.delete(`/api/response-cache/routes/${encodeURIComponent(routeId)}`)
     };
 
 })();

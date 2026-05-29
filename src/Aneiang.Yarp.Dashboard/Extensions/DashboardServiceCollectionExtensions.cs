@@ -4,8 +4,10 @@ using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Services.Webhook;
 using Aneiang.Yarp.Middleware;
+using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -78,14 +80,35 @@ public static class DashboardServiceCollectionExtensions
         services.AddHttpClient("webhook");
         services.AddSingleton<IWebhookProvider, DingTalkWebhookProvider>();
         services.AddSingleton<IWebhookProvider, GenericWebhookProvider>();
+        services.AddSingleton(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<WebhookSettingsPersistenceService>>();
+            var configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "webhook-settings.json");
+            return new WebhookSettingsPersistenceService(configPath, logger);
+        });
         services.AddSingleton<WebhookNotificationService>(sp =>
         {
+            var options = sp.GetRequiredService<IOptions<DashboardOptions>>();
             var webhook = new WebhookNotificationService(
-                sp.GetRequiredService<IOptions<DashboardOptions>>(),
+                options,
                 sp.GetRequiredService<ILogger<WebhookNotificationService>>(),
                 sp.GetRequiredService<IHttpClientFactory>(),
                 sp.GetServices<IWebhookProvider>());
             webhook.Subscribe(sp.GetRequiredService<ConfigChangeAuditLog>());
+
+            // Load persisted webhook settings into DashboardOptions at startup
+            var persistence = sp.GetRequiredService<WebhookSettingsPersistenceService>();
+            var data = persistence.Load() ?? new WebhookSettingsData();
+            var opts = options.Value;
+            var allUrls = new List<string>();
+            allUrls.AddRange(data.DingTalkEndpoints.Select(e => e.Url));
+            allUrls.AddRange(data.GenericEndpoints.Select(e => e.Url));
+            opts.WebhookUrls = allUrls;
+            opts.WebhookSecrets = new Dictionary<string, string?>();
+            foreach (var ep in data.DingTalkEndpoints) opts.WebhookSecrets[ep.Url] = ep.Secret;
+            foreach (var ep in data.GenericEndpoints) opts.WebhookSecrets[ep.Url] = ep.Secret;
+            opts.WebhookEnabledEvents = data.EnabledEvents;
+
             return webhook;
         });
 
@@ -96,6 +119,54 @@ public static class DashboardServiceCollectionExtensions
             var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ConfigPersistenceService>>();
             var dynamicConfig = sp.GetService<DynamicYarpConfigService>();
             return new ConfigPersistenceService(filePersistence, logger, dynamicConfig);
+        });
+
+        // Register default health check service (applies passive health check to all clusters at startup)
+        services.AddHostedService<DefaultHealthCheckService>();
+
+        // ── Bridge DashboardOptions switches to core options ─────────────────
+        // This allows Gateway:Dashboard:EnableMetrics / EnableResponseCache to control
+        // the corresponding core options (Gateway:Metrics / Gateway:ResponseCache).
+        services.AddSingleton<IConfigureOptions<GatewayMetricsOptions>>(sp =>
+        {
+            var dashOpts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
+            var config = sp.GetRequiredService<IConfiguration>();
+            return new ConfigureNamedOptions<GatewayMetricsOptions>(null, opts =>
+            {
+                // Bind from config first
+                config.GetSection(GatewayMetricsOptions.SectionName).Bind(opts);
+                // Dashboard switch overrides if explicitly set
+                if (dashOpts.EnableMetrics && !opts.Enabled)
+                    opts.Enabled = true;
+            });
+        });
+
+        services.AddSingleton<IConfigureOptions<ResponseCacheOptions>>(sp =>
+        {
+            var dashOpts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
+            var config = sp.GetRequiredService<IConfiguration>();
+            return new ConfigureNamedOptions<ResponseCacheOptions>(null, opts =>
+            {
+                // Bind from config first
+                config.GetSection(ResponseCacheOptions.SectionName).Bind(opts);
+                // Dashboard switch overrides if explicitly set
+                if (dashOpts.EnableResponseCache && !opts.Enabled)
+                    opts.Enabled = true;
+                // Also propagate Dashboard TTL/MaxEntries if core config doesn't set them
+                if (dashOpts.EnableResponseCache)
+                {
+                    if (dashOpts.ResponseCacheDefaultTtl is { Length: > 0 } ttlStr
+                        && TimeSpan.TryParse(ttlStr, out var ttl)
+                        && opts.DefaultTtl == TimeSpan.FromSeconds(30))
+                    {
+                        opts.DefaultTtl = ttl;
+                    }
+                    if (dashOpts.ResponseCacheMaxEntries > 0 && opts.MaxEntries == 1000)
+                    {
+                        opts.MaxEntries = dashOpts.ResponseCacheMaxEntries;
+                    }
+                }
+            });
         });
 
         // Register dynamic config persistence service (from Aneiang.Yarp)

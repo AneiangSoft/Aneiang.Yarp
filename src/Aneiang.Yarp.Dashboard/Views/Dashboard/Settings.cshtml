@@ -1,0 +1,281 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Settings" : "设置";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<!-- Settings page with unified sections -->
+
+<!-- Webhook notification section -->
+<div class="card-panel mb-3">
+    <div class="card-header">
+        <span><i class="bi bi-bell me-2"></i><span data-i18n="webhook.title">Webhook 通知设置</span></span>
+        <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm btn-outline-secondary" onclick="DashboardConfig._testAllWebhooks()">
+                <i class="bi bi-send"></i> <span data-i18n="webhook.test">测试推送</span>
+            </button>
+            <button class="btn btn-sm btn-outline-primary" onclick="DashboardConfig.showWebhookModal()">
+                <i class="bi bi-pencil"></i> <span data-i18n="webhook.edit">编辑</span>
+            </button>
+        </div>
+    </div>
+    <div class="card-body" id="webhook-summary">
+        <div class="text-center py-3">
+            <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+            <span class="ms-2 text-muted small" data-i18n="webhook.summaryLoading">加载中...</span>
+        </div>
+    </div>
+</div>
+
+<!-- Configuration management section -->
+<div class="card-panel mb-3">
+    <div class="card-header">
+        <span><i class="bi bi-box-seam me-2"></i><span data-i18n="config.management">配置管理</span></span>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="border rounded-3 p-3 h-100">
+                    <h6 class="mb-2"><i class="bi bi-download me-1"></i> <span data-i18n="config.export">导出配置</span></h6>
+                    <p class="text-muted small mb-2" data-i18n="config.exportDesc">将当前网关配置导出为 JSON 文件</p>
+                    <button class="btn btn-sm btn-outline-primary" onclick="DashboardConfig.exportConfig()">
+                        <i class="bi bi-download"></i> <span data-i18n="config.exportBtn">导出</span>
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="border rounded-3 p-3 h-100">
+                    <h6 class="mb-2"><i class="bi bi-upload me-1"></i> <span data-i18n="config.import">导入配置</span></h6>
+                    <p class="text-muted small mb-2" data-i18n="config.importDesc">从 JSON 文件导入网关配置</p>
+                    <button class="btn btn-sm btn-outline-primary" onclick="DashboardConfig.showImportModal()">
+                        <i class="bi bi-upload"></i> <span data-i18n="config.importBtn">导入</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rate limiting section -->
+<div class="card-panel mb-3">
+    <div class="card-header">
+        <span><i class="bi bi-speedometer me-2"></i><span data-i18n="settings.rateLimit">限流设置</span></span>
+    </div>
+    <div class="card-body" id="rate-limit-summary">
+        <p class="text-muted" data-i18n="settings.loading">加载中...</p>
+    </div>
+</div>
+
+<!-- Circuit breaker section -->
+<div class="card-panel mb-3">
+    <div class="card-header">
+        <span><i class="bi bi-lightning me-2"></i><span data-i18n="settings.circuitBreaker">熔断器状态</span></span>
+        <button class="btn btn-sm btn-outline-warning" onclick="DashboardApi.endpoints.resetCircuitBreakers().then(()=>location.reload())">
+            <i class="bi bi-arrow-counterclockwise"></i> <span data-i18n="settings.resetBreaker">重置</span>
+        </button>
+    </div>
+    <div class="card-body" id="circuit-breaker-summary">
+        <p class="text-muted" data-i18n="settings.loading">加载中...</p>
+    </div>
+</div>
+
+@section Scripts {
+@{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
+
+<!-- Schema Service for import/validation -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-service.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-validator.js?v=@v"></script>
+
+<!-- Monaco for import modal -->
+<script>
+    window.MonacoEnvironment = {
+        getWorkerUrl: function(workerId, label) {
+            var workerPath = '/_content/Aneiang.Yarp.Dashboard/lib/monaco/';
+            if (label === 'json') return workerPath + 'language/json/jsonWorker.js';
+            return workerPath + 'editor/editor.worker.js';
+        }
+    };
+    window.__monacoReady = new Promise(function(resolve) {
+        window.__monacoResolve = resolve;
+    });
+</script>
+<script src="/_content/Aneiang.Yarp.Dashboard/lib/monaco/loader.js?v=@v"></script>
+<script>
+    require.config({ paths: { vs: '/_content/Aneiang.Yarp.Dashboard/lib/monaco' } });
+    require(['vs/editor/editor.main'], function() { window.__monacoResolve(); });
+</script>
+
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-monaco-editor.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-config-editor.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-form-builder.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-diff-panel.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-validation-panel.js?v=@v"></script>
+
+<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-config.js?v=@v"></script>
+
+<script>
+    window.__dashboard = window.__dashboard || {};
+    var dash = window.__dashboard;
+    dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
+    dash.token = localStorage.getItem('dashboard_token');
+    dash.CURRENT_LOCALE = '@ViewBag.Locale';
+    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
+    dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
+    dash.currentPage = '@ViewBag.CurrentPage';
+</script>
+
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+
+        if (window.DashboardSchemaService) await DashboardSchemaService.load();
+        if (window.__monacoReady) await __monacoReady;
+
+        // Load settings data
+        try {
+            // Webhook summary
+            var whSettings = await DashboardApi.endpoints.getWebhookSettings();
+            var whSummary = document.getElementById('webhook-summary');
+            if (whSummary && whSettings) {
+                var dingEndpoints = whSettings.dingtalk || [];
+                var genericEndpoints = whSettings.generic || [];
+                var enabledEvents = whSettings.enabledEvents || [];
+                var totalEndpoints = dingEndpoints.length + genericEndpoints.length;
+                var allEvents = ['AddRoute','UpdateRoute','RemoveRoute','AddCluster','UpdateCluster','RemoveCluster','RenameCluster','RollbackConfig'];
+                var allEnabled = enabledEvents.length === 0 || enabledEvents.length === allEvents.length;
+
+                var html = '';
+
+                // Status overview
+                html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">';
+                html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:10px;background:' +
+                    (totalEndpoints > 0 ? 'linear-gradient(135deg,#10b981,#34d399)' : 'linear-gradient(135deg,#94a3b8,#cbd5e1)') +
+                    ';color:#fff;font-size:18px;"><i class="bi ' + (totalEndpoints > 0 ? 'bi-bell-fill' : 'bi-bell-slash') + '"></i></span>';
+                html += '<div>';
+                html += '<div style="font-weight:600;font-size:15px;color:#1e293b;">' +
+                    (totalEndpoints > 0 ? (__('webhook.statusActive') || '通知已启用') : (__('webhook.statusInactive') || '通知未配置')) + '</div>';
+                html += '<div style="font-size:12px;color:#64748b;">' +
+                    (totalEndpoints > 0
+                        ? (dingEndpoints.length + genericEndpoints.length) + ' ' + (__('webhook.endpointCount') || '个端点') +
+                          (allEnabled ? '' : ' · ' + enabledEvents.length + '/' + allEvents.length + ' ' + (__('webhook.eventCount') || '类事件'))
+                        : (__('webhook.noEndpointsHint') || '点击编辑添加 Webhook 端点')) + '</div>';
+                html += '</div></div>';
+
+                if (totalEndpoints > 0) {
+                    // DingTalk endpoints
+                    if (dingEndpoints.length > 0) {
+                        html += '<div style="margin-bottom:12px;">';
+                        html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">';
+                        html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:7px;background:#0089FF;color:#fff;font-size:13px;"><i class="bi bi-chat-dots-fill"></i></span>';
+                        html += '<span style="font-weight:600;font-size:13px;color:#1e293b;">' + (__('webhook.platform.dingtalk') || '钉钉机器人') + '</span>';
+                        html += '<span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;">' + dingEndpoints.length + '</span>';
+                        html += '</div>';
+                        html += '<div style="display:flex;flex-direction:column;gap:6px;margin-left:36px;">';
+                        dingEndpoints.forEach(function(ep) {
+                            var displayUrl = ep.url.length > 55 ? ep.url.substring(0, 55) + '...' : ep.url;
+                            var safeUrl = window.DashboardUtils ? DashboardUtils.escapeHtml(displayUrl) : displayUrl;
+                            html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">';
+                            html += '<i class="bi bi-robot" style="color:#0089FF;font-size:14px;flex-shrink:0;"></i>';
+                            html += '<span style="font-size:12px;color:#334155;font-family:monospace;word-break:break-all;flex:1;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(ep.url) : ep.url) + '">' + safeUrl + '</span>';
+                            html += (ep.secret ? '<i class="bi bi-key-fill" style="color:#f59e0b;font-size:12px;flex-shrink:0;" title="' + (__('webhook.secret') || '签名密钥') + '"></i>' : '<i class="bi bi-key" style="color:#cbd5e1;font-size:12px;flex-shrink:0;" title="' + (__('webhook.noSecret') || '无密钥') + '"></i>');
+                            html += '</div>';
+                        });
+                        html += '</div></div>';
+                    }
+
+                    // Generic endpoints
+                    if (genericEndpoints.length > 0) {
+                        html += '<div style="margin-bottom:12px;">';
+                        html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">';
+                        html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:13px;"><i class="bi bi-link-45deg"></i></span>';
+                        html += '<span style="font-weight:600;font-size:13px;color:#1e293b;">' + (__('webhook.platform.generic') || '自定义 Webhook') + '</span>';
+                        html += '<span style="background:#e0e7ff;color:#4338ca;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;">' + genericEndpoints.length + '</span>';
+                        html += '</div>';
+                        html += '<div style="display:flex;flex-direction:column;gap:6px;margin-left:36px;">';
+                        genericEndpoints.forEach(function(ep) {
+                            var displayUrl = ep.url.length > 55 ? ep.url.substring(0, 55) + '...' : ep.url;
+                            var safeUrl = window.DashboardUtils ? DashboardUtils.escapeHtml(displayUrl) : displayUrl;
+                            html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">';
+                            html += '<i class="bi bi-globe" style="color:#6366f1;font-size:14px;flex-shrink:0;"></i>';
+                            html += '<span style="font-size:12px;color:#334155;font-family:monospace;word-break:break-all;flex:1;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(ep.url) : ep.url) + '">' + safeUrl + '</span>';
+                            html += (ep.secret ? '<i class="bi bi-key-fill" style="color:#f59e0b;font-size:12px;flex-shrink:0;" title="' + (__('webhook.secret') || '签名密钥') + '"></i>' : '<i class="bi bi-key" style="color:#cbd5e1;font-size:12px;flex-shrink:0;" title="' + (__('webhook.noSecret') || '无密钥') + '"></i>');
+                            html += '</div>';
+                        });
+                        html += '</div></div>';
+                    }
+
+                    // Enabled events
+                    html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">';
+                    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">';
+                    html += '<i class="bi bi-broadcast" style="color:#10b981;font-size:14px;"></i>';
+                    html += '<span style="font-weight:600;font-size:13px;color:#1e293b;">' + (__('webhook.events.title') || '通知事件') + '</span>';
+                    html += '</div>';
+                    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-left:22px;">';
+                    if (allEnabled) {
+                        html += '<span style="padding:4px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:12px;color:#166534;font-weight:500;">' +
+                            '<i class="bi bi-check-circle-fill me-1"></i>' + (__('webhook.events.allEnabled') || '全部启用') + '</span>';
+                    } else {
+                        allEvents.forEach(function(ev) {
+                            var isEnabled = enabledEvents.some(function(e) { return e === ev; });
+                            html += '<span style="padding:4px 10px;background:' + (isEnabled ? '#f0fdf4' : '#f8fafc') +
+                                ';border:1px solid ' + (isEnabled ? '#bbf7d0' : '#e2e8f0') +
+                                ';border-radius:6px;font-size:12px;color:' + (isEnabled ? '#166534' : '#94a3b8') +
+                                ';font-weight:500;">' +
+                                (isEnabled ? '<i class="bi bi-check-circle-fill me-1"></i>' : '<i class="bi bi-x-circle me-1"></i>') +
+                                (__('webhook.events.' + ev) || ev) + '</span>';
+                        });
+                    }
+                    html += '</div></div>';
+                }
+
+                whSummary.innerHTML = html;
+            }
+
+            // Rate limit
+            var rlStatus = await DashboardApi.endpoints.getRateLimitStatus();
+            var rlSummary = document.getElementById('rate-limit-summary');
+            if (rlSummary && rlStatus) {
+                rlSummary.innerHTML = rlStatus.enabled
+                    ? '<p class="mb-0"><span class="badge bg-success me-1">' + __('settings.enabled') + '</span> ' +
+                      '限制 ' + rlStatus.permitLimit + ' 次 / ' + rlStatus.window + '，队列 ' + rlStatus.queueLimit + '</p>'
+                    : '<p class="text-muted mb-0">' + __('settings.rateLimitDisabled') + '</p>';
+            }
+
+            // Circuit breaker
+            var cbStatus = await DashboardApi.endpoints.getCircuitBreakerStatus();
+            var cbSummary = document.getElementById('circuit-breaker-summary');
+            if (cbSummary && cbStatus) {
+                var states = cbStatus.circuits || {};
+                var html = '<div class="d-flex flex-wrap gap-2">';
+                var hasAny = false;
+                for (var key in states) {
+                    hasAny = true;
+                    var state = states[key];
+                    var badge = state === 'Closed' ? 'bg-success' : (state === 'Open' ? 'bg-danger' : 'bg-warning');
+                    html += '<span class="badge ' + badge + '">' + key + ': ' + state + '</span>';
+                }
+                html += '</div>';
+                if (!hasAny) html = '<p class="text-muted mb-0">' + __('settings.noBreaker') + '</p>';
+                cbSummary.innerHTML = html;
+            }
+        } catch (e) {
+            console.error('[Settings] Load failed:', e);
+        }
+
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

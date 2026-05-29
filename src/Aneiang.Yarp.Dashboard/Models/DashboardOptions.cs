@@ -273,4 +273,63 @@ public class DashboardOptions
     /// Value: platform-specific signing secret.
     /// </summary>
     public Dictionary<string, string?>? WebhookSecrets { get; set; }
+
+    /// <summary>
+    /// List of enabled webhook event types. When null or empty, all events trigger notifications.
+    /// Supported values: AddRoute, UpdateRoute, RemoveRoute, AddCluster, UpdateCluster, RemoveCluster, RenameCluster, RollbackConfig.
+    /// </summary>
+    public List<string>? WebhookEnabledEvents { get; set; }
+
+    // ─── Metrics ──────────────────────────────────────────
+
+    /// <summary>
+    /// Enable Prometheus metrics collection and export.
+    /// When enabled, metrics are available at the /apigateway/api/metrics endpoint.
+    /// Default: false.
+    /// </summary>
+    public bool EnableMetrics { get; set; }
+
+    /// <summary>
+    /// Metrics endpoint path. Default: "/metrics".
+    /// Only effective when EnableMetrics is true.
+    /// </summary>
+    public string MetricsEndpointPath { get; set; } = "/metrics";
+
+    // ─── Health Check ──────────────────────────────────
+
+    /// <summary>
+    /// Enable passive health checking for all clusters by default.
+    /// When enabled, YARP will automatically mark destinations as unhealthy after consecutive failures.
+    /// Default: false.
+    /// </summary>
+    public bool EnablePassiveHealthCheck { get; set; }
+
+    /// <summary>
+    /// Default passive health check policy. Default: "ConsecutiveFailures".
+    /// Only effective when EnablePassiveHealthCheck is true.
+    /// </summary>
+    public string PassiveHealthCheckPolicy { get; set; } = "ConsecutiveFailures";
+
+    /// <summary>
+    /// Default reactivation period for passive health checks. Default: "00:00:30" (30 seconds).
+    /// Only effective when EnablePassiveHealthCheck is true.
+    /// </summary>
+    public string PassiveHealthCheckReactivationPeriod { get; set; } = "00:00:30";
+
+    // ─── Response Cache ──────────────────────────────────
+
+    /// <summary>
+    /// Enable response caching for proxy requests. Default: false.
+    /// </summary>
+    public bool EnableResponseCache { get; set; }
+
+    /// <summary>
+    /// Default cache TTL for GET/HEAD requests. Default: "00:00:30" (30 seconds).
+    /// </summary>
+    public string ResponseCacheDefaultTtl { get; set; } = "00:00:30";
+
+    /// <summary>
+    /// Maximum cache entry count. Default: 1000.
+    /// </summary>
+    public int ResponseCacheMaxEntries { get; set; } = 1000;
 }
