@@ -12,7 +12,7 @@ namespace Aneiang.Yarp.Dashboard.Controllers;
 /// <summary>
 /// Configuration management API for import/export/save/rollback operations.
 /// </summary>
-[Route("apigateway/api/config")]
+[Route("api/config")]
 [ApiController]
 public class ConfigManagementController : ControllerBase
 {
