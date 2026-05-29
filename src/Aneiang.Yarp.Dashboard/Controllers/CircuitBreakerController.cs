@@ -1,5 +1,4 @@
 using Aneiang.Yarp.Dashboard.Middleware;
-using Aneiang.Yarp.Dashboard.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Aneiang.Yarp.Dashboard.Controllers;

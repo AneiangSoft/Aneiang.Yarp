@@ -166,12 +166,12 @@
                     ';color:#fff;font-size:18px;"><i class="bi ' + (totalEndpoints > 0 ? 'bi-bell-fill' : 'bi-bell-slash') + '"></i></span>';
                 html += '<div>';
                 html += '<div style="font-weight:600;font-size:15px;color:#1e293b;">' +
-                    (totalEndpoints > 0 ? (__('webhook.statusActive') || '通知已启用') : (__('webhook.statusInactive') || '通知未配置')) + '</div>';
+                    (totalEndpoints > 0 ? __('webhook.statusActive') : __('webhook.statusInactive')) + '</div>';
                 html += '<div style="font-size:12px;color:#64748b;">' +
                     (totalEndpoints > 0
-                        ? (dingEndpoints.length + genericEndpoints.length) + ' ' + (__('webhook.endpointCount') || '个端点') +
-                          (allEnabled ? '' : ' · ' + enabledEvents.length + '/' + allEvents.length + ' ' + (__('webhook.eventCount') || '类事件'))
-                        : (__('webhook.noEndpointsHint') || '点击编辑添加 Webhook 端点')) + '</div>';
+                        ? (dingEndpoints.length + genericEndpoints.length) + ' ' + __('webhook.endpointCount') +
+                          (allEnabled ? '' : ' · ' + enabledEvents.length + '/' + allEvents.length + ' ' + __('webhook.eventCount'))
+                        : __('webhook.noEndpointsHint')) + '</div>';
                 html += '</div></div>';
 
                 if (totalEndpoints > 0) {
@@ -180,7 +180,7 @@
                         html += '<div style="margin-bottom:12px;">';
                         html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">';
                         html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:7px;background:#0089FF;color:#fff;font-size:13px;"><i class="bi bi-chat-dots-fill"></i></span>';
-                        html += '<span style="font-weight:600;font-size:13px;color:#1e293b;">' + (__('webhook.platform.dingtalk') || '钉钉机器人') + '</span>';
+                        html += '<span style="font-weight:600;font-size:13px;color:#1e293b;">' + __('webhook.platform.dingtalk') + '</span>';
                         html += '<span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;">' + dingEndpoints.length + '</span>';
                         html += '</div>';
                         html += '<div style="display:flex;flex-direction:column;gap:6px;margin-left:36px;">';
@@ -190,7 +190,7 @@
                             html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">';
                             html += '<i class="bi bi-robot" style="color:#0089FF;font-size:14px;flex-shrink:0;"></i>';
                             html += '<span style="font-size:12px;color:#334155;font-family:monospace;word-break:break-all;flex:1;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(ep.url) : ep.url) + '">' + safeUrl + '</span>';
-                            html += (ep.secret ? '<i class="bi bi-key-fill" style="color:#f59e0b;font-size:12px;flex-shrink:0;" title="' + (__('webhook.secret') || '签名密钥') + '"></i>' : '<i class="bi bi-key" style="color:#cbd5e1;font-size:12px;flex-shrink:0;" title="' + (__('webhook.noSecret') || '无密钥') + '"></i>');
+                            html += (ep.secret ? '<i class="bi bi-key-fill" style="color:#f59e0b;font-size:12px;flex-shrink:0;" title="' + __('webhook.secret') + '"></i>' : '<i class="bi bi-key" style="color:#cbd5e1;font-size:12px;flex-shrink:0;" title="' + __('webhook.noSecret') + '"></i>');
                             html += '</div>';
                         });
                         html += '</div></div>';
@@ -201,7 +201,7 @@
                         html += '<div style="margin-bottom:12px;">';
                         html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">';
                         html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:13px;"><i class="bi bi-link-45deg"></i></span>';
-                        html += '<span style="font-weight:600;font-size:13px;color:#1e293b;">' + (__('webhook.platform.generic') || '自定义 Webhook') + '</span>';
+                        html += '<span style="font-weight:600;font-size:13px;color:#1e293b;">' + __('webhook.platform.generic') + '</span>';
                         html += '<span style="background:#e0e7ff;color:#4338ca;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;">' + genericEndpoints.length + '</span>';
                         html += '</div>';
                         html += '<div style="display:flex;flex-direction:column;gap:6px;margin-left:36px;">';
@@ -211,7 +211,7 @@
                             html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">';
                             html += '<i class="bi bi-globe" style="color:#6366f1;font-size:14px;flex-shrink:0;"></i>';
                             html += '<span style="font-size:12px;color:#334155;font-family:monospace;word-break:break-all;flex:1;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(ep.url) : ep.url) + '">' + safeUrl + '</span>';
-                            html += (ep.secret ? '<i class="bi bi-key-fill" style="color:#f59e0b;font-size:12px;flex-shrink:0;" title="' + (__('webhook.secret') || '签名密钥') + '"></i>' : '<i class="bi bi-key" style="color:#cbd5e1;font-size:12px;flex-shrink:0;" title="' + (__('webhook.noSecret') || '无密钥') + '"></i>');
+                            html += (ep.secret ? '<i class="bi bi-key-fill" style="color:#f59e0b;font-size:12px;flex-shrink:0;" title="' + __('webhook.secret') + '"></i>' : '<i class="bi bi-key" style="color:#cbd5e1;font-size:12px;flex-shrink:0;" title="' + __('webhook.noSecret') + '"></i>');
                             html += '</div>';
                         });
                         html += '</div></div>';
@@ -221,12 +221,12 @@
                     html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">';
                     html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">';
                     html += '<i class="bi bi-broadcast" style="color:#10b981;font-size:14px;"></i>';
-                    html += '<span style="font-weight:600;font-size:13px;color:#1e293b;">' + (__('webhook.events.title') || '通知事件') + '</span>';
+                    html += '<span style="font-weight:600;font-size:13px;color:#1e293b;">' + __('webhook.events.title') + '</span>';
                     html += '</div>';
                     html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-left:22px;">';
                     if (allEnabled) {
                         html += '<span style="padding:4px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:12px;color:#166534;font-weight:500;">' +
-                            '<i class="bi bi-check-circle-fill me-1"></i>' + (__('webhook.events.allEnabled') || '全部启用') + '</span>';
+                            '<i class="bi bi-check-circle-fill me-1"></i>' + __('webhook.events.allEnabled') + '</span>';
                     } else {
                         allEvents.forEach(function(ev) {
                             var isEnabled = enabledEvents.some(function(e) { return e === ev; });
@@ -235,7 +235,7 @@
                                 ';border-radius:6px;font-size:12px;color:' + (isEnabled ? '#166534' : '#94a3b8') +
                                 ';font-weight:500;">' +
                                 (isEnabled ? '<i class="bi bi-check-circle-fill me-1"></i>' : '<i class="bi bi-x-circle me-1"></i>') +
-                                (__('webhook.events.' + ev) || ev) + '</span>';
+                                __('webhook.events.' + ev) + '</span>';
                         });
                     }
                     html += '</div></div>';
@@ -250,7 +250,7 @@
             if (rlSummary && rlStatus) {
                 rlSummary.innerHTML = rlStatus.enabled
                     ? '<p class="mb-0"><span class="badge bg-success me-1">' + __('settings.enabled') + '</span> ' +
-                      '限制 ' + rlStatus.permitLimit + ' 次 / ' + rlStatus.window + '，队列 ' + rlStatus.queueLimit + '</p>'
+                      __('settings.rateLimitInfo', { limit: rlStatus.permitLimit, window: rlStatus.window, queue: rlStatus.queueLimit }) + '</p>'
                     : '<p class="text-muted mb-0">' + __('settings.rateLimitDisabled') + '</p>';
             }
 

@@ -32,7 +32,7 @@ try
     app.UseRouting();
 
     // Register Dashboard middleware + MapReverseProxy (all-in-one)
-    // This ensures MetricsMiddleware and ResponseCacheMiddleware run inside
+    // This ensures core middleware runs inside
     // the proxy pipeline where IReverseProxyFeature is available.
     app.UseAneiangYarpDashboard();
 

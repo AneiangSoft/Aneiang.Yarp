@@ -50,16 +50,6 @@ public static class DashboardServiceCollectionExtensions
             return new DynamicConfigPersistenceService(configPath, logger);
         });
 
-        // Metrics
-        services.AddOptions<GatewayMetricsOptions>()
-            .BindConfiguration(GatewayMetricsOptions.SectionName);
-        services.AddSingleton<IGatewayMetricsService, GatewayMetricsService>();
-
-        // Response cache
-        services.AddOptions<ResponseCacheOptions>()
-            .BindConfiguration(ResponseCacheOptions.SectionName);
-        services.AddSingleton<IResponseCacheService, ResponseCacheService>();
-
         // Rate limiting
         services.AddSingleton<RateLimitConfigProvider>();
         services.AddRateLimiter(_ => { });
@@ -69,44 +59,6 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<IConfigureOptions<MvcOptions>>(_ =>
             new ConfigureNamedOptions<MvcOptions>(null, mvo =>
                 mvo.Conventions.Add(new GatewayApiAuthConvention())));
-
-        // Bridge DashboardOptions switches to core options
-        services.AddSingleton<IConfigureOptions<GatewayMetricsOptions>>(sp =>
-        {
-            var dashOpts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
-            var config = sp.GetRequiredService<IConfiguration>();
-            return new ConfigureNamedOptions<GatewayMetricsOptions>(null, opts =>
-            {
-                config.GetSection(GatewayMetricsOptions.SectionName).Bind(opts);
-                if (dashOpts.EnableMetrics && !opts.Enabled)
-                    opts.Enabled = true;
-            });
-        });
-
-        services.AddSingleton<IConfigureOptions<ResponseCacheOptions>>(sp =>
-        {
-            var dashOpts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
-            var config = sp.GetRequiredService<IConfiguration>();
-            return new ConfigureNamedOptions<ResponseCacheOptions>(null, opts =>
-            {
-                config.GetSection(ResponseCacheOptions.SectionName).Bind(opts);
-                if (dashOpts.EnableResponseCache && !opts.Enabled)
-                    opts.Enabled = true;
-                if (dashOpts.EnableResponseCache)
-                {
-                    if (dashOpts.ResponseCacheDefaultTtl is { Length: > 0 } ttlStr
-                        && TimeSpan.TryParse(ttlStr, out var ttl)
-                        && opts.DefaultTtl == TimeSpan.FromSeconds(30))
-                    {
-                        opts.DefaultTtl = ttl;
-                    }
-                    if (dashOpts.ResponseCacheMaxEntries > 0 && opts.MaxEntries == 1000)
-                    {
-                        opts.MaxEntries = dashOpts.ResponseCacheMaxEntries;
-                    }
-                }
-            });
-        });
 
         // ── Dashboard-specific services (original) ────────────────────────────
 

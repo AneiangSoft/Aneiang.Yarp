@@ -280,21 +280,6 @@ public class DashboardOptions
     /// </summary>
     public List<string>? WebhookEnabledEvents { get; set; }
 
-    // ─── Metrics ──────────────────────────────────────────
-
-    /// <summary>
-    /// Enable Prometheus metrics collection and export.
-    /// When enabled, metrics are available at the /apigateway/api/metrics endpoint.
-    /// Default: false.
-    /// </summary>
-    public bool EnableMetrics { get; set; }
-
-    /// <summary>
-    /// Metrics endpoint path. Default: "/metrics".
-    /// Only effective when EnableMetrics is true.
-    /// </summary>
-    public string MetricsEndpointPath { get; set; } = "/metrics";
-
     // ─── Health Check ──────────────────────────────────
 
     /// <summary>
@@ -316,20 +301,4 @@ public class DashboardOptions
     /// </summary>
     public string PassiveHealthCheckReactivationPeriod { get; set; } = "00:00:30";
 
-    // ─── Response Cache ──────────────────────────────────
-
-    /// <summary>
-    /// Enable response caching for proxy requests. Default: false.
-    /// </summary>
-    public bool EnableResponseCache { get; set; }
-
-    /// <summary>
-    /// Default cache TTL for GET/HEAD requests. Default: "00:00:30" (30 seconds).
-    /// </summary>
-    public string ResponseCacheDefaultTtl { get; set; } = "00:00:30";
-
-    /// <summary>
-    /// Maximum cache entry count. Default: 1000.
-    /// </summary>
-    public int ResponseCacheMaxEntries { get; set; } = 1000;
 }

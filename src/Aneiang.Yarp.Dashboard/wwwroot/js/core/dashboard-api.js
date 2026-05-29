@@ -264,15 +264,7 @@
 
         // Health Check
         getHealthCheckStatus: () => DashboardApi.get('/api/health-check/status'),
-        getClusterHealthConfigs: () => DashboardApi.get('/api/health-check/clusters'),
-
-        // Metrics
-        getMetrics: (options = {}) => DashboardApi.request('/api/metrics', { parseJson: false, ...options }),
-
-        // Response Cache
-        getCacheStats: () => DashboardApi.get('/api/response-cache/stats'),
-        clearCache: () => DashboardApi.delete('/api/response-cache'),
-        invalidateRouteCache: (routeId) => DashboardApi.delete(`/api/response-cache/routes/${encodeURIComponent(routeId)}`)
+        getClusterHealthConfigs: () => DashboardApi.get('/api/health-check/clusters')
     };
 
 })();

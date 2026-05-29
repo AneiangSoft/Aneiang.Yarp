@@ -23,8 +23,6 @@ public static class DashboardI18n
         ["layout.section.config"] = "配置",
         ["layout.tab.logs"] = "日志",
         ["layout.tab.healthcheck"] = "健康检查",
-        ["layout.tab.metrics"] = "指标监控",
-        ["layout.tab.responsecache"] = "响应缓存",
         ["layout.lang.switch"] = "English",
         ["layout.lang.tooltip"] = "Switch to English",
         ["layout.user.loggedIn"] = "已登录",
@@ -323,8 +321,13 @@ public static class DashboardI18n
         ["index.route.deleting"] = "正在删除路由...",
 
         // ── Import/Export ──
+        ["config.management"] = "配置管理",
         ["config.export"] = "导出配置",
+        ["config.exportDesc"] = "将当前网关配置导出为 JSON 文件",
+        ["config.exportBtn"] = "导出",
         ["config.import"] = "导入配置",
+        ["config.importDesc"] = "从 JSON 文件导入网关配置",
+        ["config.importBtn"] = "导入",
         ["config.history"] = "配置历史",
         ["config.exporting"] = "正在导出...",
         ["config.exported"] = "配置已导出",
@@ -380,6 +383,8 @@ public static class DashboardI18n
         ["webhook.dingtalk.help"] = "URL 格式：https://oapi.dingtalk.com/robot/send?access_token=你的Token",
         ["webhook.dingtalk.secret.help"] = "钉钉机器人加签密钥（安全设置 → 加签），设置后将自动计算签名",
         ["webhook.generic.help"] = "输入任意 Webhook 回调地址，将发送原始 JSON 格式的配置变更通知",
+        ["webhook.edit"] = "编辑",
+        ["webhook.summaryLoading"] = "加载中...",
         ["webhook.test"] = "测试推送",
         ["webhook.testing"] = "测试中...",
         ["webhook.testSuccess"] = "推送成功",
@@ -550,6 +555,7 @@ public static class DashboardI18n
 
         // ── Audit Log ──
         ["layout.tab.audit"] = "审计日志",
+        ["layout.tab.settings"] = "设置",
         ["audit.title"] = "审计日志",
         ["audit.loading"] = "加载审计日志中...",
         ["audit.loadFailed"] = "加载审计日志失败",
@@ -584,41 +590,16 @@ public static class DashboardI18n
         ["health.reactivation"] = "恢复周期",
         ["health.refresh"] = "刷新",
 
-        // ── Metrics ──
-        ["metrics.title"] = "指标监控",
-        ["metrics.loading"] = "加载中...",
-        ["metrics.loadFailed"] = "加载指标数据失败",
-        ["metrics.notEnabled"] = "指标功能未启用，请在配置中设置 Gateway:Dashboard:EnableMetrics 为 true",
-        ["metrics.noData"] = "暂无指标数据",
-        ["metrics.metricCount"] = "指标数",
-        ["metrics.sampleCount"] = "样本数",
-        ["metrics.payloadSize"] = "数据量",
-        ["metrics.samples"] = "样本",
-        ["metrics.viewRaw"] = "查看原始数据",
-        ["metrics.refresh"] = "刷新",
+        // ── Settings page ──
+        ["settings.rateLimit"] = "限流设置",
+        ["settings.loading"] = "加载中...",
+        ["settings.circuitBreaker"] = "熔断器状态",
+        ["settings.resetBreaker"] = "重置",
+        ["settings.enabled"] = "已启用",
+        ["settings.rateLimitDisabled"] = "限流未启用",
+        ["settings.noBreaker"] = "暂无熔断器数据",
+        ["settings.rateLimitInfo"] = "限制 {limit} 次 / {window}，队列 {queue}",
 
-        // ── Response Cache ──
-        ["cache.title"] = "响应缓存",
-        ["cache.loading"] = "加载中...",
-        ["cache.loadFailed"] = "加载缓存数据失败",
-        ["cache.notEnabled"] = "响应缓存未启用，请在配置中设置 Gateway:Dashboard:EnableResponseCache 为 true",
-        ["cache.noData"] = "暂无缓存数据",
-        ["cache.entries"] = "缓存条目",
-        ["cache.maxEntries"] = "最大条目",
-        ["cache.hitRate"] = "命中率",
-        ["cache.memoryUsage"] = "内存占用",
-        ["cache.bytes"] = "字节",
-        ["cache.hitsMisses"] = "命中/未命中",
-        ["cache.total"] = "总请求",
-        ["cache.usage"] = "容量使用",
-        ["cache.hitMissRatio"] = "命中/未命中比",
-        ["cache.hits"] = "命中",
-        ["cache.misses"] = "未命中",
-        ["cache.clearAll"] = "清空缓存",
-        ["cache.refresh"] = "刷新",
-        ["cache.clearConfirm"] = "确认清空所有缓存条目？",
-        ["cache.cleared"] = "缓存已清空",
-        ["cache.clearFailed"] = "清空缓存失败",
     };
 
     /// <summary>English translation dictionary.</summary>
@@ -635,8 +616,6 @@ public static class DashboardI18n
         ["layout.section.config"] = "Config",
         ["layout.tab.logs"] = "Logs",
         ["layout.tab.healthcheck"] = "Health Check",
-        ["layout.tab.metrics"] = "Metrics",
-        ["layout.tab.responsecache"] = "Response Cache",
         ["layout.lang.switch"] = "中文",
         ["layout.lang.tooltip"] = "切换到中文",
         ["layout.user.loggedIn"] = "Logged in",
@@ -935,8 +914,13 @@ public static class DashboardI18n
         ["index.route.deleting"] = "Deleting route...",
 
         // ── Import/Export ──
+        ["config.management"] = "Config Management",
         ["config.export"] = "Export Config",
+        ["config.exportDesc"] = "Export current gateway config as a JSON file",
+        ["config.exportBtn"] = "Export",
         ["config.import"] = "Import Config",
+        ["config.importDesc"] = "Import gateway config from a JSON file",
+        ["config.importBtn"] = "Import",
         ["config.history"] = "Config History",
         ["config.exporting"] = "Exporting...",
         ["config.exported"] = "Config exported",
@@ -992,6 +976,8 @@ public static class DashboardI18n
         ["webhook.dingtalk.help"] = "URL format: https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN",
         ["webhook.dingtalk.secret.help"] = "DingTalk robot signing secret (Security Settings → Sign). Signature will be auto-calculated when set.",
         ["webhook.generic.help"] = "Enter any webhook callback URL. Raw JSON config-change notifications will be sent.",
+        ["webhook.edit"] = "Edit",
+        ["webhook.summaryLoading"] = "Loading...",
         ["webhook.test"] = "Test Push",
         ["webhook.testing"] = "Testing...",
         ["webhook.testSuccess"] = "Success",
@@ -1162,6 +1148,7 @@ public static class DashboardI18n
 
         // ── Audit Log ──
         ["layout.tab.audit"] = "Audit Log",
+        ["layout.tab.settings"] = "Settings",
         ["audit.title"] = "Audit Log",
         ["audit.loading"] = "Loading audit logs...",
         ["audit.loadFailed"] = "Failed to load audit logs",
@@ -1196,42 +1183,18 @@ public static class DashboardI18n
         ["health.reactivation"] = "Reactivation",
         ["health.refresh"] = "Refresh",
 
-        // ── Metrics ──
-        ["metrics.title"] = "Metrics",
-        ["metrics.loading"] = "Loading...",
-        ["metrics.loadFailed"] = "Failed to load metrics data",
-        ["metrics.notEnabled"] = "Metrics is not enabled. Set Gateway:Dashboard:EnableMetrics to true in config.",
-        ["metrics.noData"] = "No metrics data",
-        ["metrics.metricCount"] = "Metrics",
-        ["metrics.sampleCount"] = "Samples",
-        ["metrics.payloadSize"] = "Size",
-        ["metrics.samples"] = "samples",
-        ["metrics.viewRaw"] = "View raw data",
-        ["metrics.refresh"] = "Refresh",
+        // ── Settings page ──
+        ["settings.rateLimit"] = "Rate Limiting",
+        ["settings.loading"] = "Loading...",
+        ["settings.circuitBreaker"] = "Circuit Breaker Status",
+        ["settings.resetBreaker"] = "Reset",
+        ["settings.enabled"] = "Enabled",
+        ["settings.rateLimitDisabled"] = "Rate limiting not enabled",
+        ["settings.noBreaker"] = "No circuit breaker data",
+        ["settings.rateLimitInfo"] = "Limit {limit} req / {window}, queue {queue}",
 
-        // ── Response Cache ──
-        ["cache.title"] = "Response Cache",
-        ["cache.loading"] = "Loading...",
-        ["cache.loadFailed"] = "Failed to load cache data",
-        ["cache.notEnabled"] = "Response cache is not enabled. Set Gateway:Dashboard:EnableResponseCache to true in config.",
-        ["cache.noData"] = "No cache data",
-        ["cache.entries"] = "Entries",
-        ["cache.maxEntries"] = "Max Entries",
-        ["cache.hitRate"] = "Hit Rate",
-        ["cache.memoryUsage"] = "Memory Usage",
-        ["cache.bytes"] = "bytes",
-        ["cache.hitsMisses"] = "Hits / Misses",
-        ["cache.total"] = "Total",
-        ["cache.usage"] = "Capacity Usage",
-        ["cache.hitMissRatio"] = "Hit / Miss Ratio",
-        ["cache.hits"] = "Hits",
-        ["cache.misses"] = "Misses",
-        ["cache.clearAll"] = "Clear Cache",
-        ["cache.refresh"] = "Refresh",
-        ["cache.clearConfirm"] = "Confirm clear all cache entries?",
-        ["cache.cleared"] = "Cache cleared",
-        ["cache.clearFailed"] = "Failed to clear cache",
     };
+
 
     /// <summary>Returns the translation dictionary for the given locale.</summary>
     public static Dictionary<string, string> GetDict(string? locale)
