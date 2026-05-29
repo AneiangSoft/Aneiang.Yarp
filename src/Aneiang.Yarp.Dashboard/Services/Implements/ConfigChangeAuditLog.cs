@@ -2,12 +2,15 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
+using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Dashboard.Services.Implements;
 
 /// <summary>
-/// In-memory audit log store for gateway configuration changes.
+/// Audit log store for gateway configuration changes.
+/// Uses in-memory <see cref="ConcurrentQueue{T}"/> for fast writes,
+/// and persists to <see cref="IDataStore"/> so entries survive restarts.
 /// Thread-safe, bounded by max capacity (ring-buffer style).
 /// </summary>
 public class ConfigChangeAuditLog : IConfigChangeAuditLog
@@ -18,11 +21,15 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
         WriteIndented = false
     };
 
-    private readonly ConcurrentQueue<ConfigChangeAudit> _entries = new();
+    private const string Category = "audit-log";
     private const int MaxCapacity = 200;
+
+    private readonly ConcurrentQueue<ConfigChangeAudit> _entries = new();
     private int _totalCount;
     private long _evictedCount;
+    private bool _loaded;
 
+    private readonly IDataStore _store;
     private readonly ILogger<ConfigChangeAuditLog> _logger;
 
     /// <summary>
@@ -30,14 +37,39 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
     /// </summary>
     public event Action<string, string, string?, object?>? OnConfigChanged;
 
-    public ConfigChangeAuditLog(ILogger<ConfigChangeAuditLog> logger)
+    public ConfigChangeAuditLog(IDataStore store, ILogger<ConfigChangeAuditLog> logger)
     {
+        _store = store;
         _logger = logger;
+    }
+
+    /// <summary>Load persisted entries from store on first access.</summary>
+    private async Task EnsureLoadedAsync()
+    {
+        if (_loaded) return;
+        _loaded = true;
+
+        try
+        {
+            var persisted = await _store.GetCollectionAsync<ConfigChangeAudit>(Category);
+            foreach (var entry in persisted)
+            {
+                _entries.Enqueue(entry);
+                Interlocked.Increment(ref _totalCount);
+            }
+            _logger.LogDebug("Loaded {Count} audit entries from store", persisted.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load persisted audit entries");
+        }
     }
 
     /// <inheritdoc />
     public void Record(ConfigChangeAudit entry)
     {
+        EnsureLoadedAsync().GetAwaiter().GetResult();
+
         _entries.Enqueue(entry);
         var count = Interlocked.Increment(ref _totalCount);
 
@@ -49,15 +81,15 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
                 Interlocked.Increment(ref _evictedCount);
                 count--;
             }
-            else
-            {
-                break;
-            }
+            else break;
         }
 
         _logger.LogDebug("Audit: {Action} on '{Target}' by {Operator} - {Status}",
             entry.Action, entry.Target, entry.Operator ?? "unknown",
             entry.Success ? "OK" : $"FAIL: {entry.ErrorMessage}");
+
+        // Persist to store (fire-and-forget for performance)
+        _ = _store.AddToCollectionAsync(Category, entry);
 
         if (entry.Success)
         {
@@ -97,6 +129,7 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
     /// <inheritdoc />
     public IReadOnlyList<ConfigChangeAudit> GetRecent(int count = 50)
     {
+        EnsureLoadedAsync().GetAwaiter().GetResult();
         return _entries.OrderByDescending(e => e.Timestamp).Take(count).ToList();
     }
 
