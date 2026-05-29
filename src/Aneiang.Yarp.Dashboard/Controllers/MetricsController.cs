@@ -29,7 +29,7 @@ public class MetricsController : ControllerBase
     /// Route: <c>/apigateway/api/metrics</c>
     /// </summary>
     [HttpGet]
-    [Route("apigateway/api/metrics")]
+    [Route("api/metrics")]
     public IActionResult GetMetrics()
     {
         if (!_dashboardOptions.EnableMetrics)
