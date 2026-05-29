@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.AspNetCore.Mvc.Filters;
 
-namespace Aneiang.Yarp.Services;
+namespace Aneiang.Yarp.Dashboard.Services.Implements;
 
 /// <summary>Applies GatewayApiAuthFilter to GatewayConfigController only.</summary>
 internal sealed class GatewayApiAuthConvention : IApplicationModelConvention

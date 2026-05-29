@@ -13,11 +13,11 @@ namespace Aneiang.Yarp.Dashboard.Controllers;
 [ApiController]
 public class MetricsController : ControllerBase
 {
-    private readonly GatewayMetricsService _metricsService;
+    private readonly IGatewayMetricsService _metricsService;
     private readonly DashboardOptions _dashboardOptions;
 
     public MetricsController(
-        GatewayMetricsService metricsService,
+        IGatewayMetricsService metricsService,
         IOptions<DashboardOptions> dashboardOptions)
     {
         _metricsService = metricsService;

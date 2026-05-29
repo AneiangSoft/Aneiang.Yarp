@@ -7,14 +7,14 @@ namespace Aneiang.Yarp.Dashboard.Controllers;
 
 /// <summary>
 /// API controller for accessing configuration change audit logs.
-/// Exposes the in-memory ConfigChangeAuditLog data to the dashboard UI.
+/// Exposes the in-memory IConfigChangeAuditLog data to the dashboard UI.
 /// </summary>
 public class AuditLogController : Controller
 {
-    private readonly ConfigChangeAuditLog _auditLog;
+    private readonly IConfigChangeAuditLog _auditLog;
 
     /// <summary>Initializes a new instance of AuditLogController.</summary>
-    public AuditLogController(ConfigChangeAuditLog auditLog)
+    public AuditLogController(IConfigChangeAuditLog auditLog)
     {
         _auditLog = auditLog;
     }

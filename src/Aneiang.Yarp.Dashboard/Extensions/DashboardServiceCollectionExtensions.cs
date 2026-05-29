@@ -1,12 +1,15 @@
 using System.Security.Cryptography;
 using Aneiang.Yarp.Dashboard.Controllers;
+using Aneiang.Yarp.Dashboard.Middleware;
 using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Dashboard.Services;
+using Aneiang.Yarp.Dashboard.Services.Implements;
 using Aneiang.Yarp.Dashboard.Services.Webhook;
-using Aneiang.Yarp.Middleware;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -22,21 +25,6 @@ public static class DashboardServiceCollectionExtensions
     /// Register Dashboard with configurable auth and route prefix.
     /// Options are bound from <c>Gateway:Dashboard</c> configuration section.
     /// </summary>
-    /// <param name="services">IServiceCollection</param>
-    /// <param name="configureOptions">Optional override for dashboard options.</param>
-    /// <example>
-    /// <code>
-    /// // Minimal setup with JWT auth:
-    /// services.AddAneiangYarpDashboard(o =>
-    /// {
-    ///     o.AuthMode = DashboardAuthMode.DefaultJwt;
-    ///     o.JwtPassword = "Ads@2026";
-    /// });
-    ///
-    /// // Or via config file:
-    /// { "Gateway": { "Dashboard": { "AuthMode": "DefaultJwt", "JwtPassword": "Ads@2026" } } }
-    /// </code>
-    /// </example>
     public static IServiceCollection AddAneiangYarpDashboard(
         this IServiceCollection services,
         Action<DashboardOptions>? configureOptions = null)
@@ -50,7 +38,79 @@ public static class DashboardServiceCollectionExtensions
         // Register MVC controllers from this assembly
         services.AddMvcCore().AddApplicationPart(typeof(DashboardController).Assembly);
 
-        // YARP log capture (zero dependency on logging frameworks)
+        // ── Dashboard-specific services (moved from Aneiang.Yarp) ──────────────
+
+        // Override core service implementations with Dashboard implementations
+        services.AddSingleton<IConfigChangeAuditLog, ConfigChangeAuditLog>();
+        services.AddSingleton<IDynamicConfigPersistenceService>(sp =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            var configPath = config["Gateway:DynamicConfigPath"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "gateway-dynamic.json");
+            var logger = sp.GetRequiredService<ILogger<DynamicConfigPersistenceService>>();
+            return new DynamicConfigPersistenceService(configPath, logger);
+        });
+
+        // Metrics
+        services.AddOptions<GatewayMetricsOptions>()
+            .BindConfiguration(GatewayMetricsOptions.SectionName);
+        services.AddSingleton<IGatewayMetricsService, GatewayMetricsService>();
+
+        // Response cache
+        services.AddOptions<ResponseCacheOptions>()
+            .BindConfiguration(ResponseCacheOptions.SectionName);
+        services.AddSingleton<IResponseCacheService, ResponseCacheService>();
+
+        // Rate limiting
+        services.AddSingleton<RateLimitConfigProvider>();
+        services.AddRateLimiter(_ => { });
+
+        // Gateway API auth
+        services.AddSingleton<GatewayApiAuthFilter>();
+        services.AddSingleton<IConfigureOptions<MvcOptions>>(_ =>
+            new ConfigureNamedOptions<MvcOptions>(null, mvo =>
+                mvo.Conventions.Add(new GatewayApiAuthConvention())));
+
+        // Bridge DashboardOptions switches to core options
+        services.AddSingleton<IConfigureOptions<GatewayMetricsOptions>>(sp =>
+        {
+            var dashOpts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
+            var config = sp.GetRequiredService<IConfiguration>();
+            return new ConfigureNamedOptions<GatewayMetricsOptions>(null, opts =>
+            {
+                config.GetSection(GatewayMetricsOptions.SectionName).Bind(opts);
+                if (dashOpts.EnableMetrics && !opts.Enabled)
+                    opts.Enabled = true;
+            });
+        });
+
+        services.AddSingleton<IConfigureOptions<ResponseCacheOptions>>(sp =>
+        {
+            var dashOpts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
+            var config = sp.GetRequiredService<IConfiguration>();
+            return new ConfigureNamedOptions<ResponseCacheOptions>(null, opts =>
+            {
+                config.GetSection(ResponseCacheOptions.SectionName).Bind(opts);
+                if (dashOpts.EnableResponseCache && !opts.Enabled)
+                    opts.Enabled = true;
+                if (dashOpts.EnableResponseCache)
+                {
+                    if (dashOpts.ResponseCacheDefaultTtl is { Length: > 0 } ttlStr
+                        && TimeSpan.TryParse(ttlStr, out var ttl)
+                        && opts.DefaultTtl == TimeSpan.FromSeconds(30))
+                    {
+                        opts.DefaultTtl = ttl;
+                    }
+                    if (dashOpts.ResponseCacheMaxEntries > 0 && opts.MaxEntries == 1000)
+                    {
+                        opts.MaxEntries = dashOpts.ResponseCacheMaxEntries;
+                    }
+                }
+            });
+        });
+
+        // ── Dashboard-specific services (original) ────────────────────────────
+
+        // YARP log capture
         services.AddSingleton<IProxyLogStore>(sp =>
         {
             var opts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
@@ -61,22 +121,22 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<YarpEventSourceListener>();
         services.AddHostedService<YarpEventSourceListenerStartupService>();
 
-        // Register downstream capture transform (runs after all other transforms)
+        // Downstream capture transform
         services.AddSingleton<ITransformProvider, DownstreamCaptureTransformProvider>();
 
-        // Register dashboard query services
+        // Dashboard query services
         services.AddSingleton<IDashboardInfoQueryService, DashboardInfoQueryService>();
         services.AddSingleton<IDashboardClusterQueryService, DashboardClusterQueryService>();
         services.AddSingleton<IDashboardRouteQueryService, DashboardRouteQueryService>();
         services.AddSingleton<IDashboardLogQueryService, DashboardLogQueryService>();
 
-        // Register editable policy
+        // Editable policy
         services.AddSingleton<IEditablePolicy, DashboardEditablePolicy>();
 
-        // Register authorization service
+        // Authorization service
         services.AddSingleton<IDashboardAuthorizationService, DashboardAuthorizationService>();
 
-        // Register webhook notification service
+        // Webhook notification service
         services.AddHttpClient("webhook");
         services.AddSingleton<IWebhookProvider, DingTalkWebhookProvider>();
         services.AddSingleton<IWebhookProvider, GenericWebhookProvider>();
@@ -94,9 +154,8 @@ public static class DashboardServiceCollectionExtensions
                 sp.GetRequiredService<ILogger<WebhookNotificationService>>(),
                 sp.GetRequiredService<IHttpClientFactory>(),
                 sp.GetServices<IWebhookProvider>());
-            webhook.Subscribe(sp.GetRequiredService<ConfigChangeAuditLog>());
+            webhook.Subscribe(sp.GetRequiredService<IConfigChangeAuditLog>());
 
-            // Load persisted webhook settings into DashboardOptions at startup
             var persistence = sp.GetRequiredService<WebhookSettingsPersistenceService>();
             var data = persistence.Load() ?? new WebhookSettingsData();
             var opts = options.Value;
@@ -112,70 +171,17 @@ public static class DashboardServiceCollectionExtensions
             return webhook;
         });
 
-        // Register configuration persistence service
+        // Dashboard configuration persistence service
         services.AddSingleton(sp =>
         {
-            var filePersistence = sp.GetRequiredService<DynamicConfigPersistenceService>();
-            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ConfigPersistenceService>>();
+            var filePersistence = sp.GetRequiredService<IDynamicConfigPersistenceService>();
+            var logger = sp.GetRequiredService<ILogger<ConfigPersistenceService>>();
             var dynamicConfig = sp.GetService<DynamicYarpConfigService>();
             return new ConfigPersistenceService(filePersistence, logger, dynamicConfig);
         });
 
-        // Register default health check service (applies passive health check to all clusters at startup)
+        // Default health check service
         services.AddHostedService<DefaultHealthCheckService>();
-
-        // ── Bridge DashboardOptions switches to core options ─────────────────
-        // This allows Gateway:Dashboard:EnableMetrics / EnableResponseCache to control
-        // the corresponding core options (Gateway:Metrics / Gateway:ResponseCache).
-        services.AddSingleton<IConfigureOptions<GatewayMetricsOptions>>(sp =>
-        {
-            var dashOpts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
-            var config = sp.GetRequiredService<IConfiguration>();
-            return new ConfigureNamedOptions<GatewayMetricsOptions>(null, opts =>
-            {
-                // Bind from config first
-                config.GetSection(GatewayMetricsOptions.SectionName).Bind(opts);
-                // Dashboard switch overrides if explicitly set
-                if (dashOpts.EnableMetrics && !opts.Enabled)
-                    opts.Enabled = true;
-            });
-        });
-
-        services.AddSingleton<IConfigureOptions<ResponseCacheOptions>>(sp =>
-        {
-            var dashOpts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
-            var config = sp.GetRequiredService<IConfiguration>();
-            return new ConfigureNamedOptions<ResponseCacheOptions>(null, opts =>
-            {
-                // Bind from config first
-                config.GetSection(ResponseCacheOptions.SectionName).Bind(opts);
-                // Dashboard switch overrides if explicitly set
-                if (dashOpts.EnableResponseCache && !opts.Enabled)
-                    opts.Enabled = true;
-                // Also propagate Dashboard TTL/MaxEntries if core config doesn't set them
-                if (dashOpts.EnableResponseCache)
-                {
-                    if (dashOpts.ResponseCacheDefaultTtl is { Length: > 0 } ttlStr
-                        && TimeSpan.TryParse(ttlStr, out var ttl)
-                        && opts.DefaultTtl == TimeSpan.FromSeconds(30))
-                    {
-                        opts.DefaultTtl = ttl;
-                    }
-                    if (dashOpts.ResponseCacheMaxEntries > 0 && opts.MaxEntries == 1000)
-                    {
-                        opts.MaxEntries = dashOpts.ResponseCacheMaxEntries;
-                    }
-                }
-            });
-        });
-
-        // Register dynamic config persistence service (from Aneiang.Yarp)
-        services.AddSingleton(sp =>
-        {
-            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<DynamicConfigPersistenceService>>();
-            var configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "gateway-dynamic.json");
-            return new DynamicConfigPersistenceService(configPath, logger);
-        });
 
         // Route prefix + auth conventions
         services.AddSingleton<IConfigureOptions<MvcOptions>>(sp =>
@@ -183,10 +189,8 @@ public static class DashboardServiceCollectionExtensions
             var opts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
             var prefix = opts.RoutePrefix.Trim('/');
 
-            // Share config with controller
             DashboardController.RoutePrefix = prefix;
 
-            // Auto-generate JWT secret if not set
             if (opts.JwtSecret == null && opts.AuthMode is DashboardAuthMode.CustomJwt or DashboardAuthMode.DefaultJwt)
             {
                 var randomBytes = new byte[32];
@@ -198,7 +202,6 @@ public static class DashboardServiceCollectionExtensions
             {
                 mvcOptions.Conventions.Add(new DashboardRouteConvention(prefix));
 
-                // Add auth filter if authorization is enabled
                 var authFilter = CreateAuthFilter(opts, prefix);
                 if (authFilter != null)
                     mvcOptions.Filters.Add(authFilter);
@@ -208,17 +211,11 @@ public static class DashboardServiceCollectionExtensions
         return services;
     }
 
-    // -- Auth filter factory
-
-    /// <summary>Creates an auth filter if authorization is enabled.</summary>
     private static DashboardAuthFilter? CreateAuthFilter(DashboardOptions opts, string routePrefix)
     {
-        // No authorization needed for AuthMode.None without custom delegate
         if (opts.AuthMode == DashboardAuthMode.None && opts.AuthorizeRequest == null)
             return null;
 
-        // Create a temporary auth service instance for the filter
-        // The actual service will be resolved from DI at runtime
         return new DashboardAuthFilter(
             new DashboardAuthorizationService(Microsoft.Extensions.Options.Options.Create(opts)),
             routePrefix);

@@ -1,15 +1,16 @@
 using System.Collections.Concurrent;
 using Aneiang.Yarp.Models;
+using Aneiang.Yarp.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Aneiang.Yarp.Services;
+namespace Aneiang.Yarp.Dashboard.Services.Implements;
 
 /// <summary>In-memory LRU response cache for proxy responses.</summary>
-public sealed class ResponseCacheService
+public sealed class ResponseCacheService : IResponseCacheService
 {
     private readonly ConcurrentDictionary<string, CacheEntry> _cache = new();
-    private readonly LinkedList<string> _lruList = new(); // Most recent at head
+    private readonly LinkedList<string> _lruList = new();
     private readonly object _lruLock = new();
     private readonly ILogger<ResponseCacheService> _logger;
     private readonly int _maxEntries;
@@ -22,10 +23,7 @@ public sealed class ResponseCacheService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Try to retrieve a cached response.
-    /// </summary>
-    /// <returns>True if a valid (non-expired) entry was found.</returns>
+    /// <inheritdoc />
     public bool TryGet(string key, out byte[] body, out Dictionary<string, string> headers, out int statusCode)
     {
         body = [];
@@ -40,13 +38,11 @@ public sealed class ResponseCacheService
 
         if (entry.ExpiresAt <= DateTimeOffset.UtcNow)
         {
-            // Expired — remove lazily
             RemoveEntry(key, entry);
             Interlocked.Increment(ref _misses);
             return false;
         }
 
-        // Move to head of LRU
         lock (_lruLock)
         {
             if (entry.LruNode?.List != null)
@@ -63,9 +59,7 @@ public sealed class ResponseCacheService
         return true;
     }
 
-    /// <summary>
-    /// Store a response in the cache.
-    /// </summary>
+    /// <inheritdoc />
     public void Set(string key, byte[] body, Dictionary<string, string> headers, int statusCode, TimeSpan ttl)
     {
         if (ttl <= TimeSpan.Zero) return;
@@ -86,7 +80,6 @@ public sealed class ResponseCacheService
         var existing = _cache.GetOrAdd(key, entry);
         if (existing != entry)
         {
-            // Key already existed — replace
             lock (_lruLock)
             {
                 if (existing.LruNode?.List != null)
@@ -101,9 +94,7 @@ public sealed class ResponseCacheService
         _logger.LogDebug("Cached entry {Key} (TTL: {Ttl}s, Size: {Size} bytes)", key, ttl.TotalSeconds, body.Length);
     }
 
-    /// <summary>
-    /// Remove a specific cache entry.
-    /// </summary>
+    /// <inheritdoc />
     public void Remove(string key)
     {
         if (_cache.TryRemove(key, out var entry))
@@ -112,9 +103,7 @@ public sealed class ResponseCacheService
         }
     }
 
-    /// <summary>
-    /// Remove all cache entries whose key starts with the given route ID prefix.
-    /// </summary>
+    /// <inheritdoc />
     public void RemoveByPrefix(string routeId)
     {
         foreach (var kvp in _cache)
@@ -131,9 +120,7 @@ public sealed class ResponseCacheService
         _logger.LogInformation("Invalidated cache entries for route prefix '{RouteId}'", routeId);
     }
 
-    /// <summary>
-    /// Clear all cache entries.
-    /// </summary>
+    /// <inheritdoc />
     public void Clear()
     {
         _cache.Clear();
@@ -145,9 +132,7 @@ public sealed class ResponseCacheService
         _logger.LogInformation("Response cache cleared");
     }
 
-    /// <summary>
-    /// Get cache statistics.
-    /// </summary>
+    /// <inheritdoc />
     public Dictionary<string, object> GetStats()
     {
         long hits = Interlocked.Read(ref _hits);

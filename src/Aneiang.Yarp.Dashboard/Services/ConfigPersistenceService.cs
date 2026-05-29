@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Aneiang.Yarp.Dashboard.Models;
+using Aneiang.Yarp.Dashboard.Services.Implements;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Microsoft.Extensions.Logging;
@@ -18,7 +19,7 @@ public class ConfigPersistenceService
         WriteIndented = true
     };
 
-    private readonly DynamicConfigPersistenceService _filePersistence;
+    private readonly IDynamicConfigPersistenceService _filePersistence;
     private readonly DynamicYarpConfigService? _dynamicConfig;
     private readonly ILogger<ConfigPersistenceService> _logger;
     private readonly List<ConfigSnapshot> _history = new();
@@ -29,7 +30,7 @@ public class ConfigPersistenceService
     /// Initializes a new instance of ConfigPersistenceService.
     /// </summary>
     public ConfigPersistenceService(
-        DynamicConfigPersistenceService filePersistence,
+        IDynamicConfigPersistenceService filePersistence,
         ILogger<ConfigPersistenceService> logger,
         DynamicYarpConfigService? dynamicConfig = null,
         int maxHistorySize = 50)

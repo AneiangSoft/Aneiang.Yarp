@@ -13,8 +13,8 @@ namespace Aneiang.Yarp.Services;
 public class DynamicYarpConfigService
 {
     private readonly InMemoryConfigProvider _configProvider;
-    private readonly DynamicConfigPersistenceService _persistence;
-    private readonly ConfigChangeAuditLog _auditLog;
+    private readonly IDynamicConfigPersistenceService _persistence;
+    private readonly IConfigChangeAuditLog _auditLog;
     private readonly ILogger<DynamicYarpConfigService> _logger;
     private readonly ReaderWriterLockSlim _rwLock = new();
     private GatewayDynamicConfig? _dynamicConfig;
@@ -33,8 +33,8 @@ public class DynamicYarpConfigService
     /// <param name="logger">Logger instance.</param>
     public DynamicYarpConfigService(
         InMemoryConfigProvider configProvider,
-        DynamicConfigPersistenceService persistence,
-        ConfigChangeAuditLog auditLog,
+        IDynamicConfigPersistenceService persistence,
+        IConfigChangeAuditLog auditLog,
         ILogger<DynamicYarpConfigService> logger)
     {
         _configProvider = configProvider;

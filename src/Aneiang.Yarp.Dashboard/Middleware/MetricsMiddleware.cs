@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 using System.Diagnostics;
 using Yarp.ReverseProxy.Model;
 
-namespace Aneiang.Yarp.Middleware;
+namespace Aneiang.Yarp.Dashboard.Middleware;
 
 /// <summary>
 /// Prometheus metrics middleware for YARP proxy requests.
@@ -15,12 +15,12 @@ namespace Aneiang.Yarp.Middleware;
 public sealed class MetricsMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly GatewayMetricsService _metricsService;
+    private readonly IGatewayMetricsService _metricsService;
     private readonly GatewayMetricsOptions _options;
 
     public MetricsMiddleware(
         RequestDelegate next,
-        GatewayMetricsService metricsService,
+        IGatewayMetricsService metricsService,
         IOptions<GatewayMetricsOptions> options)
     {
         _next = next;
@@ -28,9 +28,6 @@ public sealed class MetricsMiddleware
         _options = options.Value;
     }
 
-    /// <summary>
-    /// Invokes the middleware.
-    /// </summary>
     public async Task InvokeAsync(HttpContext context)
     {
         if (!_options.Enabled)

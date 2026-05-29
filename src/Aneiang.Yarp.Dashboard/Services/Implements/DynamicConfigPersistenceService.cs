@@ -1,16 +1,16 @@
 using System.Text.Json;
 using Aneiang.Yarp.Models;
+using Aneiang.Yarp.Services;
 using Microsoft.Extensions.Logging;
 
-namespace Aneiang.Yarp.Services;
+namespace Aneiang.Yarp.Dashboard.Services.Implements;
 
 /// <summary>
 /// Service for persisting and loading dynamic gateway configurations.
-/// Stores runtime modifications to gateway-dynamic.json to survive restarts.
 /// Thread-safe: callers are responsible for external synchronization.
 /// Uses atomic file writes (write-to-temp + rename) to prevent corruption.
 /// </summary>
-public class DynamicConfigPersistenceService
+public class DynamicConfigPersistenceService : IDynamicConfigPersistenceService
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -21,21 +21,13 @@ public class DynamicConfigPersistenceService
     private readonly string _configFilePath;
     private readonly ILogger<DynamicConfigPersistenceService> _logger;
 
-    /// <summary>
-    /// Initializes a new instance of DynamicConfigPersistenceService.
-    /// </summary>
-    /// <param name="configFilePath">Path to gateway-dynamic.json file.</param>
-    /// <param name="logger">Logger instance.</param>
     public DynamicConfigPersistenceService(string configFilePath, ILogger<DynamicConfigPersistenceService> logger)
     {
         _configFilePath = configFilePath;
         _logger = logger;
     }
 
-    /// <summary>
-    /// Load dynamic configuration from file.
-    /// Returns empty config if file doesn't exist.
-    /// </summary>
+    /// <inheritdoc />
     public GatewayDynamicConfig LoadConfig()
     {
         if (!File.Exists(_configFilePath))
@@ -69,9 +61,7 @@ public class DynamicConfigPersistenceService
         }
     }
 
-    /// <summary>
-    /// Save dynamic configuration to file using atomic write (temp file + rename).
-    /// </summary>
+    /// <inheritdoc />
     public void SaveConfig(GatewayDynamicConfig config)
     {
         try
@@ -80,14 +70,12 @@ public class DynamicConfigPersistenceService
             
             var json = JsonSerializer.Serialize(config, _jsonOptions);
             
-            // Ensure directory exists
             var directory = Path.GetDirectoryName(_configFilePath);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
             {
                 Directory.CreateDirectory(directory);
             }
 
-            // Atomic write: write to temp file, then rename
             var tmpPath = _configFilePath + ".tmp";
             File.WriteAllText(tmpPath, json);
             File.Move(tmpPath, _configFilePath, overwrite: true);
@@ -105,9 +93,7 @@ public class DynamicConfigPersistenceService
         }
     }
 
-    /// <summary>
-    /// Delete the dynamic configuration file.
-    /// </summary>
+    /// <inheritdoc />
     public void DeleteConfig()
     {
         if (File.Exists(_configFilePath))
@@ -125,18 +111,13 @@ public class DynamicConfigPersistenceService
         }
     }
 
-    /// <summary>
-    /// Check if dynamic configuration file exists.
-    /// </summary>
+    /// <inheritdoc />
     public bool ConfigFileExists()
     {
         return File.Exists(_configFilePath);
     }
 
-    /// <summary>
-    /// Load dynamic configuration from file asynchronously.
-    /// Returns empty config if file doesn't exist.
-    /// </summary>
+    /// <inheritdoc />
     public async Task<GatewayDynamicConfig> LoadConfigAsync()
     {
         if (!File.Exists(_configFilePath))
@@ -170,9 +151,7 @@ public class DynamicConfigPersistenceService
         }
     }
 
-    /// <summary>
-    /// Save dynamic configuration to file asynchronously using atomic write (temp file + rename).
-    /// </summary>
+    /// <inheritdoc />
     public async Task SaveConfigAsync(GatewayDynamicConfig config)
     {
         try
@@ -181,14 +160,12 @@ public class DynamicConfigPersistenceService
 
             var json = JsonSerializer.Serialize(config, _jsonOptions);
 
-            // Ensure directory exists
             var directory = Path.GetDirectoryName(_configFilePath);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
             {
                 Directory.CreateDirectory(directory);
             }
 
-            // Atomic write: write to temp file, then rename
             var tmpPath = _configFilePath + ".tmp";
             await File.WriteAllTextAsync(tmpPath, json);
             File.Move(tmpPath, _configFilePath, overwrite: true);
@@ -206,9 +183,7 @@ public class DynamicConfigPersistenceService
         }
     }
 
-    /// <summary>
-    /// Delete the dynamic configuration file asynchronously.
-    /// </summary>
+    /// <inheritdoc />
     public async Task DeleteConfigAsync()
     {
         if (File.Exists(_configFilePath))
