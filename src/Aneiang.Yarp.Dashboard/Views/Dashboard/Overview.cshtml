@@ -1,0 +1,193 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Overview" : "总览";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+    var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
+}
+
+<!-- Stat cards -->
+<div id="stat-bar" class="row g-3 mb-3">
+    <div class="col-12">
+        <div class="info-bar">
+            <div class="info-bar-content">
+                <span><i class="bi bi-cpu"></i><span data-i18n="index.label.version">版本：</span><strong id="info-version">-</strong></span>
+                <span><i class="bi bi-cloud"></i><span data-i18n="index.label.env">环境：</span><strong id="info-env">-</strong></span>
+                <span><i class="bi bi-play-circle"></i><span data-i18n="index.label.start">启动：</span><strong id="info-start">-</strong></span>
+                <span><i class="bi bi-clock-history"></i><span data-i18n="index.label.uptime">运行：</span><strong id="info-uptime">-</strong></span>
+                <span><i class="bi bi-memory"></i><span data-i18n="index.label.memory">内存：</span><strong id="info-memory">-</strong></span>
+                <span><i class="bi bi-pc-display"></i><span data-i18n="index.label.host">主机：</span><strong id="info-machine">-</strong></span>
+            </div>
+            <div class="info-bar-actions">
+                <button class="btn btn-icon btn-outline-primary" onclick="overviewRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 col-sm-6">
+        <div class="stat-card">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value" id="stat-clusters">-</div>
+                    <div class="stat-label" data-i18n="index.stat.clusters">服务集群</div>
+                </div>
+                <a href="/@prefix/clusters" class="stat-icon text-decoration-none" style="background:#eff6ff;color:#3b82f6;"><i class="bi bi-diagram-3"></i></a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 col-sm-6">
+        <div class="stat-card">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value" id="stat-healthy" style="color:#22c55e;">-</div>
+                    <div class="stat-label" data-i18n="index.stat.health">健康 / 未知 / 异常</div>
+                </div>
+                <div class="stat-icon" style="background:#f0fdf4;color:#22c55e;"><i class="bi bi-heart-pulse"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 col-sm-6">
+        <div class="stat-card">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value" id="stat-routes">-</div>
+                    <div class="stat-label" data-i18n="index.stat.routes">路由规则</div>
+                </div>
+                <a href="/@prefix/routes" class="stat-icon text-decoration-none" style="background:#fefce8;color:#eab308;"><i class="bi bi-signpost-split"></i></a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cluster preview -->
+<div id="cluster-preview-panel" class="card-panel mb-3">
+    <div class="card-header">
+        <span><i class="bi bi-hdd-stack me-2"></i><span data-i18n="index.cluster.title">服务集群概览</span></span>
+        <a href="/@prefix/clusters" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-arrow-right"></i> <span data-i18n="home.viewAll">查看全部</span>
+        </a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle" style="table-layout:fixed;width:100%">
+            <thead>
+                <tr>
+                    <th style="width:50%"><span data-i18n="index.cluster.th.name">集群名称</span></th>
+                    <th style="width:50%"><span data-i18n="index.cluster.th.health">健康状态</span></th>
+                </tr>
+            </thead>
+            <tbody id="cluster-preview-tbody">
+                <tr><td colspan="2" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Route preview -->
+<div id="route-preview-panel" class="card-panel mb-3">
+    <div class="card-header">
+        <span><i class="bi bi-signpost-split me-2"></i><span data-i18n="index.route.title">路由规则概览</span></span>
+        <a href="/@prefix/routes" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-arrow-right"></i> <span data-i18n="home.viewAll">查看全部</span>
+        </a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle" style="table-layout:fixed;width:100%">
+            <thead>
+                <tr>
+                    <th style="width:50%"><span data-i18n="index.route.th.name">路由名称</span></th>
+                    <th style="width:50%"><span data-i18n="index.route.th.cluster">关联集群</span></th>
+                </tr>
+            </thead>
+            <tbody id="route-preview-tbody">
+                <tr><td colspan="2" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Statistics panel -->
+<div id="stats-panel" class="card-panel mb-3">
+    <div class="card-header">
+        <span><i class="bi bi-bar-chart-line me-2"></i><span data-i18n="stats.title">访问统计</span></span>
+        <div class="d-flex align-items-center" style="gap:12px;white-space:nowrap;">
+            <a href="/@prefix/stats" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-arrow-right"></i> <span data-i18n="home.viewAll">详情</span>
+            </a>
+        </div>
+    </div>
+    <div id="stats-content" class="card-body"></div>
+</div>
+
+@section Scripts {
+@{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<!-- Core Infrastructure -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
+
+<!-- Events -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
+
+<!-- Modules: only home + stats for overview -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-stats.js?v=@v"></script>
+
+<script>
+    window.__dashboard = window.__dashboard || {};
+    var dash = window.__dashboard;
+    dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
+    dash.token = localStorage.getItem('dashboard_token');
+    dash.CURRENT_LOCALE = '@ViewBag.Locale';
+    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
+    dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
+    dash.currentPage = '@ViewBag.CurrentPage';
+</script>
+
+<script>
+    // Initialize only relevant modules for overview page
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+
+        // Init modules
+        if (window.DashboardApp?.modules?.home?.init) await DashboardApp.modules.home.init();
+        if (window.DashboardApp?.modules?.stats?.init) await DashboardApp.modules.stats.init();
+
+        // Auto-load data
+        if (window.DashboardApp?.modules?.home?.loadInfo) await DashboardApp.modules.home.loadInfo();
+        if (window.DashboardApp?.modules?.stats?.loadStats) await DashboardApp.modules.stats.loadStats();
+
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+
+    // Overview-specific refresh handler
+    window.overviewRefresh = async function(btn) {
+        var originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise spin me-1"></i>';
+        btn.disabled = true;
+        try {
+            await Promise.all([
+                window.DashboardApp?.modules?.home?.loadInfo?.(),
+                window.DashboardApp?.modules?.home?.updateStatCards?.(),
+                window.DashboardApp?.modules?.stats?.loadStats?.()
+            ]);
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    };
+</script>
+
+<style>
+@@keyframes spin { to { transform: rotate(360deg); } }
+.spin { display:inline-block; animation: spin .6s linear infinite; }
+</style>
+}

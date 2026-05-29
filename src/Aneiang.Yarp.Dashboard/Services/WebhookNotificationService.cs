@@ -1,3 +1,4 @@
+using System;
 using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Dashboard.Services.Webhook;
 using Aneiang.Yarp.Services;
@@ -54,6 +55,7 @@ public class WebhookNotificationService
     /// <summary>
     /// Send a config change notification to all configured webhook URLs.
     /// Automatically selects the correct <see cref="IWebhookProvider"/> based on URL host.
+    /// Only sends if the event type is enabled in the configuration.
     /// </summary>
     public void NotifyConfigChange(string eventType, string target, string? operatorName = null, object? details = null)
     {
@@ -61,13 +63,24 @@ public class WebhookNotificationService
         if (urls == null || urls.Count == 0)
             return;
 
+        // Check if this event type is enabled
+        var enabledEvents = _options.WebhookEnabledEvents;
+        if (enabledEvents != null && enabledEvents.Count > 0 &&
+            !enabledEvents.Any(e => string.Equals(e, eventType, StringComparison.OrdinalIgnoreCase)))
+        {
+            _logger.LogDebug("Webhook event '{EventType}' skipped (not in enabled list)", eventType);
+            return;
+        }
+
         var payload = new WebhookPayload
         {
             EventType = eventType,
+            EventLabel = GetEventLabel(eventType),
             Target = target,
             Operator = operatorName,
             Timestamp = DateTime.UtcNow,
-            Details = details
+            Details = details,
+            GatewayName = Environment.MachineName
         };
 
         foreach (var url in urls)
@@ -85,7 +98,7 @@ public class WebhookNotificationService
         try
         {
             var provider = ResolveProvider(url);
-            var secret = ResolveSecret(provider);
+            var secret = ResolveSecret(url, provider);
             var request = provider.BuildRequest(url, payload, secret);
 
             using var http = _httpClientFactory.CreateClient("webhook");
@@ -115,6 +128,22 @@ public class WebhookNotificationService
         }
     }
 
+    private static readonly Dictionary<string, string> _eventLabels = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["AddRoute"] = "➕ 路由新增",
+        ["UpdateRoute"] = "✏️ 路由更新",
+        ["RemoveRoute"] = "🗑️ 路由删除",
+        ["AddCluster"] = "➕ 集群新增",
+        ["UpdateCluster"] = "✏️ 集群更新",
+        ["RemoveCluster"] = "🗑️ 集群删除",
+        ["RenameCluster"] = "🔄 集群重命名",
+        ["RollbackConfig"] = "⏪ 配置回滚",
+        ["test"] = "🔧 测试推送"
+    };
+
+    private static string GetEventLabel(string eventType) =>
+        _eventLabels.GetValueOrDefault(eventType, eventType);
+
     private IWebhookProvider ResolveProvider(string url)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
@@ -130,12 +159,18 @@ public class WebhookNotificationService
         return _genericProvider;
     }
 
-    private string? ResolveSecret(IWebhookProvider provider)
+    private string? ResolveSecret(string url, IWebhookProvider provider)
     {
-        // Per-platform secret takes priority
+        // Per-URL secret takes priority (webhook-settings.json stores per-endpoint secrets)
         if (_options.WebhookSecrets != null &&
-            _options.WebhookSecrets.TryGetValue(provider.PlatformName, out var secret))
-            return secret;
+            _options.WebhookSecrets.TryGetValue(url, out var urlSecret) &&
+            !string.IsNullOrEmpty(urlSecret))
+            return urlSecret;
+
+        // Fallback: per-platform secret
+        if (_options.WebhookSecrets != null &&
+            _options.WebhookSecrets.TryGetValue(provider.PlatformName, out var platformSecret))
+            return platformSecret;
 
         // Fallback to generic secret
         return _options.WebhookSecret;

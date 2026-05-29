@@ -1,4 +1,3 @@
-using Aneiang.Yarp.Dashboard.Controllers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
@@ -8,8 +7,9 @@ using Microsoft.AspNetCore.Mvc.Filters;
 namespace Aneiang.Yarp.Dashboard.Services;
 
 /// <summary>
-/// Async auth filter for DashboardController.
-/// Skips login actions. Redirects browser to login; returns 401 JSON for API calls.
+/// Async auth filter for Dashboard controllers.
+/// Applies to all controllers in the <see cref="Aneiang.Yarp.Dashboard.Controllers"/> namespace.
+/// Skips login/logout actions. Redirects browser to login; returns 401 JSON for API calls.
 /// Uses IDashboardAuthorizationService for unified authorization check.
 /// </summary>
 internal sealed class DashboardAuthFilter : IAsyncAuthorizationFilter
@@ -25,14 +25,17 @@ internal sealed class DashboardAuthFilter : IAsyncAuthorizationFilter
 
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
-        // Only apply to DashboardController actions
-        if (context.ActionDescriptor is not ControllerActionDescriptor
-            { ControllerTypeInfo: var ci } || ci.AsType() != typeof(DashboardController))
+        // Only apply to Dashboard controllers (all types in Aneiang.Yarp.Dashboard.Controllers namespace)
+        if (context.ActionDescriptor is not ControllerActionDescriptor { ControllerTypeInfo: var ci })
             return;
 
-        // Skip login actions - they are public
+        if (!ci.Namespace?.StartsWith("Aneiang.Yarp.Dashboard.Controllers", StringComparison.Ordinal) == true)
+            return;
+
+        // Skip login/logout actions - they are public
         var actionName = ((ControllerActionDescriptor)context.ActionDescriptor).ActionName;
-        if (string.Equals(actionName, "Login", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(actionName, "Login", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionName, "Logout", StringComparison.OrdinalIgnoreCase))
             return;
 
         // Use authorization service for unified check
@@ -40,7 +43,8 @@ internal sealed class DashboardAuthFilter : IAsyncAuthorizationFilter
 
         var request = context.HttpContext.Request;
         var isApi = request.Headers["X-Requested-With"] == "XMLHttpRequest"
-            || (request.Headers["Accept"].FirstOrDefault()?.Contains("application/json") == true);
+            || (request.Headers["Accept"].FirstOrDefault()?.Contains("application/json") == true)
+            || request.Path.StartsWithSegments($"/{_routePrefix}/api");
 
         if (isApi)
             context.Result = new JsonResult(new { code = 401, message = "Unauthorized" }) { StatusCode = 401 };

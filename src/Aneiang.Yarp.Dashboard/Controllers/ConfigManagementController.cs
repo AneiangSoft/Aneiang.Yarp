@@ -3,6 +3,7 @@ using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Dashboard.Services;
+using Aneiang.Yarp.Dashboard.Services.Webhook;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -20,17 +21,26 @@ public class ConfigManagementController : ControllerBase
     private readonly DynamicYarpConfigService _dynamicConfig;
     private readonly ILogger<ConfigManagementController> _logger;
     private readonly DashboardOptions _dashboardOptions;
+    private readonly WebhookSettingsPersistenceService _webhookPersistence;
+    private readonly WebhookNotificationService _webhookService;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     public ConfigManagementController(
         ConfigPersistenceService persistenceService,
         DynamicYarpConfigService dynamicConfig,
         ILogger<ConfigManagementController> logger,
-        IOptions<DashboardOptions> dashboardOptions)
+        IOptions<DashboardOptions> dashboardOptions,
+        WebhookSettingsPersistenceService webhookPersistence,
+        WebhookNotificationService webhookService,
+        IHttpClientFactory httpClientFactory)
     {
         _persistenceService = persistenceService;
         _dynamicConfig = dynamicConfig;
         _logger = logger;
         _dashboardOptions = dashboardOptions.Value;
+        _webhookPersistence = webhookPersistence;
+        _webhookService = webhookService;
+        _httpClientFactory = httpClientFactory;
     }
 
     /// <summary>
@@ -554,43 +564,29 @@ public class ConfigManagementController : ControllerBase
     }
 
     /// <summary>
-    /// Get current webhook notification settings, grouped by platform.
+    /// Get current webhook notification settings (DingTalk + Generic only).
     /// </summary>
     [HttpGet("webhook")]
     public IActionResult GetWebhookSettings()
     {
         try
         {
-            var allUrls = _dashboardOptions.WebhookUrls ?? new List<string>();
-            var platforms = new Dictionary<string, object>
-            {
-                ["dingtalk"] = new
-                {
-                    urls = allUrls.Where(u => u.Contains("oapi.dingtalk.com", StringComparison.OrdinalIgnoreCase)).ToList(),
-                    hasSecret = HasPlatformSecret("dingtalk")
-                },
-                ["feishu"] = new
-                {
-                    urls = allUrls.Where(u => u.Contains("open.feishu.cn", StringComparison.OrdinalIgnoreCase)
-                                          || u.Contains("open.larksuite.com", StringComparison.OrdinalIgnoreCase)).ToList(),
-                    hasSecret = HasPlatformSecret("feishu")
-                },
-                ["wecom"] = new
-                {
-                    urls = allUrls.Where(u => u.Contains("qyapi.weixin.qq.com", StringComparison.OrdinalIgnoreCase)).ToList(),
-                    hasSecret = HasPlatformSecret("wecom")
-                },
-                ["generic"] = new
-                {
-                    urls = allUrls.Where(u => !u.Contains("oapi.dingtalk.com", StringComparison.OrdinalIgnoreCase)
-                                          && !u.Contains("open.feishu.cn", StringComparison.OrdinalIgnoreCase)
-                                          && !u.Contains("open.larksuite.com", StringComparison.OrdinalIgnoreCase)
-                                          && !u.Contains("qyapi.weixin.qq.com", StringComparison.OrdinalIgnoreCase)).ToList(),
-                    hasSecret = !string.IsNullOrEmpty(_dashboardOptions.WebhookSecret)
-                }
-            };
+            // Load from persistence file
+            var data = _webhookPersistence.Load() ?? new WebhookSettingsData();
 
-            return Ok(new { code = 200, data = new { platforms } });
+            // Sync to DashboardOptions for notification service
+            SyncToDashboardOptions(data);
+
+            return Ok(new
+            {
+                code = 200,
+                data = new
+                {
+                    dingtalk = data.DingTalkEndpoints.Select(e => new { url = e.Url, secret = e.Secret }),
+                    generic = data.GenericEndpoints.Select(e => new { url = e.Url, secret = e.Secret }),
+                    enabledEvents = data.EnabledEvents ?? []
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -601,7 +597,6 @@ public class ConfigManagementController : ControllerBase
 
     /// <summary>
     /// Update webhook notification settings.
-    /// Accepts per-platform URL lists and secrets.
     /// </summary>
     [HttpPut("webhook")]
     public IActionResult UpdateWebhookSettings([FromBody] WebhookSettingsRequest request)
@@ -611,49 +606,76 @@ public class ConfigManagementController : ControllerBase
             if (request == null)
                 return BadRequest(new { code = 400, message = "Request body is required" });
 
-            var allUrls = new List<string>();
+            // Load existing or create new
+            var data = _webhookPersistence.Load() ?? new WebhookSettingsData();
 
-            // Merge URLs from all platforms
-            if (request.Platforms != null)
+            // Validate and update DingTalk endpoints
+            if (request.Platforms != null && request.Platforms.TryGetValue("dingtalk", out var dingtalkEntry))
             {
-                foreach (var (platform, entry) in request.Platforms)
+                if (dingtalkEntry.Endpoints != null)
                 {
-                    if (entry.Urls != null)
+                    var validEndpoints = new List<WebhookEndpoint>();
+                    foreach (var ep in dingtalkEntry.Endpoints)
                     {
-                        foreach (var url in entry.Urls)
+                        if (string.IsNullOrWhiteSpace(ep.Url))
+                            continue;
+                        if (!Uri.TryCreate(ep.Url, UriKind.Absolute, out var uri)
+                            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
                         {
-                            if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri)
-                                || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-                            {
-                                return BadRequest(new { code = 400, message = $"Invalid webhook URL: {url}" });
-                            }
-                            allUrls.Add(url);
+                            return BadRequest(new { code = 400, message = $"Invalid DingTalk URL: {ep.Url}" });
                         }
+                        validEndpoints.Add(new WebhookEndpoint { Url = ep.Url, Secret = ep.Secret });
                     }
-
-                    // Update per-platform secret
-                    if (entry.Secret != null)
-                    {
-                        _dashboardOptions.WebhookSecrets ??= new();
-                        _dashboardOptions.WebhookSecrets[platform] =
-                            string.IsNullOrEmpty(entry.Secret) ? null : entry.Secret;
-                    }
+                    data.DingTalkEndpoints = validEndpoints;
                 }
             }
 
-            // Update flat URL list (for notification dispatch)
-            _dashboardOptions.WebhookUrls = allUrls;
-
-            // Generic fallback secret
-            if (request.WebhookSecret != null)
+            // Validate and update Generic endpoints
+            if (request.Platforms != null && request.Platforms.TryGetValue("generic", out var genericEntry))
             {
-                _dashboardOptions.WebhookSecret = string.IsNullOrEmpty(request.WebhookSecret) ? null : request.WebhookSecret;
+                if (genericEntry.Endpoints != null)
+                {
+                    var validEndpoints = new List<WebhookEndpoint>();
+                    foreach (var ep in genericEntry.Endpoints)
+                    {
+                        if (string.IsNullOrWhiteSpace(ep.Url))
+                            continue;
+                        if (!Uri.TryCreate(ep.Url, UriKind.Absolute, out var uri)
+                            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                        {
+                            return BadRequest(new { code = 400, message = $"Invalid generic URL: {ep.Url}" });
+                        }
+                        validEndpoints.Add(new WebhookEndpoint { Url = ep.Url, Secret = ep.Secret });
+                    }
+                    data.GenericEndpoints = validEndpoints;
+                }
             }
 
-            _logger.LogInformation("Webhook settings updated: {UrlCount} URLs configured",
-                allUrls.Count);
+            // Update enabled event types
+            if (request.EnabledEvents != null)
+            {
+                var allValidEvents = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "AddRoute", "UpdateRoute", "RemoveRoute",
+                    "AddCluster", "UpdateCluster", "RemoveCluster", "RenameCluster",
+                    "RollbackConfig"
+                };
+                var validEvents = request.EnabledEvents
+                    .Where(e => allValidEvents.Contains(e))
+                    .ToList();
+                data.EnabledEvents = validEvents.Count == allValidEvents.Count ? null : validEvents;
+            }
 
-            return Ok(new { code = 200, message = "Webhook settings updated successfully" });
+            // Persist to file
+            _webhookPersistence.Save(data);
+
+            // Sync to DashboardOptions for notification service
+            SyncToDashboardOptions(data);
+
+            _logger.LogInformation("Webhook settings updated: DingTalk={DingTalkCount}, Generic={GenericCount}",
+                data.DingTalkEndpoints.Count, data.GenericEndpoints.Count);
+
+            return Ok(new { code = 200, message = "Webhook settings saved successfully" });
         }
         catch (Exception ex)
         {
@@ -662,11 +684,114 @@ public class ConfigManagementController : ControllerBase
         }
     }
 
-    private bool HasPlatformSecret(string platform)
+    /// <summary>
+    /// Test webhook notification by sending a test message.
+    /// </summary>
+    [HttpPost("webhook/test")]
+    public async Task<IActionResult> TestWebhook([FromBody] WebhookTestRequest request)
     {
-        if (_dashboardOptions.WebhookSecrets != null &&
-            _dashboardOptions.WebhookSecrets.TryGetValue(platform, out var secret))
-            return !string.IsNullOrEmpty(secret);
-        return false;
+        try
+        {
+            if (request == null || string.IsNullOrEmpty(request.Platform))
+                return BadRequest(new { code = 400, message = "Platform is required" });
+
+            var data = _webhookPersistence.Load() ?? new WebhookSettingsData();
+            var endpoints = request.Platform == "dingtalk" ? data.DingTalkEndpoints : data.GenericEndpoints;
+
+            if (endpoints.Count == 0)
+                return BadRequest(new { code = 400, message = $"No endpoints configured for {request.Platform}" });
+
+            // Send test notification
+            var results = new List<object>();
+            foreach (var endpoint in endpoints)
+            {
+                try
+                {
+                    // Each endpoint gets a unique test message with current timestamp
+                    var testPayload = new WebhookPayload
+                    {
+                        EventType = "test",
+                        Target = "webhook-test",
+                        Operator = "dashboard-user",
+                        Timestamp = DateTime.UtcNow,
+                        Details = new { message = $"Test notification #{results.Count + 1} from YARP Dashboard at {DateTime.UtcNow:HH:mm:ss}" }
+                    };
+
+                    var success = await SendTestWebhookAsync(endpoint.Url, testPayload, endpoint.Secret, request.Platform);
+                    results.Add(new { url = endpoint.Url, success, message = success ? "OK" : "Failed" });
+                }
+                catch (Exception ex)
+                {
+                    results.Add(new { url = endpoint.Url, success = false, message = ex.Message });
+                }
+            }
+
+            var successCount = results.Count(r => (bool)((dynamic)r).success);
+            return Ok(new
+            {
+                code = 200,
+                data = new
+                {
+                    platform = request.Platform,
+                    total = endpoints.Count,
+                    success = successCount,
+                    failed = endpoints.Count - successCount,
+                    results
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to test webhook");
+            return StatusCode(500, new { code = 500, message = $"Failed: {ex.Message}" });
+        }
     }
+
+    private void SyncToDashboardOptions(WebhookSettingsData data)
+    {
+        // Merge all URLs into flat list for notification service
+        var allUrls = new List<string>();
+        allUrls.AddRange(data.DingTalkEndpoints.Select(e => e.Url));
+        allUrls.AddRange(data.GenericEndpoints.Select(e => e.Url));
+        _dashboardOptions.WebhookUrls = allUrls;
+
+        // Build URL-to-secret map for notification service
+        _dashboardOptions.WebhookSecrets = new Dictionary<string, string?>();
+        foreach (var ep in data.DingTalkEndpoints)
+            _dashboardOptions.WebhookSecrets[ep.Url] = ep.Secret;
+        foreach (var ep in data.GenericEndpoints)
+            _dashboardOptions.WebhookSecrets[ep.Url] = ep.Secret;
+
+        // Sync enabled events
+        _dashboardOptions.WebhookEnabledEvents = data.EnabledEvents;
+    }
+
+    private async Task<bool> SendTestWebhookAsync(string url, WebhookPayload payload, string? secret, string platform)
+    {
+        using var http = _httpClientFactory.CreateClient("webhook");
+        http.Timeout = TimeSpan.FromSeconds(10);
+
+        IWebhookProvider provider = platform == "dingtalk"
+            ? new DingTalkWebhookProvider()
+            : new GenericWebhookProvider();
+
+        var request = provider.BuildRequest(url, payload, secret);
+
+        var httpRequest = new HttpRequestMessage(new HttpMethod(request.Method), request.Url);
+        if (request.Body != null)
+            httpRequest.Content = new StringContent(request.Body, System.Text.Encoding.UTF8, request.ContentType);
+
+        foreach (var kvp in request.Headers)
+            httpRequest.Headers.TryAddWithoutValidation(kvp.Key, kvp.Value);
+
+        var response = await http.SendAsync(httpRequest);
+        return response.IsSuccessStatusCode;
+    }
+}
+
+/// <summary>Request body for webhook test.</summary>
+public class WebhookTestRequest
+{
+    /// <summary>Platform to test: "dingtalk" or "generic".</summary>
+    public string? Platform { get; set; }
 }

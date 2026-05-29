@@ -29,14 +29,14 @@ try
 
     var app = builder.Build();
 
-    //app.UseStaticFiles();
     app.UseRouting();
 
-    // Register Dashboard middleware (request capture, auth, etc.)
+    // Register Dashboard middleware + MapReverseProxy (all-in-one)
+    // This ensures MetricsMiddleware and ResponseCacheMiddleware run inside
+    // the proxy pipeline where IReverseProxyFeature is available.
     app.UseAneiangYarpDashboard();
 
     app.MapControllers();
-    app.MapReverseProxy();
 
     Console.WriteLine("╔══════════════════════════════════════════════════╗");
     Console.WriteLine("║  Internal gateway is running                     ║");

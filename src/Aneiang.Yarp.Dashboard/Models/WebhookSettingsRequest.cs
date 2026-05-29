@@ -2,7 +2,7 @@ namespace Aneiang.Yarp.Dashboard.Models;
 
 /// <summary>
 /// Request body for updating webhook notification settings.
-/// Supports per-platform URL lists and secrets.
+/// Supports per-platform endpoint lists (URL + Secret pairs) and event type selection.
 /// </summary>
 public class WebhookSettingsRequest
 {
@@ -10,11 +10,11 @@ public class WebhookSettingsRequest
     public Dictionary<string, WebhookPlatformEntry>? Platforms { get; set; }
 
     /// <summary>
-    /// Generic signing secret (backward compat).
-    /// Set to null to keep existing secret unchanged.
-    /// Set to empty string to clear the secret.
+    /// List of enabled event types for webhook notifications.
+    /// When null or empty, all events are enabled.
+    /// Supported values: AddRoute, UpdateRoute, RemoveRoute, AddCluster, UpdateCluster, RemoveCluster, RenameCluster, RollbackConfig.
     /// </summary>
-    public string? WebhookSecret { get; set; }
+    public List<string>? EnabledEvents { get; set; }
 }
 
 /// <summary>
@@ -22,13 +22,18 @@ public class WebhookSettingsRequest
 /// </summary>
 public class WebhookPlatformEntry
 {
-    /// <summary>List of webhook URLs for this platform.</summary>
-    public List<string>? Urls { get; set; }
+    /// <summary>List of webhook endpoints (URL + Secret pairs) for this platform.</summary>
+    public List<WebhookEndpointDto>? Endpoints { get; set; }
+}
 
-    /// <summary>
-    /// Platform-specific signing secret.
-    /// Set to null to keep existing secret unchanged.
-    /// Set to empty string to clear the secret.
-    /// </summary>
+/// <summary>
+/// DTO for a single webhook endpoint with URL and optional secret.
+/// </summary>
+public class WebhookEndpointDto
+{
+    /// <summary>Webhook URL.</summary>
+    public string? Url { get; set; }
+
+    /// <summary>Optional signing secret for this endpoint.</summary>
     public string? Secret { get; set; }
 }

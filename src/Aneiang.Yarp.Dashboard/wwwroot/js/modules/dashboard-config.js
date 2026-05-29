@@ -326,6 +326,34 @@
         );
     };
 
+    // ===== Test All Webhooks =====
+    window.DashboardConfig._testAllWebhooks = async function() {
+        try {
+            window.DashboardModals.showInfo(__('webhook.testing') || 'Testing...');
+            var results = [];
+            var platforms = ['dingtalk', 'generic'];
+            for (var i = 0; i < platforms.length; i++) {
+                try {
+                    var resp = await window.DashboardApi.endpoints.testWebhook({ platform: platforms[i] });
+                    results.push({ platform: platforms[i], success: resp && resp.success > 0 });
+                } catch (e) {
+                    results.push({ platform: platforms[i], success: false, error: e.message });
+                }
+            }
+            var total = results.length;
+            var success = results.filter(function(r) { return r.success; }).length;
+            if (success === total) {
+                window.DashboardModals.showSuccess(__('webhook.testSuccess') || 'Success');
+            } else if (success > 0) {
+                window.DashboardModals.showWarning(__('webhook.testPartial') + '(' + success + '/' + total + ')');
+            } else {
+                window.DashboardModals.showError(__('webhook.testFailed') || 'Failed');
+            }
+        } catch (e) {
+            window.DashboardModals.showError(e.message);
+        }
+    };
+
     // ===== Webhook Settings Modal =====
     window.DashboardConfig.showWebhookModal = async function() {
         const modalId = 'dashboard-webhook-modal';
@@ -334,9 +362,18 @@
 
         const platformDefs = [
             { key: 'dingtalk', icon: 'bi-chat-dots-fill', color: '#0089FF', bgGrad: 'linear-gradient(135deg,#0089FF,#36A3FF)', placeholder: 'https://oapi.dingtalk.com/robot/send?access_token=...' },
-            { key: 'feishu', icon: 'bi-send-fill', color: '#3370FF', bgGrad: 'linear-gradient(135deg,#3370FF,#5E8BFF)', placeholder: 'https://open.feishu.cn/open-apis/bot/v2/hook/...' },
-            { key: 'wecom', icon: 'bi-wechat', color: '#2BAD13', bgGrad: 'linear-gradient(135deg,#2BAD13,#3DBF2E)', placeholder: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...' },
             { key: 'generic', icon: 'bi-link-45deg', color: '#6366f1', bgGrad: 'linear-gradient(135deg,#6366f1,#818cf8)', placeholder: 'https://example.com/webhook' }
+        ];
+
+        var allEventTypes = [
+            { key: 'AddRoute', group: 'route' },
+            { key: 'UpdateRoute', group: 'route' },
+            { key: 'RemoveRoute', group: 'route' },
+            { key: 'AddCluster', group: 'cluster' },
+            { key: 'UpdateCluster', group: 'cluster' },
+            { key: 'RemoveCluster', group: 'cluster' },
+            { key: 'RenameCluster', group: 'cluster' },
+            { key: 'RollbackConfig', group: 'config' }
         ];
 
         function tabHtml(pd) {
@@ -350,6 +387,7 @@
 
         const tabsHtml = platformDefs.map(tabHtml).join('');
 
+
         function sectionHtml(pd) {
             return `<div class="webhook-platform-section" data-platform="${pd.key}" style="display:none;">
                 <div style="padding:20px;background:#fafbfc;border-radius:12px;border:1px solid #e8ecf1;">
@@ -362,42 +400,89 @@
                             <small style="color:#64748b;font-size:12px;">${__('webhook.' + pd.key + '.help')}</small>
                         </div>
                     </div>
-                    <div id="webhook-url-list-${pd.key}" style="margin-bottom:12px;"></div>
-                    <div style="display:flex;gap:8px;margin-bottom:16px;">
-                        <input type="url" id="webhook-new-url-${pd.key}" placeholder="${pd.placeholder}"
-                            style="flex:1;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;transition:border-color 0.2s;font-family:monospace;"
-                            onfocus="this.style.borderColor='${pd.color}'" onblur="this.style.borderColor='#e2e8f0'">
-                        <button type="button" id="webhook-add-url-btn-${pd.key}"
-                            style="padding:8px 16px;background:${pd.bgGrad};color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;">
-                            <i class="bi bi-plus-lg me-1"></i>${__('webhook.addUrl')}
-                        </button>
+
+                    <!-- Endpoint List Section -->
+                    <div style="margin-bottom:16px;">
+                        <div style="font-weight:600;font-size:13px;color:#1e293b;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                            <i class="bi bi-robot" style="color:#6366f1;"></i>
+                            <span>${__('webhook.configuredEndpoints') || 'Configured Robots'}</span>
+                            <span id="webhook-endpoint-count-${pd.key}" style="background:#e2e8f0;color:#475569;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;">0</span>
+                        </div>
+                        <div id="webhook-endpoint-list-${pd.key}" style="margin-bottom:8px;"></div>
                     </div>
-                    <div style="border-top:1px solid #e8ecf1;padding-top:14px;">
-                        <label style="font-weight:600;font-size:13px;color:#1e293b;display:block;margin-bottom:4px;">
-                            ${__('webhook.secret')}
-                        </label>
-                        <small style="color:#64748b;font-size:12px;display:block;margin-bottom:8px;">${__('webhook.' + pd.key + '.secret.help')}</small>
-                        ${pd.key === 'wecom' ? `<div style="padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:12px;color:#166534;">
-                            <i class="bi bi-info-circle me-1"></i>${__('webhook.wecom.secret.help')}
-                        </div>` : `
-                        <div style="position:relative;">
-                            <input type="password" id="webhook-secret-${pd.key}" placeholder="${__('webhook.secret.placeholder')}"
-                                style="width:100%;padding:8px 40px 8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;transition:border-color 0.2s;font-family:monospace;"
+
+                    <!-- Add New Endpoint Section -->
+                    <div style="background:#fff;border-radius:8px;padding:12px;border:1px dashed #cbd5e1;margin-bottom:16px;">
+                        <div style="font-size:12px;color:#64748b;margin-bottom:8px;">
+                            <i class="bi bi-plus-circle me-1"></i>${__('webhook.addNewEndpoint') || 'Add new robot'}
+                        </div>
+                        <div style="margin-bottom:8px;">
+                            <input type="url" id="webhook-new-url-${pd.key}" placeholder="${pd.placeholder}"
+                                style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;transition:border-color 0.2s;font-family:monospace;"
                                 onfocus="this.style.borderColor='${pd.color}'" onblur="this.style.borderColor='#e2e8f0'">
-                            <button type="button" onclick="window.DashboardConfig._toggleSecretVis('${pd.key}')" title="Toggle visibility"
-                                style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#64748b;cursor:pointer;padding:4px;">
-                                <i class="bi bi-eye" id="webhook-secret-icon-${pd.key}"></i>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <input type="text" id="webhook-new-secret-${pd.key}" placeholder="${__('webhook.secret.placeholder')}"
+                                style="flex:1;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;transition:border-color 0.2s;font-family:monospace;"
+                                onfocus="this.style.borderColor='${pd.color}'" onblur="this.style.borderColor='#e2e8f0'">
+                            <button type="button" id="webhook-add-endpoint-btn-${pd.key}"
+                                style="padding:8px 16px;background:${pd.bgGrad};color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;">
+                                <i class="bi bi-plus-lg me-1"></i>${__('webhook.add')}
                             </button>
                         </div>
-                        <small style="color:#94a3b8;font-size:11px;margin-top:4px;display:block;">
-                            ${__('webhook.secretHelpLeaveEmpty') || 'Leave empty to keep existing secret unchanged'}
-                        </small>`}
+                    </div>
+
+                    <!-- Test Section -->
+                    <div style="margin-top:16px;display:flex;gap:8px;">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.DashboardConfig._testWebhook('${pd.key}')"
+                            style="display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-size:13px;">
+                            <i class="bi bi-send"></i>
+                            <span>${__('webhook.test') || 'Test Push'}</span>
+                        </button>
+                        <span id="webhook-test-result-${pd.key}" style="display:flex;align-items:center;font-size:12px;"></span>
                     </div>
                 </div>
             </div>`;
         }
 
         const sectionsHtml = platformDefs.map(sectionHtml).join('');
+
+        // Event types section HTML
+        var eventGroups = [
+            { key: 'route', label: __('webhook.events.routeGroup') || '路由变更', icon: 'bi-signpost-split', color: '#3b82f6' },
+            { key: 'cluster', label: __('webhook.events.clusterGroup') || '集群变更', icon: 'bi-hdd-network', color: '#8b5cf6' },
+            { key: 'config', label: __('webhook.events.configGroup') || '配置管理', icon: 'bi-gear', color: '#f59e0b' }
+        ];
+
+        function eventSectionHtml() {
+            var html = '<div style="padding:20px;background:#fafbfc;border-radius:12px;border:1px solid #e8ecf1;">';
+            html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">';
+            html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#10b981,#34d399);color:#fff;font-size:16px;">';
+            html += '<i class="bi bi-broadcast"></i></span>';
+            html += '<div><div style="font-weight:600;font-size:15px;color:#1e293b;">' + (__('webhook.events.title') || '通知事件') + '</div>';
+            html += '<small style="color:#64748b;font-size:12px;">' + (__('webhook.events.help') || '选择需要推送通知的事件类型') + '</small></div>';
+            html += '<div style="margin-left:auto;display:flex;gap:6px;">';
+            html += '<button type="button" id="webhook-events-select-all" style="padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:11px;cursor:pointer;font-weight:500;">' + (__('webhook.events.selectAll') || '全选') + '</button>';
+            html += '<button type="button" id="webhook-events-deselect-all" style="padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:11px;cursor:pointer;font-weight:500;">' + (__('webhook.events.deselectAll') || '全不选') + '</button>';
+            html += '</div></div>';
+
+            eventGroups.forEach(function(eg) {
+                html += '<div style="margin-bottom:12px;">';
+                html += '<div style="font-weight:600;font-size:13px;color:#1e293b;margin-bottom:6px;display:flex;align-items:center;gap:6px;">';
+                html += '<i class="' + eg.icon + '" style="color:' + eg.color + ';"></i>';
+                html += '<span>' + eg.label + '</span></div>';
+                html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+                allEventTypes.filter(function(e) { return e.group === eg.key; }).forEach(function(ev) {
+                    html += '<label style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:13px;color:#334155;transition:all 0.15s;user-select:none;" class="webhook-event-label" data-event-key="' + ev.key + '">';
+                    html += '<input type="checkbox" class="webhook-event-checkbox" data-event-key="' + ev.key + '" checked style="accent-color:#10b981;width:16px;height:16px;cursor:pointer;">';
+                    html += '<span>' + (__('webhook.events.' + ev.key) || ev.key) + '</span></label>';
+                });
+                html += '</div></div>';
+            });
+
+            html += '</div>';
+            return html;
+        }
 
         const modalHtml = `
             <div class="modal fade" id="${modalId}" tabindex="-1">
@@ -417,6 +502,9 @@
                                 ${tabsHtml}
                             </div>
                             ${sectionsHtml}
+                            <div style="margin-top:16px;">
+                                ${eventSectionHtml()}
+                            </div>
                         </div>
                         <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
                             <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
@@ -435,13 +523,13 @@
         const modalEl = document.getElementById(modalId);
         const bsModal = new bootstrap.Modal(modalEl);
 
-        // Per-platform state
+        // Data structure: each platform has an array of { url, secret } endpoints
         var platformData = {};
         platformDefs.forEach(function(pd) {
-            platformData[pd.key] = { urls: [], hasSecret: false };
+            platformData[pd.key] = { endpoints: [] };
         });
+        var enabledEvents = []; // empty = all enabled
 
-        // Switch tab
         window.DashboardConfig._switchWebhookTab = function(platform) {
             document.querySelectorAll('.webhook-platform-tab').forEach(function(tab) {
                 var isActive = tab.dataset.platform === platform;
@@ -461,89 +549,117 @@
             });
         };
 
-        // Toggle secret visibility
-        window.DashboardConfig._toggleSecretVis = function(platform) {
-            var input = document.getElementById('webhook-secret-' + platform);
-            var icon = document.getElementById('webhook-secret-icon-' + platform);
-            if (!input || !icon) return;
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.className = 'bi bi-eye-slash';
-            } else {
-                input.type = 'password';
-                icon.className = 'bi bi-eye';
+        window.DashboardConfig._testWebhook = async function(platform) {
+            var resultEl = document.getElementById('webhook-test-result-' + platform);
+            if (!resultEl) return;
+            resultEl.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span><span style="margin-left:6px;color:#64748b;">' + (__('webhook.testing') || 'Testing...') + '</span>';
+
+            try {
+                var resp = await window.DashboardApi.endpoints.testWebhook({ platform: platform });
+                if (resp && resp.success > 0) {
+                    resultEl.innerHTML = '<i class="bi bi-check-circle-fill" style="color:#22c55e;"></i><span style="margin-left:6px;color:#166534;">' + (__('webhook.testSuccess') || 'Success') + ' (' + resp.success + '/' + resp.total + ')</span>';
+                } else {
+                    resultEl.innerHTML = '<i class="bi bi-x-circle-fill" style="color:#ef4444;"></i><span style="margin-left:6px;color:#dc2626;">' + (__('webhook.testFailed') || 'Failed') + '</span>';
+                }
+            } catch (e) {
+                resultEl.innerHTML = '<i class="bi bi-x-circle-fill" style="color:#ef4444;"></i><span style="margin-left:6px;color:#dc2626;">' + (e.message || 'Error') + '</span>';
             }
         };
 
-        // Render URL list for a platform
-        function renderUrlList(platform) {
-            var listEl = document.getElementById('webhook-url-list-' + platform);
+        function renderEndpointList(platform) {
+            var listEl = document.getElementById('webhook-endpoint-list-' + platform);
+            var countEl = document.getElementById('webhook-endpoint-count-' + platform);
             if (!listEl) return;
-            var urls = platformData[platform].urls;
-            if (urls.length === 0) {
-                listEl.innerHTML = '<div style="text-align:center;padding:14px;color:#94a3b8;font-size:13px;background:#fff;border-radius:8px;border:1px dashed #e2e8f0;">' +
-                    '<i class="bi bi-link-45deg" style="font-size:18px;display:block;margin-bottom:4px;"></i>' +
-                    __('webhook.noUrls') + '</div>';
+            var endpoints = platformData[platform].endpoints;
+
+            // Update count badge
+            if (countEl) countEl.textContent = endpoints.length;
+
+            if (endpoints.length === 0) {
+                listEl.innerHTML = '<div style="text-align:center;padding:12px;color:#94a3b8;font-size:13px;background:#fff;border-radius:8px;border:1px dashed #e2e8f0;">' +
+                    '<i class="bi bi-inbox" style="font-size:20px;display:block;margin-bottom:6px;opacity:0.5;"></i>' +
+                    __('webhook.noEndpoints') + '</div>';
                 return;
             }
-            var html = '<div style="display:flex;flex-direction:column;gap:6px;">';
-            urls.forEach(function(url, index) {
-                html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 12px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;">' +
-                    '<i class="bi bi-link-45deg" style="color:#6366f1;font-size:13px;flex-shrink:0;"></i>' +
-                    '<span style="flex:1;font-size:12px;color:#334155;word-break:break-all;font-family:monospace;">' + (window.DashboardUtils?.escapeHtml?.(url) || url) + '</span>' +
-                    '<button type="button" data-remove-url-platform="' + platform + '" data-remove-url-index="' + index + '"' +
-                    ' style="background:none;border:none;color:#ef4444;cursor:pointer;padding:4px 8px;border-radius:6px;transition:background 0.15s;"' +
-                    ' onmouseover="this.style.background=\'#fef2f2\'" onmouseout="this.style.background=\'none\'" title="' + __('webhook.removeUrl') + '">' +
-                    '<i class="bi bi-trash3" style="font-size:13px;"></i></button></div>';
+
+            var html = '<div style="display:flex;flex-direction:column;gap:8px;">';
+            endpoints.forEach(function(ep, index) {
+                var displayUrl = ep.url.length > 50 ? ep.url.substring(0, 50) + '...' : ep.url;
+                html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px;transition:box-shadow 0.15s;"' +
+                    ' onmouseover="this.style.boxShadow=\'0 2px 8px rgba(0,0,0,0.08)\'" onmouseout="this.style.boxShadow=\'none\'">' +
+                    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+                    '<i class="bi bi-robot" style="color:#6366f1;font-size:16px;flex-shrink:0;"></i>' +
+                    '<span style="flex:1;font-size:12px;color:#334155;word-break:break-all;font-family:monospace;" title="' + (window.DashboardUtils?.escapeHtml?.(ep.url) || ep.url) + '">' + (window.DashboardUtils?.escapeHtml?.(displayUrl) || displayUrl) + '</span>' +
+                    '<button type="button" data-remove-endpoint-platform="' + platform + '" data-remove-endpoint-index="' + index + '"' +
+                    ' style="background:none;border:none;color:#94a3b8;cursor:pointer;padding:4px 8px;border-radius:6px;transition:all 0.15s;"' +
+                    ' onmouseover="this.style.background=\'#fef2f2\';this.style.color=\'#ef4444\'" onmouseout="this.style.background=\'none\';this.style.color=\'#94a3b8\'" title="' + __('webhook.removeEndpoint') + '">' +
+                    '<i class="bi bi-trash3" style="font-size:13px;"></i></button></div>' +
+                    '<div style="display:flex;align-items:center;gap:6px;">' +
+                    '<i class="bi bi-key" style="color:#94a3b8;font-size:12px;"></i>' +
+                    '<input type="text" data-endpoint-platform="' + platform + '" data-endpoint-index="' + index + '" value="' + (window.DashboardUtils?.escapeHtml?.(ep.secret || '') || '') + '"' +
+                    ' placeholder="' + (__('webhook.secret.placeholder') || 'Secret') + '"' +
+                    ' style="flex:1;padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;outline:none;font-family:monospace;"' +
+                    ' onfocus="this.style.borderColor=\'#6366f1\'" onblur="this.style.borderColor=\'#e2e8f0\'">' +
+                    '</div></div>';
             });
             html += '</div>';
             listEl.innerHTML = html;
 
             // Bind remove buttons
-            listEl.querySelectorAll('[data-remove-url-platform]').forEach(function(btn) {
+            listEl.querySelectorAll('[data-remove-endpoint-platform]').forEach(function(btn) {
                 btn.addEventListener('click', function() {
-                    var p = this.dataset.removeUrlPlatform;
-                    var idx = parseInt(this.dataset.removeUrlIndex);
-                    platformData[p].urls.splice(idx, 1);
-                    renderUrlList(p);
+                    var p = this.dataset.removeEndpointPlatform;
+                    var idx = parseInt(this.dataset.removeEndpointIndex);
+                    platformData[p].endpoints.splice(idx, 1);
+                    renderEndpointList(p);
+                });
+            });
+
+            // Bind secret input changes
+            listEl.querySelectorAll('[data-endpoint-platform]').forEach(function(input) {
+                input.addEventListener('input', function() {
+                    var p = this.dataset.endpointPlatform;
+                    var idx = parseInt(this.dataset.endpointIndex);
+                    platformData[p].endpoints[idx].secret = this.value;
                 });
             });
         }
 
-        // Bind add URL buttons
+        // Bind add endpoint buttons
         platformDefs.forEach(function(pd) {
-            var addBtn = document.getElementById('webhook-add-url-btn-' + pd.key);
+            var addBtn = document.getElementById('webhook-add-endpoint-btn-' + pd.key);
             var urlInput = document.getElementById('webhook-new-url-' + pd.key);
+            var secretInput = document.getElementById('webhook-new-secret-' + pd.key);
             if (!addBtn || !urlInput) return;
 
             addBtn.addEventListener('click', function() {
                 var url = urlInput.value.trim();
-                if (!url) return;
-                try { new URL(url); } catch (e) {
+                var secret = secretInput ? secretInput.value.trim() : '';
+                if (!url) {
                     window.DashboardModals.showWarning(__('webhook.urlRequired'));
                     return;
                 }
-                if (platformData[pd.key].urls.includes(url)) {
+                try { new URL(url); } catch (e) {
+                    window.DashboardModals.showWarning(__('webhook.urlRequired'));
+                    urlInput.style.borderColor = '#ef4444';
+                    setTimeout(function() { urlInput.style.borderColor = '#e2e8f0'; }, 2000);
+                    return;
+                }
+                // Check if URL already exists
+                var exists = platformData[pd.key].endpoints.some(function(ep) { return ep.url === url; });
+                if (exists) {
                     window.DashboardModals.showWarning(__('webhook.urlExists') || 'This URL already exists');
                     return;
                 }
-                platformData[pd.key].urls.push(url);
+                platformData[pd.key].endpoints.push({ url: url, secret: secret });
                 urlInput.value = '';
-                renderUrlList(pd.key);
+                if (secretInput) secretInput.value = '';
+                renderEndpointList(pd.key);
             });
 
             urlInput.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') { e.preventDefault(); addBtn.click(); }
             });
-        });
-
-        // Track secret changes
-        platformDefs.forEach(function(pd) {
-            if (pd.key === 'wecom') return; // no secret input for wecom
-            var secretInput = document.getElementById('webhook-secret-' + pd.key);
-            if (secretInput) {
-                secretInput.addEventListener('input', function() { this.dataset.changed = 'true'; });
-            }
         });
 
         // Save button
@@ -555,15 +671,20 @@
             try {
                 var platforms = {};
                 platformDefs.forEach(function(pd) {
-                    var secretInput = document.getElementById('webhook-secret-' + pd.key);
                     platforms[pd.key] = {
-                        urls: platformData[pd.key].urls,
-                        secret: (secretInput && secretInput.dataset.changed === 'true') ? secretInput.value : null
+                        endpoints: platformData[pd.key].endpoints.map(function(ep) {
+                            return { url: ep.url, secret: ep.secret };
+                        })
                     };
                 });
 
-                var payload = { platforms: platforms };
-                await window.DashboardApi.endpoints.saveWebhookSettings(payload);
+                // Collect enabled events
+                var checked = [];
+                document.querySelectorAll('.webhook-event-checkbox').forEach(function(cb) {
+                    if (cb.checked) checked.push(cb.dataset.eventKey);
+                });
+
+                await window.DashboardApi.endpoints.saveWebhookSettings({ platforms: platforms, enabledEvents: checked });
                 window.DashboardModals.showSuccess(__('webhook.saved'));
                 bsModal.hide();
             } catch (error) {
@@ -574,35 +695,65 @@
             }
         });
 
-        // Load current settings
+        // Event select all / deselect all
+        document.getElementById('webhook-events-select-all').addEventListener('click', function() {
+            document.querySelectorAll('.webhook-event-checkbox').forEach(function(cb) { cb.checked = true; updateEventLabelStyle(cb); });
+        });
+        document.getElementById('webhook-events-deselect-all').addEventListener('click', function() {
+            document.querySelectorAll('.webhook-event-checkbox').forEach(function(cb) { cb.checked = false; updateEventLabelStyle(cb); });
+        });
+
+        // Style event checkboxes based on checked state
+        function updateEventLabelStyle(cb) {
+            var label = cb.closest('.webhook-event-label');
+            if (!label) return;
+            if (cb.checked) {
+                label.style.borderColor = '#10b981';
+                label.style.background = '#f0fdf4';
+            } else {
+                label.style.borderColor = '#e2e8f0';
+                label.style.background = '#fff';
+            }
+        }
+
+        document.querySelectorAll('.webhook-event-checkbox').forEach(function(cb) {
+            cb.addEventListener('change', function() { updateEventLabelStyle(this); });
+            updateEventLabelStyle(cb);
+        });
+
+        // Load existing settings
         try {
             var settings = await window.DashboardApi.endpoints.getWebhookSettings();
-            var platforms = settings.platforms || {};
+            var data = settings || {};
             platformDefs.forEach(function(pd) {
-                var pData = platforms[pd.key] || {};
-                platformData[pd.key].urls = pData.urls || [];
-                platformData[pd.key].hasSecret = pData.hasSecret || false;
-                renderUrlList(pd.key);
-                if (pd.key !== 'wecom' && platformData[pd.key].hasSecret) {
-                    var si = document.getElementById('webhook-secret-' + pd.key);
-                    if (si) si.placeholder = '••••••••';
-                }
+                var pData = data[pd.key] || [];
+                platformData[pd.key].endpoints = pData.map(function(ep) {
+                    return { url: ep.url, secret: ep.secret || '' };
+                });
+                renderEndpointList(pd.key);
             });
-            // Activate first tab with data, or default to dingtalk
-            var firstActive = platformDefs.find(function(pd) { return platformData[pd.key].urls.length > 0; });
+
+            // Load enabled events
+            var loadedEvents = data.enabledEvents || [];
+            if (loadedEvents.length > 0) {
+                document.querySelectorAll('.webhook-event-checkbox').forEach(function(cb) {
+                    cb.checked = loadedEvents.some(function(e) { return e === cb.dataset.eventKey; });
+                });
+            }
+
+            var firstActive = platformDefs.find(function(pd) { return platformData[pd.key].endpoints.length > 0; });
             window.DashboardConfig._switchWebhookTab(firstActive ? firstActive.key : 'dingtalk');
         } catch (error) {
             console.error('[Config] Load webhook failed:', error);
             window.DashboardModals.showError(__('webhook.loadFailed') + ': ' + error.message);
-            platformDefs.forEach(function(pd) { renderUrlList(pd.key); });
+            platformDefs.forEach(function(pd) { renderEndpointList(pd.key); });
             window.DashboardConfig._switchWebhookTab('dingtalk');
         }
 
-        // Cleanup
         modalEl.addEventListener('hidden.bs.modal', function() {
             modalEl.remove();
             window.DashboardConfig._switchWebhookTab = null;
-            window.DashboardConfig._toggleSecretVis = null;
+            window.DashboardConfig._testWebhook = null;
         });
 
         bsModal.show();
