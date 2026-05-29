@@ -362,3 +362,4 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 /.codebuddy/teams/phase1-enhancement
+/samples/SampleGateway/gateway-store.db
