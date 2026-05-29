@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Aneiang.Yarp.Dashboard.Controllers;
 
 /// <summary>Response cache management API.</summary>
-[Route("apigateway/api/response-cache")]
+[Route("api/response-cache")]
 [ApiController]
 public class ResponseCacheController : ControllerBase
 {

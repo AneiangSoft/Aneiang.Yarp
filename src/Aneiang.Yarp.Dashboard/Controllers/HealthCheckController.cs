@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Aneiang.Yarp.Dashboard.Controllers;
 
 /// <summary>Health check status and management API.</summary>
-[Route("apigateway/api/health-check")]
+[Route("api/health-check")]
 [ApiController]
 public class HealthCheckController(DynamicYarpConfigService dynamicConfig) : ControllerBase
 {
