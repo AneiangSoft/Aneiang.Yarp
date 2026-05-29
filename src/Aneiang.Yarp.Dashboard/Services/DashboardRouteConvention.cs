@@ -5,8 +5,9 @@ namespace Aneiang.Yarp.Dashboard.Services;
 
 /// <summary>Prepends the dashboard route prefix to all Dashboard assembly controllers.</summary>
 /// <remarks>
-/// Controllers that already have a full route prefix on the controller-level [Route] attribute
-/// (e.g. <c>[Route("apigateway/api/config")]</c>) are excluded from prefix prepending.
+/// For controllers with a controller-level [Route] attribute, the prefix is prepended to the
+/// controller route template (e.g. <c>[Route("api/config")]</c> → <c>[Route("apigateway/api/config")]</c>).
+/// For controllers without a controller-level route, the prefix is prepended to each action's route template.
 /// </remarks>
 internal sealed class DashboardRouteConvention : IApplicationModelConvention
 {
@@ -21,26 +22,34 @@ internal sealed class DashboardRouteConvention : IApplicationModelConvention
             if (ctrl.ControllerType.Assembly != typeof(DashboardController).Assembly)
                 continue;
 
-            // Skip controllers that have a controller-level route already containing the prefix
-            // (e.g. [Route("apigateway/api/config")] should not get double-prefixed)
-            var controllerRoute = ctrl.Selectors
-                .FirstOrDefault(s => s.AttributeRouteModel?.Template != null)?
-                .AttributeRouteModel?.Template ?? "";
+            var controllerSelector = ctrl.Selectors
+                .FirstOrDefault(s => s.AttributeRouteModel?.Template != null);
 
-            // If the controller already has a route that starts with a known prefix segment,
-            // skip it to avoid double-prefixing
-            if (controllerRoute.StartsWith(_prefix, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            foreach (var action in ctrl.Actions)
+            if (controllerSelector != null)
             {
-                foreach (var selector in action.Selectors)
+                // Controller has a [Route] attribute – prepend prefix to the controller route
+                var template = controllerSelector.AttributeRouteModel.Template ?? "";
+                if (!template.StartsWith(_prefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (selector.AttributeRouteModel == null) continue;
-                    var template = selector.AttributeRouteModel.Template ?? "";
-                    selector.AttributeRouteModel.Template = template.StartsWith("/")
+                    controllerSelector.AttributeRouteModel.Template = template.StartsWith("/")
                         ? _prefix + template
                         : _prefix + "/" + template;
+                }
+                // Action-level routes are left as-is; ASP.NET Core combines them with the controller route
+            }
+            else
+            {
+                // No controller-level route – prepend prefix to each action's route
+                foreach (var action in ctrl.Actions)
+                {
+                    foreach (var selector in action.Selectors)
+                    {
+                        if (selector.AttributeRouteModel == null) continue;
+                        var template = selector.AttributeRouteModel.Template ?? "";
+                        selector.AttributeRouteModel.Template = template.StartsWith("/")
+                            ? _prefix + template
+                            : _prefix + "/" + template;
+                    }
                 }
             }
         }
