@@ -1,12 +1,9 @@
 using Aneiang.Yarp.Dashboard.Middleware;
 using Aneiang.Yarp.Dashboard.Services;
 using Aneiang.Yarp.Extensions;
-using Aneiang.Yarp.Models;
-using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
 namespace Aneiang.Yarp.Dashboard.Extensions;
 
@@ -20,7 +17,7 @@ public static class DashboardApplicationBuilderExtensions
     /// in the correct pipeline order.
     /// <para>
     /// This method sets up request capture middleware on the main pipeline and maps
-    /// the YARP proxy branch with response caching and metrics middleware inside it
+    /// the YARP proxy branch with core middleware inside it
     /// (which require <c>IReverseProxyFeature</c>).
     /// </para>
     /// <para>
@@ -48,18 +45,8 @@ public static class DashboardApplicationBuilderExtensions
         {
             endpoints.MapReverseProxy(proxyPipeline =>
             {
-                var metricsOpts = app.ApplicationServices.GetService<IOptions<GatewayMetricsOptions>>()?.Value;
-                var cacheOpts = app.ApplicationServices.GetService<IOptions<ResponseCacheOptions>>()?.Value;
-
                 // Core gateway middleware inside the proxy branch
                 proxyPipeline.UseAneiangYarp();
-
-                // Dashboard-managed middleware (inside proxy branch for IReverseProxyFeature)
-                if (cacheOpts?.Enabled == true)
-                    proxyPipeline.UseMiddleware<ResponseCacheMiddleware>();
-
-                if (metricsOpts?.Enabled == true)
-                    proxyPipeline.UseMiddleware<MetricsMiddleware>();
 
                 // Always register circuit breaker and retry middleware
                 proxyPipeline.UseMiddleware<CircuitBreakerMiddleware>();
