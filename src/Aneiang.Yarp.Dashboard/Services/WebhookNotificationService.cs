@@ -1,5 +1,6 @@
 using System;
 using Aneiang.Yarp.Dashboard.Models;
+using Aneiang.Yarp.Dashboard.Services.Implements;
 using Aneiang.Yarp.Dashboard.Services.Webhook;
 using Aneiang.Yarp.Services;
 using Microsoft.Extensions.Logging;
@@ -41,7 +42,7 @@ public class WebhookNotificationService
     /// <summary>
     /// Subscribe to audit log events. Call this once during DI setup.
     /// </summary>
-    public void Subscribe(ConfigChangeAuditLog auditLog)
+    public void Subscribe(IConfigChangeAuditLog auditLog)
     {
         auditLog.OnConfigChanged += OnConfigChanged;
         _logger.LogInformation("Webhook notification subscribed to config change audit log");

@@ -14,7 +14,7 @@ public class CreateClusterRequest
     [Required(ErrorMessage = "At least one destination is required")]
     public Dictionary<string, string> Destinations { get; set; } = new();
 
-    /// <summary>Load balancing policy: RoundRobin, PowerOfTwoChoices, Random, LeastRequests, FirstAlone.</summary>
+    /// <summary>Load balancing policy.</summary>
     public string? LoadBalancingPolicy { get; set; } = "RoundRobin";
 
     /// <summary>Health check configuration.</summary>
@@ -27,7 +27,7 @@ public class UpdateClusterRequest
     /// <summary>Destination addresses (load balancing targets).</summary>
     public Dictionary<string, string>? Destinations { get; set; }
 
-    /// <summary>Load balancing policy: RoundRobin, PowerOfTwoChoices, Random, LeastRequests, FirstAlone.</summary>
+    /// <summary>Load balancing policy.</summary>
     public string? LoadBalancingPolicy { get; set; }
 
     /// <summary>Health check configuration.</summary>
@@ -43,7 +43,7 @@ public class ClusterHealthCheckConfig
     /// <summary>Passive health check configuration.</summary>
     public PassiveHealthCheckConfig? Passive { get; set; }
 
-    /// <summary>Available destinations policy: Any, AtLeastOne, Majority.</summary>
+    /// <summary>Available destinations policy.</summary>
     public string? AvailableDestinationsPolicy { get; set; }
 }
 
@@ -53,10 +53,10 @@ public class ActiveHealthCheckConfig
     /// <summary>Enable active health checking.</summary>
     public bool Enabled { get; set; }
 
-    /// <summary>Interval between health checks (e.g., "00:00:15" for 15 seconds).</summary>
+    /// <summary>Interval between health checks.</summary>
     public string? Interval { get; set; }
 
-    /// <summary>Health check timeout (e.g., "00:00:10" for 10 seconds).</summary>
+    /// <summary>Health check timeout.</summary>
     public string? Timeout { get; set; }
 
     /// <summary>Health check policy name.</summary>
@@ -75,6 +75,6 @@ public class PassiveHealthCheckConfig
     /// <summary>Passive health check policy name.</summary>
     public string? Policy { get; set; }
 
-    /// <summary>Reactivation period (e.g., "00:00:30" for 30 seconds).</summary>
+    /// <summary>Reactivation period for passive health checks.</summary>
     public string? ReactivationPeriod { get; set; }
 }

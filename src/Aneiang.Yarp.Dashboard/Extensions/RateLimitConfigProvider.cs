@@ -4,7 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using System.Threading.RateLimiting;
 
-namespace Aneiang.Yarp.Extensions;
+namespace Aneiang.Yarp.Dashboard.Extensions;
 
 /// <summary>
 /// Configures ASP.NET Core rate limiter from Gateway:Dashboard config section.

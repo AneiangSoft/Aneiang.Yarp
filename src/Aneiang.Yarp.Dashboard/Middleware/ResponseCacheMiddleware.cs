@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Yarp.ReverseProxy.Model;
 
-namespace Aneiang.Yarp.Middleware;
+namespace Aneiang.Yarp.Dashboard.Middleware;
 
 /// <summary>
 /// Response caching middleware for proxy requests.
@@ -16,13 +16,13 @@ namespace Aneiang.Yarp.Middleware;
 public sealed class ResponseCacheMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly ResponseCacheService _cache;
+    private readonly IResponseCacheService _cache;
     private readonly ResponseCacheOptions _options;
     private readonly ILogger<ResponseCacheMiddleware> _logger;
 
     public ResponseCacheMiddleware(
         RequestDelegate next,
-        ResponseCacheService cache,
+        IResponseCacheService cache,
         IOptions<ResponseCacheOptions> options,
         ILogger<ResponseCacheMiddleware> logger)
     {
@@ -40,14 +40,12 @@ public sealed class ResponseCacheMiddleware
             return;
         }
 
-        // Only cache configured methods
         if (!_options.CacheableMethods.Contains(context.Request.Method))
         {
             await _next(context);
             return;
         }
 
-        // Check per-route override
         var proxyFeature = context.Features.Get<IReverseProxyFeature>();
         var routeId = proxyFeature?.Route?.Config?.RouteId;
         var metadata = proxyFeature?.Route?.Config?.Metadata;
@@ -58,10 +56,8 @@ public sealed class ResponseCacheMiddleware
             return;
         }
 
-        // Build cache key
         var cacheKey = BuildCacheKey(context, routeId);
 
-        // Try cache hit
         if (_cache.TryGet(cacheKey, out var body, out var headers, out var statusCode))
         {
             context.Response.StatusCode = statusCode;
@@ -73,7 +69,6 @@ public sealed class ResponseCacheMiddleware
             return;
         }
 
-        // Cache miss — capture response
         context.Response.Headers["X-Cache"] = "MISS";
 
         var originalBody = context.Response.Body;
@@ -82,10 +77,8 @@ public sealed class ResponseCacheMiddleware
 
         await _next(context);
 
-        // Restore response body
         context.Response.Body = originalBody;
 
-        // Cache if eligible
         if (_options.CacheableStatusCodes.Contains(context.Response.StatusCode))
         {
             var ttl = GetTtlForRoute(routeId, metadata, context.Response);
@@ -134,19 +127,17 @@ public sealed class ResponseCacheMiddleware
         {
             return !bool.TryParse(enabled, out var isEnabled) || isEnabled;
         }
-        return true; // Enabled by default if global is enabled
+        return true;
     }
 
     private TimeSpan GetTtlForRoute(string? routeId, IReadOnlyDictionary<string, string>? metadata, HttpResponse response)
     {
-        // Check route metadata override
         if (metadata != null && metadata.TryGetValue("ResponseCache:Ttl", out var ttlStr)
             && int.TryParse(ttlStr, out var ttlSeconds))
         {
             return TimeSpan.FromSeconds(Math.Min(ttlSeconds, (int)_options.MaxTtl.TotalSeconds));
         }
 
-        // Check route config override
         if (routeId != null && _options.RouteOverrides != null)
         {
             foreach (var kvp in _options.RouteOverrides)
@@ -156,7 +147,6 @@ public sealed class ResponseCacheMiddleware
             }
         }
 
-        // Parse Cache-Control max-age from response
         if (response.Headers.TryGetValue("Cache-Control", out var cacheControl))
         {
             var cc = cacheControl.ToString();

@@ -4,13 +4,12 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using Yarp.ReverseProxy.Model;
 
-namespace Aneiang.Yarp.Middleware;
+namespace Aneiang.Yarp.Dashboard.Middleware;
 
 /// <summary>
 /// Per-destination circuit breaker middleware.
 /// Tracks consecutive failures and opens the circuit when threshold is reached.
 /// States: Closed → Open → HalfOpen → Closed.
-/// Configurable via route metadata or global DashboardOptions.
 /// </summary>
 public sealed class CircuitBreakerMiddleware
 {

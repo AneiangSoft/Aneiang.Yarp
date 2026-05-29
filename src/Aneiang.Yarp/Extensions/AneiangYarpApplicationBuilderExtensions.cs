@@ -1,6 +1,5 @@
 using Aneiang.Yarp.Middleware;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 
 namespace Aneiang.Yarp.Extensions;
 
@@ -26,9 +25,7 @@ public static class AneiangYarpApplicationBuilderExtensions
     /// </example>
     public static IApplicationBuilder UseAneiangYarp(this IApplicationBuilder builder)
     {
-        builder.UseMiddleware<ResponseCacheMiddleware>();
         builder.UseMiddleware<BuiltinTransformMiddleware>();
-        builder.UseMiddleware<MetricsMiddleware>();
         return builder;
     }
 }

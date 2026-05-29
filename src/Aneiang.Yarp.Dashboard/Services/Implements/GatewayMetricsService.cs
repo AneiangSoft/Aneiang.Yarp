@@ -1,16 +1,16 @@
 using System.Collections.Concurrent;
 using System.Text;
 using Aneiang.Yarp.Models;
+using Aneiang.Yarp.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Aneiang.Yarp.Services;
+namespace Aneiang.Yarp.Dashboard.Services.Implements;
 
 /// <summary>
 /// Singleton service that collects and exports YARP gateway metrics in Prometheus exposition format.
-/// Thread-safe via ConcurrentDictionary and Interlocked operations.
 /// </summary>
-public sealed class GatewayMetricsService
+public sealed class GatewayMetricsService : IGatewayMetricsService
 {
     private readonly GatewayMetricsOptions _options;
     private readonly ILogger<GatewayMetricsService> _logger;
@@ -29,21 +29,13 @@ public sealed class GatewayMetricsService
             : [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000];
     }
 
-    /// <summary>
-    /// Record a completed proxy request.
-    /// </summary>
-    /// <param name="routeId">Route identifier.</param>
-    /// <param name="clusterId">Cluster identifier.</param>
-    /// <param name="method">HTTP method.</param>
-    /// <param name="statusCode">Response status code.</param>
-    /// <param name="durationMs">Request duration in milliseconds.</param>
+    /// <inheritdoc />
     public void RecordRequest(string routeId, string clusterId, string method, int statusCode, double durationMs)
     {
         if (!_options.Enabled) return;
 
         var route = _options.EnablePerRouteMetrics ? routeId : "*";
 
-        // Counter
         var counterKey = $"{route}:{clusterId}:{method}:{statusCode}";
         var counter = _requestCounters.GetOrAdd(counterKey, _ => new CounterValue
         {
@@ -54,7 +46,6 @@ public sealed class GatewayMetricsService
         });
         Interlocked.Increment(ref counter.Count);
 
-        // Histogram
         var histKey = $"{route}:{clusterId}:{method}";
         var hist = _durationHistograms.GetOrAdd(histKey, _ =>
         {
@@ -75,9 +66,7 @@ public sealed class GatewayMetricsService
             route, clusterId, method, statusCode, durationMs);
     }
 
-    /// <summary>
-    /// Increment the active requests gauge for a route/cluster.
-    /// </summary>
+    /// <inheritdoc />
     public void IncrementActiveRequests(string routeId, string clusterId)
     {
         if (!_options.Enabled) return;
@@ -91,9 +80,7 @@ public sealed class GatewayMetricsService
         Interlocked.Increment(ref gauge.Count);
     }
 
-    /// <summary>
-    /// Decrement the active requests gauge for a route/cluster.
-    /// </summary>
+    /// <inheritdoc />
     public void DecrementActiveRequests(string routeId, string clusterId)
     {
         if (!_options.Enabled) return;
@@ -105,14 +92,11 @@ public sealed class GatewayMetricsService
         }
     }
 
-    /// <summary>
-    /// Render all collected metrics in Prometheus exposition text format.
-    /// </summary>
+    /// <inheritdoc />
     public string GetPrometheusText()
     {
         var sb = new StringBuilder();
 
-        // ── yarp_requests_total (Counter) ───────────────────────
         sb.AppendLine("# HELP yarp_requests_total Total number of proxy requests.");
         sb.AppendLine("# TYPE yarp_requests_total counter");
 
@@ -122,7 +106,6 @@ public sealed class GatewayMetricsService
             sb.AppendLine($"yarp_requests_total{{route=\"{EscapeLabel(c.Route)}\",cluster=\"{EscapeLabel(c.Cluster)}\",method=\"{EscapeLabel(c.Method)}\",status_code=\"{c.StatusCode}\"}} {Volatile.Read(ref c.Count)}");
         }
 
-        // ── yarp_request_duration_ms (Histogram) ────────────────
         sb.AppendLine();
         sb.AppendLine("# HELP yarp_request_duration_ms Request duration in milliseconds.");
         sb.AppendLine("# TYPE yarp_request_duration_ms histogram");
@@ -138,16 +121,12 @@ public sealed class GatewayMetricsService
                 cumulative += Volatile.Read(ref h.BucketCounts[i]);
                 sb.AppendLine($"yarp_request_duration_ms_bucket{{{labelBase},le=\"{h.BucketUpperBounds[i]}\"}} {cumulative}");
             }
-            // +Inf bucket
             sb.AppendLine($"yarp_request_duration_ms_bucket{{{labelBase},le=\"+Inf\"}} {Volatile.Read(ref h.TotalCount)}");
 
-            // Sum
             sb.AppendLine($"yarp_request_duration_ms_sum{{{labelBase}}} {Volatile.Read(ref h.Sum):0.###}");
-            // Count
             sb.AppendLine($"yarp_request_duration_ms_count{{{labelBase}}} {Volatile.Read(ref h.TotalCount)}");
         }
 
-        // ── yarp_active_requests (Gauge) ─────────────────────────
         sb.AppendLine();
         sb.AppendLine("# HELP yarp_active_requests Number of active proxy requests currently being processed.");
         sb.AppendLine("# TYPE yarp_active_requests gauge");
@@ -165,8 +144,6 @@ public sealed class GatewayMetricsService
     {
         return value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n");
     }
-
-    // ── Internal value types ──────────────────────────────────────
 
     private sealed class CounterValue
     {

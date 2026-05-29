@@ -4,12 +4,11 @@ using System.Text.Json;
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Model;
 
-namespace Aneiang.Yarp.Middleware;
+namespace Aneiang.Yarp.Dashboard.Middleware;
 
 /// <summary>
 /// Request retry middleware for failed proxy requests.
 /// Retries 502/503/504 responses by attempting the next available destination in the cluster.
-/// Configurable per-route via metadata or globally via DashboardOptions.
 /// </summary>
 public sealed class RequestRetryMiddleware
 {
@@ -33,7 +32,6 @@ public sealed class RequestRetryMiddleware
         var proxyFeature = context.Features.Get<IReverseProxyFeature>();
         var routeConfig = proxyFeature?.Route?.Config;
 
-        // Skip if no proxy feature or retry not configured
         if (routeConfig == null || !IsRetryEnabled(routeConfig))
         {
             await _next(context);
@@ -44,14 +42,12 @@ public sealed class RequestRetryMiddleware
         var retryStatusCodes = GetRetryStatusCodes(routeConfig);
         var retryNonIdempotent = IsRetryNonIdempotentEnabled(routeConfig);
 
-        // Skip non-idempotent methods unless explicitly enabled
         if (!retryNonIdempotent && NonIdempotentMethods.Contains(context.Request.Method))
         {
             await _next(context);
             return;
         }
 
-        // Store original request body for retries
         context.Request.EnableBuffering();
         var requestBody = await ReadRequestBodyAsync(context.Request);
 
@@ -60,13 +56,11 @@ public sealed class RequestRetryMiddleware
 
         while (attempt <= maxRetries)
         {
-            // Reset request body position for each attempt
             if (context.Request.Body.CanSeek)
             {
                 context.Request.Body.Seek(0, SeekOrigin.Begin);
             }
 
-            // Capture response
             var originalResponseBody = context.Response.Body;
             using var responseStream = new MemoryStream();
             context.Response.Body = responseStream;
@@ -82,7 +76,6 @@ public sealed class RequestRetryMiddleware
 
             lastStatusCode = context.Response.StatusCode;
 
-            // Check if we should retry
             if (attempt < maxRetries && retryStatusCodes.Contains(context.Response.StatusCode))
             {
                 attempt++;
@@ -91,18 +84,15 @@ public sealed class RequestRetryMiddleware
                     attempt, maxRetries, context.Request.Method, context.Request.Path,
                     context.Response.StatusCode);
 
-                // Reset response for next attempt
                 context.Response.Body = originalResponseBody;
                 context.Response.StatusCode = 200;
                 context.Response.Headers.Clear();
 
-                // Small delay between retries
                 await Task.Delay(TimeSpan.FromMilliseconds(100 * attempt));
 
                 continue;
             }
 
-            // No retry needed, copy response back
             responseStream.Seek(0, SeekOrigin.Begin);
             await responseStream.CopyToAsync(originalResponseBody);
             context.Response.Body = originalResponseBody;
@@ -117,7 +107,6 @@ public sealed class RequestRetryMiddleware
             break;
         }
 
-        // Set retry header if retried
         if (attempt > 0)
         {
             context.Response.Headers["X-Retry-Count"] = attempt.ToString();
@@ -144,7 +133,7 @@ public sealed class RequestRetryMiddleware
         {
             return isEnabled;
         }
-        return true; // Enabled by default when middleware is registered
+        return true;
     }
 
     private static int GetMaxRetries(RouteConfig routeConfig)

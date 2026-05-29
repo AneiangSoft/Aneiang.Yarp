@@ -9,10 +9,10 @@ namespace Aneiang.Yarp.Dashboard.Controllers;
 [ApiController]
 public class ResponseCacheController : ControllerBase
 {
-    private readonly ResponseCacheService _cache;
+    private readonly IResponseCacheService _cache;
 
     /// <summary>Creates a new instance.</summary>
-    public ResponseCacheController(ResponseCacheService cache) => _cache = cache;
+    public ResponseCacheController(IResponseCacheService cache) => _cache = cache;
 
     /// <summary>Get cache statistics.</summary>
     [HttpGet("stats")]

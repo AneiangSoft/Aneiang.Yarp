@@ -1,8 +1,11 @@
+using Aneiang.Yarp.Dashboard.Middleware;
 using Aneiang.Yarp.Dashboard.Services;
 using Aneiang.Yarp.Extensions;
-using Aneiang.Yarp.Middleware;
+using Aneiang.Yarp.Models;
+using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace Aneiang.Yarp.Dashboard.Extensions;
@@ -30,12 +33,6 @@ public static class DashboardApplicationBuilderExtensions
     /// app.MapControllers();
     /// </code>
     /// </summary>
-    /// <param name="app">The IApplicationBuilder.</param>
-    /// <param name="configureProxyPipeline">
-    /// Optional callback to customize the YARP proxy branch pipeline 
-    /// (e.g., add custom middleware inside the proxy branch).
-    /// </param>
-    /// <returns>The IApplicationBuilder for chaining.</returns>
     public static IApplicationBuilder UseAneiangYarpDashboard(
         this IApplicationBuilder app,
         Action<IReverseProxyApplicationBuilder>? configureProxyPipeline = null)
@@ -44,18 +41,29 @@ public static class DashboardApplicationBuilderExtensions
         app.UseStaticFiles();
 
         // Request capture runs on the main pipeline (before endpoint routing)
-        // so it can record the original incoming request path/method.
         app.UseMiddleware<YarpRequestCaptureMiddleware>();
 
-        // Map the YARP proxy branch WITH core middleware inside it.
-        // This ensures IReverseProxyFeature is available for MetricsMiddleware
-        // and ResponseCacheMiddleware.
+        // Map the YARP proxy branch WITH core + dashboard middleware inside it.
         if (app is IEndpointRouteBuilder endpoints)
         {
             endpoints.MapReverseProxy(proxyPipeline =>
             {
+                var metricsOpts = app.ApplicationServices.GetService<IOptions<GatewayMetricsOptions>>()?.Value;
+                var cacheOpts = app.ApplicationServices.GetService<IOptions<ResponseCacheOptions>>()?.Value;
+
                 // Core gateway middleware inside the proxy branch
                 proxyPipeline.UseAneiangYarp();
+
+                // Dashboard-managed middleware (inside proxy branch for IReverseProxyFeature)
+                if (cacheOpts?.Enabled == true)
+                    proxyPipeline.UseMiddleware<ResponseCacheMiddleware>();
+
+                if (metricsOpts?.Enabled == true)
+                    proxyPipeline.UseMiddleware<MetricsMiddleware>();
+
+                // Always register circuit breaker and retry middleware
+                proxyPipeline.UseMiddleware<CircuitBreakerMiddleware>();
+                proxyPipeline.UseMiddleware<RequestRetryMiddleware>();
 
                 // Allow user customization of the proxy pipeline
                 configureProxyPipeline?.Invoke(proxyPipeline);

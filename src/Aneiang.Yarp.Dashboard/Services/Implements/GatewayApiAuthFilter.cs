@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Options;
 
-namespace Aneiang.Yarp.Services;
+namespace Aneiang.Yarp.Dashboard.Services.Implements;
 
 /// <summary>Authorization filter for GatewayConfigController. Supports BasicAuth and ApiKey modes.</summary>
 internal sealed class GatewayApiAuthFilter : IAsyncAuthorizationFilter
