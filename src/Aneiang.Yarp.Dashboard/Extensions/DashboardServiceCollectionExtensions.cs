@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Aneiang.Yarp.Dashboard.Controllers;
+using Aneiang.Yarp.Dashboard.Extensions;
 using Aneiang.Yarp.Dashboard.Middleware;
 using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Dashboard.Services;
@@ -7,6 +8,7 @@ using Aneiang.Yarp.Dashboard.Services.Implements;
 using Aneiang.Yarp.Dashboard.Services.Webhook;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
+using Aneiang.Yarp.Storage;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -38,17 +40,14 @@ public static class DashboardServiceCollectionExtensions
         // Register MVC controllers from this assembly
         services.AddMvcCore().AddApplicationPart(typeof(DashboardController).Assembly);
 
+        // ── Storage backend (IDataStore) ─────────────────────────────────
+        services.AddAneiangStorage(services.BuildServiceProvider().GetRequiredService<IConfiguration>());
+
         // ── Dashboard-specific services (moved from Aneiang.Yarp) ──────────────
 
         // Override core service implementations with Dashboard implementations
         services.AddSingleton<IConfigChangeAuditLog, ConfigChangeAuditLog>();
-        services.AddSingleton<IDynamicConfigPersistenceService>(sp =>
-        {
-            var config = sp.GetRequiredService<IConfiguration>();
-            var configPath = config["Gateway:DynamicConfigPath"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "gateway-dynamic.json");
-            var logger = sp.GetRequiredService<ILogger<DynamicConfigPersistenceService>>();
-            return new DynamicConfigPersistenceService(configPath, logger);
-        });
+        services.AddSingleton<IDynamicConfigPersistenceService, DynamicConfigPersistenceService>();
 
         // Rate limiting
         services.AddSingleton<RateLimitConfigProvider>();
@@ -92,12 +91,7 @@ public static class DashboardServiceCollectionExtensions
         services.AddHttpClient("webhook");
         services.AddSingleton<IWebhookProvider, DingTalkWebhookProvider>();
         services.AddSingleton<IWebhookProvider, GenericWebhookProvider>();
-        services.AddSingleton(sp =>
-        {
-            var logger = sp.GetRequiredService<ILogger<WebhookSettingsPersistenceService>>();
-            var configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "webhook-settings.json");
-            return new WebhookSettingsPersistenceService(configPath, logger);
-        });
+        services.AddSingleton<WebhookSettingsPersistenceService>();
         services.AddSingleton<WebhookNotificationService>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<DashboardOptions>>();
@@ -124,13 +118,7 @@ public static class DashboardServiceCollectionExtensions
         });
 
         // Dashboard configuration persistence service
-        services.AddSingleton(sp =>
-        {
-            var filePersistence = sp.GetRequiredService<IDynamicConfigPersistenceService>();
-            var logger = sp.GetRequiredService<ILogger<ConfigPersistenceService>>();
-            var dynamicConfig = sp.GetService<DynamicYarpConfigService>();
-            return new ConfigPersistenceService(filePersistence, logger, dynamicConfig);
-        });
+        services.AddSingleton<ConfigPersistenceService>();
 
         // Default health check service
         services.AddHostedService<DefaultHealthCheckService>();

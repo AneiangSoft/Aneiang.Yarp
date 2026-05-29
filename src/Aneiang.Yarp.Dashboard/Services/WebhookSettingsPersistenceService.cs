@@ -1,55 +1,50 @@
-using System.Text.Json;
 using Aneiang.Yarp.Dashboard.Models;
+using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Dashboard.Services;
 
 /// <summary>
-/// Persists webhook settings to a JSON file.
+/// Persists webhook settings via <see cref="IDataStore"/>.
 /// </summary>
 public class WebhookSettingsPersistenceService
 {
-    private readonly string _filePath;
+    private const string Category = "webhook-settings";
+    private readonly IDataStore _store;
     private readonly ILogger<WebhookSettingsPersistenceService> _logger;
-    private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
-    public WebhookSettingsPersistenceService(string filePath, ILogger<WebhookSettingsPersistenceService> logger)
+    public WebhookSettingsPersistenceService(IDataStore store, ILogger<WebhookSettingsPersistenceService> logger)
     {
-        _filePath = filePath;
+        _store = store;
         _logger = logger;
     }
 
-    /// <summary>Load webhook settings from file.</summary>
+    /// <summary>Load webhook settings from store.</summary>
     public WebhookSettingsData? Load()
     {
         try
         {
-            if (!File.Exists(_filePath))
-                return null;
-
-            var json = File.ReadAllText(_filePath);
-            return JsonSerializer.Deserialize<WebhookSettingsData>(json, _jsonOptions);
+            return _store.GetDocumentAsync<WebhookSettingsData>(Category).GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to load webhook settings from {FilePath}", _filePath);
+            _logger.LogWarning(ex, "Failed to load webhook settings from store");
             return null;
         }
     }
 
-    /// <summary>Save webhook settings to file.</summary>
+    /// <summary>Save webhook settings to store.</summary>
     public bool Save(WebhookSettingsData data)
     {
         try
         {
-            var json = JsonSerializer.Serialize(data, _jsonOptions);
-            File.WriteAllText(_filePath, json);
-            _logger.LogInformation("Webhook settings saved to {FilePath}", _filePath);
+            _store.SetDocumentAsync(Category, data).GetAwaiter().GetResult();
+            _logger.LogInformation("Webhook settings saved");
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to save webhook settings to {FilePath}", _filePath);
+            _logger.LogError(ex, "Failed to save webhook settings");
             return false;
         }
     }

@@ -3,6 +3,7 @@ using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Dashboard.Services.Implements;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
+using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.Logging;
 using Yarp.ReverseProxy.Configuration;
 
@@ -10,6 +11,7 @@ namespace Aneiang.Yarp.Dashboard.Services;
 
 /// <summary>
 /// Service for managing configuration snapshots, import/export, and version history.
+/// Snapshots are persisted via <see cref="IDataStore"/> so they survive restarts.
 /// </summary>
 public class ConfigPersistenceService
 {
@@ -19,12 +21,16 @@ public class ConfigPersistenceService
         WriteIndented = true
     };
 
+    private const string SnapshotCategory = "config-snapshots";
+    private const int MaxHistorySize = 50;
+
     private readonly IDynamicConfigPersistenceService _filePersistence;
     private readonly DynamicYarpConfigService? _dynamicConfig;
+    private readonly IDataStore _store;
     private readonly ILogger<ConfigPersistenceService> _logger;
     private readonly List<ConfigSnapshot> _history = new();
-    private readonly int _maxHistorySize;
     private readonly object _historyLock = new();
+    private bool _historyLoaded;
 
     /// <summary>
     /// Initializes a new instance of ConfigPersistenceService.
@@ -33,12 +39,33 @@ public class ConfigPersistenceService
         IDynamicConfigPersistenceService filePersistence,
         ILogger<ConfigPersistenceService> logger,
         DynamicYarpConfigService? dynamicConfig = null,
-        int maxHistorySize = 50)
+        IDataStore? store = null)
     {
         _filePersistence = filePersistence;
         _logger = logger;
         _dynamicConfig = dynamicConfig;
-        _maxHistorySize = maxHistorySize;
+        _store = store ?? throw new ArgumentNullException(nameof(store));
+    }
+
+    /// <summary>Load persisted snapshot history from IDataStore on first access.</summary>
+    private async Task EnsureHistoryLoadedAsync()
+    {
+        if (_historyLoaded) return;
+        _historyLoaded = true;
+
+        try
+        {
+            var persisted = await _store.GetCollectionAsync<ConfigSnapshot>(SnapshotCategory);
+            lock (_historyLock)
+            {
+                _history.AddRange(persisted);
+                _logger.LogDebug("Loaded {Count} snapshots from store", persisted.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load persisted snapshots");
+        }
     }
 
     /// <summary>
@@ -46,11 +73,9 @@ public class ConfigPersistenceService
     /// </summary>
     public async Task<JsonElement> ExportFullConfigAsync()
     {
-        // Get complete config from YARP in-memory (includes both static and dynamic)
         var yarpRoutes = _dynamicConfig?.GetRoutes() ?? Array.Empty<RouteConfig>();
         var yarpClusters = _dynamicConfig?.GetClusters() ?? Array.Empty<ClusterConfig>();
-        
-        // Build routes dictionary
+
         var routesDict = yarpRoutes.ToDictionary(
             r => r.RouteId ?? string.Empty,
             r => (object)new
@@ -61,8 +86,7 @@ public class ConfigPersistenceService
                 Order = r.Order ?? 50
             }
         );
-        
-        // Build clusters dictionary with proper handling of null destinations
+
         var clustersDict = new Dictionary<string, object>();
         foreach (var c in yarpClusters)
         {
@@ -75,9 +99,9 @@ public class ConfigPersistenceService
                 Destinations = dests,
                 LoadBalancingPolicy = c.LoadBalancingPolicy,
                 HealthCheck = c.HealthCheck
-            }; 
+            };
         }
-        
+
         var fullConfig = new Dictionary<string, object>
         {
             ["ReverseProxy"] = new Dictionary<string, object>
@@ -100,12 +124,10 @@ public class ConfigPersistenceService
     {
         try
         {
-            // Save current snapshot before import
             await SaveSnapshotAsync("Before import", clientIp);
 
             var dynamicConfig = _filePersistence.LoadConfig();
 
-            // Parse and import routes - support both camelCase (export format) and PascalCase (YARP standard)
             bool hasReverseProxy;
             JsonElement reverseProxy = default;
             if (config.TryGetProperty("reverseProxy", out var rpCamel))
@@ -125,7 +147,6 @@ public class ConfigPersistenceService
 
             if (hasReverseProxy)
             {
-                // Parse routes - try both "routes" and "Routes"
                 bool hasRoutes;
                 JsonElement routesElement = default;
                 if (reverseProxy.TryGetProperty("routes", out var rCamel))
@@ -145,7 +166,6 @@ public class ConfigPersistenceService
 
                 if (hasRoutes)
                 {
-                    // Merge: remove existing routes with same ID, then add imported ones
                     foreach (var route in routesElement.EnumerateObject())
                     {
                         var clusterId = route.Value.TryGetProperty("clusterId", out var cidCamel) ? cidCamel.GetString() ?? string.Empty
@@ -168,9 +188,7 @@ public class ConfigPersistenceService
                             : route.Value.TryGetProperty("Order", out var orderPascal) ? orderPascal.GetInt32()
                             : 50;
 
-                        // Remove existing route with same ID if present (merge/update)
                         dynamicConfig.Routes.RemoveAll(r => r.RouteId == route.Name);
-
                         dynamicConfig.Routes.Add(new DynamicRouteConfig
                         {
                             RouteId = route.Name,
@@ -182,7 +200,6 @@ public class ConfigPersistenceService
                     }
                 }
 
-                // Parse clusters - try both "clusters" and "Clusters"
                 bool hasClusters;
                 JsonElement clustersElement = default;
                 if (reverseProxy.TryGetProperty("clusters", out var cCamel))
@@ -202,7 +219,6 @@ public class ConfigPersistenceService
 
                 if (hasClusters)
                 {
-                    // Merge: remove existing clusters with same ID, then add imported ones
                     foreach (var cluster in clustersElement.EnumerateObject())
                     {
                         var destinations = new Dictionary<string, string>();
@@ -247,9 +263,7 @@ public class ConfigPersistenceService
                             : cluster.Value.TryGetProperty("LoadBalancingPolicy", out var lbPascal) ? lbPascal.GetString()
                             : null;
 
-                        // Remove existing cluster with same ID if present (merge/update)
                         dynamicConfig.Clusters.RemoveAll(c => c.ClusterId == cluster.Name);
-
                         dynamicConfig.Clusters.Add(new DynamicClusterConfig
                         {
                             ClusterId = cluster.Name,
@@ -260,13 +274,10 @@ public class ConfigPersistenceService
                 }
             }
 
-            // Save merged config to file
             await _filePersistence.SaveConfigAsync(dynamicConfig);
 
-            // Apply imported routes/clusters to YARP in-memory runtime (merge, not replace)
             if (_dynamicConfig != null)
             {
-                // Import clusters first (routes depend on clusters)
                 foreach (var c in dynamicConfig.Clusters)
                 {
                     if (c.Destinations != null && c.Destinations.Count > 0)
@@ -275,7 +286,6 @@ public class ConfigPersistenceService
                     }
                 }
 
-                // Import routes
                 foreach (var r in dynamicConfig.Routes)
                 {
                     var request = new RegisterRouteRequest
@@ -305,8 +315,10 @@ public class ConfigPersistenceService
     /// </summary>
     public async Task<ConfigSnapshot> SaveSnapshotAsync(string? description = null, string? clientIp = null)
     {
+        await EnsureHistoryLoadedAsync();
+
         var config = await ExportFullConfigAsync();
-        
+
         var snapshot = new ConfigSnapshot
         {
             Description = description ?? "Manual snapshot",
@@ -317,13 +329,14 @@ public class ConfigPersistenceService
         lock (_historyLock)
         {
             _history.Add(snapshot);
-            
-            // Keep only recent snapshots
-            while (_history.Count > _maxHistorySize)
+            while (_history.Count > MaxHistorySize)
             {
                 _history.RemoveAt(0);
             }
         }
+
+        // Persist to store (fire-and-forget for performance)
+        _ = _store.AddToCollectionAsync(SnapshotCategory, snapshot);
 
         _logger.LogInformation(
             "Configuration snapshot saved: {VersionId}, Description: {Description}",
@@ -336,8 +349,9 @@ public class ConfigPersistenceService
     /// <summary>
     /// Get configuration history.
     /// </summary>
-    public IReadOnlyList<ConfigSnapshot> GetHistory()
+    public async Task<IReadOnlyList<ConfigSnapshot>> GetHistoryAsync()
     {
+        await EnsureHistoryLoadedAsync();
         lock (_historyLock)
         {
             return _history.ToList().AsReadOnly();
@@ -345,12 +359,21 @@ public class ConfigPersistenceService
     }
 
     /// <summary>
+    /// Get configuration history (synchronous compatibility).
+    /// </summary>
+    public IReadOnlyList<ConfigSnapshot> GetHistory()
+    {
+        return GetHistoryAsync().GetAwaiter().GetResult();
+    }
+
+    /// <summary>
     /// Rollback to a specific version.
     /// </summary>
     public async Task<bool> RollbackAsync(string versionId, string? clientIp = null)
     {
+        await EnsureHistoryLoadedAsync();
+
         ConfigSnapshot? snapshot;
-        
         lock (_historyLock)
         {
             snapshot = _history.FirstOrDefault(s => s.VersionId == versionId);
@@ -364,18 +387,10 @@ public class ConfigPersistenceService
 
         try
         {
-            // Save current state before rollback
             await SaveSnapshotAsync("Before rollback to " + versionId, clientIp);
 
-            // Parse snapshot config - it's in YARP standard format with ReverseProxy wrapper
-            // Note: Snapshot is saved with CamelCase naming policy, so properties are: reverseProxy, routes, clusters, etc.
-            // But we also support PascalCase for imported configs
             var config = snapshot.Config;
-            
-            // Debug: log snapshot content
-            _logger.LogInformation("Rollback snapshot JSON: {Json}", JsonSerializer.Serialize(config, _jsonOptions));
-            
-            // Try both camelCase (snapshot format) and PascalCase (YARP standard)
+
             bool hasReverseProxy;
             JsonElement reverseProxy = default;
             if (config.TryGetProperty("reverseProxy", out var rpCamel))
@@ -392,14 +407,12 @@ public class ConfigPersistenceService
             {
                 hasReverseProxy = false;
             }
-            
-            // Build YARP RouteConfig and ClusterConfig lists for batch update
+
             var yarpRoutes = new List<RouteConfig>();
             var yarpClusters = new List<ClusterConfig>();
-            
+
             if (hasReverseProxy)
             {
-                // Parse routes - try both "routeses" and "Routes"
                 bool hasRoutes;
                 JsonElement routesElement = default;
                 if (reverseProxy.TryGetProperty("routes", out var rCamel))
@@ -416,26 +429,25 @@ public class ConfigPersistenceService
                 {
                     hasRoutes = false;
                 }
-                
+
                 if (hasRoutes)
                 {
                     foreach (var route in routesElement.EnumerateObject())
                     {
-                        // Try both camelCase and PascalCase for properties
                         var clusterId = route.Value.TryGetProperty("clusterId", out var cidCamel) ? cidCamel.GetString() ?? string.Empty
                             : route.Value.TryGetProperty("ClusterId", out var cidPascal) ? cidPascal.GetString() ?? string.Empty
                             : string.Empty;
-                        
+
                         var matchPath = string.Empty;
                         if (route.Value.TryGetProperty("match", out var matchCamel) && matchCamel.TryGetProperty("path", out var pathCamel))
                             matchPath = pathCamel.GetString() ?? string.Empty;
                         else if (route.Value.TryGetProperty("Match", out var matchPascal) && matchPascal.TryGetProperty("Path", out var pathPascal))
                             matchPath = pathPascal.GetString() ?? string.Empty;
-                        
+
                         var order = route.Value.TryGetProperty("order", out var orderCamel) ? orderCamel.GetInt32()
                             : route.Value.TryGetProperty("Order", out var orderPascal) ? orderPascal.GetInt32()
                             : 50;
-                        
+
                         IReadOnlyList<IReadOnlyDictionary<string, string>>? transforms = null;
                         if (route.Value.TryGetProperty("transforms", out var transformsCamel))
                         {
@@ -447,7 +459,7 @@ public class ConfigPersistenceService
                             var list = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(transformsPascal.GetRawText(), _jsonOptions);
                             transforms = list?.Select(d => (IReadOnlyDictionary<string, string>)new Dictionary<string, string>(d)).ToList();
                         }
-                        
+
                         var routeConfig = new RouteConfig
                         {
                             RouteId = route.Name,
@@ -455,12 +467,11 @@ public class ConfigPersistenceService
                             Match = new RouteMatch { Path = matchPath },
                             Order = order,
                             Transforms = transforms
-                        }; 
+                        };
                         yarpRoutes.Add(routeConfig);
                     }
                 }
-                
-                // Parse clusters - try both "clusters" and "Clusters"
+
                 bool hasClusters;
                 JsonElement clustersElement = default;
                 if (reverseProxy.TryGetProperty("clusters", out var cCamel))
@@ -477,17 +488,15 @@ public class ConfigPersistenceService
                 {
                     hasClusters = false;
                 }
-                
+
                 if (hasClusters)
                 {
                     foreach (var cluster in clustersElement.EnumerateObject())
                     {
-                        // Try both camelCase and PascalCase for loadBalancingPolicy
                         var loadBalancingPolicy = cluster.Value.TryGetProperty("loadBalancingPolicy", out var lbCamel) ? lbCamel.GetString()
                             : cluster.Value.TryGetProperty("LoadBalancingPolicy", out var lbPascal) ? lbPascal.GetString()
                             : null;
-                        
-                        // Parse destinations - try both "destinations" and "Destinations"
+
                         var destinations = new Dictionary<string, DestinationConfig>();
                         bool hasDests;
                         JsonElement destsElement = default;
@@ -505,12 +514,11 @@ public class ConfigPersistenceService
                         {
                             hasDests = false;
                         }
-                        
+
                         if (hasDests)
                         {
                             foreach (var dest in destsElement.EnumerateObject())
                             {
-                                // Destination value can be string or object with "address"/"Address"
                                 var address = string.Empty;
                                 if (dest.Value.ValueKind == JsonValueKind.String)
                                 {
@@ -518,42 +526,26 @@ public class ConfigPersistenceService
                                 }
                                 else if (dest.Value.ValueKind == JsonValueKind.Object)
                                 {
-                                    // Try both camelCase and PascalCase
                                     if (dest.Value.TryGetProperty("address", out var addrCamel))
                                         address = addrCamel.GetString() ?? string.Empty;
                                     else if (dest.Value.TryGetProperty("Address", out var addrPascal))
                                         address = addrPascal.GetString() ?? string.Empty;
                                 }
-                                destinations[dest.Name] = new DestinationConfig { Address = address }; 
+                                destinations[dest.Name] = new DestinationConfig { Address = address };
                             }
                         }
-                        
+
                         var clusterConfig = new ClusterConfig
                         {
                             ClusterId = cluster.Name,
                             Destinations = destinations,
                             LoadBalancingPolicy = loadBalancingPolicy
-                        }; 
+                        };
                         yarpClusters.Add(clusterConfig);
                     }
                 }
             }
-            
-            // Debug: log parsed data
-            _logger.LogInformation("Parsed {Routes} routes and {Clusters} clusters from snapshot", yarpRoutes.Count, yarpClusters.Count);
-            foreach (var c in yarpClusters)
-            {
-                _logger.LogInformation("Cluster '{Id}': {Dests} destinations", c.ClusterId, c.Destinations?.Count ?? 0);
-                if (c.Destinations != null)
-                {
-                    foreach (var d in c.Destinations)
-                    {
-                        _logger.LogInformation("  Destination '{Name}': Address='{Address}'", d.Key, d.Value.Address);
-                    }
-                }
-            }
-            
-            // Use batch update to avoid multiple file saves
+
             if (_dynamicConfig != null && (yarpRoutes.Count > 0 || yarpClusters.Count > 0))
             {
                 _logger.LogInformation("Rollback: replacing config with {Routes} routes and {Clusters} clusters", yarpRoutes.Count, yarpClusters.Count);
@@ -561,16 +553,14 @@ public class ConfigPersistenceService
             }
             else if (_dynamicConfig != null)
             {
-                // No config to restore, clear everything
                 await _dynamicConfig.ReplaceAllConfig(Array.Empty<RouteConfig>(), Array.Empty<ClusterConfig>(), "rollback", "dashboard-user");
             }
             else
             {
-                // No DynamicYarpConfigService available, just save to file
                 var emptyConfig = new GatewayDynamicConfig();
                 await _filePersistence.SaveConfigAsync(emptyConfig);
             }
-            
+
             _logger.LogInformation("Rolled back to version: {VersionId}", versionId);
             return true;
         }
@@ -592,7 +582,7 @@ public class ConfigPersistenceService
         {
             if (!reverseProxy.TryGetProperty("Routes", out _))
                 errors.Add("Missing 'ReverseProxy.Routes'");
-            
+
             if (!reverseProxy.TryGetProperty("Clusters", out _))
                 errors.Add("Missing 'ReverseProxy.Clusters'");
         }
@@ -601,10 +591,10 @@ public class ConfigPersistenceService
             errors.Add("Missing 'ReverseProxy' section");
         }
 
-        return new ValidationResult 
-        { 
-            Valid = errors.Count == 0, 
-            Errors = errors 
+        return new ValidationResult
+        {
+            Valid = errors.Count == 0,
+            Errors = errors
         };
     }
 }
