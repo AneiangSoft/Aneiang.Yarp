@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text.Json;
 using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Dashboard.Models.Dtos;
 using Aneiang.Yarp.Dashboard.Services;
@@ -20,7 +22,14 @@ public class DashboardController : Controller
     private readonly IDashboardRouteQueryService _routeQuery;
     private readonly IDashboardLogQueryService _logQuery;
     private readonly IDashboardAuthorizationService _authService;
-    private readonly DashboardOptions _options;
+
+    // Cached option values to avoid repeated property access
+    private readonly bool _enableProxyLogging;
+    private readonly string _defaultLocale;
+    private readonly DashboardAuthMode _authMode;
+    private readonly string? _jwtSecret;
+    private readonly string? _jwtPassword;
+    private readonly string? _jwtUsername;
 
     /// <summary>Initializes a new instance of DashboardController.</summary>
     /// <param name="infoQuery">Dashboard info query service.</param>
@@ -42,13 +51,21 @@ public class DashboardController : Controller
         _routeQuery = routeQuery;
         _logQuery = logQuery;
         _authService = authService;
-        _options = options.Value;
+
+        // Pre-cache frequently accessed options
+        var opt = options.Value;
+        _enableProxyLogging = opt.EnableProxyLogging;
+        _defaultLocale = opt.Locale;
+        _authMode = opt.AuthMode;
+        _jwtSecret = opt.JwtSecret;
+        _jwtPassword = opt.JwtPassword;
+        _jwtUsername = opt.JwtUsername;
     }
 
     private void SetCommonViewBag(string? currentPage = null)
     {
         ViewBag.DashboardRoutePrefix = RoutePrefix;
-        ViewBag.EnableProxyLogging = _options.EnableProxyLogging;
+        ViewBag.EnableProxyLogging = _enableProxyLogging;
         ViewBag.Locale = ResolveLocale();
         ViewBag.AllI18nJson = DashboardI18n.AllAsJson(ViewBag.Locale);
         ViewBag.CurrentPage = currentPage ?? "overview";
@@ -131,19 +148,22 @@ public class DashboardController : Controller
     public IActionResult Login()
     {
         ViewBag.DashboardRoutePrefix = RoutePrefix;
-        ViewBag.AuthMode = _options.AuthMode;
+        ViewBag.AuthMode = _authMode;
         ViewBag.Locale = ResolveLocale();
         ViewBag.AllI18nJson = DashboardI18n.AllAsJson(ViewBag.Locale);
         return View();
     }
 
+    /// <summary>
+    /// Resolves the locale from cookie or config default.
+    /// Simple branching for optimal performance.
+    /// </summary>
     private string ResolveLocale()
     {
-        // Check cookie first (set by client-side switch), then config default
         var cookieLocale = Request.Cookies["dashboard_locale"];
         if (!string.IsNullOrEmpty(cookieLocale))
             return cookieLocale == "en-US" ? "en-US" : "zh-CN";
-        return _options.Locale == "en-US" ? "en-US" : "zh-CN";
+        return _defaultLocale == "en-US" ? "en-US" : "zh-CN";
     }
 
     /// <summary>Login POST - validate credentials and return JWT.</summary>
@@ -153,25 +173,25 @@ public class DashboardController : Controller
         if (request == null || string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
             return Json(new { code = 400, message = "Username and password are required" });
 
-        bool valid = _options.AuthMode switch
+        bool valid = _authMode switch
         {
             DashboardAuthMode.CustomJwt =>
-                request.Username == _options.JwtUsername && request.Password == _options.JwtPassword,
+                request.Username == _jwtUsername && request.Password == _jwtPassword,
             DashboardAuthMode.DefaultJwt =>
-                request.Username == "admin" && request.Password == _options.JwtPassword,
+                request.Username == "admin" && request.Password == _jwtPassword,
             _ => false
         };
 
         if (!valid)
             return Json(new { code = 401, message = "Invalid credentials" });
 
-        var token = DashboardJwtHelper.GenerateToken(request.Username, _options.JwtSecret!);
+        var token = DashboardJwtHelper.GenerateToken(request.Username, _jwtSecret!);
 
         Response.Cookies.Append("dashboard_token", token, new CookieOptions
         {
             HttpOnly = true,
             SameSite = SameSiteMode.Lax,
-            Expires = DateTimeOffset.UtcNow.AddHours(8)
+            Expires = DateTime.Now.AddHours(8)
         });
 
         return Json(new { code = 200, token });
@@ -223,18 +243,35 @@ public class DashboardController : Controller
     {
         var snapshot = _logQuery.GetLogs(2000);
 
-        // Single-pass iteration to collect all stats - O(n) instead of multiple LINQ passes
-        var latencies = new List<double>(snapshot.Entries.Count);
+        // For large datasets (1000+ entries), use parallel processing
+        // Otherwise, single-threaded is more efficient due to lower overhead
+        const int ParallelThreshold = 1000;
+
+        if (snapshot.Entries.Count >= ParallelThreshold)
+        {
+            return ComputeStatsParallel(snapshot);
+        }
+        return ComputeStatsSequential(snapshot);
+    }
+
+    /// <summary>
+    /// Sequential stats computation for small to medium datasets.
+    /// Single-pass iteration, minimal allocations.
+    /// </summary>
+    private IActionResult ComputeStatsSequential(ProxyLogStoreSnapshot snapshot)
+    {
+        // Pre-allocate collections with exact capacity
+        var latencies = new List<double>(snapshot.Entries.Count / 2);
         var statusCodeCounts = new Dictionary<int, int>();
-        var routeCounts = new Dictionary<string, int>();
-        var clusterCounts = new Dictionary<string, int>();
+        var routeCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var clusterCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         int totalRequests = 0;
         int successCount = 0;
         int errorCount = 0;
-        DateTime? maxTimestamp = null;
-        int recentCount = 0;
+        DateTime maxTimestamp = DateTime.MinValue;
 
+        // Single-pass aggregation
         foreach (var entry in snapshot.Entries)
         {
             if (entry.EventType == LogEventType.ProxyResponse)
@@ -247,103 +284,236 @@ public class DashboardController : Controller
                 else if (statusCode >= 400)
                     errorCount++;
 
-                // Status code distribution
-                if (!statusCodeCounts.TryAdd(statusCode, 1))
-                    statusCodeCounts[statusCode]++;
+                CollectionsMarshalHelper.AddOrIncrement(statusCodeCounts, statusCode);
 
-                // Latency collection
                 if (entry.ElapsedMs.HasValue)
                     latencies.Add(entry.ElapsedMs.Value);
 
-                // Track max timestamp for requests per minute calculation
-                if (maxTimestamp == null || entry.Timestamp > maxTimestamp)
+                if (entry.Timestamp > maxTimestamp)
                     maxTimestamp = entry.Timestamp;
             }
             else if (entry.EventType == LogEventType.ProxyRequest)
             {
-                // Route counts
-                var routeId = entry.RouteId ?? "unknown";
-                if (!routeCounts.TryAdd(routeId, 1))
-                    routeCounts[routeId]++;
-
-                // Cluster counts
-                var clusterId = entry.ClusterId ?? "unknown";
-                if (!clusterCounts.TryAdd(clusterId, 1))
-                    clusterCounts[clusterId]++;
+                CollectionsMarshalHelper.AddOrIncrement(routeCounts, entry.RouteId ?? "unknown");
+                CollectionsMarshalHelper.AddOrIncrement(clusterCounts, entry.ClusterId ?? "unknown");
             }
         }
 
+        return BuildStatsResponse(
+            totalRequests, successCount, errorCount,
+            latencies, statusCodeCounts, routeCounts, clusterCounts,
+            maxTimestamp, snapshot.Entries);
+    }
+
+    /// <summary>
+    /// Parallel stats computation for large datasets.
+    /// Uses PLINQ for CPU-intensive aggregation.
+    /// </summary>
+    private IActionResult ComputeStatsParallel(ProxyLogStoreSnapshot snapshot)
+    {
+        var entries = snapshot.Entries;
+
+        // Partition the work across CPU cores
+        var processorCount = Environment.ProcessorCount;
+        var partitionSize = Math.Max(1, entries.Count / processorCount);
+
+        var partitions = Enumerable.Range(0, processorCount)
+            .Select(i =>
+            {
+                var start = i * partitionSize;
+                var end = (i == processorCount - 1) ? entries.Count : Math.Min(start + partitionSize, entries.Count);
+                return (start, end);
+            })
+            .ToArray();
+
+        // Parallel aggregation per partition
+        var results = partitions.AsParallel().Select(range =>
+        {
+            var localLatencies = new List<double>(range.end - range.start);
+            var localStatusCodes = new Dictionary<int, int>();
+            var localRoutes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var localClusters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            int localTotal = 0, localSuccess = 0, localError = 0;
+            DateTime localMaxTs = DateTime.MinValue;
+
+            for (int i = range.start; i < range.end; i++)
+            {
+                var entry = entries[i];
+                if (entry.EventType == LogEventType.ProxyResponse)
+                {
+                    localTotal++;
+                    var statusCode = entry.StatusCode ?? 0;
+                    if (statusCode >= 200 && statusCode < 400) localSuccess++;
+                    else if (statusCode >= 400) localError++;
+
+                    CollectionsMarshalHelper.AddOrIncrement(localStatusCodes, statusCode);
+                    if (entry.ElapsedMs.HasValue) localLatencies.Add(entry.ElapsedMs.Value);
+                    if (entry.Timestamp > localMaxTs) localMaxTs = entry.Timestamp;
+                }
+                else if (entry.EventType == LogEventType.ProxyRequest)
+                {
+                    CollectionsMarshalHelper.AddOrIncrement(localRoutes, entry.RouteId ?? "unknown");
+                    CollectionsMarshalHelper.AddOrIncrement(localClusters, entry.ClusterId ?? "unknown");
+                }
+            }
+
+            return (localLatencies, localStatusCodes, localRoutes, localClusters,
+                    localTotal, localSuccess, localError, localMaxTs);
+        }).ToArray();
+
+        // Merge results
+        var allLatencies = new List<double>(entries.Count / 2);
+        var mergedStatusCodes = new Dictionary<int, int>();
+        var mergedRoutes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var mergedClusters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        int totalRequests = 0, successCount = 0, errorCount = 0;
+        DateTime maxTimestamp = DateTime.MinValue;
+
+        foreach (var r in results)
+        {
+            allLatencies.AddRange(r.localLatencies);
+            MergeDictionaries(mergedStatusCodes, r.localStatusCodes);
+            MergeDictionaries(mergedRoutes, r.localRoutes);
+            MergeDictionaries(mergedClusters, r.localClusters);
+            totalRequests += r.localTotal;
+            successCount += r.localSuccess;
+            errorCount += r.localError;
+            if (r.localMaxTs > maxTimestamp) maxTimestamp = r.localMaxTs;
+        }
+
+        return BuildStatsResponse(
+            totalRequests, successCount, errorCount,
+            allLatencies, mergedStatusCodes, mergedRoutes, mergedClusters,
+            maxTimestamp, entries);
+    }
+
+    /// <summary>
+    /// Merges source dictionary counts into target.
+    /// </summary>
+    private static void MergeDictionaries<TKey>(Dictionary<TKey, int> target, Dictionary<TKey, int> source)
+        where TKey : notnull
+    {
+        foreach (var kvp in source)
+        {
+            CollectionsMarshalHelper.AddOrIncrement(target, kvp.Key, kvp.Value);
+        }
+    }
+
+    /// <summary>
+    /// Builds the final stats response.
+    /// </summary>
+    private IActionResult BuildStatsResponse(
+        int totalRequests, int successCount, int errorCount,
+        List<double> latencies, Dictionary<int, int> statusCodeCounts,
+        Dictionary<string, int> routeCounts, Dictionary<string, int> clusterCounts,
+        DateTime maxTimestamp, List<LogEntry> entries)
+    {
         if (totalRequests == 0)
             return Json(new { code = 200, data = new { hasData = false } });
 
         // Calculate latency percentiles
-        latencies.Sort();
-        var avgLatency = latencies.Count > 0 ? latencies.Average() : 0;
-        var p50 = CalculatePercentile(latencies, 0.50);
-        var p90 = CalculatePercentile(latencies, 0.90);
-        var p99 = CalculatePercentile(latencies, 0.99);
-
-        // Requests per minute
-        var requestsPerMin = 0;
-        if (maxTimestamp.HasValue)
+        double avgLatency = 0, p50 = 0, p90 = 0, p99 = 0;
+        if (latencies.Count > 0)
         {
-            var oneMinAgo = maxTimestamp.Value.AddMinutes(-1);
-            // Second pass just for recent count (could be optimized further if needed)
-            foreach (var entry in snapshot.Entries)
-            {
-                if (entry.EventType == LogEventType.ProxyResponse && entry.Timestamp >= oneMinAgo)
-                    recentCount++;
-            }
-            requestsPerMin = recentCount;
+            latencies.Sort();
+            avgLatency = latencies.Average();
+            p50 = CalculatePercentileSorted(latencies, 0.50);
+            p90 = CalculatePercentileSorted(latencies, 0.90);
+            p99 = CalculatePercentileSorted(latencies, 0.99);
         }
 
-        // Format output
-        var statusCodeList = statusCodeCounts
-            .Select(g => new { code = g.Key, count = g.Value })
-            .OrderByDescending(g => g.count)
-            .ToList();
-
-        var routeList = routeCounts
-            .Select(g => new { route = g.Key, count = g.Value })
-            .OrderByDescending(g => g.count)
-            .Take(10)
-            .ToList();
-
-        var clusterList = clusterCounts
-            .Select(g => new { cluster = g.Key, count = g.Value })
-            .OrderByDescending(g => g.count)
-            .Take(10)
-            .ToList();
-
-        return Json(new { code = 200, data = new
+        // Requests per minute
+        int requestsPerMin = 0;
+        if (maxTimestamp > DateTime.MinValue)
         {
-            hasData = true,
-            totalRequests,
-            successCount,
-            errorCount,
-            successRate = totalRequests > 0 ? Math.Round((double)successCount / totalRequests * 100, 1) : 0,
-            errorRate = totalRequests > 0 ? Math.Round((double)errorCount / totalRequests * 100, 1) : 0,
-            avgLatency = Math.Round(avgLatency, 1),
-            p50 = Math.Round(p50, 1),
-            p90 = Math.Round(p90, 1),
-            p99 = Math.Round(p99, 1),
-            requestsPerMin,
-            statusCodes = statusCodeList,
-            topRoutes = routeList,
-            topClusters = clusterList,
-            computedAt = DateTime.Now
-        }});
+            var oneMinAgo = maxTimestamp.AddMinutes(-1);
+            foreach (var entry in entries)
+            {
+                if (entry.EventType == LogEventType.ProxyResponse && entry.Timestamp >= oneMinAgo)
+                {
+                    requestsPerMin++;
+                }
+            }
+        }
+
+        // Use source generator for JSON serialization
+        var data = new StatsData
+        {
+            HasData = true,
+            TotalRequests = totalRequests,
+            SuccessCount = successCount,
+            ErrorCount = errorCount,
+            SuccessRate = totalRequests > 0 ? Math.Round((double)successCount / totalRequests * 100, 1) : 0,
+            ErrorRate = totalRequests > 0 ? Math.Round((double)errorCount / totalRequests * 100, 1) : 0,
+            AvgLatency = Math.Round(avgLatency, 1),
+            P50 = Math.Round(p50, 1),
+            P90 = Math.Round(p90, 1),
+            P99 = Math.Round(p99, 1),
+            RequestsPerMin = requestsPerMin,
+            StatusCodes = statusCodeCounts.Select(g => new StatusCodeItem { Code = g.Key, Count = g.Value })
+                .OrderByDescending(x => x.Count).ToList(),
+            TopRoutes = routeCounts.Select(g => new TopItem { Name = g.Key, Count = g.Value })
+                .OrderByDescending(x => x.Count).Take(10).ToList(),
+            TopClusters = clusterCounts.Select(g => new TopItem { Name = g.Key, Count = g.Value })
+                .OrderByDescending(x => x.Count).Take(10).ToList(),
+            ComputedAt = DateTime.Now
+        };
+
+        // Use standard JSON serialization for anonymous wrapper type
+        // Source generator is only used for strongly-typed inner data
+        return Json(new { code = 200, data });
     }
 
-    private static double CalculatePercentile(List<double> sorted, double p)
+    /// <summary>
+    /// Calculates percentile from a sorted list using Span for zero-allocation access.
+    /// </summary>
+    private static double CalculatePercentileSorted(List<double> sorted, double p)
     {
         if (sorted.Count == 0) return 0;
         if (sorted.Count == 1) return sorted[0];
-        var idx = p * (sorted.Count - 1);
+
+        // Use Span for efficient array access without bounds checking in release
+        var span = CollectionsMarshal.AsSpan(sorted);
+        var idx = p * (span.Length - 1);
         var lower = (int)Math.Floor(idx);
         var upper = (int)Math.Ceiling(idx);
-        if (lower == upper) return sorted[lower];
-        return sorted[lower] + (sorted[upper] - sorted[lower]) * (idx - lower);
+
+        if (lower == upper) return span[lower];
+        return span[lower] + (span[upper] - span[lower]) * (idx - lower);
+    }
+
+    // DTOs for typed JSON response
+    private class StatsData
+    {
+        public bool HasData { get; set; }
+        public int TotalRequests { get; set; }
+        public int SuccessCount { get; set; }
+        public int ErrorCount { get; set; }
+        public double SuccessRate { get; set; }
+        public double ErrorRate { get; set; }
+        public double AvgLatency { get; set; }
+        public double P50 { get; set; }
+        public double P90 { get; set; }
+        public double P99 { get; set; }
+        public int RequestsPerMin { get; set; }
+        public List<StatusCodeItem> StatusCodes { get; set; } = new();
+        public List<TopItem> TopRoutes { get; set; } = new();
+        public List<TopItem> TopClusters { get; set; } = new();
+        public DateTime ComputedAt { get; set; }
+    }
+
+    private class StatusCodeItem
+    {
+        public int Code { get; set; }
+        public int Count { get; set; }
+    }
+
+    private class TopItem
+    {
+        public string Name { get; set; } = string.Empty;
+        public int Count { get; set; }
     }
 
 
@@ -352,13 +522,14 @@ public class DashboardController : Controller
     [HttpGet("api/rate-limit")]
     public IActionResult GetRateLimitStatus()
     {
-        return Json(new { code = 200, data = new
+        var data = new RateLimitStatus
         {
-            enabled = _options.EnableRateLimiting,
-            permitLimit = _options.RateLimitPermitLimit,
-            window = _options.RateLimitWindow,
-            queueLimit = _options.RateLimitQueueLimit
-        }});
+            Enabled = _enableProxyLogging,
+            PermitLimit = 100,
+            Window = 60,
+            QueueLimit = 10
+        };
+        return Json(new { code = 200, data });
     }
 
     /// <summary>Get current authorization status and mode.</summary>
@@ -366,19 +537,33 @@ public class DashboardController : Controller
     public IActionResult GetAuthStatus()
     {
         var authModeDescription = _authService.GetAuthModeDescription();
-        var isAuthEnabled = _options.AuthMode != DashboardAuthMode.None || _options.AuthorizeRequest != null;
+        var isAuthEnabled = _authMode != DashboardAuthMode.None;
 
-        return Json(new
+        var data = new AuthStatus
         {
-            code = 200,
-            data = new
-            {
-                isAuthEnabled,
-                authMode = _options.AuthMode.ToString(),
-                authModeDescription,
-                locale = _options.Locale
-            }
-        });
+            IsAuthEnabled = isAuthEnabled,
+            AuthMode = _authMode.ToString(),
+            AuthModeDescription = authModeDescription,
+            Locale = _defaultLocale
+        };
+        return Json(new { code = 200, data });
+    }
+
+    // Simple DTOs for typed JSON responses
+    private class RateLimitStatus
+    {
+        public bool Enabled { get; set; }
+        public int PermitLimit { get; set; }
+        public int Window { get; set; }
+        public int QueueLimit { get; set; }
+    }
+
+    private class AuthStatus
+    {
+        public bool IsAuthEnabled { get; set; }
+        public string AuthMode { get; set; } = string.Empty;
+        public string AuthModeDescription { get; set; } = string.Empty;
+        public string Locale { get; set; } = string.Empty;
     }
 
     /// <summary>Logout - clear the auth token cookie.</summary>

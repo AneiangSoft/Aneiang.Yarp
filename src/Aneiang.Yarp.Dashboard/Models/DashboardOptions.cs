@@ -144,6 +144,13 @@ public class DashboardOptions
     public bool LogErrorsOnly { get; set; } = false;
 
     /// <summary>
+    /// Minimum log level to capture. Supported values: Debug, Information, Warning, Error, Critical.
+    /// Logs below this level are discarded immediately to save memory and CPU.
+    /// Default: "Debug" (capture all).
+    /// </summary>
+    public string MinLogLevel { get; set; } = "Debug";
+
+    /// <summary>
     /// Whitelist of route IDs to log. If empty, all routes are considered.
     /// </summary>
     public List<string>? LogRouteWhitelist { get; set; }

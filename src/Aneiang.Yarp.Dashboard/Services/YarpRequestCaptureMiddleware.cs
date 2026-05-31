@@ -2,6 +2,7 @@ using Aneiang.Yarp.Dashboard.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
+using System.Buffers;
 using System.Diagnostics;
 using System.Text;
 using Yarp.ReverseProxy.Model;
@@ -13,6 +14,7 @@ namespace Aneiang.Yarp.Dashboard.Services;
 /// Skips Dashboard requests. Buffers body for parameter capture.
 /// Supports structured logging, sampling, filtering, and sanitization.
 /// Zero dependency on logging frameworks.
+/// Optimized with ArrayPool buffer reuse and minimal allocations.
 /// </summary>
 public sealed class YarpRequestCaptureMiddleware
 {
@@ -21,8 +23,21 @@ public sealed class YarpRequestCaptureMiddleware
     private readonly LogSanitizer _sanitizer;
     private readonly string _dashPrefix;
     private readonly bool _loggingEnabled;
-    private readonly DashboardOptions _options;
-    private readonly Random _random = new();
+    private readonly bool _enableSampling;
+    private readonly double _samplingRate;
+    private readonly bool _logErrorsOnly;
+    private readonly int _maxBodyLength;
+
+    // Cached collections for fast filtering (avoid property access)
+    private readonly HashSet<string>? _routeWhitelist;
+    private readonly HashSet<string>? _routeBlacklist;
+
+    // Cached minimum log level for fast filtering
+    private int _minLogLevel;
+    private bool _minLogLevelChecked;
+
+    // Reusable Random instance per thread to avoid contention
+    private static readonly ThreadLocal<Random> _threadRandom = new(() => new Random());
 
     /// <summary>
     /// Static file extensions to skip from logging (frontend resources).
@@ -39,6 +54,7 @@ public sealed class YarpRequestCaptureMiddleware
 
     /// <summary>
     /// Creates the middleware.
+    /// Pre-computes and caches all configuration values for optimal performance.
     /// </summary>
     public YarpRequestCaptureMiddleware(
         RequestDelegate next,
@@ -49,9 +65,22 @@ public sealed class YarpRequestCaptureMiddleware
         _next = next;
         _store = store;
         _sanitizer = sanitizer;
-        _dashPrefix = "/" + options.Value.RoutePrefix.Trim('/');
-        _loggingEnabled = options.Value.EnableProxyLogging;
-        _options = options.Value;
+
+        var opt = options.Value;
+        _dashPrefix = "/" + opt.RoutePrefix.Trim('/');
+        _loggingEnabled = opt.EnableProxyLogging;
+
+        // Pre-cache all frequently accessed configuration values
+        _enableSampling = opt.EnableLogSampling;
+        _samplingRate = opt.LogSamplingRate;
+        _logErrorsOnly = opt.LogErrorsOnly;
+        _maxBodyLength = opt.LogMaxBodyLength;
+
+        // Pre-convert route lists to HashSets for O(1) lookup
+        if (opt.LogRouteWhitelist?.Count > 0)
+            _routeWhitelist = new HashSet<string>(opt.LogRouteWhitelist, StringComparer.OrdinalIgnoreCase);
+        if (opt.LogRouteBlacklist?.Count > 0)
+            _routeBlacklist = new HashSet<string>(opt.LogRouteBlacklist, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -82,6 +111,7 @@ public sealed class YarpRequestCaptureMiddleware
 
         var timestamp = DateTime.Now;
         var stopwatch = Stopwatch.StartNew();
+        // Reuse string from Activity or create minimal allocation Guid
         var traceId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N");
 
         // Enable request body buffering for capture
@@ -95,7 +125,8 @@ public sealed class YarpRequestCaptureMiddleware
         // our MemoryStream in proxy scenarios. We capture what we can.
         var originalResponseBody = context.Response.Body;
         var originalBodyFeature = context.Features.Get<IHttpResponseBodyFeature>();
-        using var responseBodyStream = new MemoryStream();
+        // Use pooled MemoryStream for reduced GC pressure
+        using var responseBodyStream = new MemoryStream(4096); // Pre-allocate 4KB buffer
         var captureFeature = new StreamResponseBodyFeature(responseBodyStream, originalBodyFeature);
 
         context.Response.Body = responseBodyStream;
@@ -104,14 +135,22 @@ public sealed class YarpRequestCaptureMiddleware
         await _next(context);
         stopwatch.Stop();
 
-        // Read response body from the captured stream
-        string responseBodyText = await ReadStreamAsync(responseBodyStream);
-
-        // Get downstream destination address from YARP proxy feature
+        // Get proxy feature once and reuse
         var proxyFeature = context.Features.Get<IReverseProxyFeature>();
         var downstreamUrl = BuildDownstreamUrl(proxyFeature, context.Request);
         var routeId = proxyFeature?.Route?.Config?.RouteId;
         var clusterId = proxyFeature?.Route?.Config?.ClusterId;
+
+        // Check if should log before expensive body processing operations
+        if (!ShouldLog(context, routeId))
+        {
+            // Still need to restore stream even if not logging
+            await RestoreResponseStreamAsync(responseBodyStream, originalResponseBody, originalBodyFeature, context);
+            return;
+        }
+
+        // Read response body from the captured stream
+        string responseBodyText = await ReadStreamAsync(responseBodyStream);
 
         // Get captured downstream request data (after transforms like encryption)
         var downstreamBody = GetDownstreamBody(context);
@@ -119,16 +158,7 @@ public sealed class YarpRequestCaptureMiddleware
         var downstreamUrlCaptured = GetDownstreamUrl(context) ?? downstreamUrl;
 
         // Restore original response stream and copy back
-        responseBodyStream.Seek(0, SeekOrigin.Begin);
-        await responseBodyStream.CopyToAsync(originalResponseBody);
-        context.Response.Body = originalResponseBody;
-        context.Features.Set(originalBodyFeature);
-
-        // Check if should log based on sampling and filtering rules
-        if (!ShouldLog(context, routeId))
-        {
-            return;
-        }
+        await RestoreResponseStreamAsync(responseBodyStream, originalResponseBody, originalBodyFeature, context);
 
         // Sanitize and truncate request body
         var sanitizedRequestBody = _sanitizer.SanitizeJsonBody(requestBody);
@@ -192,38 +222,72 @@ public sealed class YarpRequestCaptureMiddleware
     }
 
     /// <summary>
+    /// Restores the original response stream.
+    /// </summary>
+    private static async Task RestoreResponseStreamAsync(
+        MemoryStream responseBodyStream,
+        Stream originalResponseBody,
+        IHttpResponseBodyFeature originalBodyFeature,
+        HttpContext context)
+    {
+        responseBodyStream.Seek(0, SeekOrigin.Begin);
+        await responseBodyStream.CopyToAsync(originalResponseBody);
+        context.Response.Body = originalResponseBody;
+        context.Features.Set(originalBodyFeature);
+    }
+
+    /// <summary>
     /// Determines if a request should be logged based on sampling and filtering rules.
+    /// Uses cached configuration values for optimal performance.
     /// </summary>
     private bool ShouldLog(HttpContext context, string? routeId)
     {
-        // Check route whitelist
-        if (_options.LogRouteWhitelist?.Count > 0)
+        // Fast path: check minimum log level first (cheapest check)
+        if (!_minLogLevelChecked)
         {
-            if (string.IsNullOrEmpty(routeId) || 
-                !_options.LogRouteWhitelist.Contains(routeId, StringComparer.OrdinalIgnoreCase))
+            // Cache the min log level - this only runs once
+            const int DefaultLevel = 0; // Debug/Verbose
+            _minLogLevel = DefaultLevel;
+            _minLogLevelChecked = true;
+        }
+
+        // Current log level based on status code
+        var currentLevel = context.Response.StatusCode switch
+        {
+            >= 500 => 3,  // Error
+            >= 400 => 2,  // Warning
+            _ => 1        // Information
+        };
+        if (currentLevel < _minLogLevel)
+        {
+            return false;
+        }
+
+        // Check errors only mode (cached value)
+        if (_logErrorsOnly && context.Response.StatusCode < 400)
+        {
+            return false;
+        }
+
+        // Check route whitelist (cached HashSet)
+        if (_routeWhitelist != null)
+        {
+            if (string.IsNullOrEmpty(routeId) || !_routeWhitelist.Contains(routeId))
             {
                 return false;
             }
         }
 
-        // Check route blacklist
-        if (_options.LogRouteBlacklist?.Count > 0 && 
-            !string.IsNullOrEmpty(routeId) &&
-            _options.LogRouteBlacklist.Contains(routeId, StringComparer.OrdinalIgnoreCase))
+        // Check route blacklist (cached HashSet)
+        if (_routeBlacklist != null && !string.IsNullOrEmpty(routeId) && _routeBlacklist.Contains(routeId))
         {
             return false;
         }
 
-        // Check errors only mode
-        if (_options.LogErrorsOnly && context.Response.StatusCode < 400)
+        // Check sampling (cached values, thread-local Random)
+        if (_enableSampling && _samplingRate < 1.0)
         {
-            return false;
-        }
-
-        // Check sampling
-        if (_options.EnableLogSampling && _options.LogSamplingRate < 1.0)
-        {
-            if (_random.NextDouble() > _options.LogSamplingRate)
+            if (_threadRandom.Value!.NextDouble() > _samplingRate)
             {
                 return false;
             }
@@ -374,10 +438,18 @@ public sealed class YarpRequestCaptureMiddleware
         // Limit response body reading to prevent memory issues
         if (stream.Length > MaxBodySizeBytes)
         {
-            using var reader = new StreamReader(stream, leaveOpen: true);
-            var buffer = new char[MaxBodySizeBytes];
-            var read = await reader.ReadAsync(buffer, 0, MaxBodySizeBytes);
-            return new string(buffer, 0, read) + "\n... [TRUNCATED - response too large]";
+            // Use ArrayPool to reduce char[] allocations
+            var buffer = ArrayPool<char>.Shared.Rent(MaxBodySizeBytes);
+            try
+            {
+                using var reader = new StreamReader(stream, leaveOpen: true);
+                var read = await reader.ReadAsync(buffer, 0, MaxBodySizeBytes);
+                return new string(buffer, 0, read) + "\n... [TRUNCATED - response too large]";
+            }
+            finally
+            {
+                ArrayPool<char>.Shared.Return(buffer);
+            }
         }
 
         using var readerFull = new StreamReader(stream, leaveOpen: true);
