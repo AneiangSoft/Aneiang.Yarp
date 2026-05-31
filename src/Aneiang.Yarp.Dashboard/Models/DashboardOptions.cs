@@ -167,6 +167,13 @@ public class DashboardOptions
     public int LogMaxBodyLength { get; set; } = 8192;
 
     /// <summary>
+    /// Enable async logging via Channel for better throughput.
+    /// When enabled, logs are enqueued and processed in background batches,
+    /// reducing latency on the request path. Default: true.
+    /// </summary>
+    public bool EnableAsyncLogging { get; set; } = true;
+
+    /// <summary>
     /// Header names to exclude from logging (case-insensitive).
     /// Default: ["Authorization", "Cookie", "Set-Cookie"]
     /// </summary>
