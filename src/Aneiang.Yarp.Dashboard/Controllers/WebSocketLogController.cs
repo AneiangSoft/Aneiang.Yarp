@@ -15,6 +15,25 @@ public class WebSocketLogController : Controller
     private readonly IProxyLogStore _logStore;
     private readonly DashboardOptions _options;
 
+    // Static JsonSerializerOptions to avoid allocations on each send
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    // Static level order mapping for O(1) lookups instead of O(n) Array.IndexOf
+    private static readonly Dictionary<string, int> _levelOrderMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Debug"] = 0,
+        ["Information"] = 1,
+        ["Info"] = 1,
+        ["Warning"] = 2,
+        ["Warn"] = 2,
+        ["Error"] = 3,
+        ["Critical"] = 4,
+        ["Fatal"] = 4
+    };
+
     /// <summary>Initializes a new instance of WebSocketLogController.</summary>
     public WebSocketLogController(IProxyLogStore logStore, IOptions<DashboardOptions> options)
     {
@@ -47,13 +66,12 @@ public class WebSocketLogController : Controller
         // Optional filters
         var routeFilter = HttpContext.Request.Query["routeId"].ToString();
         var minLevel = HttpContext.Request.Query["minLevel"].ToString();
-        var levelOrder = new[] { "Debug", "Information", "Warning", "Error", "Critical" };
         var minLevelIndex = string.IsNullOrEmpty(minLevel) ? 0 :
-            Array.IndexOf(levelOrder, minLevel);
+            (_levelOrderMap.TryGetValue(minLevel, out var idx) ? idx : 0);
 
         using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
 
-        // Send initial batch
+        // Send initial batch (batched to reduce serialization overhead)
         var snapshot = _logStore.GetRecent(50);
         var initialEntries = snapshot.Entries.Where(e =>
         {
@@ -61,16 +79,17 @@ public class WebSocketLogController : Controller
                 return false;
             if (minLevelIndex > 0)
             {
-                var entryLevelIndex = Array.IndexOf(levelOrder, e.Level);
+                var entryLevelIndex = _levelOrderMap.TryGetValue(e.Level ?? "Information", out var eIdx) ? eIdx : 1;
                 if (entryLevelIndex < minLevelIndex)
                     return false;
             }
             return true;
         }).ToList();
 
-        foreach (var entry in initialEntries)
+        // Batch send initial entries to reduce WebSocket round trips
+        if (initialEntries.Count > 0)
         {
-            await SendLogEntry(webSocket, entry);
+            await SendLogEntriesBatch(webSocket, initialEntries);
         }
 
         // Subscribe to new entries
@@ -82,7 +101,7 @@ public class WebSocketLogController : Controller
                 return;
             if (minLevelIndex > 0)
             {
-                var entryLevelIndex = Array.IndexOf(levelOrder, entry.Level);
+                var entryLevelIndex = _levelOrderMap.TryGetValue(entry.Level ?? "Information", out var eIdx) ? eIdx : 1;
                 if (entryLevelIndex < minLevelIndex)
                     return;
             }
@@ -141,10 +160,23 @@ public class WebSocketLogController : Controller
     {
         try
         {
-            var json = JsonSerializer.Serialize(new { type = "log", entry }, new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            });
+            var json = JsonSerializer.Serialize(new { type = "log", entry }, _jsonOptions);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+            await webSocket.SendAsync(bytes, System.Net.WebSockets.WebSocketMessageType.Text, true, CancellationToken.None);
+        }
+        catch
+        {
+            // Send failed, client likely disconnected
+        }
+    }
+
+    private static async Task SendLogEntriesBatch(System.Net.WebSockets.WebSocket webSocket, List<LogEntry> entries)
+    {
+        try
+        {
+            // Batch serialize to reduce overhead
+            var batch = entries.Select(e => new { type = "log", entry = e });
+            var json = JsonSerializer.Serialize(batch, _jsonOptions);
             var bytes = System.Text.Encoding.UTF8.GetBytes(json);
             await webSocket.SendAsync(bytes, System.Net.WebSockets.WebSocketMessageType.Text, true, CancellationToken.None);
         }

@@ -58,7 +58,7 @@ public class DynamicConfigPersistenceService : IDynamicConfigPersistenceService
     {
         try
         {
-            config.LastModified = DateTime.UtcNow;
+            config.LastModified = DateTime.Now;
             _store.SetDocumentAsync(Category, config).GetAwaiter().GetResult();
 
             _logger.LogInformation(
@@ -123,7 +123,7 @@ public class DynamicConfigPersistenceService : IDynamicConfigPersistenceService
     {
         try
         {
-            config.LastModified = DateTime.UtcNow;
+            config.LastModified = DateTime.Now;
             await _store.SetDocumentAsync(Category, config);
 
             _logger.LogInformation(

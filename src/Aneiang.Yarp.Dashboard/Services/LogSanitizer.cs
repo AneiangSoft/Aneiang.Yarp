@@ -21,6 +21,12 @@ public sealed class LogSanitizer
         "password", "token", "secret", "apikey", "api-key", "access_token", "refresh_token"
     };
 
+    // Reuse JsonSerializerOptions instance to avoid allocations
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        WriteIndented = false
+    };
+
     private readonly DashboardOptions _options;
     private readonly HashSet<string> _headerBlacklist;
     private readonly HashSet<string> _jsonFieldSanitizeList;
@@ -115,10 +121,7 @@ public sealed class LogSanitizer
         {
             using var doc = JsonDocument.Parse(body);
             var sanitized = SanitizeJsonElement(doc.RootElement);
-            return JsonSerializer.Serialize(sanitized, new JsonSerializerOptions
-            {
-                WriteIndented = false
-            });
+            return JsonSerializer.Serialize(sanitized, _jsonOptions);
         }
         catch (JsonException)
         {

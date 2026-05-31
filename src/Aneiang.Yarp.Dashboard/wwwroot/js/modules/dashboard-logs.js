@@ -8,6 +8,7 @@
         name: 'logs',
         initialized: false,
         pollTimer: null,
+        wasPollingBeforeHidden: false, // Track polling state for visibility changes
 
         // ===== Initialization =====
         init: async function() {
@@ -1002,11 +1003,14 @@
 
         stopPolling: function() {
             const state = window.DashboardState;
-            
+
             if (this.pollTimer) {
                 clearInterval(this.pollTimer);
                 this.pollTimer = null;
             }
+
+            // Reset the hidden state flag when manually stopping
+            this.wasPollingBeforeHidden = false;
 
             state.set('filters.logs.autoRefresh', false);
             this.updateListenButton(false);
@@ -1059,6 +1063,25 @@
             // Locale change
             document.addEventListener('dashboard:localeChange', () => {
                 this.renderLogs();
+            });
+
+            // Page Visibility API - pause polling when tab is hidden to save resources
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    // Page is hidden - pause polling if active
+                    if (this.pollTimer) {
+                        this.wasPollingBeforeHidden = true;
+                        this.stopPolling();
+                        console.log('[Logs] Paused polling (page hidden)');
+                    }
+                } else {
+                    // Page is visible again - resume polling if it was active
+                    if (this.wasPollingBeforeHidden) {
+                        this.wasPollingBeforeHidden = false;
+                        this.startPolling();
+                        console.log('[Logs] Resumed polling (page visible)');
+                    }
+                }
             });
         }
     };

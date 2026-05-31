@@ -57,6 +57,7 @@ public static class ProxyLogStoreExtensions
     {
         private readonly IProxyLogStore _store;
         private readonly Action<LogEntry> _callback;
+        private bool _disposed;
 
         public Subscription(IProxyLogStore store, Action<LogEntry> callback)
         {
@@ -66,11 +67,19 @@ public static class ProxyLogStoreExtensions
 
         public void Dispose()
         {
+            if (_disposed) return;
+            _disposed = true;
+
             if (_subscriberMap.TryGetValue(_store, out var subscribers))
             {
                 lock (_lock)
                 {
                     subscribers.Remove(_callback);
+                    // Clean up empty subscriber lists to prevent memory leak
+                    if (subscribers.Count == 0)
+                    {
+                        _subscriberMap.TryRemove(_store, out _);
+                    }
                 }
             }
         }

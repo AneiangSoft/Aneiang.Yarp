@@ -19,6 +19,10 @@ public sealed class CircuitBreakerMiddleware
     private static readonly ConcurrentDictionary<string, CircuitState> _circuits = new();
     private static readonly object _stateLock = new();
 
+    // Cleanup circuits that have been closed and not accessed for this duration
+    private static readonly TimeSpan _cleanupThreshold = TimeSpan.FromHours(1);
+    private static DateTime _lastCleanupTime = DateTime.Now;
+
     public CircuitBreakerMiddleware(RequestDelegate next, ILogger<CircuitBreakerMiddleware> logger)
     {
         _next = next;
@@ -46,6 +50,10 @@ public sealed class CircuitBreakerMiddleware
         }
 
         var state = _circuits.GetOrAdd(circuitKey, _ => new CircuitState());
+        state.LastAccessedAt = DateTime.Now;
+
+        // Periodic cleanup of stale closed circuits
+        TryCleanupStaleCircuits();
 
         CircuitStatus currentStatus;
         lock (_stateLock)
@@ -55,7 +63,7 @@ public sealed class CircuitBreakerMiddleware
 
         if (currentStatus == CircuitStatus.Open)
         {
-            if (DateTime.UtcNow < state.OpenedAt + state.RecoveryTimeout)
+            if (DateTime.Now < state.OpenedAt + state.RecoveryTimeout)
             {
                 _logger.LogWarning(
                     "Circuit OPEN for {CircuitKey} (recovery at {RecoveryAt})",
@@ -122,6 +130,8 @@ public sealed class CircuitBreakerMiddleware
     {
         lock (_stateLock)
         {
+            state.LastAccessedAt = DateTime.Now;
+
             if (statusCode >= 500)
             {
                 state.ConsecutiveFailures++;
@@ -129,13 +139,13 @@ public sealed class CircuitBreakerMiddleware
                 if (state.Status == CircuitStatus.HalfOpen)
                 {
                     state.Status = CircuitStatus.Open;
-                    state.OpenedAt = DateTime.UtcNow;
+                    state.OpenedAt = DateTime.Now;
                     _logger.LogWarning("Circuit HALF-OPEN probe FAILED for {CircuitKey}, back to OPEN", circuitKey);
                 }
                 else if (state.ConsecutiveFailures >= state.FailureThreshold)
                 {
                     state.Status = CircuitStatus.Open;
-                    state.OpenedAt = DateTime.UtcNow;
+                    state.OpenedAt = DateTime.Now;
                     _logger.LogWarning("Circuit OPENED for {CircuitKey} after {Failures} failures", circuitKey, state.ConsecutiveFailures);
                 }
             }
@@ -194,6 +204,35 @@ public sealed class CircuitBreakerMiddleware
             }
         }
     }
+
+    /// <summary>
+    /// Removes stale closed circuits that haven't been accessed for a while.
+    /// Runs infrequently to avoid performance impact.
+    /// </summary>
+    private static void TryCleanupStaleCircuits()
+    {
+        var now = DateTime.Now;
+        if (now - _lastCleanupTime < _cleanupThreshold)
+            return;
+
+        _lastCleanupTime = now;
+
+        var keysToRemove = new List<string>();
+        foreach (var kv in _circuits)
+        {
+            // Only remove closed circuits that haven't been accessed recently
+            if (kv.Value.Status == CircuitStatus.Closed &&
+                now - kv.Value.LastAccessedAt > _cleanupThreshold)
+            {
+                keysToRemove.Add(kv.Key);
+            }
+        }
+
+        foreach (var key in keysToRemove)
+        {
+            _circuits.TryRemove(key, out _);
+        }
+    }
 }
 
 internal enum CircuitStatus { Closed, Open, HalfOpen }
@@ -206,6 +245,7 @@ internal class CircuitState
     public TimeSpan RecoveryTimeout = TimeSpan.FromSeconds(30);
     public DateTime OpenedAt;
     public int HalfOpenRequests;
+    public DateTime LastAccessedAt = DateTime.Now; // Track for cleanup
 }
 
 public class CircuitStateInfo

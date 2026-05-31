@@ -9,7 +9,7 @@ public class ConfigSnapshot
     public string VersionId { get; set; } = Guid.NewGuid().ToString("N")[..8];
 
     /// <summary>Snapshot creation timestamp.</summary>
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public DateTime Timestamp { get; set; } = DateTime.Now;
 
     /// <summary>Optional description of this snapshot.</summary>
     public string? Description { get; set; }

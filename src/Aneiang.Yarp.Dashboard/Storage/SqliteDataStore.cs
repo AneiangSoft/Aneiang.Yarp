@@ -122,7 +122,7 @@ public class SqliteDataStore : IDataStore
             cmd.Parameters.AddWithValue("@cat", category);
             cmd.Parameters.AddWithValue("@val", json);
             cmd.Parameters.AddWithValue("@type", typeName);
-            cmd.Parameters.AddWithValue("@ts", DateTime.UtcNow.ToString("O"));
+            cmd.Parameters.AddWithValue("@ts", DateTime.Now.ToString("O"));
 
             await cmd.ExecuteNonQueryAsync(ct);
             _logger.LogDebug("Document {Category} saved", category);
@@ -207,7 +207,7 @@ public class SqliteDataStore : IDataStore
             cmd.Parameters.AddWithValue("@cat", category);
             cmd.Parameters.AddWithValue("@val", json);
             cmd.Parameters.AddWithValue("@type", typeName);
-            cmd.Parameters.AddWithValue("@ts", DateTime.UtcNow.ToString("O"));
+            cmd.Parameters.AddWithValue("@ts", DateTime.Now.ToString("O"));
 
             await cmd.ExecuteNonQueryAsync(ct);
             _logger.LogDebug("Item added to collection {Category}", category);
