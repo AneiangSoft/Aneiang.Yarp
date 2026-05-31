@@ -26,7 +26,8 @@
                     window.DashboardApi.endpoints.getClusterHealthConfigs()
                 ]);
 
-                this.renderHealthStatus(statusData || [], configsData || [], container);
+                // Use HealthCheckModule explicitly instead of this to avoid context issues
+                HealthCheckModule.renderHealthStatus(statusData || [], configsData || [], container);
             } catch (error) {
                 console.error('[HealthCheck] Load failed:', error);
                 var container = window.DashboardDOM.safe('#health-content');

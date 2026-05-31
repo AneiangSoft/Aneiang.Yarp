@@ -9,24 +9,25 @@ const API_CACHE = `yarp-dashboard-api-${CACHE_VERSION}`;
 const IMAGE_CACHE = `yarp-dashboard-images-${CACHE_VERSION}`;
 
 // Static assets to cache on install
+const CONTENT_PATH = '/_content/Aneiang.Yarp.Dashboard';
 const STATIC_ASSETS = [
     '/',
     '/dashboard',
-    '/css/dashboard.css',
-    '/js/app/dashboard-bootstrap.js',
-    '/js/core/dashboard-api.js',
-    '/js/core/dashboard-core.js',
-    '/js/core/dashboard-dom.js',
-    '/js/core/dashboard-state.js',
-    '/js/core/dashboard-utils.js',
-    '/js/core/dashboard-performance.js',
-    '/js/core/dashboard-indexeddb.js',
-    '/js/core/dashboard-worker.js',
-    '/js/modules/dashboard-home.js',
-    '/js/modules/dashboard-routes.js',
-    '/js/modules/dashboard-clusters.js',
-    '/js/modules/dashboard-logs.js',
-    '/js/modules/dashboard-stats.js'
+    `${CONTENT_PATH}/styles/dashboard-editor.css`,
+    `${CONTENT_PATH}/styles/inter-font.css`,
+    `${CONTENT_PATH}/js/app/dashboard-bootstrap.js`,
+    `${CONTENT_PATH}/js/core/dashboard-api.js`,
+    `${CONTENT_PATH}/js/core/dashboard-core.js`,
+    `${CONTENT_PATH}/js/core/dashboard-dom.js`,
+    `${CONTENT_PATH}/js/core/dashboard-state.js`,
+    `${CONTENT_PATH}/js/core/dashboard-utils.js`,
+    `${CONTENT_PATH}/js/core/dashboard-performance.js`,
+    `${CONTENT_PATH}/js/core/dashboard-indexeddb.js`,
+    `${CONTENT_PATH}/js/core/dashboard-worker.js`,
+    `${CONTENT_PATH}/js/modules/dashboard-home.js`,
+    `${CONTENT_PATH}/js/modules/dashboard-routes.js`,
+    `${CONTENT_PATH}/js/modules/dashboard-clusters.js`,
+    `${CONTENT_PATH}/js/modules/dashboard-logs.js`
 ];
 
 // ===== Install Event =====
@@ -335,8 +336,8 @@ self.addEventListener('push', event => {
     event.waitUntil(
         self.registration.showNotification(data.title || 'YARP Dashboard', {
             body: data.body || 'New notification',
-            icon: '/logo.png',
-            badge: '/logo.png',
+            icon: `${CONTENT_PATH}/logo.png`,
+            badge: `${CONTENT_PATH}/logo.png`,
             data: data
         })
     );
