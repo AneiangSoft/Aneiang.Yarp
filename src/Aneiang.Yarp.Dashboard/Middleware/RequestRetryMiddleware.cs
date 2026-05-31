@@ -133,7 +133,8 @@ public sealed class RequestRetryMiddleware
         {
             return isEnabled;
         }
-        return true;
+        // Default: retry is disabled when not configured
+        return false;
     }
 
     private static int GetMaxRetries(RouteConfig routeConfig)

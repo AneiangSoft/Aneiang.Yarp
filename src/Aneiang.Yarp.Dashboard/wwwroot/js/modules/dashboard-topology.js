@@ -41,6 +41,48 @@
         nodeTypes: ['gateway', 'route', 'cluster', 'destination'],
         statusTypes: ['healthy', 'warning', 'error', 'unknown'],
 
+        // ===== i18n Helper =====
+        t: function(key) {
+            if (window.DashboardI18n && window.DashboardI18n.t) {
+                return window.DashboardI18n.t(key);
+            }
+            // Fallback translations
+            const fallbacks = {
+                'topology.detail.type': '类型',
+                'topology.detail.status': '状态',
+                'topology.detail.cluster': '集群',
+                'topology.detail.healthStatus': '健康状态',
+                'topology.detail.connection': '连接',
+                'topology.legend.gateway': '网关',
+                'topology.legend.route': '路由',
+                'topology.legend.cluster': '集群',
+                'topology.legend.destination': '目的地',
+                'topology.legend.healthy': '健康',
+                'topology.legend.warning': '警告',
+                'topology.legend.error': '错误',
+                'topology.detail.matchPath': '匹配路径',
+                'topology.detail.httpMethods': 'HTTP方法',
+                'topology.detail.hosts': '主机',
+                'topology.detail.targetCluster': '目标集群',
+                'topology.detail.priority': '优先级',
+                'topology.detail.rateLimitPolicy': '限流策略',
+                'topology.detail.timeoutPolicy': '超时策略',
+                'topology.detail.authorizationPolicy': '授权策略',
+                'topology.detail.transforms': '转换器',
+                'topology.detail.loadBalancing': '负载均衡',
+                'topology.detail.sessionAffinity': '会话亲和性',
+                'topology.detail.activeHealthCheck': '主动健康检查',
+                'topology.detail.passiveHealthCheck': '被动健康检查',
+                'topology.detail.address': '地址',
+                'topology.detail.host': '主机名',
+                'topology.detail.activeHealth': '主动检查',
+                'topology.detail.passiveHealth': '被动检查',
+                'topology.detail.enabled': '已启用',
+                'topology.detail.disabled': '未启用'
+            };
+            return fallbacks[key] || key;
+        },
+
         // ===== Helper to convert enum to string =====
         getNodeTypeString: function(type) {
             if (typeof type === 'string') return type.toLowerCase();
@@ -357,51 +399,51 @@
                 const statusStr = this.getStatusString(node.status);
 
                 let html = `<div style="font-weight:bold;margin-bottom:5px;">${node.label}</div>`;
-                html += `<div style="font-size:12px;color:#666;">类型: ${this.getNodeTypeName(typeStr)}</div>`;
-                html += `<div style="font-size:12px;color:#666;">状态: ${this.getStatusName(statusStr)}</div>`;
+                html += `<div style="font-size:12px;color:#666;">${this.t('topology.detail.type')}: ${this.getNodeTypeName(typeStr)}</div>`;
+                html += `<div style="font-size:12px;color:#666;">${this.t('topology.detail.status')}: ${this.getStatusName(statusStr)}</div>`;
 
                 // Add specific info based on node type
                 if (typeStr === 'route') {
-                    if (data.path) html += `<div style="font-size:12px;">路径: ${data.path}</div>`;
+                    if (data.path) html += `<div style="font-size:12px;">${this.t('topology.detail.matchPath')}: ${data.path}</div>`;
                     if (data.methods && data.methods.length) {
-                        html += `<div style="font-size:12px;">方法: ${data.methods.join(', ')}</div>`;
+                        html += `<div style="font-size:12px;">${this.t('topology.detail.httpMethods')}: ${data.methods.join(', ')}</div>`;
                     }
-                    if (data.clusterId) html += `<div style="font-size:12px;">集群: ${data.clusterId}</div>`;
+                    if (data.clusterId) html += `<div style="font-size:12px;">${this.t('topology.legend.cluster')}: ${data.clusterId}</div>`;
                 } else if (typeStr === 'cluster') {
-                    html += `<div style="font-size:12px;">负载均衡: ${data.loadBalancingPolicy || '默认'}</div>`;
-                    html += `<div style="font-size:12px;">健康: ${data.healthyCount}/${data.totalCount}</div>`;
-                    if (data.sessionAffinity) html += `<div style="font-size:12px;">会话亲和性: 启用</div>`;
+                    html += `<div style="font-size:12px;">${this.t('topology.detail.loadBalancing')}: ${data.loadBalancingPolicy || '默认'}</div>`;
+                    html += `<div style="font-size:12px;">${this.t('topology.detail.healthStatus')}: ${data.healthyCount}/${data.totalCount}</div>`;
+                    if (data.sessionAffinity) html += `<div style="font-size:12px;">${this.t('topology.detail.sessionAffinity')}: ${this.t('topology.detail.enabled')}</div>`;
                 } else if (typeStr === 'destination') {
-                    if (data.health) html += `<div style="font-size:12px;">健康状态: ${data.health}</div>`;
-                    if (data.address) html += `<div style="font-size:12px;">地址: ${data.address}</div>`;
+                    if (data.health) html += `<div style="font-size:12px;">${this.t('topology.detail.healthStatus')}: ${data.health}</div>`;
+                    if (data.address) html += `<div style="font-size:12px;">${this.t('topology.detail.address')}: ${data.address}</div>`;
                 }
 
                 return html;
             } else if (params.dataType === 'edge') {
                 const edge = params.data._original;
-                return `<div>连接</div><div style="font-size:12px;color:#666;">类型: ${edge.type}</div>`;
+                return `<div>${this.t('topology.detail.connection')}</div><div style="font-size:12px;color:#666;">${this.t('topology.detail.type')}: ${edge.type}</div>`;
             }
             return '';
         },
 
         getNodeTypeName: function(type) {
-            const names = {
-                gateway: '网关',
-                route: '路由',
-                cluster: '集群',
-                destination: '目的地'
+            const keys = {
+                gateway: 'topology.legend.gateway',
+                route: 'topology.legend.route',
+                cluster: 'topology.legend.cluster',
+                destination: 'topology.legend.destination'
             };
-            return names[type] || type;
+            return this.t(keys[type]) || type;
         },
 
         getStatusName: function(status) {
-            const names = {
-                healthy: '健康',
-                warning: '警告',
-                error: '错误',
-                unknown: '未知'
+            const keys = {
+                healthy: 'topology.legend.healthy',
+                warning: 'topology.legend.warning',
+                error: 'topology.legend.error',
+                unknown: 'topology.legend.error'
             };
-            return names[status] || status;
+            return this.t(keys[status]) || status;
         },
 
         // ===== Detail Panel =====
@@ -417,38 +459,38 @@
 
             // Common fields
             content += `<tr><td class="text-muted" style="width:100px;">ID</td><td><code>${node.id}</code></td></tr>`;
-            content += `<tr><td class="text-muted">类型</td><td>${this.getNodeTypeName(typeStr)}</td></tr>`;
-            content += `<tr><td class="text-muted">状态</td><td><span class="badge bg-${this.getStatusClass(statusStr)}">${this.getStatusName(statusStr)}</span></td></tr>`;
+            content += `<tr><td class="text-muted">${this.t('topology.detail.type')}</td><td>${this.getNodeTypeName(typeStr)}</td></tr>`;
+            content += `<tr><td class="text-muted">${this.t('topology.detail.status')}</td><td><span class="badge bg-${this.getStatusClass(statusStr)}">${this.getStatusName(statusStr)}</span></td></tr>`;
 
             // Type-specific fields
             if (typeStr === 'route') {
-                if (data.path) content += `<tr><td class="text-muted">匹配路径</td><td><code>${data.path}</code></td></tr>`;
+                if (data.path) content += `<tr><td class="text-muted">${this.t('topology.detail.matchPath')}</td><td><code>${data.path}</code></td></tr>`;
                 if (data.methods && data.methods.length) {
-                    content += `<tr><td class="text-muted">HTTP方法</td><td>${data.methods.map(m => `<span class="badge bg-secondary me-1">${m}</span>`).join('')}</td></tr>`;
+                    content += `<tr><td class="text-muted">${this.t('topology.detail.httpMethods')}</td><td>${data.methods.map(m => `<span class="badge bg-secondary me-1">${m}</span>`).join('')}</td></tr>`;
                 }
                 if (data.hosts && data.hosts.length) {
-                    content += `<tr><td class="text-muted">主机</td><td>${data.hosts.join(', ')}</td></tr>`;
+                    content += `<tr><td class="text-muted">${this.t('topology.detail.hosts')}</td><td>${data.hosts.join(', ')}</td></tr>`;
                 }
-                if (data.clusterId) content += `<tr><td class="text-muted">目标集群</td><td><a href="#" onclick="TopologyModule.goToCluster('${data.clusterId}')">${data.clusterId}</a></td></tr>`;
-                if (data.order !== undefined) content += `<tr><td class="text-muted">优先级</td><td>${data.order}</td></tr>`;
-                if (data.rateLimiterPolicy) content += `<tr><td class="text-muted">限流策略</td><td>${data.rateLimiterPolicy}</td></tr>`;
-                if (data.timeoutPolicy) content += `<tr><td class="text-muted">超时策略</td><td>${data.timeoutPolicy}</td></tr>`;
-                if (data.authorizationPolicy) content += `<tr><td class="text-muted">授权策略</td><td>${data.authorizationPolicy}</td></tr>`;
-                if (data.transformCount) content += `<tr><td class="text-muted">转换器</td><td>${data.transformCount} 个</td></tr>`;
+                if (data.clusterId) content += `<tr><td class="text-muted">${this.t('topology.detail.targetCluster')}</td><td><a href="#" onclick="TopologyModule.goToCluster('${data.clusterId}')">${data.clusterId}</a></td></tr>`;
+                if (data.order !== undefined) content += `<tr><td class="text-muted">${this.t('topology.detail.priority')}</td><td>${data.order}</td></tr>`;
+                if (data.rateLimiterPolicy) content += `<tr><td class="text-muted">${this.t('topology.detail.rateLimitPolicy')}</td><td>${data.rateLimiterPolicy}</td></tr>`;
+                if (data.timeoutPolicy) content += `<tr><td class="text-muted">${this.t('topology.detail.timeoutPolicy')}</td><td>${data.timeoutPolicy}</td></tr>`;
+                if (data.authorizationPolicy) content += `<tr><td class="text-muted">${this.t('topology.detail.authorizationPolicy')}</td><td>${data.authorizationPolicy}</td></tr>`;
+                if (data.transformCount) content += `<tr><td class="text-muted">${this.t('topology.detail.transforms')}</td><td>${data.transformCount}</td></tr>`;
             } else if (typeStr === 'cluster') {
-                content += `<tr><td class="text-muted">负载均衡</td><td>${data.loadBalancingPolicy || '默认'}</td></tr>`;
-                content += `<tr><td class="text-muted">健康状态</td><td>健康: ${data.healthyCount} / 异常: ${data.unhealthyCount} / 未知: ${data.unknownCount}</td></tr>`;
+                content += `<tr><td class="text-muted">${this.t('topology.detail.loadBalancing')}</td><td>${data.loadBalancingPolicy || '默认'}</td></tr>`;
+                content += `<tr><td class="text-muted">${this.t('topology.detail.healthStatus')}</td><td>${this.t('topology.legend.healthy')}: ${data.healthyCount} / ${this.t('topology.unhealthy')}: ${data.unhealthyCount} / ${this.t('topology.legend.warning')}: ${data.unknownCount}</td></tr>`;
                 if (data.sessionAffinity) {
-                    content += `<tr><td class="text-muted">会话亲和性</td><td><span class="badge bg-success">已启用</span></td></tr>`;
+                    content += `<tr><td class="text-muted">${this.t('topology.detail.sessionAffinity')}</td><td><span class="badge bg-success">${this.t('topology.detail.enabled')}</span></td></tr>`;
                 }
-                if (data.healthCheckActive) content += `<tr><td class="text-muted">主动健康检查</td><td><span class="badge bg-success">启用</span></td></tr>`;
-                if (data.healthCheckPassive) content += `<tr><td class="text-muted">被动健康检查</td><td><span class="badge bg-success">启用</span></td></tr>`;
+                if (data.healthCheckActive) content += `<tr><td class="text-muted">${this.t('topology.detail.activeHealthCheck')}</td><td><span class="badge bg-success">${this.t('topology.detail.enabled')}</span></td></tr>`;
+                if (data.healthCheckPassive) content += `<tr><td class="text-muted">${this.t('topology.detail.passiveHealthCheck')}</td><td><span class="badge bg-success">${this.t('topology.detail.enabled')}</span></td></tr>`;
             } else if (typeStr === 'destination') {
-                if (data.address) content += `<tr><td class="text-muted">地址</td><td><code>${data.address}</code></td></tr>`;
-                if (data.host) content += `<tr><td class="text-muted">主机名</td><td>${data.host}</td></tr>`;
-                if (data.health) content += `<tr><td class="text-muted">健康</td><td>${data.health}</td></tr>`;
-                if (data.activeHealth) content += `<tr><td class="text-muted">主动检查</td><td>${data.activeHealth}</td></tr>`;
-                if (data.passiveHealth) content += `<tr><td class="text-muted">被动检查</td><td>${data.passiveHealth}</td></tr>`;
+                if (data.address) content += `<tr><td class="text-muted">${this.t('topology.detail.address')}</td><td><code>${data.address}</code></td></tr>`;
+                if (data.host) content += `<tr><td class="text-muted">${this.t('topology.detail.host')}</td><td>${data.host}</td></tr>`;
+                if (data.health) content += `<tr><td class="text-muted">${this.t('topology.detail.healthStatus')}</td><td>${data.health}</td></tr>`;
+                if (data.activeHealth) content += `<tr><td class="text-muted">${this.t('topology.detail.activeHealth')}</td><td>${data.activeHealth}</td></tr>`;
+                if (data.passiveHealth) content += `<tr><td class="text-muted">${this.t('topology.detail.passiveHealth')}</td><td>${data.passiveHealth}</td></tr>`;
             }
 
             content += '</table>';

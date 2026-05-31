@@ -97,11 +97,8 @@
             }).join('');
 
             container.innerHTML =
-                '<div class="d-flex justify-content-between align-items-center mb-3">' +
-                    '<div>' +
-                        '<h6 class="mb-0"><i class="bi bi-shield-check me-1"></i>' + __('audit.title') + '</h6>' +
-                        '<small class="text-muted">' + __('audit.total', { total: data.total, evicted: data.evicted }) + '</small>' +
-                    '</div>' +
+                '<div class="text-muted mb-2">' +
+                    __('audit.total', { total: data.total, evicted: data.evicted }) +
                 '</div>' +
                 '<div id="audit-filter-container"></div>' +
                 '<div class="audit-list">' + rows + '</div>';

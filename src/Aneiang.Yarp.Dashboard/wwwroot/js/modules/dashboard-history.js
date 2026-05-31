@@ -66,8 +66,7 @@
             }).join('');
 
             container.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="mb-0"><i class="bi bi-clock-history me-1"></i>${__('history.title')}</h6>
+                <div class="d-flex justify-content-end mb-3">
                     <button class="btn btn-sm btn-outline-primary" onclick="HistoryModule.createSnapshot()">
                         <i class="bi bi-plus-circle me-1"></i>${__('history.manualSnapshot')}
                     </button>
