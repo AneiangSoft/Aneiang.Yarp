@@ -76,7 +76,7 @@ public class ConfigManagementController : ControllerBase
                 code = 200,
                 data = config,
                 format = "yarp-standard",
-                exportedAt = DateTime.UtcNow
+                exportedAt = DateTime.Now
             });
         }
         catch (Exception ex)
@@ -713,8 +713,8 @@ public class ConfigManagementController : ControllerBase
                         EventType = "test",
                         Target = "webhook-test",
                         Operator = "dashboard-user",
-                        Timestamp = DateTime.UtcNow,
-                        Details = new { message = $"Test notification #{results.Count + 1} from YARP Dashboard at {DateTime.UtcNow:HH:mm:ss}" }
+                        Timestamp = DateTime.Now,
+                        Details = new { message = $"Test notification #{results.Count + 1} from YARP Dashboard at {DateTime.Now:HH:mm:ss}" }
                     };
 
                     var success = await SendTestWebhookAsync(endpoint.Url, testPayload, endpoint.Secret, request.Platform);

@@ -79,7 +79,7 @@ public class WebhookNotificationService
             EventLabel = GetEventLabel(eventType),
             Target = target,
             Operator = operatorName,
-            Timestamp = DateTime.UtcNow,
+            Timestamp = DateTime.Now,
             Details = details,
             GatewayName = Environment.MachineName
         };

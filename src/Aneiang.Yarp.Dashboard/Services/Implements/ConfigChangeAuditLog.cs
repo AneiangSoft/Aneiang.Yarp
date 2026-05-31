@@ -47,7 +47,12 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
     private async Task EnsureLoadedAsync()
     {
         if (_loaded) return;
-        _loaded = true;
+
+        lock (_entries)
+        {
+            if (_loaded) return; // Double-check locking
+            _loaded = true;
+        }
 
         try
         {
@@ -65,10 +70,32 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
         }
     }
 
+    /// <summary>Non-blocking ensure loaded for synchronous contexts.</summary>
+    private void EnsureLoaded()
+    {
+        if (_loaded) return;
+
+        // Fire-and-forget initialization with exception handling
+        // This avoids blocking the thread while loading from persistent store
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await EnsureLoadedAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Background audit log initialization failed");
+            }
+        });
+    }
+
     /// <inheritdoc />
     public void Record(ConfigChangeAudit entry)
     {
-        EnsureLoadedAsync().GetAwaiter().GetResult();
+        // Non-blocking initialization - if not loaded, start loading in background
+        // Entries recorded before load completes will be in memory but not persisted until next load
+        EnsureLoaded();
 
         _entries.Enqueue(entry);
         var count = Interlocked.Increment(ref _totalCount);
@@ -88,8 +115,18 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
             entry.Action, entry.Target, entry.Operator ?? "unknown",
             entry.Success ? "OK" : $"FAIL: {entry.ErrorMessage}");
 
-        // Persist to store (fire-and-forget for performance)
-        _ = _store.AddToCollectionAsync(Category, entry);
+        // Persist to store (fire-and-forget with error handling)
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _store.AddToCollectionAsync(Category, entry);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to persist audit entry");
+            }
+        });
 
         if (entry.Success)
         {
@@ -129,8 +166,17 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
     /// <inheritdoc />
     public IReadOnlyList<ConfigChangeAudit> GetRecent(int count = 50)
     {
-        EnsureLoadedAsync().GetAwaiter().GetResult();
-        return _entries.OrderByDescending(e => e.Timestamp).Take(count).ToList();
+        // Non-blocking - start loading in background if needed
+        EnsureLoaded();
+
+        // Return entries without sorting if not many entries (optimization)
+        var entries = _entries.ToArray();
+        if (entries.Length <= 1)
+            return entries.Take(count).ToList();
+
+        // Use Array.Sort for better performance than OrderByDescending on small collections
+        Array.Sort(entries, (a, b) => b.Timestamp.CompareTo(a.Timestamp));
+        return entries.Take(count).ToList();
     }
 
     /// <inheritdoc />

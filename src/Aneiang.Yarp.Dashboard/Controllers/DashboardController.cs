@@ -222,50 +222,98 @@ public class DashboardController : Controller
     public IActionResult GetStats()
     {
         var snapshot = _logQuery.GetLogs(2000);
-        var responses = snapshot.Entries.Where(e => e.EventType == LogEventType.ProxyResponse).ToList();
-        var requests = snapshot.Entries.Where(e => e.EventType == LogEventType.ProxyRequest).ToList();
 
-        if (responses.Count == 0)
+        // Single-pass iteration to collect all stats - O(n) instead of multiple LINQ passes
+        var latencies = new List<double>(snapshot.Entries.Count);
+        var statusCodeCounts = new Dictionary<int, int>();
+        var routeCounts = new Dictionary<string, int>();
+        var clusterCounts = new Dictionary<string, int>();
+
+        int totalRequests = 0;
+        int successCount = 0;
+        int errorCount = 0;
+        DateTime? maxTimestamp = null;
+        int recentCount = 0;
+
+        foreach (var entry in snapshot.Entries)
+        {
+            if (entry.EventType == LogEventType.ProxyResponse)
+            {
+                totalRequests++;
+
+                var statusCode = entry.StatusCode ?? 0;
+                if (statusCode >= 200 && statusCode < 400)
+                    successCount++;
+                else if (statusCode >= 400)
+                    errorCount++;
+
+                // Status code distribution
+                if (!statusCodeCounts.TryAdd(statusCode, 1))
+                    statusCodeCounts[statusCode]++;
+
+                // Latency collection
+                if (entry.ElapsedMs.HasValue)
+                    latencies.Add(entry.ElapsedMs.Value);
+
+                // Track max timestamp for requests per minute calculation
+                if (maxTimestamp == null || entry.Timestamp > maxTimestamp)
+                    maxTimestamp = entry.Timestamp;
+            }
+            else if (entry.EventType == LogEventType.ProxyRequest)
+            {
+                // Route counts
+                var routeId = entry.RouteId ?? "unknown";
+                if (!routeCounts.TryAdd(routeId, 1))
+                    routeCounts[routeId]++;
+
+                // Cluster counts
+                var clusterId = entry.ClusterId ?? "unknown";
+                if (!clusterCounts.TryAdd(clusterId, 1))
+                    clusterCounts[clusterId]++;
+            }
+        }
+
+        if (totalRequests == 0)
             return Json(new { code = 200, data = new { hasData = false } });
 
-        var totalRequests = responses.Count;
-        var successCount = responses.Count(r => r.StatusCode >= 200 && r.StatusCode < 400);
-        var errorCount = responses.Count(r => r.StatusCode >= 400);
-        var latencies = responses.Where(r => r.ElapsedMs.HasValue).Select(r => r.ElapsedMs!.Value).OrderBy(l => l).ToList();
-
+        // Calculate latency percentiles
+        latencies.Sort();
         var avgLatency = latencies.Count > 0 ? latencies.Average() : 0;
-        var p50 = Percentile(latencies, 0.50);
-        var p90 = Percentile(latencies, 0.90);
-        var p99 = Percentile(latencies, 0.99);
+        var p50 = CalculatePercentile(latencies, 0.50);
+        var p90 = CalculatePercentile(latencies, 0.90);
+        var p99 = CalculatePercentile(latencies, 0.99);
 
-        // Status code distribution
-        var statusCodes = responses
-            .GroupBy(r => r.StatusCode ?? 0)
-            .Select(g => new { code = g.Key, count = g.Count() })
+        // Requests per minute
+        var requestsPerMin = 0;
+        if (maxTimestamp.HasValue)
+        {
+            var oneMinAgo = maxTimestamp.Value.AddMinutes(-1);
+            // Second pass just for recent count (could be optimized further if needed)
+            foreach (var entry in snapshot.Entries)
+            {
+                if (entry.EventType == LogEventType.ProxyResponse && entry.Timestamp >= oneMinAgo)
+                    recentCount++;
+            }
+            requestsPerMin = recentCount;
+        }
+
+        // Format output
+        var statusCodeList = statusCodeCounts
+            .Select(g => new { code = g.Key, count = g.Value })
             .OrderByDescending(g => g.count)
             .ToList();
 
-        // Top routes by request count (from requests, matched by traceId)
-        var routeCounts = requests
-            .GroupBy(r => r.RouteId ?? "unknown")
-            .Select(g => new { route = g.Key, count = g.Count() })
+        var routeList = routeCounts
+            .Select(g => new { route = g.Key, count = g.Value })
             .OrderByDescending(g => g.count)
             .Take(10)
             .ToList();
 
-        // Top clusters
-        var clusterCounts = requests
-            .GroupBy(r => r.ClusterId ?? "unknown")
-            .Select(g => new { cluster = g.Key, count = g.Count() })
+        var clusterList = clusterCounts
+            .Select(g => new { cluster = g.Key, count = g.Value })
             .OrderByDescending(g => g.count)
             .Take(10)
             .ToList();
-
-        // Requests per minute (based on response timestamps)
-        var now = responses.Max(r => r.Timestamp);
-        var oneMinAgo = now.AddMinutes(-1);
-        var recentCount = responses.Count(r => r.Timestamp >= oneMinAgo);
-        var requestsPerMin = recentCount; // approximate
 
         return Json(new { code = 200, data = new
         {
@@ -280,14 +328,14 @@ public class DashboardController : Controller
             p90 = Math.Round(p90, 1),
             p99 = Math.Round(p99, 1),
             requestsPerMin,
-            statusCodes,
-            topRoutes = routeCounts,
-            topClusters = clusterCounts,
-            computedAt = DateTime.UtcNow
+            statusCodes = statusCodeList,
+            topRoutes = routeList,
+            topClusters = clusterList,
+            computedAt = DateTime.Now
         }});
     }
 
-    private static double Percentile(List<double> sorted, double p)
+    private static double CalculatePercentile(List<double> sorted, double p)
     {
         if (sorted.Count == 0) return 0;
         if (sorted.Count == 1) return sorted[0];
@@ -297,6 +345,8 @@ public class DashboardController : Controller
         if (lower == upper) return sorted[lower];
         return sorted[lower] + (sorted[upper] - sorted[lower]) * (idx - lower);
     }
+
+
 
     /// <summary>Rate limiting configuration status.</summary>
     [HttpGet("api/rate-limit")]

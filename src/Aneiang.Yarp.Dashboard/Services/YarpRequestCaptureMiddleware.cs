@@ -345,10 +345,17 @@ public sealed class YarpRequestCaptureMiddleware
         return null;
     }
 
+    // Max body size to read (64KB) - prevents memory issues with large uploads/downloads
+    private const int MaxBodySizeBytes = 64 * 1024;
+
     private static async Task<string> ReadBodyAsync(HttpRequest request)
     {
         if (request.ContentLength == null || request.ContentLength == 0)
             return string.Empty;
+
+        // Skip large request bodies to avoid memory pressure
+        if (request.ContentLength > MaxBodySizeBytes)
+            return $"[{request.ContentType}] ({request.ContentLength} bytes) - too large to log";
 
         if (!request.HasJsonContentType())
             return $"[{request.ContentType}] ({request.ContentLength} bytes)";
@@ -363,8 +370,17 @@ public sealed class YarpRequestCaptureMiddleware
     private static async Task<string> ReadStreamAsync(Stream stream)
     {
         stream.Seek(0, SeekOrigin.Begin);
-        using var reader = new StreamReader(stream, leaveOpen: true);
-        var text = await reader.ReadToEndAsync();
-        return text;
+
+        // Limit response body reading to prevent memory issues
+        if (stream.Length > MaxBodySizeBytes)
+        {
+            using var reader = new StreamReader(stream, leaveOpen: true);
+            var buffer = new char[MaxBodySizeBytes];
+            var read = await reader.ReadAsync(buffer, 0, MaxBodySizeBytes);
+            return new string(buffer, 0, read) + "\n... [TRUNCATED - response too large]";
+        }
+
+        using var readerFull = new StreamReader(stream, leaveOpen: true);
+        return await readerFull.ReadToEndAsync();
     }
 }
