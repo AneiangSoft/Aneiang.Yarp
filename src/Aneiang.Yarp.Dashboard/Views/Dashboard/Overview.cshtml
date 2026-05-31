@@ -4,6 +4,79 @@
     var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
 }
 
+<!-- Alert Summary Bar - 运维告警摘要 -->
+<div id="alert-summary-bar" class="row g-3 mb-3">
+    <div class="col-md-3 col-sm-6">
+        <div class="stat-card" style="border-left: 4px solid #ef4444;">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value" id="alert-unhealthy" style="color:#ef4444;">-</div>
+                    <div class="stat-label" data-i18n="overview.alert.unhealthy">异常节点</div>
+                </div>
+                <div class="stat-icon" style="background:#fef2f2;color:#ef4444;"><i class="bi bi-heartbreak"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="stat-card" style="border-left: 4px solid #f59e0b;">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value" id="alert-circuit" style="color:#f59e0b;">-</div>
+                    <div class="stat-label" data-i18n="overview.alert.circuit">熔断中</div>
+                </div>
+                <div class="stat-icon" style="background:#fffbeb;color:#f59e0b;"><i class="bi bi-lightning-slash"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="stat-card" style="border-left: 4px solid #3b82f6;">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value" id="alert-rate-limit">-</div>
+                    <div class="stat-label" data-i18n="overview.alert.rateLimit">限流触发</div>
+                </div>
+                <div class="stat-icon" style="background:#eff6ff;color:#3b82f6;"><i class="bi bi-speedometer2"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="stat-card" style="border-left: 4px solid #8b5cf6;">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value" id="alert-events">-</div>
+                    <div class="stat-label" data-i18n="overview.alert.events">未处理事件</div>
+                </div>
+                <div class="stat-icon" style="background:#f5f3ff;color:#8b5cf6;"><i class="bi bi-bell"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions Bar - 快捷运维操作 -->
+<div class="card-panel mb-3">
+    <div class="card-body py-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small"><i class="bi bi-lightning-charge me-1"></i><span data-i18n="overview.quickActions.title">快捷操作</span></span>
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <button class="btn btn-sm btn-outline-danger" onclick="OpsModule.emergencyDisable()">
+                    <i class="bi bi-shield-exclamation"></i> <span data-i18n="overview.quickActions.emergency">紧急禁用</span>
+                </button>
+                <button class="btn btn-sm btn-outline-warning" onclick="OpsModule.refreshHealth()">
+                    <i class="bi bi-arrow-clockwise"></i> <span data-i18n="overview.quickActions.health">刷新健康</span>
+                </button>
+                <button class="btn btn-sm btn-outline-primary" onclick="OpsModule.exportSnapshot()">
+                    <i class="bi bi-download"></i> <span data-i18n="overview.quickActions.export">导出快照</span>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="overviewRefresh(this)">
+                    <i class="bi bi-arrow-repeat"></i> <span data-i18n="overview.quickActions.refresh">刷新全部</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Stat cards -->
 <div id="stat-bar" class="row g-3 mb-3">
     <div class="col-12">
@@ -53,6 +126,80 @@
                     <div class="stat-label" data-i18n="index.stat.routes">路由规则</div>
                 </div>
                 <a href="/@prefix/routes" class="stat-icon text-decoration-none" style="background:#fefce8;color:#eab308;"><i class="bi bi-signpost-split"></i></a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Real-time Traffic Chart - 实时流量图 -->
+<div class="card-panel mb-3">
+    <div class="card-header">
+        <span><i class="bi bi-graph-up-arrow me-2"></i><span data-i18n="overview.chart.traffic">实时流量趋势 (QPS)</span></span>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-success" id="current-qps">0 req/s</span>
+            <select class="form-select form-select-sm" id="chart-time-range" style="width:100px;" onchange="OpsModule.changeTimeRange(this.value)">
+                <option value="5">5分钟</option>
+                <option value="15" selected>15分钟</option>
+                <option value="60">1小时</option>
+            </select>
+        </div>
+    </div>
+    <div class="card-body">
+        <div style="height:250px;position:relative;">
+            <canvas id="traffic-chart"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <!-- Top Error Routes - 异常路由排行 -->
+    <div class="col-md-6">
+        <div class="card-panel">
+            <div class="card-header">
+                <span><i class="bi bi-exclamation-triangle me-2"></i><span data-i18n="overview.top.errorRoutes">Top 异常路由</span></span>
+                <span class="badge bg-danger" id="error-routes-count">0</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" style="font-size:13px;">
+                        <thead>
+                            <tr>
+                                <th style="width:50%;padding:10px 16px;"><span data-i18n="overview.top.th.route">路由</span></th>
+                                <th style="width:25%;padding:10px 16px;"><span data-i18n="overview.top.th.errors">错误数</span></th>
+                                <th style="width:25%;padding:10px 16px;"><span data-i18n="overview.top.th.rate">错误率</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="error-routes-tbody">
+                            <tr><td colspan="3" class="text-center text-muted py-4" data-i18n="overview.top.empty">暂无数据</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Top Latency Clusters - 高延迟集群排行 -->
+    <div class="col-md-6">
+        <div class="card-panel">
+            <div class="card-header">
+                <span><i class="bi bi-stopwatch me-2"></i><span data-i18n="overview.top.slowClusters">Top 延迟集群</span></span>
+                <span class="badge bg-warning" id="slow-clusters-count">0</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" style="font-size:13px;">
+                        <thead>
+                            <tr>
+                                <th style="width:50%;padding:10px 16px;"><span data-i18n="overview.top.th.cluster">集群</span></th>
+                                <th style="width:25%;padding:10px 16px;"><span data-i18n="overview.top.th.avgLatency">平均延迟</span></th>
+                                <th style="width:25%;padding:10px 16px;"><span data-i18n="overview.top.th.p99">P99延迟</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="slow-clusters-tbody">
+                            <tr><td colspan="3" class="text-center text-muted py-4" data-i18n="overview.top.empty">暂无数据</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -119,6 +266,9 @@
 
 @section Scripts {
 @{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<!-- Chart.js for traffic chart -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
 <!-- Core Infrastructure -->
 <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
@@ -131,9 +281,10 @@
 <!-- Events -->
 <script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
 
-<!-- Modules: only home + stats for overview -->
+<!-- Modules -->
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-stats.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-operations.js?v=@v"></script>
 
 <script>
     window.__dashboard = window.__dashboard || {};
@@ -160,10 +311,15 @@
         // Init modules
         if (window.DashboardApp?.modules?.home?.init) await DashboardApp.modules.home.init();
         if (window.DashboardApp?.modules?.stats?.init) await DashboardApp.modules.stats.init();
+        if (window.OpsModule?.init) await OpsModule.init();
 
         // Auto-load data
         if (window.DashboardApp?.modules?.home?.loadInfo) await DashboardApp.modules.home.loadInfo();
+        if (window.DashboardApp?.modules?.home?.updateStatCards) await DashboardApp.modules.home.updateStatCards();
         if (window.DashboardApp?.modules?.stats?.loadStats) await DashboardApp.modules.stats.loadStats();
+        if (window.OpsModule?.loadAlertSummary) await OpsModule.loadAlertSummary();
+        if (window.OpsModule?.loadTrafficChart) await OpsModule.loadTrafficChart();
+        if (window.OpsModule?.loadTopErrors) await OpsModule.loadTopErrors();
 
         document.dispatchEvent(new CustomEvent('dashboard:ready'));
     })();
@@ -177,7 +333,10 @@
             await Promise.all([
                 window.DashboardApp?.modules?.home?.loadInfo?.(),
                 window.DashboardApp?.modules?.home?.updateStatCards?.(),
-                window.DashboardApp?.modules?.stats?.loadStats?.()
+                window.DashboardApp?.modules?.stats?.loadStats?.(),
+                window.OpsModule?.loadAlertSummary?.(),
+                window.OpsModule?.loadTrafficChart?.(),
+                window.OpsModule?.loadTopErrors?.()
             ]);
         } finally {
             btn.innerHTML = originalText;

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Dashboard Logs Module - Log viewer with filtering, polling and virtual scrolling
  * Optimized with virtual scrolling for handling large log volumes
  */
@@ -10,12 +10,6 @@
         initialized: false,
         pollTimer: null,
         wasPollingBeforeHidden: false,
-
-        // SSE streaming state
-        sseConnection: null,
-        sseEnabled: true, // Enable SSE by default, fallback to polling
-        pendingLogEntries: [], // Buffer for entries received during rendering
-        isRendering: false,
 
         // Virtual scrolling state
         virtualScroll: {
@@ -135,9 +129,7 @@
         // ===== Render Logs =====
         renderLogs: function() {
             const state = window.DashboardState;
-            this.isRendering = true;
-
-            const entries = state.getFilteredLogs ? state.getFilteredLogs() : (state.get('data.logs') || []);
+            const entries = state.getFilteredLogs();
 
             // Render filter toolbar
             this.renderFilterToolbar();
@@ -177,10 +169,6 @@
                     this.updateVisibleRange();
                 });
             }
-
-            // Mark rendering complete and flush any pending SSE entries
-            this.isRendering = false;
-            this.flushPendingEntries();
         },
 
         // ===== Virtual Scrolling Render =====
@@ -1209,41 +1197,36 @@
             if (timeEl) timeEl.textContent = __('index.log.updated') + window.DashboardI18n.formatTime(new Date());
         },
 
-        // ===== Polling/SSE Control =====
+        // ===== Polling Control =====
         togglePolling: function() {
             const state = window.DashboardState;
             const isPolling = state.get('filters.logs.autoRefresh');
             
             if (isPolling) {
-                this.stopStreaming();
-            } else {
-                this.startStreaming();
-            }
-        },
-
-        startStreaming: function() {
-            const state = window.DashboardState;
-            state.set('filters.logs.autoRefresh', true);
-            this.updateListenButton(true);
-
-            // Try SSE first, fallback to polling
-            if (this.sseEnabled && typeof EventSource !== 'undefined') {
-                this.startSSE();
+                this.stopPolling();
             } else {
                 this.startPolling();
             }
         },
 
-        stopStreaming: function() {
+        startPolling: function() {
             const state = window.DashboardState;
-
-            // Stop SSE
-            if (this.sseConnection) {
-                this.sseConnection.close();
-                this.sseConnection = null;
+            
+            if (this.pollTimer) {
+                clearInterval(this.pollTimer);
             }
 
-            // Stop polling
+            state.set('filters.logs.autoRefresh', true);
+            this.updateListenButton(true);
+            this.loadLogs();
+
+            const interval = state.get('filters.logs.refreshInterval') || 5000;
+            this.pollTimer = setInterval(() => this.loadLogs(), interval);
+        },
+
+        stopPolling: function() {
+            const state = window.DashboardState;
+
             if (this.pollTimer) {
                 clearInterval(this.pollTimer);
                 this.pollTimer = null;
@@ -1254,98 +1237,6 @@
 
             state.set('filters.logs.autoRefresh', false);
             this.updateListenButton(false);
-        },
-
-        startSSE: function() {
-            const basePath = window.__dashboard?.basePath || '';
-            const sseUrl = `${basePath}/logstream/logs`;
-
-            try {
-                this.sseConnection = new EventSource(sseUrl);
-                console.log('[Logs] SSE connection established');
-
-                this.sseConnection.onopen = () => {
-                    console.log('[Logs] SSE connection opened');
-                };
-
-                this.sseConnection.onmessage = (event) => {
-                    if (event.data.startsWith(':')) {
-                        // Keepalive or comment, ignore
-                        return;
-                    }
-
-                    try {
-                        const entry = JSON.parse(event.data);
-                        if (entry.connected) {
-                            console.log('[Logs] SSE connected successfully');
-                            // Load initial logs
-                            this.loadLogs();
-                            return;
-                        }
-                        if (entry.error) {
-                            console.warn('[Logs] SSE error:', entry.error);
-                            this.fallbackToPolling();
-                            return;
-                        }
-
-                        // Add entry to pending queue
-                        this.pendingLogEntries.push(entry);
-                        this.flushPendingEntries();
-                    } catch (err) {
-                        console.error('[Logs] Failed to parse SSE message:', err);
-                    }
-                };
-
-                this.sseConnection.onerror = (error) => {
-                    console.error('[Logs] SSE error:', error);
-                    this.fallbackToPolling();
-                };
-            } catch (err) {
-                console.error('[Logs] Failed to create SSE connection:', err);
-                this.fallbackToPolling();
-            }
-        },
-
-        fallbackToPolling: function() {
-            console.log('[Logs] Falling back to polling mode');
-            if (this.sseConnection) {
-                this.sseConnection.close();
-                this.sseConnection = null;
-            }
-            this.sseEnabled = false;
-            this.startPolling();
-        },
-
-        startPolling: function() {
-            if (this.pollTimer) {
-                clearInterval(this.pollTimer);
-            }
-
-            this.loadLogs();
-            const interval = window.DashboardState.get('filters.logs.refreshInterval') || 5000;
-            this.pollTimer = setInterval(() => this.loadLogs(), interval);
-        },
-
-        flushPendingEntries: function() {
-            if (this.isRendering || this.pendingLogEntries.length === 0) return;
-
-            const state = window.DashboardState;
-            const logs = state.get('data.logs') || [];
-
-            // Add new entries to the front (newest first)
-            while (this.pendingLogEntries.length > 0) {
-                const entry = this.pendingLogEntries.shift();
-                logs.unshift(entry);
-            }
-
-            // Trim to max count
-            const maxCount = state.get('filters.logs.maxCount') || 100;
-            while (logs.length > maxCount) {
-                logs.pop();
-            }
-
-            state.set('data.logs', logs);
-            this.renderLogs();
         },
 
         // ===== Update Listen Button =====
@@ -1397,29 +1288,21 @@
                 this.renderLogs();
             });
 
-            // Page Visibility API - pause streaming when tab is hidden to save resources
+            // Page Visibility API - pause polling when tab is hidden to save resources
             document.addEventListener('visibilitychange', () => {
                 if (document.hidden) {
-                    // Page is hidden - pause streaming if active
-                    const state = window.DashboardState;
-                    if (state.get('filters.logs.autoRefresh')) {
+                    // Page is hidden - pause polling if active
+                    if (this.pollTimer) {
                         this.wasPollingBeforeHidden = true;
-                        if (this.sseConnection) {
-                            this.sseConnection.close();
-                            this.sseConnection = null;
-                            console.log('[Logs] Paused SSE (page hidden)');
-                        } else if (this.pollTimer) {
-                            clearInterval(this.pollTimer);
-                            this.pollTimer = null;
-                            console.log('[Logs] Paused polling (page hidden)');
-                        }
+                        this.stopPolling();
+                        console.log('[Logs] Paused polling (page hidden)');
                     }
                 } else {
-                    // Page is visible again - resume streaming if it was active
+                    // Page is visible again - resume polling if it was active
                     if (this.wasPollingBeforeHidden) {
                         this.wasPollingBeforeHidden = false;
-                        this.startStreaming();
-                        console.log('[Logs] Resumed streaming (page visible)');
+                        this.startPolling();
+                        console.log('[Logs] Resumed polling (page visible)');
                     }
                 }
             });
@@ -1436,310 +1319,5 @@
     window.loadLogs = LogsModule.loadLogs.bind(LogsModule);
     window.toggleListening = LogsModule.togglePolling.bind(LogsModule);
     window.clearLogs = LogsModule.clearLogs.bind(LogsModule);
-
-    // ===== Performance Optimizations Integration =====
-    // Auto-initialize enhanced virtual scrolling if DashboardPerformance is available
-    if (window.DashboardPerformance) {
-        LogsModule.enhancedVirtualScroll = null;
-        LogsModule.workerFilterCache = new Map();
-
-        // Override renderLogs to use enhanced virtual scrolling
-        const originalRenderLogs = LogsModule.renderLogs.bind(LogsModule);
-        LogsModule.renderLogs = async function() {
-            const state = window.DashboardState;
-            this.isRendering = true;
-
-            const entries = state.getFilteredLogs ? state.getFilteredLogs() : (state.get('data.logs') || []);
-
-            // Render filter toolbar
-            this.renderFilterToolbar();
-
-            const container = window.DashboardDOM.safe('#log-entries');
-            const scrollEl = window.DashboardDOM.safe('#log-scroll-container');
-
-            if (!container) return;
-
-            if (entries.length === 0) {
-                window.DashboardDOM.showEmpty(
-                    container,
-                    __('index.log.empty'),
-                    'bi bi-journal-x'
-                );
-                // Reset virtual scroll state
-                this.virtualScroll.totalHeight = 0;
-                this.virtualScroll.lastEntriesLength = 0;
-                if (this.enhancedVirtualScroll) {
-                    this.enhancedVirtualScroll.destroy();
-                    this.enhancedVirtualScroll = null;
-                }
-            } else {
-                // Use enhanced virtual scrolling for large lists
-                if (entries.length > 100 && this.virtualScroll.enabled && window.DashboardPerformance.VirtualScroller) {
-                    this.renderEnhancedVirtualLogEntries(entries, container);
-                } else {
-                    // Fall back to regular rendering for small lists
-                    if (this.enhancedVirtualScroll) {
-                        this.enhancedVirtualScroll.destroy();
-                        this.enhancedVirtualScroll = null;
-                    }
-                    this.renderLogEntries(entries, container);
-                }
-            }
-
-            // Update counts
-            this.updateLogCounts(entries);
-
-            // Auto-scroll if polling (only if at top)
-            if (state.get('filters.logs.autoRefresh') && scrollEl && scrollEl.scrollTop < 50) {
-                requestAnimationFrame(() => {
-                    scrollEl.scrollTop = 0;
-                    this.virtualScroll.scrollTop = 0;
-                    if (this.enhancedVirtualScroll) {
-                        this.enhancedVirtualScroll.scrollToIndex(0, 'auto');
-                    }
-                });
-            }
-
-            // Mark rendering complete and flush any pending SSE entries
-            this.isRendering = false;
-            this.flushPendingEntries();
-        };
-
-        // Enhanced virtual scrolling using DashboardPerformance.VirtualScroller
-        LogsModule.renderEnhancedVirtualLogEntries = function(entries, container) {
-            // Initialize enhanced scroller if not exists
-            if (!this.enhancedVirtualScroll) {
-                const scrollContainer = window.DashboardDOM.safe('#log-scroll-container');
-
-                this.enhancedVirtualScroll = new window.DashboardPerformance.VirtualScroller(
-                    container,
-                    {
-                        scrollContainer: scrollContainer,
-                        itemHeight: this.virtualScroll.itemHeight,
-                        overscan: this.virtualScroll.overscan,
-                        poolSize: 100,
-                        renderFn: (el, entry, index) => {
-                            this.renderLogEntryToElement(el, entry, index);
-                        }
-                    }
-                );
-            }
-
-            // Pre-process entries for trace pairing
-            const traceIdMap = new Map();
-            entries.forEach((entry, index) => {
-                if (entry.traceId && entry.eventType !== 'YarpEvent') {
-                    if (!traceIdMap.has(entry.traceId)) {
-                        traceIdMap.set(entry.traceId, []);
-                    }
-                    traceIdMap.get(entry.traceId).push({ entry, index });
-                }
-            });
-
-            // Store processed data
-            this.enhancedVirtualScroll.traceIdMap = traceIdMap;
-
-            // Set data
-            this.enhancedVirtualScroll.setData(entries);
-        };
-
-        // Render a single log entry to a DOM element
-        LogsModule.renderLogEntryToElement = function(el, entry, index) {
-            // Try to find paired entry
-            if (entry.traceId && entry.eventType !== 'YarpEvent') {
-                const traceIdMap = this.enhancedVirtualScroll?.traceIdMap || this.virtualScroll.traceIdMap;
-                const group = traceIdMap?.get(entry.traceId);
-
-                if (group && group.length > 1) {
-                    const pairIndex = group.findIndex(x => x.index === index);
-                    const pairInfo = group.find((x, i) => i !== pairIndex);
-
-                    if (pairInfo) {
-                        const pairedEntry = pairInfo.entry;
-                        const requestEntry = entry.eventType === 'ProxyRequest' ? entry : pairedEntry;
-                        const responseEntry = entry.eventType === 'ProxyResponse' ? entry : pairedEntry;
-
-                        const logKey = `paired:${requestEntry.timestamp}|${responseEntry.timestamp}|${requestEntry.traceId}`;
-                        const isExpanded = window.DashboardState.get(`ui.expandedLogs.${logKey}`) || false;
-
-                        // Create paired item HTML
-                        el.innerHTML = this.createPairedLogItemHTML(requestEntry, responseEntry, logKey, isExpanded);
-                        return;
-                    }
-                }
-            }
-
-            // Single entry
-            const logKey = `${entry.timestamp}|${entry.level}|${(entry.message || '').substring(0, 80)}`;
-            const isExpanded = window.DashboardState.get(`ui.expandedLogs.${logKey}`) || false;
-
-            el.innerHTML = this.createLogItemHTML(entry, logKey, isExpanded);
-        };
-
-        // Create paired log item HTML (returns HTML string for enhanced scroller)
-        LogsModule.createPairedLogItemHTML = function(requestEntry, responseEntry, logKey, isExpanded) {
-            const statusCode = responseEntry.statusCode || '-';
-            const statusClass = this.getStatusClass(statusCode);
-            const elapsedMs = responseEntry.elapsedMs?.toFixed(2) || '-';
-
-            return `
-                <div class="log-item log-item-paired" data-log-key="${this.escapeHtml(logKey)}" style="height: auto; min-height: ${this.virtualScroll.itemHeight}px;">
-                    <div class="log-item-header d-flex align-items-center gap-2 cursor-pointer" onclick="LogsModule.toggleLogExpand('${this.escapeHtml(logKey)}')">
-                        <i class="bi bi-chevron-${isExpanded ? 'down' : 'right'} text-muted"></i>
-                        <span class="log-badge method-badge method-${(requestEntry.method || 'GET').toLowerCase()}">${requestEntry.method || 'GET'}</span>
-                        <span class="log-status ${statusClass}">${statusCode}</span>
-                        <span class="log-trace-id text-muted">${this.escapeHtml(requestEntry.traceId?.substring(0, 8) || '')}...</span>
-                        <span class="log-path flex-1 text-truncate">${this.escapeHtml(requestEntry.upstreamPath || '')}</span>
-                        <span class="log-time text-muted">${elapsedMs}ms</span>
-                        <span class="log-timestamp text-muted">${this.formatTime(requestEntry.timestamp)}</span>
-                    </div>
-                    ${isExpanded ? this.createExpandedPairedContentHTML(requestEntry, responseEntry) : ''}
-                </div>
-            `;
-        };
-
-        // Create single log item HTML
-        LogsModule.createLogItemHTML = function(entry, logKey, isExpanded) {
-            const levelClass = this.getLevelClass(entry.level);
-            const icon = this.getEventIcon(entry.eventType);
-
-            return `
-                <div class="log-item" data-log-key="${this.escapeHtml(logKey)}" style="height: ${this.virtualScroll.itemHeight}px;">
-                    <div class="log-item-header d-flex align-items-center gap-2 cursor-pointer" onclick="LogsModule.toggleLogExpand('${this.escapeHtml(logKey)}')">
-                        <i class="bi ${icon} text-muted"></i>
-                        <span class="log-badge level-badge ${levelClass}">${entry.level || 'INFO'}</span>
-                        <span class="log-category text-truncate">${this.escapeHtml(entry.category || '')}</span>
-                        <span class="log-message flex-1 text-truncate">${this.escapeHtml(entry.message || '')}</span>
-                        <span class="log-timestamp text-muted">${this.formatTime(entry.timestamp)}</span>
-                    </div>
-                    ${isExpanded ? this.createExpandedContentHTML(entry) : ''}
-                </div>
-            `;
-        };
-
-        // Helper methods for HTML creation
-        LogsModule.escapeHtml = function(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        };
-
-        LogsModule.getStatusClass = function(statusCode) {
-            if (!statusCode || statusCode === '-') return 'text-muted';
-            if (statusCode < 300) return 'text-success';
-            if (statusCode < 400) return 'text-warning';
-            return 'text-danger';
-        };
-
-        LogsModule.getLevelClass = function(level) {
-            const classes = {
-                'Debug': 'bg-secondary',
-                'Information': 'bg-info',
-                'Warning': 'bg-warning',
-                'Error': 'bg-danger',
-                'Critical': 'bg-dark'
-            };
-            return classes[level] || 'bg-secondary';
-        };
-
-        LogsModule.getEventIcon = function(eventType) {
-            const icons = {
-                'ProxyRequest': 'bi-arrow-right-circle',
-                'ProxyResponse': 'bi-arrow-left-circle',
-                'YarpEvent': 'bi-gear'
-            };
-            return icons[eventType] || 'bi-journal';
-        };
-
-        LogsModule.createExpandedPairedContentHTML = function(requestEntry, responseEntry) {
-            return `
-                <div class="log-expanded-content p-3 bg-light border-top">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <h6>Request</h6>
-                            <pre class="small bg-white p-2 rounded border">${this.escapeHtml(JSON.stringify(requestEntry, null, 2))}</pre>
-                        </div>
-                        <div class="col-md-6">
-                            <h6>Response</h6>
-                            <pre class="small bg-white p-2 rounded border">${this.escapeHtml(JSON.stringify(responseEntry, null, 2))}</pre>
-                        </div>
-                    </div>
-                </div>
-            `;
-        };
-
-        LogsModule.createExpandedContentHTML = function(entry) {
-            return `
-                <div class="log-expanded-content p-3 bg-light border-top">
-                    <pre class="small bg-white p-2 rounded border">${this.escapeHtml(JSON.stringify(entry, null, 2))}</pre>
-                </div>
-            `;
-        };
-
-        LogsModule.formatTime = function(timestamp) {
-            if (!timestamp) return '';
-            const date = new Date(timestamp);
-            return date.toLocaleTimeString();
-        };
-
-        // Use Worker for filtering if available
-        const originalLoadLogs = LogsModule.loadLogs.bind(LogsModule);
-        LogsModule.loadLogs = async function() {
-            // Try to get cached logs first
-            if (window.DashboardIndexedDB) {
-                try {
-                    const cached = await window.DashboardIndexedDB.getRecentLogs(30);
-                    if (cached && cached.length > 0) {
-                        console.log('[Logs] Loaded', cached.length, 'entries from IndexedDB cache');
-                        window.DashboardState.set('data.logs', cached);
-                        this.renderLogs();
-                    }
-                } catch (err) {
-                    console.warn('[Logs] Failed to load from cache:', err);
-                }
-            }
-
-            // Load from API
-            await originalLoadLogs();
-
-            // Save to cache
-            if (window.DashboardIndexedDB) {
-                const logs = window.DashboardState.get('data.logs') || [];
-                try {
-                    await window.DashboardIndexedDB.saveLogs(logs);
-                } catch (err) {
-                    console.warn('[Logs] Failed to save to cache:', err);
-                }
-            }
-        };
-
-        // Enhanced filtering using Worker
-        LogsModule.filterLogsWithWorker = async function(logs, filters) {
-            if (!window.DashboardWorker) {
-                // Fallback to original filtering
-                return logs;
-            }
-
-            try {
-                const filtered = await window.DashboardWorker.filterLogs(logs, filters);
-                return filtered;
-            } catch (err) {
-                console.warn('[Logs] Worker filtering failed, using fallback:', err);
-                return logs;
-            }
-        };
-    }
-
-    // ===== Service Worker Update Notification =====
-    window.addEventListener('sw-update-available', (event) => {
-        if (window.DashboardModals) {
-            window.DashboardModals.showConfirm(
-                'Update Available',
-                'A new version is available. Would you like to update now?',
-                () => event.detail.apply()
-            );
-        }
-    });
 
 })();

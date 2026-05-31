@@ -264,7 +264,14 @@
 
         // Health Check
         getHealthCheckStatus: () => DashboardApi.get('/api/health-check/status'),
-        getClusterHealthConfigs: () => DashboardApi.get('/api/health-check/clusters')
+        getClusterHealthConfigs: () => DashboardApi.get('/api/health-check/clusters'),
+        getHealthSummary: () => DashboardApi.get('/api/operations/health-summary'),
+
+        // Operations (Enhanced Dashboard)
+        getTrafficData: (minutes) => DashboardApi.get('/api/operations/traffic', { minutes }),
+        getAlertSummary: () => DashboardApi.get('/api/operations/alert-summary'),
+        getTopIssues: (count) => DashboardApi.get('/api/operations/top-issues', { count }),
+        exportSnapshot: () => DashboardApi.get('/api/operations/snapshot')
     };
 
 })();

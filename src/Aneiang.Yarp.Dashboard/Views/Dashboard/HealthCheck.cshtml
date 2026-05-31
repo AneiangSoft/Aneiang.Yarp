@@ -3,11 +3,93 @@
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
-<!-- Health check panel -->
+<!-- Health Score Summary -->
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <div class="card-panel" id="health-score-card">
+            <div class="card-body text-center py-4">
+                <div style="position:relative;display:inline-block;">
+                    <canvas id="health-gauge" width="140" height="140"></canvas>
+                    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;">
+                        <div style="font-size:32px;font-weight:700;color:#22c55e;" id="health-score">-</div>
+                        <div style="font-size:12px;color:#64748b;" data-i18n="health.score">健康度</div>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <span class="badge bg-success" id="health-status">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card-panel">
+            <div class="card-header">
+                <span><i class="bi bi-hdd-stack me-2"></i><span data-i18n="health.summary">健康摘要</span></span>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3 col-6 text-center">
+                        <div style="font-size:28px;font-weight:700;color:#22c55e;" id="summary-healthy">-</div>
+                        <div style="font-size:13px;color:#64748b;"><i class="bi bi-check-circle-fill text-success me-1"></i><span data-i18n="health.healthy">健康</span></div>
+                    </div>
+                    <div class="col-md-3 col-6 text-center">
+                        <div style="font-size:28px;font-weight:700;color:#ef4444;" id="summary-unhealthy">-</div>
+                        <div style="font-size:13px;color:#64748b;"><i class="bi bi-x-circle-fill text-danger me-1"></i><span data-i18n="health.unhealthy">异常</span></div>
+                    </div>
+                    <div class="col-md-3 col-6 text-center">
+                        <div style="font-size:28px;font-weight:700;color:#f59e0b;" id="summary-unknown">-</div>
+                        <div style="font-size:13px;color:#64748b;"><i class="bi bi-question-circle-fill text-warning me-1"></i><span data-i18n="health.unknown">未知</span></div>
+                    </div>
+                    <div class="col-md-3 col-6 text-center">
+                        <div style="font-size:28px;font-weight:700;color:#6366f1;" id="summary-total">-</div>
+                        <div style="font-size:13px;color:#64748b;"><i class="bi bi-hdd-stack text-primary me-1"></i><span data-i18n="health.total">节点</span></div>
+                    </div>
+                </div>
+                <div class="mt-3 pt-3 border-top">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted small" data-i18n="health.lastCheck">最后检查</span>
+                        <span class="small" id="health-last-check">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Critical Alerts Section -->
+<div id="critical-alerts-section" class="card-panel mb-3" style="display:none;">
+    <div class="card-header bg-danger text-white">
+        <span><i class="bi bi-exclamation-triangle-fill me-2"></i><span data-i18n="health.critical.title">需立即关注的异常</span></span>
+        <span class="badge bg-white text-danger" id="critical-count">0</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th style="width:25%;padding:12px 16px;"><span data-i18n="health.th.cluster">集群</span></th>
+                        <th style="width:25%;padding:12px 16px;"><span data-i18n="health.th.destination">节点</span></th>
+                        <th style="width:15%;padding:12px 16px;"><span data-i18n="health.th.status">状态</span></th>
+                        <th style="width:20%;padding:12px 16px;"><span data-i18n="health.th.reason">原因</span></th>
+                        <th style="width:15%;padding:12px 16px;"><span data-i18n="health.th.actions">操作</span></th>
+                    </tr>
+                </thead>
+                <tbody id="critical-tbody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Health Check panel -->
 <div id="health-panel" class="card-panel mb-3">
     <div class="card-header">
-        <span><i class="bi bi-heart-pulse me-2"></i><span data-i18n="health.title">健康检查</span></span>
+        <span><i class="bi bi-heart-pulse me-2"></i><span data-i18n="health.title">健康检查详情</span></span>
         <div class="d-flex align-items-center" style="gap:12px;white-space:nowrap;">
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="show-unhealthy-only" onchange="HealthCheckModule.toggleFilter()">
+                <label class="form-check-label small" for="show-unhealthy-only" data-i18n="health.filter.unhealthy">仅显示异常</label>
+            </div>
             <button class="btn btn-sm btn-outline-secondary" onclick="HealthCheckModule.loadHealthStatus()">
                 <i class="bi bi-arrow-clockwise"></i> <span data-i18n="health.refresh">刷新</span>
             </button>
@@ -18,6 +100,9 @@
 
 @section Scripts {
 @{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<!-- Chart.js for health gauge -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
 <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
@@ -40,6 +125,194 @@
 </script>
 
 <script>
+    // Enhanced Health Check Module
+    (function() {
+        var gaugeChart = null;
+        var healthData = null;
+
+        function init() {
+            // Patch the original loadHealthStatus to include our enhancements
+            if (window.HealthCheckModule && HealthCheckModule.loadHealthStatus) {
+                var originalLoad = HealthCheckModule.loadHealthStatus;
+                HealthCheckModule.loadHealthStatus = async function() {
+                    await originalLoad();
+                    await loadHealthSummary();
+                };
+            }
+        }
+
+        async function loadHealthSummary() {
+            try {
+                var result = await DashboardApi.endpoints.getHealthSummary();
+                if (result.code !== 200 || !result.data) return;
+
+                healthData = result.data;
+                renderHealthGauge(healthData.healthScore);
+                renderHealthSummary(healthData);
+                renderCriticalAlerts();
+            } catch (e) {
+                console.error('[HealthCheck] Failed to load summary:', e);
+            }
+        }
+
+        function renderHealthGauge(score) {
+            var ctx = document.getElementById('health-gauge');
+            if (!ctx) return;
+
+            // Update score text
+            var scoreEl = document.getElementById('health-score');
+            if (scoreEl) {
+                scoreEl.textContent = score.toFixed(0);
+                scoreEl.style.color = score >= 90 ? '#22c55e' : score >= 70 ? '#f59e0b' : '#ef4444';
+            }
+
+            // Update status badge
+            var statusEl = document.getElementById('health-status');
+            if (statusEl) {
+                var status = score >= 90 ? 'Healthy' : score >= 70 ? 'Warning' : 'Critical';
+                var statusText = score >= 90 ? __('health.status.healthy') : score >= 70 ? __('health.status.warning') : __('health.status.critical');
+                statusEl.textContent = statusText;
+                statusEl.className = 'badge ' + (score >= 90 ? 'bg-success' : score >= 70 ? 'bg-warning text-dark' : 'bg-danger');
+            }
+
+            // Draw gauge chart
+            if (gaugeChart) gaugeChart.destroy();
+
+            gaugeChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Score', 'Remaining'],
+                    datasets: [{
+                        data: [score, 100 - score],
+                        backgroundColor: [
+                            score >= 90 ? '#22c55e' : score >= 70 ? '#f59e0b' : '#ef4444',
+                            '#e2e8f0'
+                        ],
+                        borderWidth: 0,
+                        circumference: 270,
+                        rotation: 225
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '75%',
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                    animation: { animateRotate: true, duration: 1000 }
+                }
+            });
+        }
+
+        function renderHealthSummary(data) {
+            updateElement('summary-healthy', data.healthyCount);
+            updateElement('summary-unhealthy', data.unhealthyCount);
+            updateElement('summary-unknown', data.unknownCount);
+            updateElement('summary-total', data.totalDestinations);
+            updateElement('health-last-check', new Date().toLocaleString());
+        }
+
+        function renderCriticalAlerts() {
+            // Get unhealthy destinations from the health content
+            var criticalList = [];
+            var clusters = document.querySelectorAll('#health-content .cluster-row');
+            
+            clusters.forEach(function(row) {
+                var clusterId = row.querySelector('td:nth-child(2)')?.textContent?.trim();
+                var destinations = row.querySelectorAll('.destination-item');
+                
+                destinations.forEach(function(dest) {
+                    var destName = dest.querySelector('.dest-name')?.textContent?.trim();
+                    var healthStatus = dest.querySelector('.health-badge')?.textContent?.trim();
+                    
+                    if (healthStatus && healthStatus.toLowerCase().includes('unhealthy')) {
+                        criticalList.push({
+                            clusterId: clusterId,
+                            destination: destName,
+                            reason: __('health.reason.consecutiveFailures') || '连续失败'
+                        });
+                    }
+                });
+            });
+
+            // Update critical section
+            var section = document.getElementById('critical-alerts-section');
+            var countBadge = document.getElementById('critical-count');
+            var tbody = document.getElementById('critical-tbody');
+
+            if (criticalList.length > 0) {
+                if (section) section.style.display = 'block';
+                if (countBadge) countBadge.textContent = criticalList.length;
+
+                if (tbody) {
+                    var html = '';
+                    criticalList.forEach(function(item) {
+                        html += '<tr class="table-danger">';
+                        html += '<td style="padding:10px 16px;"><code>' + escapeHtml(item.clusterId) + '</code></td>';
+                        html += '<td style="padding:10px 16px;">' + escapeHtml(item.destination) + '</td>';
+                        html += '<td style="padding:10px 16px;"><span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>' + __('health.unhealthy') + '</span></td>';
+                        html += '<td style="padding:10px 16px;"><small>' + item.reason + '</small></td>';
+                        html += '<td style="padding:10px 16px;">';
+                        html += '<button class="btn btn-sm btn-outline-danger" onclick="HealthCheckModule.checkDestination(\'' + escapeHtml(item.clusterId) + '\', \'' + escapeHtml(item.destination) + '\')">';
+                        html += '<i class="bi bi-arrow-clockwise"></i> ' + __('health.check') + '</button>';
+                        html += '</td>';
+                        html += '</tr>';
+                    });
+                    tbody.innerHTML = html;
+                }
+            } else {
+                if (section) section.style.display = 'none';
+            }
+        }
+
+        function toggleFilter() {
+            var checkbox = document.getElementById('show-unhealthy-only');
+            var rows = document.querySelectorAll('#health-content .cluster-row');
+            
+            rows.forEach(function(row) {
+                if (checkbox && checkbox.checked) {
+                    // Show only rows with unhealthy destinations
+                    var hasUnhealthy = row.querySelector('.health-badge.bg-danger') !== null;
+                    row.style.display = hasUnhealthy ? '' : 'none';
+                } else {
+                    row.style.display = '';
+                }
+            });
+        }
+
+        function checkDestination(clusterId, destinationId) {
+            alert(__('health.checking') || '正在检查 ' + clusterId + '/' + destinationId + '...');
+            // This would trigger an actual health check
+        }
+
+        function updateElement(id, value) {
+            var el = document.getElementById(id);
+            if (el) el.textContent = value;
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function __(key) {
+            if (window.I18N && I18N[key]) return I18N[key];
+            return key;
+        }
+
+        // Patch HealthCheckModule
+        window.HealthCheckModule = window.HealthCheckModule || {};
+        window.HealthCheckModule.init = init;
+        window.HealthCheckModule.loadHealthSummary = loadHealthSummary;
+        window.HealthCheckModule.toggleFilter = toggleFilter;
+        window.HealthCheckModule.checkDestination = checkDestination;
+
+        // Auto-init
+        init();
+    })();
+
+    // Initialize
     (async function() {
         if (window.DashboardUtils) DashboardUtils.init();
         if (window.DashboardApi) DashboardApi.init();
@@ -55,4 +328,10 @@
         document.dispatchEvent(new CustomEvent('dashboard:ready'));
     })();
 </script>
+
+<style>
+@@keyframes spin { to { transform: rotate(360deg); } }
+.spin { display:inline-block; animation: spin .6s linear infinite; }
+.table-danger { background-color: rgba(239, 68, 68, 0.08) !important; }
+</style>
 }

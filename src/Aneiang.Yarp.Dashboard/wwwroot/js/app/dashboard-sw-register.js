@@ -16,7 +16,7 @@
             }
 
             try {
-                this.registration = await navigator.serviceWorker.register('/service-worker.js');
+                this.registration = await navigator.serviceWorker.register('/_content/Aneiang.Yarp.Dashboard/service-worker.js');
 
                 console.log('[SW] Registered:', this.registration.scope);
 
