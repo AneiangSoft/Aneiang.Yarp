@@ -1,0 +1,257 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Topology" : "拓扑图";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+    var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
+    var v = "2.3.0.11";
+}
+
+@* Stats Cards *@
+<div class="row g-3 mb-3">
+    <div class="col-md-2 col-sm-4 col-6">
+        <div class="stat-card">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value" id="stat-routes">-</div>
+                    <div class="stat-label" data-i18n="topology.routes">路由</div>
+                </div>
+                <div class="stat-icon"><i class="bi bi-signpost-split"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4 col-6">
+        <div class="stat-card">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value" id="stat-clusters">-</div>
+                    <div class="stat-label" data-i18n="topology.clusters">集群</div>
+                </div>
+                <div class="stat-icon"><i class="bi bi-hdd-network"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4 col-6">
+        <div class="stat-card">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value" id="stat-destinations">-</div>
+                    <div class="stat-label" data-i18n="topology.destinations">目的地</div>
+                </div>
+                <div class="stat-icon"><i class="bi bi-hdd"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4 col-6">
+        <div class="stat-card" style="border-left-color: #22c55e;">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value text-success" id="stat-healthy">-</div>
+                    <div class="stat-label" data-i18n="topology.healthy">健康</div>
+                </div>
+                <div class="stat-icon" style="background-color: #dcfce7; color: #22c55e;"><i class="bi bi-check-circle"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4 col-6">
+        <div class="stat-card" style="border-left-color: #ef4444;">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value text-danger" id="stat-unhealthy">-</div>
+                    <div class="stat-label" data-i18n="topology.unhealthy">异常</div>
+                </div>
+                <div class="stat-icon" style="background-color: #fef2f2; color: #ef4444;"><i class="bi bi-x-circle"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4 col-6">
+        <div class="stat-card" style="border-left-color: #f59e0b;">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="stat-value text-warning" id="stat-unlinked">-</div>
+                    <div class="stat-label" data-i18n="topology.unlinked">未关联</div>
+                </div>
+                <div class="stat-icon" style="background-color: #fffbeb; color: #f59e0b;"><i class="bi bi-link-45deg"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Toolbar *@
+<div class="card-panel mb-3">
+    <div class="card-body py-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small"><i class="bi bi-diagram-3 me-1"></i><span data-i18n="topology.viewOptions">视图选项</span></span>
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <div class="btn-group btn-group-sm" role="group">
+                    <input type="radio" class="btn-check" name="layoutMode" id="layout-circular" value="circular">
+                    <label class="btn btn-outline-secondary" for="layout-circular" title="环形布局"><i class="bi bi-circle"></i></label>
+                    
+                    <input type="radio" class="btn-check" name="layoutMode" id="layout-hierarchical" value="hierarchical" checked>
+                    <label class="btn btn-outline-secondary" for="layout-hierarchical" title="层级布局"><i class="bi bi-diagram-2"></i></label>
+                </div>
+                
+                <div class="btn-group btn-group-sm" role="group">
+                    <button class="btn btn-outline-secondary" id="btn-toggle-traffic" title="切换流量动画">
+                        <i class="bi bi-activity"></i> <span data-i18n="topology.traffic">流量</span>
+                    </button>
+                    <button class="btn btn-outline-secondary" id="btn-fit-view" title="适应视图">
+                        <i class="bi bi-aspect-ratio"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" id="btn-fullscreen" title="全屏">
+                        <i class="bi bi-fullscreen"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" id="btn-refresh" title="刷新">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Legend *@
+<div class="topology-legend mb-3">
+    <div class="d-flex align-items-center gap-4 flex-wrap small">
+        <div class="legend-item">
+            <span class="legend-dot" style="background-color: #3b82f6;"></span>
+            <span data-i18n="topology.legend.gateway">网关</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-dot" style="background-color: #8b5cf6;"></span>
+            <span data-i18n="topology.legend.route">路由</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-dot" style="background-color: #06b6d4;"></span>
+            <span data-i18n="topology.legend.cluster">集群</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-dot" style="background-color: #10b981;"></span>
+            <span data-i18n="topology.legend.destination">目的地</span>
+        </div>
+        <div class="vr d-none d-md-block"></div>
+        <div class="legend-item">
+            <span class="legend-status healthy"></span>
+            <span data-i18n="topology.legend.healthy">健康</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-status warning"></span>
+            <span data-i18n="topology.legend.warning">警告</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-status error"></span>
+            <span data-i18n="topology.legend.error">错误</span>
+        </div>
+    </div>
+</div>
+
+@* Topology Chart Container *@
+<div class="card-panel">
+    <div class="card-body p-0 position-relative" style="min-height: 600px;">
+        <div id="topology-chart" style="width: 100%; height: 600px;"></div>
+        
+        @* Loading Indicator *@
+        <div id="topology-loading" class="position-absolute top-50 start-50 translate-middle">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+        
+        @* Detail Panel (hidden by default) *@
+        <div id="topology-detail" class="position-absolute top-0 end-0 m-3 p-3 bg-white rounded shadow-sm" style="width: 320px; max-height: 500px; overflow-y: auto; display: none;">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <h6 class="mb-0 fw-bold" id="detail-title">详情</h6>
+                <button class="btn btn-sm btn-link text-muted p-0" onclick="TopologyModule.closeDetail()"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div id="detail-content"></div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-topology.js?v=@v"></script>
+<script>
+    window.__dashboard = window.__dashboard || {};
+    var dash = window.__dashboard;
+    dash.basePath = '/' + '@prefix';
+    dash.routePrefix = '@prefix';
+    dash.token = localStorage.getItem('dashboard_token');
+
+    document.addEventListener('DOMContentLoaded', function() {
+        window.DashboardApi.init();
+        TopologyModule.init();
+    });
+</script>
+}
+
+<style>
+.topology-legend {
+    background: var(--panel-bg, #f8f9fa);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+}
+
+.legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.legend-status {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    border: 2px solid;
+}
+
+.legend-status.healthy {
+    background-color: #22c55e;
+    border-color: #22c55e;
+}
+
+.legend-status.warning {
+    background-color: #f59e0b;
+    border-color: #f59e0b;
+}
+
+.legend-status.error {
+    background-color: #ef4444;
+    border-color: #ef4444;
+}
+
+#topology-chart {
+    background: var(--panel-bg, #fafafa);
+}
+
+.vr {
+    width: 1px;
+    background-color: var(--border-color, #e5e7eb);
+    height: 1.5rem;
+}
+
+.dark-mode .topology-legend {
+    background: var(--dark-panel-bg, #1f2937);
+    border-color: var(--dark-border-color, #374151);
+}
+
+.dark-mode #topology-chart {
+    background: var(--dark-panel-bg, #1f2937);
+}
+
+.dark-mode #topology-detail {
+    background: var(--dark-panel-bg, #1f2937) !important;
+    border: 1px solid var(--dark-border-color, #374151);
+}
+</style>

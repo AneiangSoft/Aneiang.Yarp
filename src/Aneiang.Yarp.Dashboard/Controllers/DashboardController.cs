@@ -95,6 +95,14 @@ public class DashboardController : Controller
         return View();
     }
 
+    /// <summary>Dashboard topology visualization page.</summary>
+    [HttpGet("topology")]
+    public IActionResult Topology()
+    {
+        SetCommonViewBag("topology");
+        return View();
+    }
+
     /// <summary>Dashboard logs page.</summary>
     [HttpGet("logs")]
     public IActionResult Logs()
