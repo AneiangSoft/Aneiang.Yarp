@@ -252,7 +252,7 @@
 </div>
 
 <!-- Statistics panel -->
-<div id="stats-panel" class="card-panel mb-3">
+@* <div id="stats-panel" class="card-panel mb-3">
     <div class="card-header">
         <span><i class="bi bi-bar-chart-line me-2"></i><span data-i18n="stats.title">访问统计</span></span>
         <div class="d-flex align-items-center" style="gap:12px;white-space:nowrap;">
@@ -262,7 +262,7 @@
         </div>
     </div>
     <div id="stats-content" class="card-body"></div>
-</div>
+</div> *@
 
 @section Scripts {
 @{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }

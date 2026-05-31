@@ -813,11 +813,35 @@
                 detailHtml.push('</div>');
             }
 
-            // Metadata - structured key-value display
-            if (route.metadata && Object.keys(route.metadata).length > 0) {
+            // Retry Configuration - dedicated section for better visibility
+            const retryConfig = this.extractRetryConfig(route.metadata);
+            if (retryConfig && retryConfig.enabled) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-arrow-repeat"></i>${__('index.route.retry') || '重试配置'}</div>`);
+                detailHtml.push('<div class="detail-structured-config">');
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-toggle-on"></i> ${__('index.route.retry.enabled') || '启用重试'}</span><span class="detail-kv-value"><span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span></span></div>`);
+                if (retryConfig.maxRetries !== undefined) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-123"></i> ${__('index.route.retry.maxRetries') || '最大重试次数'}</span><span class="detail-kv-value"><code>${retryConfig.maxRetries}</code></span></div>`);
+                }
+                if (retryConfig.retryOnStatusCodes) {
+                    const codes = retryConfig.retryOnStatusCodes.split(',').map(c => `<code>${c.trim()}</code>`).join(' ');
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-exclamation-triangle"></i> ${__('index.route.retry.statusCodes') || '重试状态码'}</span><span class="detail-kv-value">${codes}</span></div>`);
+                }
+                if (retryConfig.retryNonIdempotent) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield-exclamation"></i> ${__('index.route.retry.nonIdempotent') || '重试非幂等请求'}</span><span class="detail-kv-value"><span class="badge bg-warning text-dark"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span></span></div>`);
+                }
+                detailHtml.push('</div>');
+                detailHtml.push('</div>');
+            }
+
+            // Metadata - structured key-value display (excluding retry configs which are shown above)
+            const nonRetryMetadata = route.metadata ? Object.fromEntries(
+                Object.entries(route.metadata).filter(([key]) => !key.startsWith('Retry:'))
+            ) : {};
+            if (Object.keys(nonRetryMetadata).length > 0) {
                 detailHtml.push('<div class="detail-section">');
                 detailHtml.push(`<div class="detail-section-title"><i class="bi bi-tags"></i>${__('index.route.metadata')}</div>`);
-                detailHtml.push(this.renderStructuredConfig(route.metadata, 'metadata'));
+                detailHtml.push(this.renderStructuredConfig(nonRetryMetadata, 'metadata'));
                 detailHtml.push('</div>');
             }
                 
@@ -896,6 +920,25 @@
             return html.join('');
         },
 
+        // ===== Extract Retry Configuration from Metadata =====
+        extractRetryConfig: function(metadata) {
+            if (!metadata || typeof metadata !== 'object') return null;
+            
+            const retryKeys = ['Retry:Enabled', 'Retry:MaxRetries', 'Retry:RetryOnStatusCodes', 'Retry:RetryNonIdempotent'];
+            const hasRetryConfig = retryKeys.some(key => metadata.hasOwnProperty(key));
+            
+            if (!hasRetryConfig) return null;
+            
+            const enabled = metadata['Retry:Enabled'] === 'true' || metadata['Retry:Enabled'] === true;
+            
+            return {
+                enabled: enabled,
+                maxRetries: metadata['Retry:MaxRetries'],
+                retryOnStatusCodes: metadata['Retry:RetryOnStatusCodes'],
+                retryNonIdempotent: metadata['Retry:RetryNonIdempotent'] === 'true' || metadata['Retry:RetryNonIdempotent'] === true
+            };
+        },
+
         // ===== Render Structured Config =====
         renderStructuredConfig: function(obj, configType) {
             if (!obj || typeof obj !== 'object') return '';
@@ -970,7 +1013,34 @@
             if (route.timeout) yarpRoute.Timeout = route.timeout;
             if (route.timeoutPolicy) yarpRoute.TimeoutPolicy = route.timeoutPolicy;
             if (route.rateLimiterPolicy) yarpRoute.RateLimiterPolicy = route.rateLimiterPolicy;
-            if (route.metadata && Object.keys(route.metadata).length > 0) yarpRoute.Metadata = route.metadata;
+            if (route.metadata && Object.keys(route.metadata).length > 0) {
+                // Ensure retry config is included with proper defaults if not set
+                yarpRoute.Metadata = {};
+                const retryDefaults = {
+                    "Retry:Enabled": "false",
+                    "Retry:MaxRetries": "2",
+                    "Retry:RetryOnStatusCodes": "502,503,504",
+                    "Retry:RetryNonIdempotent": "false"
+                };
+                // Copy existing metadata
+                Object.keys(route.metadata).forEach(function(key) {
+                    yarpRoute.Metadata[key] = route.metadata[key];
+                });
+                // Add missing retry defaults
+                Object.keys(retryDefaults).forEach(function(key) {
+                    if (!yarpRoute.Metadata.hasOwnProperty(key)) {
+                        yarpRoute.Metadata[key] = retryDefaults[key];
+                    }
+                });
+            } else {
+                // Add default retry config if no metadata exists
+                yarpRoute.Metadata = {
+                    "Retry:Enabled": "false",
+                    "Retry:MaxRetries": "2",
+                    "Retry:RetryOnStatusCodes": "502,503,504",
+                    "Retry:RetryNonIdempotent": "false"
+                };
+            }
 
             const json = JSON.stringify(yarpRoute, null, 2);
             navigator.clipboard.writeText(json).then(function() {
@@ -1114,12 +1184,18 @@
                 return;
             }
         
-            // Default route template for new route
+            // Default route template for new route (includes retry config example)
             const defaultRoute = {
                 "ClusterId": clusterIds[0] || "",
                 "Order": 50,
                 "Match": {
                     "Path": "/api/service/{**catchAll}"
+                },
+                "Metadata": {
+                    "Retry:Enabled": "false",
+                    "Retry:MaxRetries": "2",
+                    "Retry:RetryOnStatusCodes": "502,503,504",
+                    "Retry:RetryNonIdempotent": "false"
                 }
             }; 
         
@@ -1316,10 +1392,26 @@
                 yarpRoute.TimeoutPolicy = route.timeoutPolicy;
             }
         
-            // Add metadata if exists
+            // Add metadata with retry config (ensure retry defaults are present)
+            yarpRoute.Metadata = {};
+            // Copy existing metadata
             if (route.metadata && Object.keys(route.metadata).length > 0) {
-                yarpRoute.Metadata = route.metadata;
+                Object.keys(route.metadata).forEach(function(key) {
+                    yarpRoute.Metadata[key] = route.metadata[key];
+                });
             }
+            // Ensure retry config defaults are present
+            const retryDefaults = {
+                "Retry:Enabled": "false",
+                "Retry:MaxRetries": "2",
+                "Retry:RetryOnStatusCodes": "502,503,504",
+                "Retry:RetryNonIdempotent": "false"
+            };
+            Object.keys(retryDefaults).forEach(function(key) {
+                if (!yarpRoute.Metadata.hasOwnProperty(key)) {
+                    yarpRoute.Metadata[key] = retryDefaults[key];
+                }
+            });
         
             window.DashboardModals.showJsonModal({
                 title: __('modal.editRoute'),
