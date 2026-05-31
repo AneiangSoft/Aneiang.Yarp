@@ -52,6 +52,12 @@
         renderStats: function(data, container, rateLimit) {
             window.DashboardDOM.clear(container);
 
+            // Guard against undefined data or missing arrays
+            if (!data || data.hasData === false) {
+                this.renderNoData(container);
+                return;
+            }
+
             const errorRateColor = data.errorRate > 5 ? '#ef4444' : data.errorRate > 1 ? '#f59e0b' : '#22c55e';
             const successRateColor = data.successRate > 99 ? '#22c55e' : data.successRate > 95 ? '#f59e0b' : '#ef4444';
 
@@ -64,30 +70,30 @@
                 <div class="row g-3 mb-4">
                     <div class="col-md-3 col-sm-6">
                         <div class="stat-mini-card">
-                            <div class="stat-mini-value">${data.totalRequests}</div>
+                            <div class="stat-mini-value">${data.totalRequests || 0}</div>
                             <div class="stat-mini-label">${__('stats.totalRequests')}</div>
-                            <div class="stat-mini-sub">${data.requestsPerMin} ${__('stats.requestsPerMin')}</div>
+                            <div class="stat-mini-sub">${data.requestsPerMin || 0} ${__('stats.requestsPerMin')}</div>
                         </div>
                     </div>
                     <div class="col-md-3 col-sm-6">
                         <div class="stat-mini-card">
-                            <div class="stat-mini-value" style="color:${successRateColor}">${data.successRate}%</div>
+                            <div class="stat-mini-value" style="color:${successRateColor}">${data.successRate || 0}%</div>
                             <div class="stat-mini-label">${__('stats.successRate')}</div>
-                            <div class="stat-mini-sub">${data.successCount} / ${data.errorCount}</div>
+                            <div class="stat-mini-sub">${data.successCount || 0} / ${data.errorCount || 0}</div>
                         </div>
                     </div>
                     <div class="col-md-3 col-sm-6">
                         <div class="stat-mini-card">
-                            <div class="stat-mini-value">${data.avgLatency}ms</div>
+                            <div class="stat-mini-value">${data.avgLatency || 0}ms</div>
                             <div class="stat-mini-label">${__('stats.avgLatency')}</div>
-                            <div class="stat-mini-sub">P50: ${data.p50}ms | P90: ${data.p90}ms</div>
+                            <div class="stat-mini-sub">P50: ${data.p50 || 0}ms | P90: ${data.p90 || 0}ms</div>
                         </div>
                     </div>
                     <div class="col-md-3 col-sm-6">
                         <div class="stat-mini-card">
-                            <div class="stat-mini-value" style="color:${errorRateColor}">${data.errorRate}%</div>
+                            <div class="stat-mini-value" style="color:${errorRateColor}">${data.errorRate || 0}%</div>
                             <div class="stat-mini-label">${__('stats.errorRate')}</div>
-                            <div class="stat-mini-sub">P99: ${data.p99}ms ${rlStatus}</div>
+                            <div class="stat-mini-sub">P99: ${data.p99 || 0}ms ${rlStatus}</div>
                         </div>
                     </div>
                 </div>
@@ -115,13 +121,13 @@
                 </div>
 
                 <div class="text-end">
-                    <small class="text-muted">${__('index.log.updated')}${window.DashboardI18n.formatTime(new Date(data.computedAt))}</small>
+                    <small class="text-muted">${__('index.log.updated')}${window.DashboardI18n.formatTime(new Date(data.computedAt || Date.now()))}</small>
                 </div>`;
 
-            // Render charts
-            this.renderStatusCodeChart(data.statusCodes);
-            this.renderTopRoutes(data.topRoutes, data.totalRequests);
-            this.renderTopClusters(data.topClusters, data.totalRequests);
+            // Render charts with safe array access
+            this.renderStatusCodeChart(data.statusCodes || []);
+            this.renderTopRoutes(data.topRoutes || [], data.totalRequests || 0);
+            this.renderTopClusters(data.topClusters || [], data.totalRequests || 0);
         },
 
         renderStatusCodeChart: function(codes) {
@@ -147,10 +153,11 @@
 
             const maxCount = routes[0].count;
             el.innerHTML = routes.map(r => {
+                const name = r.name || r.route || 'unknown';
                 const pct = total > 0 ? (r.count / total * 100).toFixed(1) : 0;
                 const barPct = maxCount > 0 ? (r.count / maxCount * 100) : 0;
                 return `<div class="stats-bar-row">
-                    <span class="stats-bar-label" title="${window.DashboardUtils.escapeHtml(r.route)}">${window.DashboardUtils.escapeHtml(r.route.length > 18 ? r.route.substring(0, 18) + '...' : r.route)}</span>
+                    <span class="stats-bar-label" title="${window.DashboardUtils.escapeHtml(name)}">${window.DashboardUtils.escapeHtml(name.length > 18 ? name.substring(0, 18) + '...' : name)}</span>
                     <div class="stats-bar-track"><div class="stats-bar-fill" style="width:${barPct}%"></div></div>
                     <span class="stats-bar-value">${r.count} <small class="text-muted">(${pct}%)</small></span>
                 </div>`;
@@ -163,10 +170,11 @@
 
             const maxCount = clusters[0].count;
             el.innerHTML = clusters.map(c => {
+                const name = c.name || c.cluster || 'unknown';
                 const pct = total > 0 ? (c.count / total * 100).toFixed(1) : 0;
                 const barPct = maxCount > 0 ? (c.count / maxCount * 100) : 0;
                 return `<div class="stats-bar-row">
-                    <span class="stats-bar-label" title="${window.DashboardUtils.escapeHtml(c.cluster)}">${window.DashboardUtils.escapeHtml(c.cluster.length > 22 ? c.cluster.substring(0, 22) + '...' : c.cluster)}</span>
+                    <span class="stats-bar-label" title="${window.DashboardUtils.escapeHtml(name)}">${window.DashboardUtils.escapeHtml(name.length > 22 ? name.substring(0, 22) + '...' : name)}</span>
                     <div class="stats-bar-track"><div class="stats-bar-fill" style="width:${barPct}%;background:#6366f1"></div></div>
                     <span class="stats-bar-value">${c.count} <small class="text-muted">(${pct}%)</small></span>
                 </div>`;
