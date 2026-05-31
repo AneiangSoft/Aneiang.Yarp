@@ -11,6 +11,12 @@
         pollTimer: null,
         wasPollingBeforeHidden: false,
 
+        // SSE streaming state
+        sseConnection: null,
+        sseEnabled: true, // Enable SSE by default, fallback to polling
+        pendingLogEntries: [], // Buffer for entries received during rendering
+        isRendering: false,
+
         // Virtual scrolling state
         virtualScroll: {
             enabled: true,
@@ -129,6 +135,8 @@
         // ===== Render Logs =====
         renderLogs: function() {
             const state = window.DashboardState;
+            this.isRendering = true;
+
             const entries = state.getFilteredLogs ? state.getFilteredLogs() : (state.get('data.logs') || []);
 
             // Render filter toolbar
@@ -169,6 +177,10 @@
                     this.updateVisibleRange();
                 });
             }
+
+            // Mark rendering complete and flush any pending SSE entries
+            this.isRendering = false;
+            this.flushPendingEntries();
         },
 
         // ===== Virtual Scrolling Render =====
@@ -1197,36 +1209,41 @@
             if (timeEl) timeEl.textContent = __('index.log.updated') + window.DashboardI18n.formatTime(new Date());
         },
 
-        // ===== Polling Control =====
+        // ===== Polling/SSE Control =====
         togglePolling: function() {
             const state = window.DashboardState;
             const isPolling = state.get('filters.logs.autoRefresh');
             
             if (isPolling) {
-                this.stopPolling();
+                this.stopStreaming();
+            } else {
+                this.startStreaming();
+            }
+        },
+
+        startStreaming: function() {
+            const state = window.DashboardState;
+            state.set('filters.logs.autoRefresh', true);
+            this.updateListenButton(true);
+
+            // Try SSE first, fallback to polling
+            if (this.sseEnabled && typeof EventSource !== 'undefined') {
+                this.startSSE();
             } else {
                 this.startPolling();
             }
         },
 
-        startPolling: function() {
+        stopStreaming: function() {
             const state = window.DashboardState;
-            
-            if (this.pollTimer) {
-                clearInterval(this.pollTimer);
+
+            // Stop SSE
+            if (this.sseConnection) {
+                this.sseConnection.close();
+                this.sseConnection = null;
             }
 
-            state.set('filters.logs.autoRefresh', true);
-            this.updateListenButton(true);
-            this.loadLogs();
-
-            const interval = state.get('filters.logs.refreshInterval') || 5000;
-            this.pollTimer = setInterval(() => this.loadLogs(), interval);
-        },
-
-        stopPolling: function() {
-            const state = window.DashboardState;
-
+            // Stop polling
             if (this.pollTimer) {
                 clearInterval(this.pollTimer);
                 this.pollTimer = null;
@@ -1237,6 +1254,98 @@
 
             state.set('filters.logs.autoRefresh', false);
             this.updateListenButton(false);
+        },
+
+        startSSE: function() {
+            const basePath = window.__dashboard?.basePath || '';
+            const sseUrl = `${basePath}/logstream/logs`;
+
+            try {
+                this.sseConnection = new EventSource(sseUrl);
+                console.log('[Logs] SSE connection established');
+
+                this.sseConnection.onopen = () => {
+                    console.log('[Logs] SSE connection opened');
+                };
+
+                this.sseConnection.onmessage = (event) => {
+                    if (event.data.startsWith(':')) {
+                        // Keepalive or comment, ignore
+                        return;
+                    }
+
+                    try {
+                        const entry = JSON.parse(event.data);
+                        if (entry.connected) {
+                            console.log('[Logs] SSE connected successfully');
+                            // Load initial logs
+                            this.loadLogs();
+                            return;
+                        }
+                        if (entry.error) {
+                            console.warn('[Logs] SSE error:', entry.error);
+                            this.fallbackToPolling();
+                            return;
+                        }
+
+                        // Add entry to pending queue
+                        this.pendingLogEntries.push(entry);
+                        this.flushPendingEntries();
+                    } catch (err) {
+                        console.error('[Logs] Failed to parse SSE message:', err);
+                    }
+                };
+
+                this.sseConnection.onerror = (error) => {
+                    console.error('[Logs] SSE error:', error);
+                    this.fallbackToPolling();
+                };
+            } catch (err) {
+                console.error('[Logs] Failed to create SSE connection:', err);
+                this.fallbackToPolling();
+            }
+        },
+
+        fallbackToPolling: function() {
+            console.log('[Logs] Falling back to polling mode');
+            if (this.sseConnection) {
+                this.sseConnection.close();
+                this.sseConnection = null;
+            }
+            this.sseEnabled = false;
+            this.startPolling();
+        },
+
+        startPolling: function() {
+            if (this.pollTimer) {
+                clearInterval(this.pollTimer);
+            }
+
+            this.loadLogs();
+            const interval = window.DashboardState.get('filters.logs.refreshInterval') || 5000;
+            this.pollTimer = setInterval(() => this.loadLogs(), interval);
+        },
+
+        flushPendingEntries: function() {
+            if (this.isRendering || this.pendingLogEntries.length === 0) return;
+
+            const state = window.DashboardState;
+            const logs = state.get('data.logs') || [];
+
+            // Add new entries to the front (newest first)
+            while (this.pendingLogEntries.length > 0) {
+                const entry = this.pendingLogEntries.shift();
+                logs.unshift(entry);
+            }
+
+            // Trim to max count
+            const maxCount = state.get('filters.logs.maxCount') || 100;
+            while (logs.length > maxCount) {
+                logs.pop();
+            }
+
+            state.set('data.logs', logs);
+            this.renderLogs();
         },
 
         // ===== Update Listen Button =====
@@ -1288,21 +1397,29 @@
                 this.renderLogs();
             });
 
-            // Page Visibility API - pause polling when tab is hidden to save resources
+            // Page Visibility API - pause streaming when tab is hidden to save resources
             document.addEventListener('visibilitychange', () => {
                 if (document.hidden) {
-                    // Page is hidden - pause polling if active
-                    if (this.pollTimer) {
+                    // Page is hidden - pause streaming if active
+                    const state = window.DashboardState;
+                    if (state.get('filters.logs.autoRefresh')) {
                         this.wasPollingBeforeHidden = true;
-                        this.stopPolling();
-                        console.log('[Logs] Paused polling (page hidden)');
+                        if (this.sseConnection) {
+                            this.sseConnection.close();
+                            this.sseConnection = null;
+                            console.log('[Logs] Paused SSE (page hidden)');
+                        } else if (this.pollTimer) {
+                            clearInterval(this.pollTimer);
+                            this.pollTimer = null;
+                            console.log('[Logs] Paused polling (page hidden)');
+                        }
                     }
                 } else {
-                    // Page is visible again - resume polling if it was active
+                    // Page is visible again - resume streaming if it was active
                     if (this.wasPollingBeforeHidden) {
                         this.wasPollingBeforeHidden = false;
-                        this.startPolling();
-                        console.log('[Logs] Resumed polling (page visible)');
+                        this.startStreaming();
+                        console.log('[Logs] Resumed streaming (page visible)');
                     }
                 }
             });

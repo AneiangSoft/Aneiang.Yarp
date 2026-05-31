@@ -15,11 +15,13 @@ namespace Aneiang.Yarp.Dashboard.Services;
 /// Supports structured logging, sampling, filtering, and sanitization.
 /// Zero dependency on logging frameworks.
 /// Optimized with ArrayPool buffer reuse and minimal allocations.
+/// Supports both direct store writes and async Channel-based processing.
 /// </summary>
 public sealed class YarpRequestCaptureMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly IProxyLogStore _store;
+    private readonly StructuredLogService? _structuredLogService;
     private readonly LogSanitizer _sanitizer;
     private readonly string _dashPrefix;
     private readonly bool _loggingEnabled;
@@ -27,6 +29,7 @@ public sealed class YarpRequestCaptureMiddleware
     private readonly double _samplingRate;
     private readonly bool _logErrorsOnly;
     private readonly int _maxBodyLength;
+    private readonly bool _useAsyncLogging;
 
     // Cached collections for fast filtering (avoid property access)
     private readonly HashSet<string>? _routeWhitelist;
@@ -60,15 +63,20 @@ public sealed class YarpRequestCaptureMiddleware
         RequestDelegate next,
         IProxyLogStore store,
         LogSanitizer sanitizer,
-        IOptions<DashboardOptions> options)
+        IOptions<DashboardOptions> options,
+        IServiceProvider serviceProvider)
     {
         _next = next;
         _store = store;
         _sanitizer = sanitizer;
 
+        // Optional: Use async logging if available
+        _structuredLogService = serviceProvider.GetService(typeof(StructuredLogService)) as StructuredLogService;
+
         var opt = options.Value;
         _dashPrefix = "/" + opt.RoutePrefix.Trim('/');
         _loggingEnabled = opt.EnableProxyLogging;
+        _useAsyncLogging = opt.EnableAsyncLogging;
 
         // Pre-cache all frequently accessed configuration values
         _enableSampling = opt.EnableLogSampling;
@@ -173,8 +181,12 @@ public sealed class YarpRequestCaptureMiddleware
             downstreamText = _sanitizer.TruncateText(sanitizedDownstreamBody, out downstreamTruncatedFlag);
         }
 
-        // Build structured request log entry
-        _store.Add(new LogEntry
+        // Sanitize and truncate response body
+        var sanitizedResponseBody = _sanitizer.SanitizeJsonBody(responseBodyText);
+        var responseText = _sanitizer.TruncateText(sanitizedResponseBody, out var responseTruncated);
+
+        // Build structured log entries
+        var requestEntry = new LogEntry
         {
             Timestamp = timestamp,
             EventType = LogEventType.ProxyRequest,
@@ -193,14 +205,9 @@ public sealed class YarpRequestCaptureMiddleware
             RequestHeaders = _sanitizer.SanitizeHeaders(context.Request.Headers),
             RequestBody = requestText,
             RequestBodyTruncated = requestTruncated
-        });
+        };
 
-        // Sanitize and truncate response body
-        var sanitizedResponseBody = _sanitizer.SanitizeJsonBody(responseBodyText);
-        var responseText = _sanitizer.TruncateText(sanitizedResponseBody, out var responseTruncated);
-
-        // Build structured response log entry
-        _store.Add(new LogEntry
+        var responseEntry = new LogEntry
         {
             Timestamp = DateTime.Now,
             EventType = LogEventType.ProxyResponse,
@@ -218,7 +225,19 @@ public sealed class YarpRequestCaptureMiddleware
             ResponseHeaders = _sanitizer.SanitizeHeaders(context.Response.Headers),
             ResponseBody = responseText,
             ResponseBodyTruncated = responseTruncated
-        });
+        };
+
+        // Use async logging if available, otherwise fallback to sync store
+        if (_useAsyncLogging && _structuredLogService != null)
+        {
+            await _structuredLogService.EnqueueAsync(requestEntry);
+            await _structuredLogService.EnqueueAsync(responseEntry);
+        }
+        else
+        {
+            _store.Add(requestEntry);
+            _store.Add(responseEntry);
+        }
     }
 
     /// <summary>
