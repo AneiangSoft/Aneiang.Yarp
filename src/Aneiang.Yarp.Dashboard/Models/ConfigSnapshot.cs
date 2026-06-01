@@ -2,21 +2,24 @@ using System.Text.Json;
 
 namespace Aneiang.Yarp.Dashboard.Models;
 
-/// <summary>Configuration snapshot for version management and rollback.</summary>
+/// <summary>
+/// Configuration snapshot for YARP rollback/history.
+/// Stores full YARP config as JSON for restore.
+/// </summary>
 public class ConfigSnapshot
 {
     /// <summary>Unique version identifier.</summary>
-    public string VersionId { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string VersionId { get; set; } = Guid.NewGuid().ToString("N");
 
-    /// <summary>Snapshot creation timestamp.</summary>
-    public DateTime Timestamp { get; set; } = DateTime.Now;
+    /// <summary>Snapshot creation time.</summary>
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 
-    /// <summary>Optional description of this snapshot.</summary>
+    /// <summary>Snapshot description.</summary>
     public string? Description { get; set; }
 
-    /// <summary>Client IP address that triggered this snapshot.</summary>
+    /// <summary>Client IP that triggered the snapshot.</summary>
     public string? ClientIp { get; set; }
 
-    /// <summary>Complete configuration content.</summary>
+    /// <summary>Full YARP configuration as JSON.</summary>
     public JsonElement Config { get; set; }
 }

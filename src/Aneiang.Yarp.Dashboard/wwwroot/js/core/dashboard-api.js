@@ -257,6 +257,31 @@
         getCircuitBreakerStatus: () => DashboardApi.get('/circuit-breaker/status'),
         resetCircuitBreakers: () => DashboardApi.post('/circuit-breaker/reset'),
 
+        // Alerts
+        getAlerts: (count) => DashboardApi.get('/api/alerts', { count: count || 100 }),
+        clearAlerts: () => DashboardApi.delete('/api/alerts'),
+        testAlert: (data) => DashboardApi.post('/api/alerts/test', data),
+        getAlertSummary: () => DashboardApi.get('/api/alerts/summary'),
+
+        // Security Events
+        getSecurityEvents: (count) => DashboardApi.get('/api/security-events', { count: count || 100 }),
+        clearSecurityEvents: () => DashboardApi.delete('/api/security-events'),
+        getSecurityEventSummary: () => DashboardApi.get('/api/security-events/summary'),
+
+        // Policies
+        getPolicies: () => DashboardApi.get('/api/policies'),
+        getPolicy: (id) => DashboardApi.get('/api/policies/' + id),
+        createPolicy: (data) => DashboardApi.post('/api/policies', data),
+        updatePolicy: (id, data) => DashboardApi.put('/api/policies/' + id, data),
+        deletePolicy: (id) => DashboardApi.delete('/api/policies/' + id),
+        togglePolicy: (id) => DashboardApi.post('/api/policies/' + id + '/toggle'),
+
+        // Plugins
+        getPlugins: () => DashboardApi.get('/api/plugins'),
+        getPlugin: (id) => DashboardApi.get('/api/plugins/' + id),
+        togglePlugin: (id, enabled) => DashboardApi.post('/api/plugins/' + id + '/toggle', { enabled }),
+        resetPlugins: () => DashboardApi.post('/api/plugins/reset'),
+
         // Webhook Settings
         getWebhookSettings: () => DashboardApi.get('/api/config/webhook'),
         saveWebhookSettings: (data) => DashboardApi.put('/api/config/webhook', data),
@@ -273,5 +298,26 @@
         getTopIssues: (count) => DashboardApi.get('/api/operations/top-issues', { count }),
         exportSnapshot: () => DashboardApi.get('/api/operations/snapshot')
     };
+
+    // Aliases: expose top-level convenience methods (used by page-level JS)
+    window.DashboardApi.getAlerts = (count) => DashboardApi.endpoints.getAlerts(count);
+    window.DashboardApi.clearAlerts = () => DashboardApi.endpoints.clearAlerts();
+    window.DashboardApi.getCircuitBreakerStatus = () => DashboardApi.endpoints.getCircuitBreakerStatus();
+    window.DashboardApi.resetCircuitBreakers = () => DashboardApi.endpoints.resetCircuitBreakers();
+    window.DashboardApi.getSecurityEvents = (count) => DashboardApi.endpoints.getSecurityEvents(count);
+    window.DashboardApi.clearSecurityEvents = () => DashboardApi.endpoints.clearSecurityEvents();
+    window.DashboardApi.getPolicies = () => DashboardApi.endpoints.getPolicies();
+    window.DashboardApi.getPolicy = (id) => DashboardApi.endpoints.getPolicy(id);
+    window.DashboardApi.createPolicy = (data) => DashboardApi.endpoints.createPolicy(data);
+    window.DashboardApi.updatePolicy = (id, data) => DashboardApi.endpoints.updatePolicy(id, data);
+    window.DashboardApi.deletePolicy = (id) => DashboardApi.endpoints.deletePolicy(id);
+    window.DashboardApi.togglePolicy = (id) => DashboardApi.endpoints.togglePolicy(id);
+    window.DashboardApi.getPlugins = () => DashboardApi.endpoints.getPlugins();
+    window.DashboardApi.getPlugin = (id) => DashboardApi.endpoints.getPlugin(id);
+    window.DashboardApi.togglePlugin = (id, enabled) => DashboardApi.endpoints.togglePlugin(id, enabled);
+    window.DashboardApi.resetPlugins = () => DashboardApi.endpoints.resetPlugins();
+    window.DashboardApi.getWebhookSettings = () => DashboardApi.endpoints.getWebhookSettings();
+    window.DashboardApi.saveWebhookSettings = (data) => DashboardApi.endpoints.saveWebhookSettings(data);
+    window.DashboardApi.testWebhook = (data) => DashboardApi.endpoints.testWebhook(data);
 
 })();

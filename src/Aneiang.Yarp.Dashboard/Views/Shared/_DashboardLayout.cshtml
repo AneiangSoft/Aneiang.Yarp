@@ -1483,6 +1483,15 @@
                 <i class="bi bi-journal-text"></i> <span data-i18n="layout.tab.logs">日志</span>
             </a>
             }
+            <a class="nav-link @(currentPage == "circuits" ? "active" : "")" href="/@prefix/circuits">
+                <i class="bi bi-lightning-charge"></i> <span data-i18n="layout.tab.circuits">熔断状态</span>
+            </a>
+            <a class="nav-link @(currentPage == "alerts" ? "active" : "")" href="/@prefix/alerts">
+                <i class="bi bi-bell"></i> <span data-i18n="layout.tab.alerts">告警中心</span>
+            </a>
+            <a class="nav-link @(currentPage == "security" ? "active" : "")" href="/@prefix/security">
+                <i class="bi bi-shield-lock"></i> <span data-i18n="layout.tab.security">安全事件</span>
+            </a>
             <a class="nav-link @(currentPage == "healthcheck" ? "active" : "")" href="/@prefix/healthcheck">
                 <i class="bi bi-heart-pulse"></i> <span data-i18n="layout.tab.healthcheck">健康检查</span>
             </a>
@@ -1492,6 +1501,12 @@
             <div class="section-title" data-i18n="layout.section.config">配置</div>
             <a class="nav-link @(currentPage == "history" ? "active" : "")" href="/@prefix/history">
                 <i class="bi bi-clock-history"></i> <span data-i18n="layout.tab.history">配置历史</span>
+            </a>
+            <a class="nav-link @(currentPage == "policies" ? "active" : "")" href="/@prefix/policies">
+                <i class="bi bi-sliders"></i> <span data-i18n="layout.tab.policies">策略管理</span>
+            </a>
+            <a class="nav-link @(currentPage == "plugins" ? "active" : "")" href="/@prefix/plugins">
+                <i class="bi bi-puzzle"></i> <span data-i18n="layout.tab.plugins">插件管理</span>
             </a>
             <a class="nav-link @(currentPage == "audit" ? "active" : "")" href="/@prefix/audit">
                 <i class="bi bi-shield-check"></i> <span data-i18n="layout.tab.audit">审计日志</span>

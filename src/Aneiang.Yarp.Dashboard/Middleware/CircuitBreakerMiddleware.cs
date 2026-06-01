@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Aneiang.Yarp.Dashboard.Models;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Yarp.ReverseProxy.Model;
@@ -15,6 +17,7 @@ public sealed class CircuitBreakerMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<CircuitBreakerMiddleware> _logger;
+    private readonly CircuitBreakerOptions _options;
 
     private static readonly ConcurrentDictionary<string, CircuitState> _circuits = new();
     private static readonly object _stateLock = new();
@@ -23,10 +26,14 @@ public sealed class CircuitBreakerMiddleware
     private static readonly TimeSpan _cleanupThreshold = TimeSpan.FromHours(1);
     private static DateTime _lastCleanupTime = DateTime.Now;
 
-    public CircuitBreakerMiddleware(RequestDelegate next, ILogger<CircuitBreakerMiddleware> logger)
+    public CircuitBreakerMiddleware(
+        RequestDelegate next,
+        ILogger<CircuitBreakerMiddleware> logger,
+        IOptions<CircuitBreakerOptions> options)
     {
         _next = next;
         _logger = logger;
+        _options = options.Value;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -49,7 +56,18 @@ public sealed class CircuitBreakerMiddleware
             return;
         }
 
-        var state = _circuits.GetOrAdd(circuitKey, _ => new CircuitState());
+        var options = GetEffectiveOptions(proxyFeature);
+
+        // Enforce max circuit count to prevent memory exhaustion
+        if (_circuits.Count >= _options.MaxCircuitCount && !_circuits.ContainsKey(circuitKey))
+        {
+            _logger.LogWarning("Circuit count limit reached ({Max}), skipping new circuit for {CircuitKey}",
+                _options.MaxCircuitCount, circuitKey);
+            await _next(context);
+            return;
+        }
+
+        var state = _circuits.GetOrAdd(circuitKey, _ => new CircuitState(options));
         state.LastAccessedAt = DateTime.Now;
 
         // Periodic cleanup of stale closed circuits
@@ -92,7 +110,7 @@ public sealed class CircuitBreakerMiddleware
         {
             lock (_stateLock)
             {
-                if (state.HalfOpenRequests >= 1)
+                if (state.HalfOpenRequests >= state.MaxHalfOpenAttempts)
                 {
                     rejectHalfOpen = true;
                 }
@@ -176,6 +194,45 @@ public sealed class CircuitBreakerMiddleware
         return true;
     }
 
+    private CircuitBreakerOptions GetEffectiveOptions(IReverseProxyFeature? proxyFeature)
+    {
+        var meta = proxyFeature?.Route?.Config?.Metadata;
+        
+        // Start with global defaults
+        var options = new CircuitBreakerOptions
+        {
+            Enabled = _options.Enabled,
+            DefaultFailureThreshold = _options.DefaultFailureThreshold,
+            DefaultRecoveryTimeoutSeconds = _options.DefaultRecoveryTimeoutSeconds,
+            HalfOpenMaxAttempts = _options.HalfOpenMaxAttempts,
+            MaxCircuitCount = _options.MaxCircuitCount
+        };
+
+        if (meta == null)
+            return options;
+
+        // Override from route metadata
+        if (meta.TryGetValue("CircuitBreaker:FailureThreshold", out var threshold) &&
+            int.TryParse(threshold, out var t))
+        {
+            options.DefaultFailureThreshold = t;
+        }
+
+        if (meta.TryGetValue("CircuitBreaker:RecoveryTimeoutSeconds", out var timeout) &&
+            int.TryParse(timeout, out var to))
+        {
+            options.DefaultRecoveryTimeoutSeconds = to;
+        }
+
+        if (meta.TryGetValue("CircuitBreaker:HalfOpenMaxAttempts", out var halfOpen) &&
+            int.TryParse(halfOpen, out var ho))
+        {
+            options.HalfOpenMaxAttempts = ho;
+        }
+
+        return options;
+    }
+
     /// <summary>Get circuit breaker state for all circuits (for dashboard).</summary>
     public static IReadOnlyDictionary<string, CircuitStateInfo> GetAllCircuitStates()
     {
@@ -187,8 +244,11 @@ public sealed class CircuitBreakerMiddleware
                 Status = kv.Value.Status.ToString(),
                 ConsecutiveFailures = kv.Value.ConsecutiveFailures,
                 FailureThreshold = kv.Value.FailureThreshold,
-                OpenedAt = kv.Value.OpenedAt,
-                RecoveryTimeout = kv.Value.RecoveryTimeout
+                RecoveryTimeout = kv.Value.RecoveryTimeout,
+                HalfOpenRequests = kv.Value.HalfOpenRequests,
+                MaxHalfOpenAttempts = kv.Value.MaxHalfOpenAttempts,
+                OpenedAt = kv.Value.OpenedAt == DateTime.MinValue ? null : kv.Value.OpenedAt,
+                LastAccessedAt = kv.Value.LastAccessedAt
             });
     }
 
@@ -201,15 +261,33 @@ public sealed class CircuitBreakerMiddleware
             {
                 kv.Value.Status = CircuitStatus.Closed;
                 kv.Value.ConsecutiveFailures = 0;
+                kv.Value.HalfOpenRequests = 0;
             }
         }
+    }
+
+    /// <summary>
+    /// Check if a specific circuit is open for a cluster/destination.
+    /// Used by retry middleware to skip unhealthy destinations.
+    /// </summary>
+    public static bool IsCircuitOpen(string clusterId, string? destinationId = null)
+    {
+        var key = $"{clusterId}:{destinationId ?? "any"}";
+        if (_circuits.TryGetValue(key, out var state))
+        {
+            lock (_stateLock)
+            {
+                return state.Status == CircuitStatus.Open;
+            }
+        }
+        return false;
     }
 
     /// <summary>
     /// Removes stale closed circuits that haven't been accessed for a while.
     /// Runs infrequently to avoid performance impact.
     /// </summary>
-    private static void TryCleanupStaleCircuits()
+    private void TryCleanupStaleCircuits()
     {
         var now = DateTime.Now;
         if (now - _lastCleanupTime < _cleanupThreshold)
@@ -239,13 +317,22 @@ internal enum CircuitStatus { Closed, Open, HalfOpen }
 
 internal class CircuitState
 {
-    public CircuitStatus Status;
-    public int ConsecutiveFailures;
-    public int FailureThreshold = 5;
-    public TimeSpan RecoveryTimeout = TimeSpan.FromSeconds(30);
-    public DateTime OpenedAt;
-    public int HalfOpenRequests;
-    public DateTime LastAccessedAt = DateTime.Now; // Track for cleanup
+    public CircuitStatus Status { get; set; } = CircuitStatus.Closed;
+    public int ConsecutiveFailures { get; set; }
+    public int FailureThreshold { get; set; }
+    public TimeSpan RecoveryTimeout { get; set; }
+    public int MaxHalfOpenAttempts { get; set; }
+    public DateTime OpenedAt { get; set; }
+    public int HalfOpenRequests { get; set; }
+    public DateTime LastAccessedAt { get; set; } = DateTime.Now;
+
+    public CircuitState(CircuitBreakerOptions? options = null)
+    {
+        var opts = options ?? new CircuitBreakerOptions();
+        FailureThreshold = opts.DefaultFailureThreshold;
+        RecoveryTimeout = TimeSpan.FromSeconds(opts.DefaultRecoveryTimeoutSeconds);
+        MaxHalfOpenAttempts = opts.HalfOpenMaxAttempts;
+    }
 }
 
 public class CircuitStateInfo
@@ -254,6 +341,9 @@ public class CircuitStateInfo
     public string Status { get; set; } = "Closed";
     public int ConsecutiveFailures { get; set; }
     public int FailureThreshold { get; set; }
-    public DateTime? OpenedAt { get; set; }
     public TimeSpan RecoveryTimeout { get; set; }
+    public int HalfOpenRequests { get; set; }
+    public int MaxHalfOpenAttempts { get; set; }
+    public DateTime? OpenedAt { get; set; }
+    public DateTime LastAccessedAt { get; set; }
 }

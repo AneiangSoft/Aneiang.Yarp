@@ -40,6 +40,9 @@ public static class DashboardApplicationBuilderExtensions
         // Request capture runs on the main pipeline (before endpoint routing)
         app.UseMiddleware<YarpRequestCaptureMiddleware>();
 
+        // WAF middleware runs on the main pipeline before proxy routing
+        app.UseMiddleware<WafMiddleware>();
+
         // Map the YARP proxy branch WITH core + dashboard middleware inside it.
         if (app is IEndpointRouteBuilder endpoints)
         {

@@ -96,7 +96,7 @@ public class HealthCheckConfig
 public class GatewayDynamicConfig
 {
     /// <summary>Schema version for future migrations.</summary>
-    public int Version { get; set; } = 1;
+    public long Version { get; set; } = 1;
 
     /// <summary>Last modified timestamp.</summary>
     public DateTime LastModified { get; set; } = DateTime.UtcNow;
