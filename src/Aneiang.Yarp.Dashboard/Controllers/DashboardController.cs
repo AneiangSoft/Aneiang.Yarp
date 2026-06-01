@@ -151,6 +151,46 @@ public class DashboardController : Controller
         return View();
     }
 
+    /// <summary>Dashboard circuit breaker status page.</summary>
+    [HttpGet("circuits")]
+    public IActionResult Circuits()
+    {
+        SetCommonViewBag("circuits");
+        return View();
+    }
+
+    /// <summary>Dashboard alert center page.</summary>
+    [HttpGet("alerts")]
+    public IActionResult Alerts()
+    {
+        SetCommonViewBag("alerts");
+        return View();
+    }
+
+    /// <summary>Dashboard security events page.</summary>
+    [HttpGet("security")]
+    public IActionResult Security()
+    {
+        SetCommonViewBag("security");
+        return View();
+    }
+
+    /// <summary>Dashboard policy editor page.</summary>
+    [HttpGet("policies")]
+    public IActionResult Policies()
+    {
+        SetCommonViewBag("policies");
+        return View();
+    }
+
+    /// <summary>Dashboard plugin manager page.</summary>
+    [HttpGet("plugins")]
+    public IActionResult Plugins()
+    {
+        SetCommonViewBag("plugins");
+        return View();
+    }
+
     /// <summary>Dashboard login page.</summary>
     [HttpGet("login")]
     public IActionResult Login()

@@ -3,6 +3,7 @@ using Aneiang.Yarp.Dashboard.Controllers;
 using Aneiang.Yarp.Dashboard.Extensions;
 using Aneiang.Yarp.Dashboard.Middleware;
 using Aneiang.Yarp.Dashboard.Models;
+using Aneiang.Yarp.Dashboard.Plugins;
 using Aneiang.Yarp.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Services.Implements;
 using Aneiang.Yarp.Dashboard.Services.Webhook;
@@ -33,6 +34,18 @@ public static class DashboardServiceCollectionExtensions
     {
         services.AddOptions<DashboardOptions>()
             .BindConfiguration(DashboardOptions.SectionName);
+
+        // Register CircuitBreaker options (nested in DashboardOptions)
+        services.AddOptions<CircuitBreakerOptions>()
+            .BindConfiguration("Gateway:Dashboard:CircuitBreaker");
+
+        // Register Retry options (nested in DashboardOptions)
+        services.AddOptions<RetryOptions>()
+            .BindConfiguration("Gateway:Dashboard:Retry");
+
+        // Register WAF options (nested in DashboardOptions)
+        services.AddOptions<WafOptions>()
+            .BindConfiguration("Gateway:Dashboard:Waf");
 
         if (configureOptions != null)
             services.Configure(configureOptions);
@@ -83,6 +96,26 @@ public static class DashboardServiceCollectionExtensions
 
         // Editable policy
         services.AddSingleton<IEditablePolicy, DashboardEditablePolicy>();
+
+        // Alert service
+        services.AddSingleton<IGatewayAlertService, GatewayAlertService>();
+        services.AddSingleton<GatewayAlertService>(sp => (GatewayAlertService)sp.GetRequiredService<IGatewayAlertService>());
+        services.AddSingleton<AlertHistoryStore>(sp =>
+            new AlertHistoryStore(sp.GetRequiredService<IOptions<DashboardOptions>>().Value.AlertMaxRecords));
+        services.AddSingleton<WafEventStore>(sp =>
+            new WafEventStore(sp.GetRequiredService<IOptions<DashboardOptions>>().Value.WafMaxEvents));
+
+        // Policy persistence
+        services.AddSingleton<GatewayPolicyPersistenceService>();
+
+        // Config snapshot service
+        services.AddSingleton<IConfigSnapshotService, ConfigSnapshotService>();
+
+        // Plugin system
+        services.AddSingleton<IGatewayPlugin, CircuitBreakerPlugin>();
+        services.AddSingleton<IGatewayPlugin, RequestRetryPlugin>();
+        services.AddSingleton<IGatewayPlugin, WafPlugin>();
+        services.AddSingleton<IGatewayPluginManager, GatewayPluginManager>();
 
         // Authorization service
         services.AddSingleton<IDashboardAuthorizationService, DashboardAuthorizationService>();

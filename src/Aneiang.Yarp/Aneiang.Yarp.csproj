@@ -16,10 +16,12 @@
 
   <ItemGroup>
     <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.65.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Aneiang.Yarp.Client\Aneiang.Yarp.Client.csproj" />
+    <ProjectReference Include="..\Aneiang.Yarp.Grpc\Aneiang.Yarp.Grpc.csproj" />
   </ItemGroup>
 
 </Project>

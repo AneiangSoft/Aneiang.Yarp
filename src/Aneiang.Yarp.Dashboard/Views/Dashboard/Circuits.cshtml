@@ -1,0 +1,67 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Circuit Breaker" : "熔断状态";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<div id="circuits-app">
+    <div class="card-panel mb-3">
+        <div class="card-header">
+            <span><i class="bi bi-lightning-charge me-2"></i><span data-i18n="circuit.title">熔断状态</span></span>
+            <div>
+                <span id="circuit-refresh-time" class="refresh-badge"></span>
+                <button class="btn btn-sm btn-outline-primary" onclick="CircuitModule.load()" title="刷新">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="CircuitModule.resetAll()" title="重置">
+                    <i class="bi bi-x-circle"></i> <span data-i18n="circuit.reset">全部重置</span>
+                </button>
+            </div>
+        </div>
+        <div id="circuit-content" class="card-body">
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 text-muted" data-i18n="circuit.loading">加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+@{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-circuits.js?v=@v"></script>
+
+<script>
+    window.__dashboard = window.__dashboard || {};
+    var dash = window.__dashboard;
+    dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
+    dash.token = localStorage.getItem('dashboard_token');
+    dash.CURRENT_LOCALE = '@ViewBag.Locale';
+    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
+    dash.currentPage = '@ViewBag.CurrentPage';
+</script>
+
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+        if (window.DashboardApp && window.DashboardApp.modules && window.DashboardApp.modules.circuit) {
+            await DashboardApp.modules.circuit.init();
+        }
+        await CircuitModule.load();
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

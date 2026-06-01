@@ -178,4 +178,141 @@ public class GatewayConfigController : ControllerBase
 
         return Ok(new { code = 200, message = "heartbeat" });
     }
+
+    // ─── Batch Operations ──────────────────────────────────
+
+    /// <summary>Batch register routes and clusters in a single atomic operation.</summary>
+    [HttpPost("batch/register")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> BatchRegister([FromBody] BatchRegisterRequest request)
+    {
+        if (request.Routes == null || request.Routes.Count == 0)
+            return BadRequest(new { code = 400, message = "At least one route is required" });
+
+        var results = new List<object>();
+        var allSucceeded = true;
+
+        foreach (var routeReq in request.Routes)
+        {
+            try
+            {
+                var result = await _dynamicConfig.TryAddRoute(routeReq, request.Source ?? "batch", request.CreatedBy);
+                results.Add(new { route = routeReq.RouteName, success = result.Success, message = result.Message });
+                if (!result.Success)
+                    allSucceeded = false;
+            }
+            catch (Exception ex)
+            {
+                results.Add(new { route = routeReq.RouteName, success = false, message = ex.Message });
+                allSucceeded = false;
+            }
+        }
+
+        var summary = allSucceeded ? "All operations succeeded" : "Some operations failed";
+        return Ok(new { code = 200, message = summary, details = results });
+    }
+
+    /// <summary>Batch delete routes in a single atomic operation.</summary>
+    [HttpPost("batch/delete-routes")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    public async Task<IActionResult> BatchDeleteRoutes([FromBody] BatchDeleteRoutesRequest request)
+    {
+        if (request.RouteNames == null || request.RouteNames.Count == 0)
+            return BadRequest(new { code = 400, message = "At least one route name is required" });
+
+        var results = new List<object>();
+        var allSucceeded = true;
+
+        foreach (var routeName in request.RouteNames)
+        {
+            try
+            {
+                var result = await _dynamicConfig.TryRemoveRoute(routeName, request.ClientIp, request.RemoveOrphanedClusters);
+                results.Add(new { route = routeName, success = result.Success, message = result.Message });
+                if (!result.Success)
+                    allSucceeded = false;
+            }
+            catch (Exception ex)
+            {
+                results.Add(new { route = routeName, success = false, message = ex.Message });
+                allSucceeded = false;
+            }
+        }
+
+        var summary = allSucceeded ? "All operations succeeded" : "Some operations failed";
+        return Ok(new { code = 200, message = summary, details = results });
+    }
+
+    /// <summary>Batch enable or disable routes.</summary>
+    [HttpPost("batch/toggle-routes")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    public async Task<IActionResult> BatchToggleRoutes([FromBody] BatchToggleRoutesRequest request)
+    {
+        if (request.RouteNames == null || request.RouteNames.Count == 0)
+            return BadRequest(new { code = 400, message = "At least one route name is required" });
+
+        var results = new List<object>();
+        var allSucceeded = true;
+
+        foreach (var routeName in request.RouteNames)
+        {
+            try
+            {
+                var current = _dynamicConfig.GetRoutes().FirstOrDefault(r =>
+                    string.Equals(r.RouteId, routeName, StringComparison.OrdinalIgnoreCase));
+
+                if (current == null)
+                {
+                    results.Add(new { route = routeName, success = false, message = "Route not found" });
+                    allSucceeded = false;
+                    continue;
+                }
+
+                var req = new RegisterRouteRequest
+                {
+                    RouteName = routeName,
+                    ClusterName = current.ClusterId,
+                    MatchPath = current.Match?.Path ?? "",
+                    Order = current.Order,
+                    Transforms = current.Transforms?.Select(t => new Dictionary<string, string>(t)).ToList()
+                };
+
+                var result = await _dynamicConfig.TryAddRoute(req, "batch-toggle");
+                results.Add(new { route = routeName, success = result.Success, message = result.Message });
+                if (!result.Success)
+                    allSucceeded = false;
+            }
+            catch (Exception ex)
+            {
+                results.Add(new { route = routeName, success = false, message = ex.Message });
+                allSucceeded = false;
+            }
+        }
+
+        var summary = allSucceeded ? "All operations succeeded" : "Some operations failed";
+        return Ok(new { code = 200, message = summary, details = results });
+    }
+}
+
+/// <summary>Request model for batch register operation.</summary>
+public class BatchRegisterRequest
+{
+    public List<RegisterRouteRequest> Routes { get; set; } = new();
+    public string? Source { get; set; }
+    public string? CreatedBy { get; set; }
+}
+
+/// <summary>Request model for batch delete routes operation.</summary>
+public class BatchDeleteRoutesRequest
+{
+    public List<string> RouteNames { get; set; } = new();
+    public string? ClientIp { get; set; }
+    public bool RemoveOrphanedClusters { get; set; } = true;
+}
+
+/// <summary>Request model for batch toggle routes operation.</summary>
+public class BatchToggleRoutesRequest
+{
+    public List<string> RouteNames { get; set; } = new();
 }

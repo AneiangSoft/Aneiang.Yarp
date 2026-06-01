@@ -18,6 +18,9 @@ public class DynamicYarpConfigService
     private readonly ILogger<DynamicYarpConfigService> _logger;
     private readonly ReaderWriterLockSlim _rwLock = new();
     private GatewayDynamicConfig? _dynamicConfig;
+    
+    /// <summary>Monotonically increasing version for detecting in-memory vs persisted drift.</summary>
+    private long _configVersion;
 
     /// <summary>IDs of routes from appsettings.json (static config), populated on startup.</summary>
     private readonly HashSet<string> _staticRouteIds = new(StringComparer.OrdinalIgnoreCase);
@@ -48,6 +51,7 @@ public class DynamicYarpConfigService
 
     /// <summary>
     /// Load dynamic configuration from persistence file on startup.
+    /// Validates consistency between persisted file and YARP in-memory state.
     /// </summary>
     private void LoadDynamicConfig()
     {
@@ -67,11 +71,52 @@ public class DynamicYarpConfigService
 
             // Mark static config from appsettings.json as "config" source
             MarkStaticConfig();
+
+            // Startup consistency check: detect file/in-memory drift
+            ValidateConsistency();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load dynamic config on startup");
             _dynamicConfig = new GatewayDynamicConfig();
+        }
+    }
+
+    /// <summary>
+    /// Validates that the in-memory YARP config matches the persisted file.
+    /// Detects and heals inconsistencies caused by crashes between YARP update and file save.
+    /// </summary>
+    private void ValidateConsistency()
+    {
+        try
+        {
+            var yarpConfig = _configProvider.GetConfig();
+            
+            // Check route count mismatch (indicates incomplete previous save)
+            if (_dynamicConfig != null &&
+                yarpConfig.Routes.Count != _dynamicConfig.Routes.Count)
+            {
+                _logger.LogWarning(
+                    "Route count mismatch detected: YARP={YarpCount}, File={FileCount}. Re-syncing YARP from file.",
+                    yarpConfig.Routes.Count,
+                    _dynamicConfig.Routes.Count);
+                ApplyDynamicConfigToYarp();
+            }
+            
+            // Check cluster count mismatch
+            if (_dynamicConfig != null &&
+                yarpConfig.Clusters.Count != _dynamicConfig.Clusters.Count)
+            {
+                _logger.LogWarning(
+                    "Cluster count mismatch detected: YARP={YarpCount}, File={FileCount}. Re-syncing YARP from file.",
+                    yarpConfig.Clusters.Count,
+                    _dynamicConfig.Clusters.Count);
+                ApplyDynamicConfigToYarp();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Consistency validation failed, continuing with current state");
         }
     }
 
@@ -513,9 +558,14 @@ public class DynamicYarpConfigService
         }
         finally
         {
-            _rwLock.ExitWriteLock();
             if (saveNeeded)
+            {
+                // Increment version and persist inside the lock to prevent YARP/file drift on crash
+                Interlocked.Increment(ref _configVersion);
+                _dynamicConfig!.Version = _configVersion;
                 await SaveDynamicConfigAsync();
+            }
+            _rwLock.ExitWriteLock();
         }
     }
 
@@ -658,9 +708,13 @@ public class DynamicYarpConfigService
         }
         finally
         {
-            _rwLock.ExitWriteLock();
             if (saveNeeded)
+            {
+                Interlocked.Increment(ref _configVersion);
+                _dynamicConfig!.Version = _configVersion;
                 await SaveDynamicConfigAsync();
+            }
+            _rwLock.ExitWriteLock();
         }
     }
 
@@ -776,9 +830,13 @@ public class DynamicYarpConfigService
         }
         finally
         {
-            _rwLock.ExitWriteLock();
             if (saveNeeded)
+            {
+                Interlocked.Increment(ref _configVersion);
+                _dynamicConfig!.Version = _configVersion;
                 await SaveDynamicConfigAsync();
+            }
+            _rwLock.ExitWriteLock();
         }
     }
 
@@ -854,9 +912,13 @@ public class DynamicYarpConfigService
         }
         finally
         {
-            _rwLock.ExitWriteLock();
             if (saveNeeded)
+            {
+                Interlocked.Increment(ref _configVersion);
+                _dynamicConfig!.Version = _configVersion;
                 await SaveDynamicConfigAsync();
+            }
+            _rwLock.ExitWriteLock();
         }
     }
 
@@ -996,9 +1058,13 @@ public class DynamicYarpConfigService
         }
         finally
         {
-            _rwLock.ExitWriteLock();
             if (saveNeeded)
+            {
+                Interlocked.Increment(ref _configVersion);
+                _dynamicConfig!.Version = _configVersion;
                 await SaveDynamicConfigAsync();
+            }
+            _rwLock.ExitWriteLock();
         }
     }
 
@@ -1114,9 +1180,13 @@ public class DynamicYarpConfigService
         }
         finally
         {
-            _rwLock.ExitWriteLock();
             if (saveNeeded)
+            {
+                Interlocked.Increment(ref _configVersion);
+                _dynamicConfig!.Version = _configVersion;
                 await SaveDynamicConfigAsync();
+            }
+            _rwLock.ExitWriteLock();
         }
     }
 
@@ -1206,9 +1276,13 @@ public class DynamicYarpConfigService
         }
         finally
         {
-            _rwLock.ExitWriteLock();
             if (saveNeeded)
+            {
+                Interlocked.Increment(ref _configVersion);
+                _dynamicConfig!.Version = _configVersion;
                 await SaveDynamicConfigAsync();
+            }
+            _rwLock.ExitWriteLock();
         }
     }
 
@@ -1393,8 +1467,10 @@ public class DynamicYarpConfigService
         }
         finally
         {
-            _rwLock.ExitWriteLock();
+            Interlocked.Increment(ref _configVersion);
+            _dynamicConfig!.Version = _configVersion;
             await SaveDynamicConfigAsync();
+            _rwLock.ExitWriteLock();
         }
     }
 

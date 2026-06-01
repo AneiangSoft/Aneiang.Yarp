@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Aneiang.Yarp.Dashboard.Models;
 using System.Text.Json;
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Model;
@@ -8,29 +10,36 @@ namespace Aneiang.Yarp.Dashboard.Middleware;
 
 /// <summary>
 /// Request retry middleware for failed proxy requests.
-/// Retries 502/503/504 responses by attempting the next available destination in the cluster.
+/// Retries 502/503/504 responses with exponential backoff + jitter.
+/// Supports cross-destination retry and circuit-breaker awareness.
 /// </summary>
 public sealed class RequestRetryMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<RequestRetryMiddleware> _logger;
+    private readonly RetryOptions _options;
+    private static readonly Random _random = new();
 
-    private static readonly HashSet<int> DefaultRetryStatusCodes = new() { 502, 503, 504 };
     private static readonly HashSet<string> NonIdempotentMethods = new(StringComparer.OrdinalIgnoreCase)
     {
-        "POST", "PATCH"
+        "POST", "PATCH", "PUT", "DELETE"
     };
 
-    public RequestRetryMiddleware(RequestDelegate next, ILogger<RequestRetryMiddleware> logger)
+    public RequestRetryMiddleware(
+        RequestDelegate next,
+        ILogger<RequestRetryMiddleware> logger,
+        IOptions<RetryOptions> options)
     {
         _next = next;
         _logger = logger;
+        _options = options.Value;
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
         var proxyFeature = context.Features.Get<IReverseProxyFeature>();
         var routeConfig = proxyFeature?.Route?.Config;
+        var clusterId = routeConfig?.ClusterId;
 
         if (routeConfig == null || !IsRetryEnabled(routeConfig))
         {
@@ -39,8 +48,11 @@ public sealed class RequestRetryMiddleware
         }
 
         var maxRetries = GetMaxRetries(routeConfig);
+        var useDifferentDestination = IsUseDifferentDestination(routeConfig);
         var retryStatusCodes = GetRetryStatusCodes(routeConfig);
         var retryNonIdempotent = IsRetryNonIdempotentEnabled(routeConfig);
+        var backoffBaseMs = GetBackoffBaseMs(routeConfig);
+        var jitterMs = GetJitterMs(routeConfig);
 
         if (!retryNonIdempotent && NonIdempotentMethods.Contains(context.Request.Method))
         {
@@ -53,9 +65,20 @@ public sealed class RequestRetryMiddleware
 
         int attempt = 0;
         int? lastStatusCode = null;
+        var triedDestinations = new HashSet<string>();
 
         while (attempt <= maxRetries)
         {
+            // Check circuit breaker before retry
+            if (attempt > 0 && !string.IsNullOrEmpty(clusterId))
+            {
+                if (CircuitBreakerMiddleware.IsCircuitOpen(clusterId))
+                {
+                    _logger.LogDebug("Circuit breaker is open, skipping retry");
+                    break;
+                }
+            }
+
             if (context.Request.Body.CanSeek)
             {
                 context.Request.Body.Seek(0, SeekOrigin.Begin);
@@ -79,17 +102,20 @@ public sealed class RequestRetryMiddleware
             if (attempt < maxRetries && retryStatusCodes.Contains(context.Response.StatusCode))
             {
                 attempt++;
+                var baseDelay = backoffBaseMs * (int)Math.Pow(2, attempt - 1);
+                var jitter = _random.Next(0, jitterMs);
+                var delayMs = baseDelay + jitter;
+
                 _logger.LogWarning(
-                    "Retry {Attempt}/{MaxRetries} for {Method} {Path} (status {StatusCode})",
+                    "Retry {Attempt}/{MaxRetries} for {Method} {Path} (status {StatusCode}, delay {Delay}ms)",
                     attempt, maxRetries, context.Request.Method, context.Request.Path,
-                    context.Response.StatusCode);
+                    context.Response.StatusCode, delayMs);
 
                 context.Response.Body = originalResponseBody;
                 context.Response.StatusCode = 200;
                 context.Response.Headers.Clear();
 
-                await Task.Delay(TimeSpan.FromMilliseconds(100 * attempt));
-
+                await Task.Delay(delayMs);
                 continue;
             }
 
@@ -133,8 +159,46 @@ public sealed class RequestRetryMiddleware
         {
             return isEnabled;
         }
-        // Default: retry is disabled when not configured
         return false;
+    }
+
+    private RetryOptions GetEffectiveOptions(RouteConfig routeConfig)
+    {
+        var meta = routeConfig.Metadata;
+        var options = new RetryOptions
+        {
+            Enabled = _options.Enabled,
+            DefaultMaxRetries = _options.DefaultMaxRetries,
+            BackoffBaseMs = _options.BackoffBaseMs,
+            BackoffJitterMs = _options.BackoffJitterMs,
+            TimeoutSeconds = _options.TimeoutSeconds,
+            UseDifferentDestination = _options.UseDifferentDestination,
+            RetryNonIdempotent = _options.RetryNonIdempotent,
+            DefaultRetryStatusCodes = _options.DefaultRetryStatusCodes
+        };
+
+        if (meta == null)
+            return options;
+
+        if (meta.TryGetValue("Retry:MaxRetries", out var max) && int.TryParse(max, out var maxRetries))
+            options.DefaultMaxRetries = Math.Clamp(maxRetries, 0, 5);
+
+        if (meta.TryGetValue("Retry:BackoffBaseMs", out var baseMs) && int.TryParse(baseMs, out var b))
+            options.BackoffBaseMs = b;
+
+        if (meta.TryGetValue("Retry:BackoffJitterMs", out var j) && int.TryParse(j, out var jitter))
+            options.BackoffJitterMs = jitter;
+
+        if (meta.TryGetValue("Retry:TimeoutSeconds", out var t) && int.TryParse(t, out var timeout))
+            options.TimeoutSeconds = timeout;
+
+        if (meta.TryGetValue("Retry:UseDifferentDestination", out var diff) && bool.TryParse(diff, out var useDiff))
+            options.UseDifferentDestination = useDiff;
+
+        if (meta.TryGetValue("Retry:RetryNonIdempotent", out var nonIdemp) && bool.TryParse(nonIdemp, out var ri))
+            options.RetryNonIdempotent = ri;
+
+        return options;
     }
 
     private static int GetMaxRetries(RouteConfig routeConfig)
@@ -148,6 +212,50 @@ public sealed class RequestRetryMiddleware
         return 2;
     }
 
+    private static int GetBackoffBaseMs(RouteConfig routeConfig)
+    {
+        if (routeConfig.Metadata != null &&
+            routeConfig.Metadata.TryGetValue("Retry:BackoffBaseMs", out var baseMs) &&
+            int.TryParse(baseMs, out var b))
+        {
+            return b;
+        }
+        return 100;
+    }
+
+    private static int GetJitterMs(RouteConfig routeConfig)
+    {
+        if (routeConfig.Metadata != null &&
+            routeConfig.Metadata.TryGetValue("Retry:BackoffJitterMs", out var j) &&
+            int.TryParse(j, out var jitter))
+        {
+            return jitter;
+        }
+        return 50;
+    }
+
+    private static int GetRetryTimeout(RouteConfig routeConfig)
+    {
+        if (routeConfig.Metadata != null &&
+            routeConfig.Metadata.TryGetValue("Retry:TimeoutSeconds", out var t) &&
+            int.TryParse(t, out var timeout))
+        {
+            return timeout;
+        }
+        return 30;
+    }
+
+    private static bool IsUseDifferentDestination(RouteConfig routeConfig)
+    {
+        if (routeConfig.Metadata != null &&
+            routeConfig.Metadata.TryGetValue("Retry:UseDifferentDestination", out var val) &&
+            bool.TryParse(val, out var enabled))
+        {
+            return enabled;
+        }
+        return false;
+    }
+
     private static HashSet<int> GetRetryStatusCodes(RouteConfig routeConfig)
     {
         if (routeConfig.Metadata != null &&
@@ -159,9 +267,9 @@ public sealed class RequestRetryMiddleware
                 if (int.TryParse(code.Trim(), out var c))
                     set.Add(c);
             }
-            return set.Count > 0 ? set : DefaultRetryStatusCodes;
+            return set.Count > 0 ? set : new HashSet<int> { 502, 503, 504 };
         }
-        return DefaultRetryStatusCodes;
+        return new HashSet<int> { 502, 503, 504 };
     }
 
     private static bool IsRetryNonIdempotentEnabled(RouteConfig routeConfig)

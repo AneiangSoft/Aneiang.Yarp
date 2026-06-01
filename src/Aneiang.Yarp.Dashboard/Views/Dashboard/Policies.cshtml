@@ -1,0 +1,223 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Policy Management" : "策略管理";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<div id="policies-app">
+    <div class="card-panel mb-3">
+        <div class="card-header">
+            <span><i class="bi bi-sliders me-2"></i><span data-i18n="policy.title">流量策略管理</span></span>
+            <div>
+                <span id="policy-refresh-time" class="refresh-badge"></span>
+                <button class="btn btn-sm btn-success" onclick="PolicyModule.openCreateModal()" title="新增策略">
+                    <i class="bi bi-plus"></i> <span data-i18n="policy.add">新增策略</span>
+                </button>
+                <button class="btn btn-sm btn-outline-primary" onclick="PolicyModule.load()" title="刷新">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+        <div id="policy-content" class="card-body">
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 text-muted" data-i18n="policy.loading">加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Policy Form Modal -->
+<div class="modal fade" id="policyModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="policyModalTitle" data-i18n="policy.add">新增策略</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="policyForm">
+                    <input type="hidden" id="policy-id" />
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label" data-i18n="policy.name">策略ID</label>
+                            <input type="text" class="form-control" id="policy-id-input" placeholder="e.g.: high-reliability" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" data-i18n="policy.displayName">显示名称</label>
+                            <input type="text" class="form-control" id="policy-displayName" placeholder="e.g.: 高可用策略" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" data-i18n="policy.description">描述</label>
+                        <textarea class="form-control" id="policy-description" rows="2" data-i18n-placeholder="policy.descriptionPlaceholder"></textarea>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label" data-i18n="policy.priority">优先级</label>
+                            <input type="number" class="form-control" id="policy-priority" value="50" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">&nbsp;</label>
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" id="policy-enabled" checked>
+                                <label class="form-check-label" for="policy-enabled" data-i18n="policy.enabled">已启用</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Circuit Breaker Section -->
+                    <div class="border rounded p-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0"><i class="bi bi-lightning-charge me-2"></i><span data-i18n="policy.circuitBreaker">熔断器</span></h6>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="cb-enabled">
+                                <label class="form-check-label" data-i18n="policy.enabled">已启用</label>
+                            </div>
+                        </div>
+                        <div class="row g-3 cb-settings">
+                            <div class="col-md-4">
+                                <label class="form-label" data-i18n="policy.failureThreshold">失败阈值</label>
+                                <input type="number" class="form-control" id="cb-threshold" value="5" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" data-i18n="policy.recoveryTimeout">恢复超时 (秒)</label>
+                                <input type="number" class="form-control" id="cb-timeout" value="30" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" data-i18n="policy.halfOpenMax">半开最大请求</label>
+                                <input type="number" class="form-control" id="cb-halfopen" value="1" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Retry Section -->
+                    <div class="border rounded p-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0"><i class="bi bi-arrow-repeat me-2"></i><span data-i18n="policy.retry">重试</span></h6>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="retry-enabled">
+                                <label class="form-check-label" data-i18n="policy.enabled">已启用</label>
+                            </div>
+                        </div>
+                        <div class="row g-3 retry-settings">
+                            <div class="col-md-4">
+                                <label class="form-label" data-i18n="policy.maxRetries">最大重试次数</label>
+                                <input type="number" class="form-control" id="retry-max" value="3" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" data-i18n="policy.backoffBase">退避基数 (ms)</label>
+                                <input type="number" class="form-control" id="retry-backoff" value="100" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rate Limit Section -->
+                    <div class="border rounded p-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0"><i class="bi bi-speedometer2 me-2"></i><span data-i18n="policy.rateLimit">限流</span></h6>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="rl-enabled">
+                                <label class="form-check-label" data-i18n="policy.enabled">已启用</label>
+                            </div>
+                        </div>
+                        <div class="row g-3 rl-settings">
+                            <div class="col-md-4">
+                                <label class="form-label" data-i18n="policy.limit">限制数</label>
+                                <input type="number" class="form-control" id="rl-limit" value="100" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" data-i18n="policy.window">时间窗口</label>
+                                <input type="text" class="form-control" id="rl-window" value="1m" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" data-i18n="policy.algorithm">算法</label>
+                                <select class="form-select" id="rl-algorithm">
+                                    <option value="FixedWindow">FixedWindow</option>
+                                    <option value="SlidingWindow">SlidingWindow</option>
+                                    <option value="TokenBucket">TokenBucket</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- WAF Section -->
+                    <div class="border rounded p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0"><i class="bi bi-shield-lock me-2"></i><span data-i18n="policy.waf">WAF</span></h6>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="waf-enabled">
+                                <label class="form-check-label" data-i18n="policy.enabled">已启用</label>
+                            </div>
+                        </div>
+                        <div class="row g-3 waf-settings">
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="waf-sqli" checked>
+                                    <label class="form-check-label" data-i18n="policy.blockSql">阻断 SQL 注入</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="waf-xss" checked>
+                                    <label class="form-check-label" data-i18n="policy.blockXss">阻断 XSS</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="waf-path" checked>
+                                    <label class="form-check-label" data-i18n="policy.blockPath">阻断路径遍历</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="policy.cancel">取消</button>
+                <button type="button" class="btn btn-primary" onclick="PolicyModule.save()" id="policySaveBtn">
+                    <span data-i18n="policy.create">创建策略</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+@{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-policies.js?v=@v"></script>
+
+<script>
+    window.__dashboard = window.__dashboard || {};
+    var dash = window.__dashboard;
+    dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
+    dash.token = localStorage.getItem('dashboard_token');
+    dash.CURRENT_LOCALE = '@ViewBag.Locale';
+    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
+    dash.currentPage = '@ViewBag.CurrentPage';
+</script>
+
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+        if (window.DashboardApp && window.DashboardApp.modules && window.DashboardApp.modules.policy) {
+            await DashboardApp.modules.policy.init();
+        }
+        await PolicyModule.load();
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}
