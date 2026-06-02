@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Dashboard.Services.Webhook;
 using Aneiang.Yarp.Services;
@@ -412,9 +413,13 @@ public static class WebhookNotificationServiceExtensions
             {
                 var task = (Task?)method.Invoke(service, new object[] { url, webhookPayload });
                 if (task != null)
-                    await task;
+                    await task.ConfigureAwait(ConfigureAwaitOptions.None);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // Log webhook failures but don't throw - alerts are best-effort
+                Debug.WriteLine($"[GatewayAlertService] Webhook delivery failed: {ex.Message}");
+            }
         }
     }
 }

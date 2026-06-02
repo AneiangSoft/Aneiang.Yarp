@@ -278,7 +278,10 @@ public class GatewayAutoRegistrationClient
                 }
             }
         }
-        catch (UriFormatException) { }
+        catch (UriFormatException ex)
+        {
+            _logger.LogWarning(ex, "Invalid URI format in address: {Address}", address);
+        }
         
         return (address, null);
     }

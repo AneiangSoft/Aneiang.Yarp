@@ -19,7 +19,6 @@ public sealed class RequestRetryMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<RequestRetryMiddleware> _logger;
     private readonly RetryOptions _options;
-    private static readonly Random _random = new();
 
     private static readonly HashSet<string> NonIdempotentMethods = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -104,7 +103,7 @@ public sealed class RequestRetryMiddleware
             {
                 attempt++;
                 var baseDelay = backoffBaseMs * (int)Math.Pow(2, attempt - 1);
-                var jitter = _random.Next(0, jitterMs);
+                var jitter = Random.Shared.Next(0, jitterMs);
                 var delayMs = baseDelay + jitter;
 
                 _logger.LogWarning(

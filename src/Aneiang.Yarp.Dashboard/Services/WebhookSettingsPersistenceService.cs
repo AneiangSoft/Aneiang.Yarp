@@ -6,12 +6,16 @@ namespace Aneiang.Yarp.Dashboard.Services;
 
 /// <summary>
 /// Persists webhook settings via <see cref="IDataStore"/>.
+/// Uses in-memory caching to avoid blocking async calls.
 /// </summary>
 public class WebhookSettingsPersistenceService
 {
     private const string Category = "webhook-settings";
     private readonly IDataStore _store;
     private readonly ILogger<WebhookSettingsPersistenceService> _logger;
+    private WebhookSettingsData? _cachedData;
+    private readonly SemaphoreSlim _cacheLock = new(1, 1);
+    private bool _initialized;
 
     public WebhookSettingsPersistenceService(IDataStore store, ILogger<WebhookSettingsPersistenceService> logger)
     {
@@ -19,12 +23,49 @@ public class WebhookSettingsPersistenceService
         _logger = logger;
     }
 
-    /// <summary>Load webhook settings from store.</summary>
-    public WebhookSettingsData? Load()
+    /// <summary>
+    /// Preloads webhook settings into memory cache during startup.
+    /// </summary>
+    public async Task PreloadAsync(CancellationToken ct = default)
+    {
+        if (_initialized) return;
+        await _cacheLock.WaitAsync(ct);
+        try
+        {
+            if (_initialized) return;
+            _cachedData = await LoadInternalAsync(ct);
+            _initialized = true;
+        }
+        finally
+        {
+            _cacheLock.Release();
+        }
+    }
+
+    private async Task<WebhookSettingsData?> LoadInternalAsync(CancellationToken ct)
     {
         try
         {
-            return _store.GetDocumentAsync<WebhookSettingsData>(Category).GetAwaiter().GetResult();
+            return await _store.GetDocumentAsync<WebhookSettingsData>(Category, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load webhook settings from store");
+            return null;
+        }
+    }
+
+    /// <summary>Load webhook settings from store.</summary>
+    public WebhookSettingsData? Load()
+    {
+        if (_initialized && _cachedData != null)
+            return _cachedData;
+
+        try
+        {
+            _cachedData = _store.GetDocumentAsync<WebhookSettingsData>(Category).GetAwaiter().GetResult();
+            _initialized = true;
+            return _cachedData;
         }
         catch (Exception ex)
         {
@@ -39,6 +80,7 @@ public class WebhookSettingsPersistenceService
         try
         {
             _store.SetDocumentAsync(Category, data).GetAwaiter().GetResult();
+            _cachedData = data;
             _logger.LogInformation("Webhook settings saved");
             return true;
         }

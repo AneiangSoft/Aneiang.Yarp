@@ -1,6 +1,7 @@
 using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Dashboard.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Buffers;
 using System.Text.Json;
@@ -17,6 +18,7 @@ public class WebSocketLogController : Controller
     private readonly IProxyLogStore _logStore;
     private readonly string? _jwtSecret;
     private readonly bool _hasAuth;
+    private readonly ILogger<WebSocketLogController> _logger;
 
     // Use source generator context for optimized serialization (replaces JsonSerializerOptions)
     private static readonly DashboardJsonContext _jsonContext = DashboardJsonContext.DefaultContext;
@@ -40,11 +42,12 @@ public class WebSocketLogController : Controller
     };
 
     /// <summary>Initializes a new instance of WebSocketLogController.</summary>
-    public WebSocketLogController(IProxyLogStore logStore, IOptions<DashboardOptions> options)
+    public WebSocketLogController(IProxyLogStore logStore, IOptions<DashboardOptions> options, ILogger<WebSocketLogController> logger)
     {
         _logStore = logStore;
         _jwtSecret = options.Value.JwtSecret;
         _hasAuth = !string.IsNullOrEmpty(_jwtSecret);
+        _logger = logger;
     }
 
     /// <summary>
@@ -134,7 +137,9 @@ public class WebSocketLogController : Controller
         {
             ArrayPool<byte>.Shared.Return(buffer);
             cts.Cancel();
-            try { await heartbeatTask; } catch { }
+            try { await heartbeatTask; }
+            catch (OperationCanceledException) { /* Expected on shutdown */ }
+            catch (Exception ex) { _logger.LogDebug(ex, "Heartbeat task ended unexpectedly"); }
         }
     }
 
@@ -159,7 +164,18 @@ public class WebSocketLogController : Controller
                 }
             }
         }
-        catch { /* Ignore disconnect/shutdown errors */ }
+        catch (OperationCanceledException)
+        {
+            // Expected on shutdown
+        }
+        catch (System.Net.WebSockets.WebSocketException)
+        {
+            // Client disconnected
+        }
+        catch (Exception)
+        {
+            // Ignore other errors (network issues, etc.)
+        }
     }
 
     /// <summary>

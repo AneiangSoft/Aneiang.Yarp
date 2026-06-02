@@ -69,6 +69,14 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<IConfigChangeAuditLog, ConfigChangeAuditLog>();
         services.AddSingleton<IDynamicConfigPersistenceService, DynamicConfigPersistenceService>();
 
+        // Preload dynamic config to avoid sync-over-async deadlocks
+        services.AddHostedService<DynamicConfigPreloadService>();
+
+        // Webhook settings persistence (also needs preload)
+        services.AddSingleton<WebhookSettingsPersistenceService>();
+        services.AddHostedService(sp => new WebhookSettingsPreloadService(
+            sp.GetRequiredService<WebhookSettingsPersistenceService>()));
+
         // Rate limiting
         services.AddSingleton<RateLimitConfigProvider>();
         services.AddRateLimiter(_ => { });
