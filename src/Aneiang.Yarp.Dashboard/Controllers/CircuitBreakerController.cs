@@ -6,12 +6,13 @@ namespace Aneiang.Yarp.Dashboard.Controllers;
 /// <summary>
 /// API controller for circuit breaker status monitoring and management.
 /// </summary>
+[Route("circuit-breaker")]
 public class CircuitBreakerController : Controller
 {
     /// <summary>
     /// Get circuit breaker status for all clusters.
     /// </summary>
-    [HttpGet("circuit-breaker/status")]
+    [HttpGet("status")]
     public IActionResult GetCircuitBreakerStatus()
     {
         var states = CircuitBreakerMiddleware.GetAllCircuitStates();
@@ -21,7 +22,7 @@ public class CircuitBreakerController : Controller
     /// <summary>
     /// Reset all circuit breakers to Closed state.
     /// </summary>
-    [HttpPost("circuit-breaker/reset")]
+    [HttpPost("reset")]
     public IActionResult ResetCircuitBreakers()
     {
         CircuitBreakerMiddleware.ResetAll();

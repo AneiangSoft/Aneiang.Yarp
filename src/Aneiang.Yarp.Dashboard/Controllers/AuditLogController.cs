@@ -9,6 +9,7 @@ namespace Aneiang.Yarp.Dashboard.Controllers;
 /// API controller for accessing configuration change audit logs.
 /// Exposes the in-memory IConfigChangeAuditLog data to the dashboard UI.
 /// </summary>
+[Route("audit-logs")]
 public class AuditLogController : Controller
 {
     private readonly IConfigChangeAuditLog _auditLog;
@@ -25,7 +26,7 @@ public class AuditLogController : Controller
     /// <param name="count">Maximum number of entries to return (default 50, max 200).</param>
     /// <param name="action">Optional filter by action type (e.g. "AddRoute", "RemoveCluster").</param>
     /// <returns>Audit log entries in reverse chronological order.</returns>
-    [HttpGet("audit-logs")]
+    [HttpGet]
     public IActionResult GetAuditLogs([FromQuery] int count = 50, [FromQuery] string? action = null)
     {
         count = Math.Clamp(count, 1, 200);
@@ -53,7 +54,7 @@ public class AuditLogController : Controller
     /// <summary>
     /// Get available action types for filtering.
     /// </summary>
-    [HttpGet("audit-logs/actions")]
+    [HttpGet("actions")]
     public IActionResult GetActionTypes()
     {
         var entries = _auditLog.GetRecent(200);

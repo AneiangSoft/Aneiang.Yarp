@@ -17,7 +17,9 @@
         topIssues: '/api/operations/top-issues',
         healthSummary: '/api/operations/health-summary',
         snapshot: '/api/operations/snapshot',
-        emergencyDisable: '/api/operations/emergency-disable-route'
+        emergencyDisable: '/api/operations/emergency-disable-route',
+        emergencyEnable: '/api/operations/emergency-enable-route',
+        routeList: '/api/operations/routes'
     };
 
     /**
@@ -38,9 +40,13 @@
             DashboardApi.endpoints.getTopIssues = function(count) { return DashboardApi.get(endpoints.topIssues + '?count=' + (count || 5)); };
             DashboardApi.endpoints.getHealthSummary = function() { return DashboardApi.get(endpoints.healthSummary); };
             DashboardApi.endpoints.exportSnapshot = function() { return DashboardApi.get(endpoints.snapshot); };
-            DashboardApi.endpoints.emergencyDisableRoute = function(routeId) { 
-                return DashboardApi.post(endpoints.emergencyDisable + '/' + encodeURIComponent(routeId), {}); 
+            DashboardApi.endpoints.emergencyDisableRoute = function(routeId) {
+                return DashboardApi.post(endpoints.emergencyDisable + '/' + encodeURIComponent(routeId), {});
             };
+            DashboardApi.endpoints.emergencyEnableRoute = function(routeId) {
+                return DashboardApi.post(endpoints.emergencyEnable + '/' + encodeURIComponent(routeId), {});
+            };
+            DashboardApi.endpoints.getRouteList = function() { return DashboardApi.get(endpoints.routeList); };
         }
     }
 
@@ -267,25 +273,169 @@
     }
 
     /**
-     * Emergency disable a route
-     * 紧急禁用路由
+     * Emergency disable a route - shows a modal with route list
+     * 紧急禁用路由 - 显示路由列表弹窗
      */
     async function emergencyDisable() {
-        var routeId = prompt(__('overview.quickActions.promptRouteId') || '请输入要禁用的路由ID:');
+        try {
+            // Load route list
+            var result = await DashboardApi.endpoints.getRouteList();
+            if (result.code !== 200 || !result.data) {
+                alert(__('overview.quickActions.loadFailed') || '加载路由列表失败');
+                return;
+            }
+
+            var routes = result.data || [];
+            var disabledRoutes = routes.filter(function(r) { return r.disabled; });
+            var enabledRoutes = routes.filter(function(r) { return !r.disabled; });
+
+            // Show modal to select route
+            var modalHtml = createRouteSelectModal(enabledRoutes, 'disable');
+            showModal(modalHtml, function(selectedRouteId) {
+                if (selectedRouteId) {
+                    confirmAndDisableRoute(selectedRouteId);
+                }
+            });
+        } catch (e) {
+            console.error('[OpsModule] Failed to load routes:', e);
+            alert(__('overview.quickActions.loadFailed') || '加载失败');
+        }
+    }
+
+    /**
+     * Create route selection modal HTML
+     */
+    function createRouteSelectModal(routes, action) {
+        var isDisable = action === 'disable';
+        var title = isDisable ? __('overview.quickActions.selectDisable') || '选择要禁用的路由' : __('overview.quickActions.selectEnable') || '选择要启用的路由';
+        var btnClass = isDisable ? 'btn-danger' : 'btn-success';
+        var btnText = isDisable ? __('overview.quickActions.disable') || '禁用' : __('overview.quickActions.enable') || '启用';
+
+        var routeOptions = routes.map(function(r) {
+            return '<option value="' + escapeHtml(r.routeId) + '">' +
+                   escapeHtml(r.routeId) + ' → ' + escapeHtml(r.clusterId || '-') + ' (' + escapeHtml(r.matchPath || '-') + ')' +
+                   '</option>';
+        }).join('');
+
+        if (routes.length === 0) {
+            routeOptions = '<option value="">' + (isDisable ? __('overview.quickActions.noEnabledRoutes') || '没有可禁用的路由' : __('overview.quickActions.noDisabledRoutes') || '没有已禁用的路由') + '</option>';
+        }
+
+        return '<div class="modal fade" id="route-select-modal" tabindex="-1">' +
+            '<div class="modal-dialog modal-dialog-centered">' +
+                '<div class="modal-content">' +
+                    '<div class="modal-header">' +
+                        '<h5 class="modal-title">' + title + '</h5>' +
+                        '<button type="button" class="btn-close" data-bs-dismiss="modal"></button>' +
+                    '</div>' +
+                    '<div class="modal-body">' +
+                        '<select id="route-select" class="form-select" size="10" style="width:100%;">' +
+                            routeOptions +
+                        '</select>' +
+                    '</div>' +
+                    '<div class="modal-footer">' +
+                        '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">' + __('modal.cancelBtn') + '</button>' +
+                        '<button type="button" class="btn ' + btnClass + '" id="confirm-route-action">' + btnText + '</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+    }
+
+    /**
+     * Show modal and handle selection
+     */
+    function showModal(html, onConfirm) {
+        var existingModal = document.getElementById('route-select-modal');
+        if (existingModal) existingModal.remove();
+
+        document.body.insertAdjacentHTML('beforeend', html);
+        var modalEl = document.getElementById('route-select-modal');
+        var modal = new bootstrap.Modal(modalEl);
+
+        document.getElementById('confirm-route-action').onclick = function() {
+            var select = document.getElementById('route-select');
+            var selectedId = select.value;
+            modal.hide();
+            setTimeout(function() { modalEl.remove(); }, 300);
+            if (onConfirm) onConfirm(selectedId);
+        };
+
+        modal.show();
+    }
+
+    /**
+     * Confirm and disable a route
+     */
+    async function confirmAndDisableRoute(routeId) {
         if (!routeId) return;
 
-        if (!confirm(__('overview.quickActions.confirmDisable') || '确认紧急禁用路由 ' + routeId + '?')) return;
+        var confirmed = confirm((__('overview.quickActions.confirmDisable') || '确认紧急禁用路由') + ' ' + routeId + '?');
+        if (!confirmed) return;
 
         try {
             var result = await DashboardApi.endpoints.emergencyDisableRoute(routeId);
             if (result.code === 200) {
-                alert(__('overview.quickActions.disabledSuccess') || '路由已禁用');
+                alert((__('overview.quickActions.disabledSuccess') || '路由已禁用') + ': ' + routeId);
+                // Refresh overview page
+                if (window.DashboardApp && DashboardApp.modules && DashboardApp.modules.home) {
+                    DashboardApp.modules.home.load();
+                }
             } else {
-                alert(__('overview.quickActions.disabledFailed') || '禁用失败: ' + result.message);
+                alert((__('overview.quickActions.disabledFailed') || '禁用失败') + ': ' + (result.message || ''));
             }
         } catch (e) {
             console.error('[OpsModule] Emergency disable failed:', e);
-            alert(__('overview.quickActions.disabledFailed') || '禁用失败');
+            alert((__('overview.quickActions.disabledFailed') || '禁用失败'));
+        }
+    }
+
+    /**
+     * Emergency enable a route - shows a modal with disabled route list
+     * 紧急启用路由 - 显示已禁用路由列表弹窗
+     */
+    async function emergencyEnable() {
+        try {
+            var result = await DashboardApi.endpoints.getRouteList();
+            if (result.code !== 200 || !result.data) {
+                alert(__('overview.quickActions.loadFailed') || '加载路由列表失败');
+                return;
+            }
+
+            var routes = result.data || [];
+            var disabledRoutes = routes.filter(function(r) { return r.disabled; });
+
+            var modalHtml = createRouteSelectModal(disabledRoutes, 'enable');
+            showModal(modalHtml, function(selectedRouteId) {
+                if (selectedRouteId) {
+                    confirmAndEnableRoute(selectedRouteId);
+                }
+            });
+        } catch (e) {
+            console.error('[OpsModule] Failed to load routes:', e);
+            alert(__('overview.quickActions.loadFailed') || '加载失败');
+        }
+    }
+
+    /**
+     * Confirm and enable a route
+     */
+    async function confirmAndEnableRoute(routeId) {
+        if (!routeId) return;
+
+        try {
+            var result = await DashboardApi.endpoints.emergencyEnableRoute(routeId);
+            if (result.code === 200) {
+                alert((__('overview.quickActions.enabledSuccess') || '路由已启用') + ': ' + routeId);
+                if (window.DashboardApp && DashboardApp.modules && DashboardApp.modules.home) {
+                    DashboardApp.modules.home.load();
+                }
+            } else {
+                alert((__('overview.quickActions.enabledFailed') || '启用失败') + ': ' + (result.message || ''));
+            }
+        } catch (e) {
+            console.error('[OpsModule] Emergency enable failed:', e);
+            alert((__('overview.quickActions.enabledFailed') || '启用失败'));
         }
     }
 
@@ -369,6 +519,7 @@
         loadTopErrors: loadTopErrors,
         changeTimeRange: changeTimeRange,
         emergencyDisable: emergencyDisable,
+        emergencyEnable: emergencyEnable,
         refreshHealth: refreshHealth,
         exportSnapshot: exportSnapshot
     };

@@ -26,6 +26,7 @@
                     window.DashboardApi.endpoints.getRateLimitStatus().catch(() => ({ enabled: false }))
                 ]);
 
+                // DashboardApi unwraps { code: 200, data: {...} } and converts PascalCase to camelCase
                 if (!data || !data.hasData) {
                     this.renderNoData(container);
                     return;

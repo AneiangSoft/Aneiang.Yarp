@@ -1165,6 +1165,87 @@ public class DynamicYarpConfigService
     public GatewayDynamicConfig? GetDynamicConfig() => _dynamicConfig;
 
     /// <summary>
+    /// Enable or disable a route by setting/removing the "Disabled" metadata flag.
+    /// </summary>
+    /// <param name="routeId">Route ID to modify.</param>
+    /// <param name="disable">True to disable, false to enable.</param>
+    /// <returns>Route operation result.</returns>
+    public async Task<RouteOperationResult> TrySetRouteDisabled(string routeId, bool disable, string? source = null, string? createdBy = null)
+    {
+        if (string.IsNullOrWhiteSpace(routeId))
+            return new RouteOperationResult(false, "Route ID cannot be empty");
+
+        _rwLock.EnterWriteLock();
+        try
+        {
+            var config = _configProvider.GetConfig();
+            var routes = config.Routes?.ToList() ?? new List<RouteConfig>();
+            var routeIdx = routes.FindIndex(r => string.Equals(r.RouteId, routeId, StringComparison.OrdinalIgnoreCase));
+
+            if (routeIdx < 0)
+            {
+                _auditLog.RecordFailure("DisableRoute", routeId, $"Route '{routeId}' not found", createdBy);
+                return new RouteOperationResult(false, $"Route '{routeId}' not found");
+            }
+
+            var route = routes[routeIdx];
+            var metadata = route.Metadata as Dictionary<string, string> ?? new Dictionary<string, string>();
+
+            if (disable)
+            {
+                metadata["Disabled"] = "true";
+                _logger.LogWarning("Route '{RouteId}' has been DISABLED by {Source}", routeId, source ?? "unknown");
+                _auditLog.RecordSuccess("DisableRoute", routeId, createdBy, null,
+                    $"Route '{routeId}' was disabled", null);
+            }
+            else
+            {
+                metadata.Remove("Disabled");
+                _logger.LogInformation("Route '{RouteId}' has been ENABLED by {Source}", routeId, source ?? "unknown");
+                _auditLog.RecordSuccess("EnableRoute", routeId, createdBy, null,
+                    $"Route '{routeId}' was enabled", null);
+            }
+
+            routes[routeIdx] = new RouteConfig
+            {
+                RouteId = route.RouteId,
+                ClusterId = route.ClusterId,
+                Match = route.Match,
+                Order = route.Order,
+                Transforms = route.Transforms,
+                Metadata = metadata.Count > 0 ? metadata : null
+            };
+
+            _configProvider.Update(routes, config.Clusters ?? Array.Empty<ClusterConfig>());
+            _persistence.SaveConfig(new GatewayDynamicConfig
+            {
+                Routes = routes.Select(r => new DynamicRouteConfig
+                {
+                    RouteId = r.RouteId,
+                    ClusterId = r.ClusterId,
+                    MatchPath = r.Match?.Path ?? string.Empty,
+                    Order = r.Order ?? 0,
+                    Metadata = r.Metadata as Dictionary<string, string>
+                }).ToList(),
+                Clusters = (config.Clusters ?? Array.Empty<ClusterConfig>()).Select(c => new DynamicClusterConfig
+                {
+                    ClusterId = c.ClusterId,
+                    Destinations = c.Destinations?.ToDictionary(d => d.Key, d => d.Value.Address ?? string.Empty)
+                        ?? new Dictionary<string, string>()
+                }).ToList()
+            });
+
+            Interlocked.Increment(ref _configVersion);
+            return new RouteOperationResult(true,
+                disable ? $"Route '{routeId}' has been disabled" : $"Route '{routeId}' has been enabled");
+        }
+        finally
+        {
+            _rwLock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>
     /// Add a new cluster independently.
     /// </summary>
     /// <param name="request">Cluster creation request.</param>

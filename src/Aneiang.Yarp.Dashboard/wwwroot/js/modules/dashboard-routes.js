@@ -324,12 +324,13 @@
                 var hostText = route.match && route.match.hosts && route.match.hosts.length > 0 ? route.match.hosts[0] : '';
                 var hasTransforms = route.transforms && route.transforms.length > 0;
                 var hasAuthorization = route.authorizationPolicy || route.authorizationPolicy === '';
+                var isDisabled = route.metadata && route.metadata.Disabled === 'true';
 
                 // Determine card accent color by cluster
-                var accentColor = route.clusterId ? '#3b82f6' : '#94a3b8';
+                var accentColor = isDisabled ? '#94a3b8' : (route.clusterId ? '#3b82f6' : '#94a3b8');
 
                 html += '<div style="border:1px solid var(--border-color);border-left:4px solid ' + accentColor +
-                    ';border-radius:12px;background:var(--card-bg);overflow:hidden;transition:box-shadow 0.2s,transform 0.15s;cursor:pointer;"' +
+                    ';border-radius:12px;background:var(--card-bg);overflow:hidden;transition:box-shadow 0.2s,transform 0.15s;cursor:pointer;' + (isDisabled ? 'opacity:0.7;' : '') + '"' +
                     ' onmouseover="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.08)\';this.style.transform=\'translateY(-1px)\'"' +
                     ' onmouseout="this.style.boxShadow=\'none\';this.style.transform=\'none\'"' +
                     ' onclick="window.DashboardApp.modules.routes.toggleRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')"' +
@@ -353,6 +354,9 @@
                 html += '<div style="font-weight:600;font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '</div>';
                 html += '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;">';
                 html += '<span>' + (window.DashboardUtils ? DashboardUtils.createSourceBadge(route.source) : route.source || '-') + '</span>';
+                if (isDisabled) {
+                    html += '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:#e2e8f0;color:#64748b;border:1px solid #cbd5e1;" title="' + (window.__ && __("index.route.disabled") || "已禁用") + '"><i class="bi bi-ban me-1"></i>' + (window.__ && __("index.route.disabledShort") || "禁用") + '</span>';
+                }
                 if (hostText) {
                     html += '<span style="color:#cbd5e1;">|</span><span style="font-size:11px;color:#64748b;"><i class="bi bi-globe me-1"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(hostText) : hostText) + '</span>';
                 }
@@ -366,8 +370,13 @@
 
                 // Action buttons
                 html += '<div style="display:flex;gap:4px;flex-shrink:0;" onclick="event.stopPropagation()">';
-                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--primary-color);transition:background 0.15s;" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.showEditModal(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + __('index.route.edit') + '"><i class="bi bi-pencil"></i></button>';
-                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:#ef4444;transition:background 0.15s;" onmouseover="this.style.background=\'#fef2f2\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.deleteRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + __('index.route.delete') + '"><i class="bi bi-trash"></i></button>';
+                // Enable/Disable button
+                var toggleBtnClass = isDisabled ? 'background:#f0fdf4;color:#22c55e;border-color:#bbf7d0;' : 'background:#fffbeb;color:#f59e0b;border-color:#fde68a;';
+                var toggleBtnIcon = isDisabled ? 'bi bi-play-fill' : 'bi bi-pause-fill';
+                var toggleTitle = isDisabled ? ((window.__ && __("index.route.enable")) || "启用") : ((window.__ && __("index.route.disable")) || "禁用");
+                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--primary-color);transition:background 0.15s;' + toggleBtnClass + '" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.toggleRouteEnabled(\'' + (route.routeId || '').replace(/'/g, "\\'") + ', ' + !isDisabled + ')" title="' + toggleTitle + '"><i class="bi ' + toggleBtnIcon + '"></i></button>';
+                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--primary-color);transition:background 0.15s;" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.showEditModal(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + ((window.__ && __("index.route.edit")) || "编辑") + '"><i class="bi bi-pencil"></i></button>';
+                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:#ef4444;transition:background 0.15s;" onmouseover="this.style.background=\'#fef2f2\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.deleteRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + ((window.__ && __("index.route.delete")) || "删除") + '"><i class="bi bi-trash"></i></button>';
                 html += '</div></div>';
 
                 // Card body
@@ -448,8 +457,9 @@
 
         // ===== Create Route Main Row =====
         createRouteMainRow: function(route, isExpanded) {
+            var isDisabled = route.metadata && route.metadata.Disabled === 'true';
             var tr = window.DashboardDOM.create('tr', {
-                className: 'route-row',
+                className: 'route-row' + (isDisabled ? ' route-disabled' : ''),
                 attributes: { 'data-route-id': route.routeId },
                 style: { cursor: 'pointer' }
             });
@@ -492,6 +502,18 @@
             nameStrong.textContent = route.routeId;
             nameStrong.title = route.routeId;
             nameDiv.appendChild(nameStrong);
+
+            // Disabled indicator
+            var isDisabled = route.metadata && route.metadata.Disabled === 'true';
+            if (isDisabled) {
+                var disabledBadge = document.createElement('span');
+                disabledBadge.className = 'badge bg-secondary ms-1';
+                disabledBadge.style.cssText = 'font-size:10px;padding:2px 5px;';
+                disabledBadge.title = __('index.route.disabled') || '已禁用';
+                disabledBadge.innerHTML = '<i class="bi bi-ban me-1"></i>' + (__('index.route.disabledShort') || '禁用');
+                nameDiv.appendChild(disabledBadge);
+            }
+
             var sourceSpan = document.createElement('span');
             sourceSpan.innerHTML = this.createSourceBadge(route.source);
             nameDiv.appendChild(sourceSpan);
@@ -656,6 +678,26 @@
                 className: 'btn-group btn-group-sm'
             });
 
+            // Check if route is disabled
+            const isDisabled = route.metadata && route.metadata.Disabled === 'true';
+
+            // Disable/Enable button
+            const toggleBtn = window.DashboardDOM.create('button', {
+                className: isDisabled ? 'btn btn-outline-success' : 'btn btn-outline-warning',
+                attributes: { title: isDisabled ? __('index.route.enable') : __('index.route.disable') },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        this.toggleRouteEnabled(route.routeId, !isDisabled);
+                    }
+                }
+            });
+            const toggleIcon = window.DashboardDOM.create('i', {
+                className: isDisabled ? 'bi bi-play-fill' : 'bi bi-pause-fill'
+            });
+            toggleBtn.appendChild(toggleIcon);
+            container.appendChild(toggleBtn);
+
             // Edit button
             const editBtn = window.DashboardDOM.create('button', {
                 className: 'btn btn-outline-primary',
@@ -691,6 +733,31 @@
             container.appendChild(deleteBtn);
 
             return container;
+        },
+
+        // ===== Toggle Route Enabled/Disabled =====
+        toggleRouteEnabled: async function(routeId, enable) {
+            const action = enable ? 'enable' : 'disable';
+            const confirmed = confirm(
+                (enable ? __('index.route.confirmEnable') || '确认启用路由' : __('index.route.confirmDisable') || '确认禁用路由') +
+                ' ' + routeId + '?'
+            );
+            if (!confirmed) return;
+
+            try {
+                const endpoint = enable ? '/api/operations/emergency-enable-route' : '/api/operations/emergency-disable-route';
+                const result = await window.DashboardApi.post(endpoint + '/' + encodeURIComponent(routeId), {});
+
+                if (result.code === 200) {
+                    alert((enable ? __('index.route.enabledSuccess') || '路由已启用' : __('index.route.disabledSuccess') || '路由已禁用') + ': ' + routeId);
+                    await this.loadRoutes();
+                } else {
+                    alert((enable ? __('index.route.enabledFailed') || '启用失败' : __('index.route.disabledFailed') || '禁用失败') + ': ' + (result.message || ''));
+                }
+            } catch (e) {
+                console.error('[Routes] Toggle route failed:', e);
+                alert(enable ? __('index.route.enabledFailed') || '启用失败' : __('index.route.disabledFailed') || '禁用失败');
+            }
         },
 
         // ===== Create Route Detail Row =====
