@@ -192,16 +192,16 @@
         }
 
         function updateSummaryCards(data) {
-            // C# returns PascalCase property names (TotalRequests, SuccessRate, etc.)
-            if (!data || data.HasData === false) {
+            // DashboardApi unwraps { code: 200, data: {...} } and converts PascalCase to camelCase
+            if (!data || data.hasData === false) {
                 showNoData();
                 return;
             }
 
-            updateElement('stat-total-requests', data.TotalRequests?.toLocaleString() || '0');
-            updateElement('stat-success-rate', (data.SuccessRate || 0) + '%');
-            updateElement('stat-avg-latency', (data.AvgLatency || 0) + 'ms');
-            updateElement('stat-rpm', data.RequestsPerMin || '0');
+            updateElement('stat-total-requests', (data.totalRequests || 0).toLocaleString());
+            updateElement('stat-success-rate', (data.successRate || 0) + '%');
+            updateElement('stat-avg-latency', (data.avgLatency || 0) + 'ms');
+            updateElement('stat-rpm', data.requestsPerMin || '0');
         }
 
         function renderQpsChart(data) {
@@ -210,8 +210,8 @@
 
             if (qpsChart) qpsChart.destroy();
 
-            // Check if we have valid data (PascalCase: Labels, Qps)
-            if (!data || !data.Labels || data.Labels.length === 0) {
+            // DashboardApi converts PascalCase to camelCase (Labels, Qps -> labels, qps)
+            if (!data || !data.labels || data.labels.length === 0) {
                 ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">暂无数据</div>';
                 return;
             }
@@ -219,10 +219,10 @@
             qpsChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: data.Labels,
+                    labels: data.labels,
                     datasets: [{
                         label: 'QPS',
-                        data: data.Qps,
+                        data: data.qps,
                         borderColor: '#6366f1',
                         backgroundColor: 'rgba(99, 102, 241, 0.1)',
                         fill: true,
@@ -251,15 +251,15 @@
             if (latencyChart) latencyChart.destroy();
 
             // If no data, show empty message
-            if (!data || data.HasData === false) {
+            if (!data || data.hasData === false) {
                 ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">暂无数据</div>';
                 return;
             }
 
-            // Use aggregated P50/P90/P99 from stats API (PascalCase)
-            var p50 = data.P50 || 0;
-            var p90 = data.P90 || 0;
-            var p99 = data.P99 || 0;
+            // Use aggregated P50/P90/P99 from stats API (camelCase)
+            var p50 = data.p50 || 0;
+            var p90 = data.p90 || 0;
+            var p99 = data.p99 || 0;
 
             latencyChart = new Chart(ctx, {
                 type: 'bar',
@@ -300,21 +300,21 @@
 
             if (errorChart) errorChart.destroy();
 
-            // Check if we have valid data (PascalCase)
-            if (!data || !data.Labels || data.Labels.length === 0) {
+            // DashboardApi converts PascalCase to camelCase (Labels, Errors)
+            if (!data || !data.labels || data.labels.length === 0) {
                 ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">暂无数据</div>';
                 return;
             }
 
-            var errorRates = data.Qps.map((qps, i) => {
+            var errorRates = data.qps.map(function(qps, i) {
                 if (qps === 0) return 0;
-                return Math.round((data.Errors[i] / qps) * 100);
+                return Math.round((data.errors[i] / qps) * 100);
             });
 
             errorChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: data.Labels,
+                    labels: data.labels,
                     datasets: [{
                         label: '错误率 (%)',
                         data: errorRates,
@@ -331,7 +331,7 @@
                     plugins: { legend: { display: false } },
                     scales: {
                         x: { grid: { display: false }, ticks: { maxTicksLimit: 6, font: { size: 10 } } },
-                        y: { beginAtZero: true, max: 100, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 }, callback: v => v + '%' } }
+                        y: { beginAtZero: true, max: 100, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 }, callback: function(v) { return v + '%'; } } }
                     }
                 }
             });
@@ -344,17 +344,17 @@
 
             if (statusChart) statusChart.destroy();
 
-            // If no data, show empty message
-            if (!data || data.HasData === false || !data.StatusCodes || data.StatusCodes.length === 0) {
+            // If no data, show empty message (camelCase: hasData, statusCodes)
+            if (!data || data.hasData === false || !data.statusCodes || data.statusCodes.length === 0) {
                 ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">暂无数据</div>';
                 return;
             }
 
-            // Aggregate status codes into 2xx, 4xx, 5xx (PascalCase: Code, Count)
+            // Aggregate status codes into 2xx, 4xx, 5xx (camelCase: code, count)
             var count2xx = 0, count4xx = 0, count5xx = 0;
-            data.StatusCodes.forEach(function(item) {
-                var code = item.Code;
-                var count = item.Count || 0;
+            data.statusCodes.forEach(function(item) {
+                var code = item.code;
+                var count = item.count || 0;
                 if (code >= 200 && code < 300) count2xx += count;
                 else if (code >= 400 && code < 500) count4xx += count;
                 else if (code >= 500) count5xx += count;

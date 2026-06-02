@@ -1,6 +1,8 @@
+using Aneiang.Yarp.Dashboard.Middleware;
 using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Dashboard.Models.Dtos;
 using Aneiang.Yarp.Dashboard.Services;
+using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Aneiang.Yarp.Dashboard.Controllers;
@@ -15,13 +17,19 @@ public class OperationsController : ControllerBase
 {
     private readonly IDashboardLogQueryService _logQuery;
     private readonly IDashboardClusterQueryService _clusterQuery;
+    private readonly IDashboardRouteQueryService _routeQuery;
+    private readonly DynamicYarpConfigService _dynamicConfig;
 
     public OperationsController(
         IDashboardLogQueryService logQuery,
-        IDashboardClusterQueryService clusterQuery)
+        IDashboardClusterQueryService clusterQuery,
+        IDashboardRouteQueryService routeQuery,
+        DynamicYarpConfigService dynamicConfig)
     {
         _logQuery = logQuery;
         _clusterQuery = clusterQuery;
+        _routeQuery = routeQuery;
+        _dynamicConfig = dynamicConfig;
     }
 
     /// <summary>
@@ -249,10 +257,66 @@ public class OperationsController : ControllerBase
     /// 紧急禁用路由
     /// </summary>
     [HttpPost("emergency-disable-route/{routeId}")]
-    public IActionResult EmergencyDisableRoute(string routeId)
+    public async Task<IActionResult> EmergencyDisableRoute(string routeId)
     {
-        // This is a placeholder - actual implementation would modify route config
-        return Ok(new { code = 200, message = $"Route {routeId} emergency disabled", data = new { routeId, action = "disabled", timestamp = DateTime.Now } });
+        if (string.IsNullOrWhiteSpace(routeId))
+            return BadRequest(new { code = 400, message = "Route ID is required" });
+
+        var clientIp = GetClientIp();
+        var result = await _dynamicConfig.TrySetRouteDisabled(routeId, true, "emergency", clientIp);
+
+        return result.Success
+            ? Ok(new { code = 200, message = result.Message, data = new { routeId, action = "disabled", timestamp = DateTime.Now } })
+            : BadRequest(new { code = 400, message = result.Message });
+    }
+
+    /// <summary>
+    /// Re-enable a disabled route.
+    /// 重新启用路由
+    /// </summary>
+    [HttpPost("emergency-enable-route/{routeId}")]
+    public async Task<IActionResult> EmergencyEnableRoute(string routeId)
+    {
+        if (string.IsNullOrWhiteSpace(routeId))
+            return BadRequest(new { code = 400, message = "Route ID is required" });
+
+        var clientIp = GetClientIp();
+        var result = await _dynamicConfig.TrySetRouteDisabled(routeId, false, "emergency", clientIp);
+
+        return result.Success
+            ? Ok(new { code = 200, message = result.Message, data = new { routeId, action = "enabled", timestamp = DateTime.Now } })
+            : BadRequest(new { code = 400, message = result.Message });
+    }
+
+    /// <summary>
+    /// Get list of all routes with their enabled/disabled status.
+    /// 获取所有路由及其启用/禁用状态
+    /// </summary>
+    [HttpGet("routes")]
+    public IActionResult GetAllRoutesWithStatus()
+    {
+        var routes = _routeQuery.GetRoutes();
+        var routeList = routes.Select(r => new
+        {
+            routeId = r.RouteId,
+            clusterId = r.ClusterId,
+            matchPath = r.Match?.Path,
+            disabled = r.Metadata?.ContainsKey("Disabled") == true && r.Metadata["Disabled"] == "true"
+        }).ToList();
+
+        return Ok(new { code = 200, data = routeList });
+    }
+
+    private string? GetClientIp()
+    {
+        var ip = HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(ip))
+            return ip.Split(',', StringSplitOptions.TrimEntries)[0];
+
+        ip = HttpContext.Request.Headers["X-Real-IP"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(ip)) return ip;
+
+        return HttpContext.Connection.RemoteIpAddress?.ToString();
     }
 
     /// <summary>
@@ -294,18 +358,15 @@ public class OperationsController : ControllerBase
 
     private int CountCircuitBreakers()
     {
-        // Simplified circuit breaker count - can be enhanced with actual circuit breaker state
-        var clusters = _clusterQuery.GetClusters();
-        int count = 0;
-        foreach (var cluster in clusters)
+        // Query real circuit breaker states from CircuitBreakerMiddleware
+        var allStates = CircuitBreakerMiddleware.GetAllCircuitStates();
+        int openCount = 0;
+        foreach (var state in allStates.Values)
         {
-            // Check if cluster has destinations with consecutive failures
-            if (cluster.Destinations != null)
-            {
-                count += cluster.Destinations.Count(d => IsUnhealthy(d.Health));
-            }
+            if (state.Status == "Open" || state.Status == "HalfOpen")
+                openCount++;
         }
-        return count;
+        return openCount;
     }
 
     private static bool IsUnhealthy(string? health)
