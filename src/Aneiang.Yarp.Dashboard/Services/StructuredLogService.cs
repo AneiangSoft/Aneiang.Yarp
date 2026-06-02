@@ -2,6 +2,8 @@ using Aneiang.Yarp.Dashboard.Models;
 using System.Threading.Channels;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Data.Sqlite;
+using System.Text.Json;
 
 namespace Aneiang.Yarp.Dashboard.Services;
 
@@ -35,6 +37,21 @@ public class StructuredLogService : IHostedService, IDisposable
     // Tiered storage
     private readonly string? _archivePath;
     private readonly bool _enablePersistence;
+    private readonly string? _sqliteConnectionString;
+    private readonly SemaphoreSlim _persistLock = new(1, 1);
+    private bool _persistenceInitialized;
+
+    // File archive rotation
+    private readonly int _maxArchiveFileSizeMb;
+    private readonly int _maxArchiveDays;
+    private string? _currentArchiveFile;
+    private long _currentArchiveSize;
+
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    };
 
     public StructuredLogService(
         ProxyLogStore ringBuffer,
@@ -56,6 +73,14 @@ public class StructuredLogService : IHostedService, IDisposable
         {
             _archivePath = configuration?.GetValue<string>("Dashboard:LogArchivePath") ?? "logs/archive";
             Directory.CreateDirectory(_archivePath);
+
+            // SQLite for searchable warm storage
+            var dbPath = Path.Combine(_archivePath, "logs.db");
+            _sqliteConnectionString = $"Data Source={dbPath}";
+
+            // Archive rotation settings
+            _maxArchiveFileSizeMb = configuration?.GetValue<int>("Dashboard:MaxArchiveFileSizeMb") ?? 100;
+            _maxArchiveDays = configuration?.GetValue<int>("Dashboard:MaxArchiveDays") ?? 7;
         }
     }
 
@@ -246,18 +271,204 @@ public class StructuredLogService : IHostedService, IDisposable
     }
 
     /// <summary>
-    /// Persists batch to SQLite and/or archive files.
+    /// Persists batch to SQLite and file archives with rotation support.
     /// </summary>
     private async Task PersistBatchAsync(List<LogEntry> batch, CancellationToken ct)
     {
-        // TODO: Implement SQLite persistence
-        // TODO: Implement file archive rotation
-        await Task.CompletedTask;
+        if (batch.Count == 0) return;
+
+        await _persistLock.WaitAsync(ct);
+        try
+        {
+            // 1. Initialize persistence if needed
+            if (!_persistenceInitialized)
+            {
+                await InitializePersistenceAsync(ct);
+                _persistenceInitialized = true;
+            }
+
+            // 2. Clean up old archives (once per hour is enough, check by file age)
+            await CleanupOldArchivesAsync(ct);
+
+            // 3. Insert to SQLite
+            await InsertToSqliteAsync(batch, ct);
+
+            // 4. Append to rolling file archive
+            await AppendToFileArchiveAsync(batch, ct);
+        }
+        catch (Exception ex)
+        {
+            // Log but don't throw - persistence failure shouldn't break the gateway
+            Console.Error.WriteLine($"[StructuredLogService] Persistence error: {ex.Message}");
+        }
+        finally
+        {
+            _persistLock.Release();
+        }
+    }
+
+    private async Task InitializePersistenceAsync(CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(_sqliteConnectionString)) return;
+
+        await using var conn = new SqliteConnection(_sqliteConnectionString);
+        await conn.OpenAsync(ct);
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            CREATE TABLE IF NOT EXISTS logs (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp  TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                level      TEXT NOT NULL,
+                category   TEXT NOT NULL,
+                message    TEXT,
+                trace_id   TEXT,
+                route_id   TEXT,
+                cluster_id TEXT,
+                method     TEXT,
+                upstream_path TEXT,
+                downstream_url TEXT,
+                status_code INTEGER,
+                elapsed_ms REAL,
+                request_body TEXT,
+                response_body TEXT,
+                exception  TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS ix_logs_timestamp ON logs(timestamp);
+            CREATE INDEX IF NOT EXISTS ix_logs_trace_id ON logs(trace_id);
+            CREATE INDEX IF NOT EXISTS ix_logs_route_id ON logs(route_id);
+            """;
+        await cmd.ExecuteNonQueryAsync(ct);
+
+        Console.WriteLine("[StructuredLogService] SQLite persistence initialized");
+    }
+
+    private async Task InsertToSqliteAsync(List<LogEntry> batch, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(_sqliteConnectionString)) return;
+
+        await using var conn = new SqliteConnection(_sqliteConnectionString);
+        await conn.OpenAsync(ct);
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO logs (timestamp, event_type, level, category, message,
+                trace_id, route_id, cluster_id, method, upstream_path,
+                downstream_url, status_code, elapsed_ms,
+                request_body, response_body, exception)
+            VALUES (@ts, @type, @level, @cat, @msg,
+                @traceId, @routeId, @clusterId, @method, @upstreamPath,
+                @downstreamUrl, @statusCode, @elapsedMs,
+                @requestBody, @responseBody, @exception)
+            """;
+
+        foreach (var entry in batch)
+        {
+            cmd.Parameters.Clear();
+            cmd.Parameters.AddWithValue("@ts", entry.Timestamp.ToString("O"));
+            cmd.Parameters.AddWithValue("@type", entry.EventType.ToString());
+            cmd.Parameters.AddWithValue("@level", entry.Level ?? string.Empty);
+            cmd.Parameters.AddWithValue("@cat", entry.Category ?? string.Empty);
+            cmd.Parameters.AddWithValue("@msg", entry.Message ?? string.Empty);
+            cmd.Parameters.AddWithValue("@traceId", entry.TraceId ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@routeId", entry.RouteId ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@clusterId", entry.ClusterId ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@method", entry.Method ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@upstreamPath", entry.UpstreamPath ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@downstreamUrl", entry.DownstreamUrl ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@statusCode", entry.StatusCode ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@elapsedMs", entry.ElapsedMs ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@requestBody", entry.RequestBody ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@responseBody", entry.ResponseBody ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@exception", entry.Exception ?? (object)DBNull.Value);
+
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+    }
+
+    private async Task AppendToFileArchiveAsync(List<LogEntry> batch, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(_archivePath)) return;
+
+        // Determine current archive file (one per day)
+        var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
+        var archiveFile = Path.Combine(_archivePath, $"logs-{today}.jsonl");
+
+        // Check if we need to rotate (file size limit)
+        if (_currentArchiveFile != archiveFile)
+        {
+            _currentArchiveFile = archiveFile;
+            _currentArchiveSize = File.Exists(archiveFile) ? new FileInfo(archiveFile).Length : 0;
+        }
+
+        var maxFileSize = (long)_maxArchiveFileSizeMb * 1024 * 1024;
+        if (_currentArchiveSize >= maxFileSize)
+        {
+            // Rotate to new file with timestamp suffix
+            var timestamp = DateTime.UtcNow.ToString("HHmmss");
+            archiveFile = Path.Combine(_archivePath, $"logs-{today}-{timestamp}.jsonl");
+            _currentArchiveFile = archiveFile;
+            _currentArchiveSize = 0;
+        }
+
+        // Append entries as JSON Lines
+        var lines = batch.Select(e => JsonSerializer.Serialize(e, _jsonOptions));
+        var content = string.Join('\n', lines) + '\n';
+        var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+
+        await File.AppendAllTextAsync(archiveFile, content, ct);
+        _currentArchiveSize += bytes.Length;
+    }
+
+    private DateTime _lastCleanupTime = DateTime.MinValue;
+
+    private async Task CleanupOldArchivesAsync(CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(_archivePath)) return;
+
+        // Only cleanup once per hour
+        if ((DateTime.UtcNow - _lastCleanupTime).TotalHours < 1) return;
+        _lastCleanupTime = DateTime.UtcNow;
+
+        try
+        {
+            var cutoffDate = DateTime.UtcNow.AddDays(-_maxArchiveDays);
+            var cutoffDateStr = cutoffDate.ToString("yyyy-MM-dd");
+
+            foreach (var file in Directory.EnumerateFiles(_archivePath, "logs-*.jsonl"))
+            {
+                var fileName = Path.GetFileName(file);
+                // Extract date from filename (logs-YYYY-MM-DD*.jsonl)
+                if (fileName.Length >= 15)
+                {
+                    var dateStr = fileName.Substring(5, 10);
+                    if (string.Compare(dateStr, cutoffDateStr, StringComparison.Ordinal) < 0)
+                    {
+                        await Task.Run(() => File.Delete(file), ct);
+                    }
+                }
+            }
+
+            // Also cleanup old SQLite WAL files
+            if (File.Exists(Path.Combine(_archivePath, "logs.db")))
+            {
+                // SQLite will handle WAL cleanup automatically
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[StructuredLogService] Cleanup error: {ex.Message}");
+        }
     }
 
     public void Dispose()
     {
+        _cts.Cancel();
         _cts.Dispose();
         _logChannel.Writer.Complete();
+        _persistLock.Dispose();
     }
 }

@@ -47,7 +47,11 @@ internal sealed class GatewayApiAuthFilter : IAsyncAuthorizationFilter
                 && decoded[..idx] == _opts.Username
                 && decoded[(idx + 1)..] == _opts.Password;
         }
-        catch { return false; }
+        catch (FormatException)
+        {
+            // Invalid Base64 encoding
+            return false;
+        }
     }
 
     private bool ValidateApiKey(HttpRequest req)

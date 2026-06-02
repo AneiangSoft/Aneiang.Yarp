@@ -359,11 +359,19 @@ public class ConfigPersistenceService
     }
 
     /// <summary>
-    /// Get configuration history (synchronous compatibility).
+    /// Get configuration history (synchronous wrapper for compatibility).
     /// </summary>
     public IReadOnlyList<ConfigSnapshot> GetHistory()
     {
-        return GetHistoryAsync().GetAwaiter().GetResult();
+        if (_historyLoaded && _history.Count > 0)
+        {
+            lock (_historyLock)
+            {
+                return _history.ToList().AsReadOnly();
+            }
+        }
+        // Fallback for initial load - this should be called after app startup
+        return Array.Empty<ConfigSnapshot>();
     }
 
     /// <summary>
