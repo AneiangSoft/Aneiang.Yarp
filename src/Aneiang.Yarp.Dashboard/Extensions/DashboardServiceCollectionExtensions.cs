@@ -57,8 +57,13 @@ public static class DashboardServiceCollectionExtensions
                 wafo.DashboardRoutePrefix = "apigateway";
         });
 
-        // Register MVC controllers from this assembly
-        services.AddMvcCore().AddApplicationPart(typeof(DashboardController).Assembly);
+        // Register MVC controllers from this assembly with JSON camelCase naming policy
+        services.AddMvcCore()
+            .AddApplicationPart(typeof(DashboardController).Assembly)
+            .AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+            });
 
         // ── Storage backend (IDataStore) ─────────────────────────────────
         services.AddAneiangStorage(services.BuildServiceProvider().GetRequiredService<IConfiguration>());

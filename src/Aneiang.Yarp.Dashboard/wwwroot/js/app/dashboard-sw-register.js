@@ -4,6 +4,9 @@
 (function() {
     'use strict';
 
+    // SW version - change this to force update
+    var SW_VERSION = 'v2';
+
     window.DashboardServiceWorker = {
         registration: null,
         isUpdateAvailable: false,
@@ -16,7 +19,8 @@
             }
 
             try {
-                this.registration = await navigator.serviceWorker.register('/_content/Aneiang.Yarp.Dashboard/service-worker.js');
+                var swUrl = '/_content/Aneiang.Yarp.Dashboard/service-worker.js?v=' + SW_VERSION;
+                this.registration = await navigator.serviceWorker.register(swUrl);
 
                 console.log('[SW] Registered:', this.registration.scope);
 

@@ -18,11 +18,20 @@
         setupEvents: function() {
             var self = this;
             document.addEventListener('dashboard:ready', function() {
+                if (self.autoRefreshInterval) clearInterval(self.autoRefreshInterval);
                 self.autoRefreshInterval = setInterval(function() {
                     self.load();
                 }, 15000);
             });
             document.addEventListener('dashboard:localeChange', function() { self.load(); });
+        },
+
+        destroy: function() {
+            if (this.autoRefreshInterval) {
+                clearInterval(this.autoRefreshInterval);
+                this.autoRefreshInterval = null;
+            }
+            this.initialized = false;
         },
 
         load: async function() {

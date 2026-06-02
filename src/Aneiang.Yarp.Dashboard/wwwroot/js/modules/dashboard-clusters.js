@@ -11,22 +11,13 @@
         // ===== Initialization =====
         init: async function() {
             if (this.initialized) return;
-            
+
             console.log('[Clusters] Initializing...');
-            
-            try {
-                // Load initial data
-                await this.loadClusters();
-                
-                // Setup event listeners
-                this.setupEvents();
-                
-                this.initialized = true;
-                console.log('[Clusters] Initialized');
-            } catch (error) {
-                console.error('[Clusters] Init failed:', error);
-                throw error;
-            }
+
+            this.setupEvents();
+
+            this.initialized = true;
+            console.log('[Clusters] Initialized');
         },
 
         // ===== Load Clusters =====

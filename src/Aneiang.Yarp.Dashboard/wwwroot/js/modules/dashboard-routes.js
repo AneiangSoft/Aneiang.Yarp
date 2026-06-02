@@ -11,22 +11,13 @@
         // ===== Initialization =====
         init: async function() {
             if (this.initialized) return;
-            
+
             console.log('[Routes] Initializing...');
-            
-            try {
-                // Load initial data
-                await this.loadRoutes();
-                
-                // Setup event listeners
-                this.setupEvents();
-                
-                this.initialized = true;
-                console.log('[Routes] Initialized');
-            } catch (error) {
-                console.error('[Routes] Init failed:', error);
-                throw error;
-            }
+
+            this.setupEvents();
+
+            this.initialized = true;
+            console.log('[Routes] Initialized');
         },
 
         // ===== Load Routes =====

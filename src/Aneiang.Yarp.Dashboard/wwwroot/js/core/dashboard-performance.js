@@ -492,6 +492,13 @@
                     }
                 }, 0);
             });
+        },
+
+        // ===== Cleanup All Monitors =====
+        cleanupAll() {
+            this.MemoryMonitor.stop();
+            this.LongTaskMonitor.stop();
+            this.FPSMonitor.stop();
         }
     };
 
