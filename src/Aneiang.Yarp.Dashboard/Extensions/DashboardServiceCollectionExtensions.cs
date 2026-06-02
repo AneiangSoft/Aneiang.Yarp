@@ -50,6 +50,13 @@ public static class DashboardServiceCollectionExtensions
         if (configureOptions != null)
             services.Configure(configureOptions);
 
+        // Sync WafOptions.DashboardRoutePrefix from DashboardOptions after configuration loads
+        services.PostConfigure<WafOptions>(wafo =>
+        {
+            if (string.IsNullOrWhiteSpace(wafo.DashboardRoutePrefix))
+                wafo.DashboardRoutePrefix = "apigateway";
+        });
+
         // Register MVC controllers from this assembly
         services.AddMvcCore().AddApplicationPart(typeof(DashboardController).Assembly);
 
@@ -156,6 +163,9 @@ public static class DashboardServiceCollectionExtensions
         // Default health check service
         services.AddHostedService<DefaultHealthCheckService>();
 
+        // JWT secret provider (singleton so it caches the secret after first load)
+        services.AddSingleton<JwtSecretProvider>();
+
         // Route prefix + auth conventions
         services.AddSingleton<IConfigureOptions<MvcOptions>>(sp =>
         {
@@ -164,12 +174,9 @@ public static class DashboardServiceCollectionExtensions
 
             DashboardController.RoutePrefix = prefix;
 
-            if (opts.JwtSecret == null && opts.AuthMode is DashboardAuthMode.CustomJwt or DashboardAuthMode.DefaultJwt)
-            {
-                var randomBytes = new byte[32];
-                RandomNumberGenerator.Fill(randomBytes);
-                opts.JwtSecret = Convert.ToBase64String(randomBytes);
-            }
+            // Use JwtSecretProvider so the secret survives restarts
+            var secretProvider = sp.GetRequiredService<JwtSecretProvider>();
+            opts.JwtSecret = secretProvider.GetSecret(opts.JwtSecret);
 
             return new ConfigureNamedOptions<MvcOptions>(null, mvcOptions =>
             {

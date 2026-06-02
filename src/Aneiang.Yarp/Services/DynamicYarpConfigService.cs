@@ -123,7 +123,7 @@ public class DynamicYarpConfigService
     /// <summary>
     /// Record routes and clusters from appsettings.json (static config) IDs.
     /// Also ensures all static config items exist in _dynamicConfig for persistence.
-    /// Does NOT override Source - all configs remain editable.
+    /// Clears stale routes/clusters that no longer exist in the current static config.
     /// </summary>
     private void MarkStaticConfig()
     {
@@ -132,21 +132,39 @@ public class DynamicYarpConfigService
             EnsureDynamicConfigInitialized();
             var currentConfig = _configProvider.GetConfig();
 
-            // Record static routes
+            // Track which routes/clusters belong to this startup's static config
+            var thisStartupStaticRoutes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var thisStartupStaticClusters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // Record static routes: clear stale ones first, then add/update current
             if (currentConfig.Routes != null)
             {
                 foreach (var route in currentConfig.Routes)
                 {
-                    _staticRouteIds.Add(route.RouteId ?? string.Empty);
+                    var routeId = route.RouteId ?? string.Empty;
+                    thisStartupStaticRoutes.Add(routeId);
+                }
+
+                // Remove routes from _dynamicConfig that no longer exist in static config.
+                // This handles environment switches: old routes from previous appsettings
+                // (regardless of their Source) must be purged so the new static config wins.
+                _dynamicConfig!.Routes.RemoveAll(r =>
+                    !thisStartupStaticRoutes.Contains(r.RouteId));
+
+                // Add or update each static route
+                foreach (var route in currentConfig.Routes)
+                {
+                    var routeId = route.RouteId ?? string.Empty;
+                    _staticRouteIds.Add(routeId);
 
                     var existingRoute = _dynamicConfig!.Routes.FirstOrDefault(r =>
-                        string.Equals(r.RouteId, route.RouteId, StringComparison.OrdinalIgnoreCase));
+                        string.Equals(r.RouteId, routeId, StringComparison.OrdinalIgnoreCase));
 
                     if (existingRoute == null)
                     {
                         _dynamicConfig.Routes.Add(new DynamicRouteConfig
                         {
-                            RouteId = route.RouteId ?? string.Empty,
+                            RouteId = routeId,
                             ClusterId = route.ClusterId ?? string.Empty,
                             MatchPath = route.Match?.Path!,
                             Order = route.Order ?? 50,
@@ -156,18 +174,38 @@ public class DynamicYarpConfigService
                             CreatedBy = "appsettings.json"
                         });
                     }
+                    else
+                    {
+                        // Sync in-memory YARP route to persisted dynamic config
+                        existingRoute.ClusterId = route.ClusterId ?? string.Empty;
+                        existingRoute.MatchPath = route.Match?.Path ?? string.Empty;
+                        existingRoute.Order = route.Order ?? 50;
+                        existingRoute.Transforms = route.Transforms?.Select(t => new Dictionary<string, string>(t)).ToList();
+                    }
                 }
             }
 
-            // Record static clusters
+            // Record static clusters: clear stale ones first, then add/update current
             if (currentConfig.Clusters != null)
             {
                 foreach (var cluster in currentConfig.Clusters)
                 {
-                    _staticClusterIds.Add(cluster.ClusterId ?? string.Empty);
+                    var clusterId = cluster.ClusterId ?? string.Empty;
+                    thisStartupStaticClusters.Add(clusterId);
+                }
+
+                // Remove clusters from _dynamicConfig that no longer exist in static config.
+                _dynamicConfig!.Clusters.RemoveAll(c =>
+                    !thisStartupStaticClusters.Contains(c.ClusterId));
+
+                // Add or update each static cluster
+                foreach (var cluster in currentConfig.Clusters)
+                {
+                    var clusterId = cluster.ClusterId ?? string.Empty;
+                    _staticClusterIds.Add(clusterId);
 
                     var existingCluster = _dynamicConfig!.Clusters.FirstOrDefault(c =>
-                        string.Equals(c.ClusterId, cluster.ClusterId, StringComparison.OrdinalIgnoreCase));
+                        string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
 
                     if (existingCluster == null)
                     {
@@ -177,7 +215,7 @@ public class DynamicYarpConfigService
 
                         _dynamicConfig.Clusters.Add(new DynamicClusterConfig
                         {
-                            ClusterId = cluster.ClusterId ?? string.Empty,
+                            ClusterId = clusterId,
                             Destinations = destinations,
                             LoadBalancingPolicy = cluster.LoadBalancingPolicy ?? string.Empty,
                             Source = "config",
@@ -185,14 +223,22 @@ public class DynamicYarpConfigService
                             CreatedBy = "appsettings.json"
                         });
                     }
+                    else
+                    {
+                        // Sync in-memory YARP cluster to persisted dynamic config
+                        existingCluster.Destinations = cluster.Destinations?.ToDictionary(
+                            d => d.Key,
+                            d => d.Value.Address ?? string.Empty) ?? new Dictionary<string, string>();
+                        existingCluster.LoadBalancingPolicy = cluster.LoadBalancingPolicy ?? string.Empty;
+                    }
                 }
             }
 
-            // Save the merged config (sync is fine for one-time startup)
+            // Save the cleaned config (sync is fine for one-time startup)
             _persistence.SaveConfig(_dynamicConfig!);
 
             _logger.LogInformation(
-                "Recorded {TotalRoutes} routes and {TotalClusters} clusters (including static config from appsettings.json). Static route IDs: {StaticRoutes}, Static cluster IDs: {StaticClusters}",
+                "Synced {TotalRoutes} routes and {TotalClusters} clusters (static from appsettings.json). Static route IDs: [{StaticRoutes}], Static cluster IDs: [{StaticClusters}]",
                 _dynamicConfig?.Routes.Count ?? 0,
                 _dynamicConfig?.Clusters.Count ?? 0,
                 string.Join(", ", _staticRouteIds),
@@ -227,7 +273,8 @@ public class DynamicYarpConfigService
                 ClusterId = dynRoute.ClusterId,
                 Match = new RouteMatch { Path = dynRoute.MatchPath },
                 Order = dynRoute.Order,
-                Transforms = dynRoute.Transforms?.Select(t => (IReadOnlyDictionary<string, string>)t).ToList()
+                Transforms = dynRoute.Transforms?.Select(t => (IReadOnlyDictionary<string, string>)t).ToList(),
+                Metadata = dynRoute.Metadata.Count > 0 ? dynRoute.Metadata : null
             };
 
             if (existingIdx >= 0)
@@ -359,10 +406,26 @@ public class DynamicYarpConfigService
             var existingRouteIdx = newRoutes.FindIndex(r =>
                 string.Equals(r.RouteId, request.RouteName, StringComparison.OrdinalIgnoreCase));
 
+            // Preserve existing metadata when updating a route
+            Dictionary<string, string>? existingMetadata = null;
+            if (existingRouteIdx >= 0)
+            {
+                var existingRoute = newRoutes[existingRouteIdx];
+                existingMetadata = existingRoute.Metadata as Dictionary<string, string>;
+            }
+
             bool isNew;
             if (existingRouteIdx >= 0)
             {
-                newRoutes[existingRouteIdx] = routeConfig;
+                newRoutes[existingRouteIdx] = new RouteConfig
+                {
+                    RouteId = request.RouteName,
+                    ClusterId = request.ClusterName,
+                    Match = new RouteMatch { Path = request.MatchPath },
+                    Order = request.Order ?? 50,
+                    Transforms = request.Transforms?.Select(t => (IReadOnlyDictionary<string, string>)t).ToList(),
+                    Metadata = existingMetadata
+                };
                 isNew = false;
                 _logger.LogInformation("Route '{RouteName}' exists, updating", request.RouteName);
             }
@@ -1511,5 +1574,62 @@ public class DynamicYarpConfigService
         {
             _rwLock.ExitWriteLock();
         }
+    }
+
+    /// <summary>
+    /// Update or merge metadata entries on a route.
+    /// Thread-safe. Persists to gateway-dynamic.json immediately.
+    /// Used by the policy engine to apply circuit-breaker, retry, rate-limit, and WAF settings.
+    /// </summary>
+    /// <param name="routeId">Target route ID.</param>
+    /// <param name="metadata">Metadata entries to add or update.</param>
+    /// <returns>True if route was found and metadata updated.</returns>
+    public async Task<bool> UpdateRouteMetadataAsync(string routeId, Dictionary<string, string> metadata)
+    {
+        if (string.IsNullOrWhiteSpace(routeId) || metadata.Count == 0)
+            return false;
+
+        bool saveNeeded = false;
+        _rwLock.EnterWriteLock();
+        try
+        {
+            EnsureDynamicConfigInitialized();
+
+            var route = _dynamicConfig!.Routes.FirstOrDefault(r =>
+                r.RouteId.Equals(routeId, StringComparison.OrdinalIgnoreCase));
+
+            if (route == null)
+            {
+                _logger.LogWarning("UpdateRouteMetadata: route '{RouteId}' not found", routeId);
+                return false;
+            }
+
+            // Merge metadata (update existing keys, add new keys)
+            foreach (var kvp in metadata)
+            {
+                route.Metadata[kvp.Key] = kvp.Value;
+            }
+
+            saveNeeded = true;
+
+            // Also update in-memory YARP config immediately so changes take effect without restart
+            ApplyDynamicConfigToYarp();
+
+            _logger.LogInformation(
+                "Updated metadata for route '{RouteId}': {Keys}",
+                routeId, string.Join(", ", metadata.Keys));
+        }
+        finally
+        {
+            if (saveNeeded)
+            {
+                Interlocked.Increment(ref _configVersion);
+                _dynamicConfig!.Version = _configVersion;
+                await SaveDynamicConfigAsync();
+            }
+            _rwLock.ExitWriteLock();
+        }
+
+        return true;
     }
 }

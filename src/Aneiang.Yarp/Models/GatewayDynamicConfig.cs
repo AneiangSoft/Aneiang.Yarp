@@ -28,6 +28,12 @@ public class DynamicRouteConfig
 
     /// <summary>Who created this route (user name or "auto").</summary>
     public string? CreatedBy { get; set; }
+
+    /// <summary>
+    /// Route metadata for extensibility (e.g., circuit breaker, retry, rate-limit, WAF policy keys).
+    /// Persisted to gateway-dynamic.json for durability.
+    /// </summary>
+    public Dictionary<string, string> Metadata { get; set; } = new();
 }
 
 /// <summary>

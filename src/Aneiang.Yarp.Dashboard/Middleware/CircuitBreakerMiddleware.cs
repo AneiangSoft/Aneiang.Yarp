@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Models;
+using Aneiang.Yarp.Dashboard.Services;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Yarp.ReverseProxy.Model;
@@ -18,6 +19,7 @@ public sealed class CircuitBreakerMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<CircuitBreakerMiddleware> _logger;
     private readonly CircuitBreakerOptions _options;
+    private readonly IGatewayAlertService _alertService;
 
     private static readonly ConcurrentDictionary<string, CircuitState> _circuits = new();
     private static readonly object _stateLock = new();
@@ -29,11 +31,13 @@ public sealed class CircuitBreakerMiddleware
     public CircuitBreakerMiddleware(
         RequestDelegate next,
         ILogger<CircuitBreakerMiddleware> logger,
-        IOptions<CircuitBreakerOptions> options)
+        IOptions<CircuitBreakerOptions> options,
+        IGatewayAlertService alertService)
     {
         _next = next;
         _logger = logger;
         _options = options.Value;
+        _alertService = alertService;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -159,12 +163,18 @@ public sealed class CircuitBreakerMiddleware
                     state.Status = CircuitStatus.Open;
                     state.OpenedAt = DateTime.Now;
                     _logger.LogWarning("Circuit HALF-OPEN probe FAILED for {CircuitKey}, back to OPEN", circuitKey);
+                    // Fire alert on HalfOpen probe failure
+                    var (cbCluster, cbDest) = ParseCircuitKey(circuitKey);
+                    _alertService.AlertCircuitBreakerOpen(cbCluster, cbDest);
                 }
                 else if (state.ConsecutiveFailures >= state.FailureThreshold)
                 {
                     state.Status = CircuitStatus.Open;
                     state.OpenedAt = DateTime.Now;
                     _logger.LogWarning("Circuit OPENED for {CircuitKey} after {Failures} failures", circuitKey, state.ConsecutiveFailures);
+                    // Fire alert when circuit first opens due to failure threshold
+                    var (cbCluster, cbDest) = ParseCircuitKey(circuitKey);
+                    _alertService.AlertCircuitBreakerOpen(cbCluster, cbDest);
                 }
             }
             else
@@ -281,6 +291,16 @@ public sealed class CircuitBreakerMiddleware
             }
         }
         return false;
+    }
+
+    private static (string ClusterId, string? DestinationId) ParseCircuitKey(string key)
+    {
+        var lastColon = key.LastIndexOf(':');
+        if (lastColon < 0)
+            return (key, null);
+        var cluster = key[..lastColon];
+        var dest = key[(lastColon + 1)..];
+        return dest == "any" ? (cluster, null) : (cluster, dest);
     }
 
     /// <summary>

@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Dashboard.Storage;
+using Aneiang.Yarp.Models;
+using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.Logging;
 
@@ -22,18 +24,24 @@ public interface IGatewayPolicyService
 
 /// <summary>
 /// In-memory implementation of gateway policy service with JSON file persistence.
+/// Integrates with DynamicYarpConfigService to apply policy metadata to routes.
 /// </summary>
 public class GatewayPolicyService : IGatewayPolicyService
 {
     private const string Category = "gateway-policies";
     private readonly IDataStore _store;
+    private readonly DynamicYarpConfigService _yarpConfig;
     private readonly ILogger<GatewayPolicyService> _logger;
     private GatewayPolicyCollection? _policies;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
-    public GatewayPolicyService(IDataStore store, ILogger<GatewayPolicyService> logger)
+    public GatewayPolicyService(
+        IDataStore store,
+        DynamicYarpConfigService yarpConfig,
+        ILogger<GatewayPolicyService> logger)
     {
         _store = store;
+        _yarpConfig = yarpConfig;
         _logger = logger;
     }
 
@@ -147,22 +155,77 @@ public class GatewayPolicyService : IGatewayPolicyService
     {
         var policy = await GetPolicyAsync(policyId);
         if (policy == null)
+        {
+            _logger.LogWarning("ApplyPolicyToRouteAsync: policy '{PolicyId}' not found", policyId);
             return false;
+        }
 
-        _logger.LogInformation(
-            "Applying policy '{PolicyId}' to route '{RouteId}'",
-            policyId, routeId);
+        if (!policy.Enabled)
+        {
+            _logger.LogWarning("ApplyPolicyToRouteAsync: policy '{PolicyId}' is disabled", policyId);
+            return false;
+        }
 
-        // Note: This would need integration with DynamicYarpConfigService to actually apply metadata to routes
-        // For now, we log the intent. The route would be updated with policy metadata.
+        // Merge all enabled feature metadata into a flat dictionary
+        var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        return true;
+        if (policy.CircuitBreaker != null && policy.CircuitBreaker.Enabled)
+        {
+            foreach (var kvp in policy.CircuitBreaker.ToMetadata())
+                metadata[kvp.Key] = kvp.Value;
+        }
+
+        if (policy.Retry != null && policy.Retry.Enabled)
+        {
+            foreach (var kvp in policy.Retry.ToMetadata())
+                metadata[kvp.Key] = kvp.Value;
+        }
+
+        if (policy.RateLimit != null && policy.RateLimit.Enabled)
+        {
+            foreach (var kvp in policy.RateLimit.ToMetadata())
+                metadata[kvp.Key] = kvp.Value;
+        }
+
+        if (policy.Waf != null && policy.Waf.Enabled)
+        {
+            foreach (var kvp in policy.Waf.ToMetadata())
+                metadata[kvp.Key] = kvp.Value;
+        }
+
+        if (metadata.Count == 0)
+        {
+            _logger.LogWarning("ApplyPolicyToRouteAsync: policy '{PolicyId}' has no enabled features", policyId);
+            return false;
+        }
+
+        // Tag the route with the applied policy ID so we know which policy is in effect
+        metadata["Policy:Id"] = policy.PolicyId;
+        metadata["Policy:Name"] = policy.DisplayName;
+
+        var success = await _yarpConfig.UpdateRouteMetadataAsync(routeId, metadata);
+
+        if (success)
+        {
+            _logger.LogInformation(
+                "Policy '{PolicyId}' ({Name}) applied to route '{RouteId}': {Keys}",
+                policyId, policy.DisplayName, routeId, string.Join(", ", metadata.Keys));
+        }
+
+        return success;
     }
 
     /// <inheritdoc />
     public Task<IReadOnlyList<Dictionary<string, string>>> GetRouteMetadataAsync(string routeId)
     {
-        // This would retrieve the effective metadata for a route after policy application
-        return Task.FromResult<IReadOnlyList<Dictionary<string, string>>>(Array.Empty<Dictionary<string, string>>());
+        var config = _yarpConfig.GetDynamicConfig();
+        var route = config?.Routes.FirstOrDefault(r =>
+            r.RouteId.Equals(routeId, StringComparison.OrdinalIgnoreCase));
+
+        if (route == null || route.Metadata.Count == 0)
+            return Task.FromResult<IReadOnlyList<Dictionary<string, string>>>(Array.Empty<Dictionary<string, string>>());
+
+        return Task.FromResult<IReadOnlyList<Dictionary<string, string>>>(
+            new List<Dictionary<string, string>> { route.Metadata });
     }
 }

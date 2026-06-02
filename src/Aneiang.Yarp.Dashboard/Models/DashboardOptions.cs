@@ -351,6 +351,12 @@ public class WafOptions
     /// <summary>Enable WAF protection. Default: false.</summary>
     public bool Enabled { get; set; } = false;
 
+    /// <summary>
+    /// Dashboard route prefix. WAF skips requests whose path starts with this prefix.
+    /// Default: "apigateway" (same as DashboardOptions.RoutePrefix).
+    /// </summary>
+    public string DashboardRoutePrefix { get; set; } = "apigateway";
+
     /// <summary>IP whitelist (allowed IPs). If non-empty, all non-whitelisted IPs are blocked.</summary>
     public List<string> IpWhitelist { get; set; } = new();
 
