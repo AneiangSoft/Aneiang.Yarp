@@ -3,10 +3,14 @@
  * Provides offline support and caching strategies
  */
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const STATIC_CACHE = `yarp-dashboard-static-${CACHE_VERSION}`;
 const API_CACHE = `yarp-dashboard-api-${CACHE_VERSION}`;
 const IMAGE_CACHE = `yarp-dashboard-images-${CACHE_VERSION}`;
+
+// Cache size limits
+const MAX_API_CACHE_SIZE = 50;   // Max API responses to cache
+const MAX_IMAGE_CACHE_SIZE = 30; // Max images to cache
 
 // Static assets to cache on install
 const CONTENT_PATH = '/_content/Aneiang.Yarp.Dashboard';
@@ -117,9 +121,21 @@ function isStaticAsset(request) {
            /\.(js|css|woff2?)$/i.test(request.url);
 }
 
+// ===== Cache Size Management =====
+async function trimCache(cache, maxSize) {
+    const keys = await cache.keys();
+    if (keys.length >= maxSize) {
+        // Delete oldest entries (first in the cache)
+        const toDelete = keys.length - maxSize + 1;
+        for (let i = 0; i < toDelete; i++) {
+            await cache.delete(keys[i]);
+        }
+    }
+}
+
 // ===== Caching Strategies =====
 
-// Cache First - for static assets
+// Cache First - for static assets (no size limit, static assets are finite)
 async function staticStrategy(request) {
     const cache = await caches.open(STATIC_CACHE);
     const cached = await cache.match(request);
@@ -142,7 +158,7 @@ async function staticStrategy(request) {
     }
 }
 
-// Stale While Revalidate - for API requests
+// Stale While Revalidate - for API requests (with size limit)
 async function apiStrategy(request) {
     const cache = await caches.open(API_CACHE);
     const cached = await cache.match(request);
@@ -151,7 +167,10 @@ async function apiStrategy(request) {
     const fetchPromise = fetch(request)
         .then(response => {
             if (response.ok) {
-                cache.put(request, response.clone());
+                cache.put(request, response.clone()).then(() => {
+                    // Trim API cache to max size
+                    trimCache(cache, MAX_API_CACHE_SIZE);
+                });
             }
             return response;
         })
@@ -172,7 +191,7 @@ async function apiStrategy(request) {
     return fetchPromise;
 }
 
-// Cache First with fallback - for images
+// Cache First with fallback - for images (with size limit)
 async function imageStrategy(request) {
     const cache = await caches.open(IMAGE_CACHE);
     const cached = await cache.match(request);
@@ -184,7 +203,10 @@ async function imageStrategy(request) {
     try {
         const response = await fetch(request);
         if (response.ok) {
-            cache.put(request, response.clone());
+            await cache.put(request, response.clone()).then(() => {
+                // Trim image cache to max size
+                trimCache(cache, MAX_IMAGE_CACHE_SIZE);
+            });
         }
         return response;
     } catch (err) {
@@ -194,15 +216,10 @@ async function imageStrategy(request) {
     }
 }
 
-// Network First - for HTML pages
+// Network First - for HTML pages (no persistent caching)
 async function networkFirstStrategy(request) {
     try {
         const networkResponse = await fetch(request);
-        if (networkResponse.ok) {
-            // Cache successful responses
-            const cache = await caches.open(STATIC_CACHE);
-            cache.put(request, networkResponse.clone());
-        }
         return networkResponse;
     } catch (err) {
         console.warn('[SW] Network fetch failed, trying cache:', request.url);

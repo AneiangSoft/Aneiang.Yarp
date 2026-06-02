@@ -318,7 +318,6 @@
 
         // Auto-load data
         if (window.DashboardApp?.modules?.home?.loadInfo) await DashboardApp.modules.home.loadInfo();
-        if (window.DashboardApp?.modules?.home?.updateStatCards) await DashboardApp.modules.home.updateStatCards();
         if (window.DashboardApp?.modules?.stats?.loadStats) await DashboardApp.modules.stats.loadStats();
         if (window.OpsModule?.loadAlertSummary) await OpsModule.loadAlertSummary();
         if (window.OpsModule?.loadTrafficChart) await OpsModule.loadTrafficChart();
@@ -335,7 +334,6 @@
         try {
             await Promise.all([
                 window.DashboardApp?.modules?.home?.loadInfo?.(),
-                window.DashboardApp?.modules?.home?.updateStatCards?.(),
                 window.DashboardApp?.modules?.stats?.loadStats?.(),
                 window.OpsModule?.loadAlertSummary?.(),
                 window.OpsModule?.loadTrafficChart?.(),

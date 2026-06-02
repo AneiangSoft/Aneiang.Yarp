@@ -175,10 +175,7 @@
         if (window.DashboardSchemaService) await DashboardSchemaService.load();
         if (window.__monacoReady) await __monacoReady;
 
-        if (window.DashboardApp?.modules?.home?.init) await DashboardApp.modules.home.init();
         if (window.DashboardApp?.modules?.routes?.init) await DashboardApp.modules.routes.init();
-
-        if (window.DashboardApp?.modules?.home?.updateStatCards) await DashboardApp.modules.home.updateStatCards();
         if (window.DashboardApp?.modules?.routes?.loadRoutes) await DashboardApp.modules.routes.loadRoutes();
 
         document.dispatchEvent(new CustomEvent('dashboard:ready'));
@@ -191,7 +188,6 @@
         btn.disabled = true;
         try {
             await window.DashboardApp?.modules?.routes?.loadRoutes?.();
-            await window.DashboardApp?.modules?.home?.updateStatCards?.();
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;

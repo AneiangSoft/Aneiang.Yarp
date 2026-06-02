@@ -75,6 +75,9 @@
         }
     };
 
+    // Track the auto-save interval for cleanup
+    let autoSaveIntervalId = null;
+
     // ===== State Subscribers =====
     const subscribers = {};
 
@@ -83,10 +86,24 @@
         // Restore from localStorage
         this.restoreState();
         
+        // Clear any existing auto-save interval first
+        if (autoSaveIntervalId) {
+            clearInterval(autoSaveIntervalId);
+        }
+        
         // Setup auto-save
-        setInterval(() => this.saveState(), 5000);
+        autoSaveIntervalId = setInterval(() => this.saveState(), 5000);
         
         console.log('[State] Initialized');
+    };
+
+    // ===== Cleanup =====
+    window.DashboardState.cleanup = function() {
+        if (autoSaveIntervalId) {
+            clearInterval(autoSaveIntervalId);
+            autoSaveIntervalId = null;
+        }
+        console.log('[State] Cleaned up');
     };
 
     // ===== Get State =====

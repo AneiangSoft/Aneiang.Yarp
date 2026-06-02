@@ -12,41 +12,36 @@
         topologyData: null,
         trafficEnabled: true,
         refreshInterval: null,
-        trafficInterval: null,
         currentLayout: 'hierarchical',
+        _resizeHandler: null,
 
-        // Node and Edge color schemes
         colors: {
-            gateway: { main: '#3b82f6', bg: '#dbeafe' },
-            route: { main: '#8b5cf6', bg: '#ede9fe' },
-            cluster: { main: '#06b6d4', bg: '#cffafe' },
-            destination: { main: '#10b981', bg: '#d1fae5' },
+            gateway: { bg: '#dbeafe', main: '#3b82f6', text: '#1d4ed8' },
+            route:   { bg: '#ede9fe', main: '#8b5cf6', text: '#5b21b6' },
+            cluster: { bg: '#cffafe', main: '#06b6d4', text: '#0e7490' },
+            destination: { bg: '#d1fae5', main: '#10b981', text: '#065f46' },
+            edge: {
+                Request: '#3b82f6',
+                Forward: '#8b5cf6',
+                Proxy: '#10b981'
+            },
             status: {
                 healthy: '#22c55e',
                 warning: '#f59e0b',
-                error: '#ef4444',
+                error:   '#ef4444',
                 unknown: '#9ca3af'
             }
         },
 
-        // Icon mapping
-        icons: {
-            gateway: 'path://M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
-            route: 'path://M13 7h-8v10h8v-10zM21 17h-8v-4h2v2h4v-4h-4v-2h6v8z',
-            cluster: 'path://M20 6h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z',
-            destination: 'path://M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z'
-        },
+        icons: {},
 
-        // Type mapping (enum number to string)
         nodeTypes: ['gateway', 'route', 'cluster', 'destination'],
         statusTypes: ['healthy', 'warning', 'error', 'unknown'],
 
-        // ===== i18n Helper =====
         t: function(key) {
             if (window.DashboardI18n && window.DashboardI18n.t) {
                 return window.DashboardI18n.t(key);
             }
-            // Fallback translations
             const fallbacks = {
                 'topology.detail.type': '类型',
                 'topology.detail.status': '状态',
@@ -83,7 +78,6 @@
             return fallbacks[key] || key;
         },
 
-        // ===== Helper to convert enum to string =====
         getNodeTypeString: function(type) {
             if (typeof type === 'string') return type.toLowerCase();
             return this.nodeTypes[type] || 'destination';
@@ -94,7 +88,6 @@
             return this.statusTypes[status] || 'unknown';
         },
 
-        // ===== Initialization =====
         init: async function() {
             if (this.initialized) return;
             if (typeof echarts === 'undefined') {
@@ -104,26 +97,15 @@
 
             console.log('[Topology] Initializing...');
 
-            try {
-                this.initChart();
-                this.setupEvents();
-                await this.loadTopology();
-                this.startAutoRefresh();
+            this.initChart();
+            this.setupEvents();
+            await this.loadTopology();
+            this.startAutoRefresh();
 
-                // Apply initial traffic effect after graph is rendered
-                setTimeout(() => {
-                    this.applyTrafficEffect();
-                }, 500);
-
-                this.initialized = true;
-                console.log('[Topology] Initialized');
-            } catch (error) {
-                console.error('[Topology] Init failed:', error);
-                this.hideLoading();
-            }
+            this.initialized = true;
+            console.log('[Topology] Initialized');
         },
 
-        // ===== Chart Initialization =====
         initChart: function() {
             const container = document.getElementById('topology-chart');
             if (!container) {
@@ -136,16 +118,17 @@
             this.chart.on('click', (params) => {
                 if (params.dataType === 'node') {
                     this.showNodeDetail(params.data);
+                } else if (params.dataType === 'edge') {
+                    this.showEdgeDetail(params.data);
                 }
             });
 
-            // Handle window resize
-            window.addEventListener('resize', () => {
-                this.chart && this.chart.resize();
-            });
+            this._resizeHandler = () => {
+                if (this.chart) this.chart.resize();
+            };
+            window.addEventListener('resize', this._resizeHandler);
         },
 
-        // ===== Load Data =====
         loadTopology: async function() {
             this.showLoading();
 
@@ -153,39 +136,122 @@
                 this.topologyData = await window.DashboardApi.get('/api/topology');
                 this.renderStats(this.topologyData.stats);
                 this.renderGraph();
-
                 console.log('[Topology] Data loaded:', this.topologyData);
             } catch (error) {
                 console.error('[Topology] Load failed:', error);
-                this.showError(error.message);
+                this.showError(error.message || '加载拓扑数据失败');
             } finally {
                 this.hideLoading();
             }
         },
 
-        // ===== Render Statistics =====
         renderStats: function(stats) {
-            this.setText('stat-routes', stats.routeCount);
-            this.setText('stat-clusters', stats.clusterCount);
-            this.setText('stat-destinations', stats.destinationCount);
-            this.setText('stat-healthy', stats.healthyCount);
-            this.setText('stat-unhealthy', stats.unhealthyCount);
-            this.setText('stat-unlinked', stats.unlinkedRoutes + stats.unlinkedClusters);
+            const el = (id, val) => {
+                const e = document.getElementById(id);
+                if (e) e.textContent = val ?? '-';
+            };
+            el('stat-routes', stats.routeCount);
+            el('stat-clusters', stats.clusterCount);
+            el('stat-destinations', stats.destinationCount);
+            el('stat-healthy', stats.healthyCount);
+            el('stat-unhealthy', stats.unhealthyCount);
+            el('stat-unlinked', (stats.unlinkedRoutes || 0) + (stats.unlinkedClusters || 0));
         },
 
-        setText: function(id, value) {
-            const el = document.getElementById(id);
-            if (el) el.textContent = value ?? '-';
-        },
-
-        // ===== Render Graph =====
         renderGraph: function() {
             if (!this.topologyData || !this.chart) return;
 
             const { nodes, edges } = this.topologyData;
+            this.applyLayout(edges);
             const option = this.buildChartOption(nodes, edges);
-
             this.chart.setOption(option, true);
+        },
+
+        // ===== Layout Algorithm =====
+        // 4-column layout: Gateway | Routes | Clusters | Destinations
+        // Each column distributes its nodes evenly with guaranteed minimum spacing
+        // so icons never overlap.
+        applyLayout: function(edges) {
+            if (!this.topologyData) return;
+            const nodes = this.topologyData.nodes;
+
+            const routeToCluster = {};
+            const clusterToDests = {};
+
+            edges.forEach(e => {
+                const [srcType] = e.source.split(':');
+                const [tgtType] = e.target.split(':');
+                if (srcType === 'route' && tgtType === 'cluster') routeToCluster[e.source] = e.target;
+                if (srcType === 'cluster' && tgtType === 'destination') {
+                    if (!clusterToDests[e.source]) clusterToDests[e.source] = [];
+                    clusterToDests[e.source].push(e.target);
+                }
+            });
+
+            const clusters = nodes.filter(n => this.getNodeTypeString(n.type) === 'cluster');
+            const routes   = nodes.filter(n => this.getNodeTypeString(n.type) === 'route');
+            const dests    = nodes.filter(n => this.getNodeTypeString(n.type) === 'destination');
+            const gateway   = nodes.find(n => this.getNodeTypeString(n.type) === 'gateway');
+
+            if (this.currentLayout === 'hierarchical') {
+                // Guaranteed minimum vertical step per column type
+                // (must exceed symbolSize / 2 + padding so icons don't touch)
+                const STEP = 65;
+
+                // Canvas height: accommodate the most populous column
+                const maxCol = Math.max(routes.length, clusters.length, dests.length);
+                const H = Math.max(500, maxCol * STEP + 100);
+
+                // Column X positions
+                const GW_X = 70, RT_X = 280, CL_X = 520, DS_X = 760;
+
+                // Gateway: centre-left, vertically centred
+                if (gateway) { gateway._x = GW_X; gateway._y = H / 2; }
+
+                // Routes column — one row per route, evenly spaced
+                const rtSpacing = H / (routes.length + 1);
+                routes.forEach((r, i) => {
+                    r._x = RT_X;
+                    r._y = 30 + rtSpacing * (i + 1);
+                });
+
+                // Clusters column — one row per cluster, evenly spaced
+                const clSpacing = H / (clusters.length + 1);
+                clusters.forEach((c, i) => {
+                    c._x = CL_X;
+                    c._y = 30 + clSpacing * (i + 1);
+                });
+
+                // Destinations column — fill top-down evenly, regardless of cluster affiliation
+                const dsSpacing = H / (dests.length + 1);
+                dests.forEach((d, i) => {
+                    d._x = DS_X;
+                    d._y = 30 + dsSpacing * (i + 1);
+                });
+
+                // Orphan nodes (should not happen but guard anyway)
+                nodes.forEach(n => {
+                    if (n._x === undefined) { n._x = DS_X; n._y = 30 + Math.random() * (H - 60); }
+                });
+
+            } else {
+                // Circular layout
+                const groups = [gateway ? [gateway] : [], routes, clusters, dests];
+                const cx = 420, cy = 350;
+                const maxR = Math.max(120, groups.flat().length * 12 + 80);
+
+                groups.forEach((group, gi) => {
+                    if (!group.length) return;
+                    const angleStart = (gi / groups.length) * 2 * Math.PI - Math.PI / 2;
+                    const angleEnd = ((gi + 1) / groups.length) * 2 * Math.PI - Math.PI / 2;
+                    const r = maxR - gi * 70;
+                    group.forEach((node, ni) => {
+                        const angle = angleStart + (angleEnd - angleStart) * (ni / Math.max(group.length - 1, 1));
+                        node._x = cx + r * Math.cos(angle);
+                        node._y = cy + r * Math.sin(angle);
+                    });
+                });
+            }
         },
 
         buildChartOption: function(nodes, edges) {
@@ -193,76 +259,121 @@
             const echartsEdges = this.convertEdges(edges);
 
             return {
+                animation: true,
+                animationDuration: 500,
+                animationEasingUpdate: 'cubicOut',
                 tooltip: {
                     trigger: 'item',
                     formatter: (params) => this.formatTooltip(params)
                 },
-                animationDurationUpdate: 800,
-                animationEasingUpdate: 'cubicOut',
+                xAxis: { show: false, min: -80, max: 860 },
+                yAxis: { show: false, min: -60, max: 700 },
                 series: [{
                     type: 'graph',
                     layout: 'none',
-                    symbolSize: (value, params) => this.getSymbolSize(params.data),
+                    symbol: 'circle',
+                    symbolSize: 5,
                     roam: true,
-                    label: {
-                        show: true,
-                        position: 'bottom',
-                        formatter: '{b}',
-                        fontSize: 11,
-                        color: '#374151'
-                    },
-                    edgeSymbol: ['circle', 'arrow'],
-                    edgeSymbolSize: [4, 10],
-                    edgeLabel: {
-                        fontSize: 10,
-                        show: false
-                    },
+                    draggable: false,
+                    edgeSymbol: this.trafficEnabled ? ['circle', 'arrow'] : ['none', 'none'],
+                    edgeSymbolSize: this.trafficEnabled ? [5, 14] : [0, 0],
                     data: echartsNodes,
                     links: echartsEdges,
                     lineStyle: {
-                        opacity: 0.7,
-                        width: 2,
-                        curveness: 0.1,
+                        opacity: this.trafficEnabled ? 0.75 : 0.3,
+                        width: 1.5,
+                        curveness: 0.06,
                         color: 'source'
                     },
                     emphasis: {
                         focus: 'adjacency',
-                        lineStyle: {
-                            width: 4
-                        }
+                        lineStyle: { width: 3, opacity: 1 }
                     },
-                    // Apply custom layout positions
-                    ...this.getCustomLayout(echartsNodes, echartsEdges)
+                    select: { disabled: true }
                 }]
             };
         },
 
+        convertEdges: function(edges) {
+            return edges.map(edge => ({
+                source: edge.source,
+                target: edge.target,
+                lineStyle: {
+                    color: this.getEdgeColor(edge),
+                    width: this.getEdgeWidth(edge)
+                },
+                _original: edge
+            }));
+        },
+
+        getEdgeColor: function(edge) {
+            return this.colors.edge[edge.type] || '#9ca3af';
+        },
+
+        getEdgeWidth: function(edge) {
+            const widths = { Request: 3, Forward: 2, Proxy: 2 };
+            return widths[edge.type] || 1;
+        },
+
+        toggleTraffic: function() {
+            this.trafficEnabled = !this.trafficEnabled;
+            const btn = document.getElementById('btn-toggle-traffic');
+            if (btn) {
+                btn.classList.toggle('active', this.trafficEnabled);
+                btn.classList.toggle('btn-primary', this.trafficEnabled);
+                btn.classList.toggle('btn-outline-secondary', !this.trafficEnabled);
+            }
+
+            if (!this.chart) return;
+
+            this.chart.setOption({
+                series: [{
+                    edgeSymbol: this.trafficEnabled ? ['circle', 'arrow'] : ['none', 'none'],
+                    edgeSymbolSize: this.trafficEnabled ? [5, 12] : [0, 0],
+                    lineStyle: {
+                        opacity: this.trafficEnabled ? 0.8 : 0.35
+                    }
+                }]
+            });
+        },
+
+        // Convert nodes to ECharts data items using SVG path symbols
         convertNodes: function(nodes) {
             return nodes.map(node => {
                 const typeStr = this.getNodeTypeString(node.type);
                 const statusStr = this.getStatusString(node.status);
-                const colorInfo = this.colors[typeStr] || this.colors.destination;
+                const ci = this.colors[typeStr] || this.colors.destination;
                 const statusColor = this.colors.status[statusStr] || this.colors.status.unknown;
 
                 return {
                     id: node.id,
                     name: node.label,
-                    value: this.getNodeValue(node),
-                    symbol: this.icons[typeStr],
-                    symbolSize: this.getSymbolSizeByType(typeStr),
+                    x: node._x || 0,
+                    y: node._y || 0,
+                    symbol: 'circle',
+                    symbolSize: 26,
                     itemStyle: {
-                        color: colorInfo.main,
+                        color: ci.main,
                         borderColor: statusColor,
-                        borderWidth: 3,
-                        shadowBlur: 10,
-                        shadowColor: colorInfo.main + '40'
+                        borderWidth: 2,
+                        shadowBlur: 8,
+                        shadowColor: ci.main + '50'
                     },
                     label: {
                         show: true,
                         position: 'bottom',
-                        distance: 5
+                        distance: 4,
+                        fontSize: 10,
+                        fontWeight: '500',
+                        fontFamily: 'system-ui, sans-serif',
+                        color: '#6b7280'
                     },
-                    // Custom data
+                    emphasis: {
+                        itemStyle: {
+                            shadowBlur: 16,
+                            shadowColor: ci.main + '90'
+                        }
+                    },
                     _original: node,
                     _type: typeStr,
                     _status: statusStr
@@ -270,127 +381,72 @@
             });
         },
 
+        getSymbolSizeByType: function(type) {
+            return 26;
+        },
+
+        switchLayout: function(mode) {
+            this.currentLayout = mode;
+            this.renderGraph();
+        },
+
         convertEdges: function(edges) {
             return edges.map(edge => ({
                 source: edge.source,
                 target: edge.target,
-                label: {
-                    show: edge.label && edge.source.startsWith('route:'),
-                    formatter: edge.label,
-                    fontSize: 9,
-                    color: '#6b7280'
-                },
                 lineStyle: {
                     color: this.getEdgeColor(edge),
-                    width: this.getEdgeWidth(edge),
-                    type: this.getEdgeType(edge)
+                    width: this.getEdgeWidth(edge)
                 },
                 _original: edge
             }));
         },
 
-        getSymbolSize: function(data) {
-            const sizes = {
-                Gateway: 60,
-                Route: 40,
-                Cluster: 45,
-                Destination: 30
-            };
-            return sizes[data._type] || 35;
+        startAutoRefresh: function() {
+            this.stopAutoRefresh();
+            this.refreshInterval = setInterval(() => this.loadTopology(), 30000);
         },
 
-        getSymbolSizeByType: function(type) {
-            const sizes = {
-                gateway: 60,
-                route: 40,
-                cluster: 45,
-                destination: 30
-            };
-            return sizes[type] || 35;
+        stopAutoRefresh: function() {
+            if (this.refreshInterval) { clearInterval(this.refreshInterval); this.refreshInterval = null; }
         },
 
-        getNodeValue: function(node) {
-            const typeStr = this.getNodeTypeString(node.type);
-            switch (typeStr) {
-                case 'gateway':
-                    return 100;
-                case 'route':
-                    return 50;
-                case 'cluster':
-                    return 60;
-                case 'destination':
-                    return 40;
-                default:
-                    return 30;
+        fitView: function() {
+            if (this.chart) this.chart.dispatchAction({ type: 'restore' });
+        },
+
+        toggleFullscreen: function() {
+            const panel = document.querySelector('.card-panel:has(#topology-chart)');
+            if (!panel) return;
+            if (!document.fullscreenElement) {
+                panel.requestFullscreen().then(() => setTimeout(() => this.chart && this.chart.resize(), 100)).catch(() => {});
+            } else {
+                document.exitFullscreen().then(() => setTimeout(() => this.chart && this.chart.resize(), 100)).catch(() => {});
             }
         },
 
-        getEdgeColor: function(edge) {
-            const colors = {
-                Request: '#3b82f6',
-                Forward: '#8b5cf6',
-                Proxy: '#10b981'
-            };
-            return colors[edge.type] || '#9ca3af';
+        refresh: function() { this.loadTopology(); },
+
+        showLoading: function() {
+            const el = document.getElementById('topology-loading');
+            if (el) el.style.display = 'flex';
         },
 
-        getEdgeWidth: function(edge) {
-            const widths = {
-                Request: 3,
-                Forward: 2,
-                Proxy: 2
-            };
-            return widths[edge.type] || 1;
+        hideLoading: function() {
+            const el = document.getElementById('topology-loading');
+            if (el) el.style.display = 'none';
         },
 
-        getEdgeType: function(edge) {
-            if (edge.type === 'Proxy') return 'dashed';
-            return 'solid';
-        },
-
-        getCustomLayout: function(nodes, edges) {
-            if (this.currentLayout === 'circular') {
-                // Circular layout
-                const radius = 200;
-                const center = { x: 400, y: 300 };
-                const angleStep = (2 * Math.PI) / nodes.length;
-
-                nodes.forEach((node, i) => {
-                    const angle = i * angleStep - Math.PI / 2;
-                    node.x = center.x + radius * Math.cos(angle);
-                    node.y = center.y + radius * Math.sin(angle);
-                });
-            } else if (this.currentLayout === 'hierarchical') {
-                // Hierarchical layout - 4 levels: Gateway -> Route -> Cluster -> Destination
-                const levels = {
-                    'gateway': 0,
-                    'route': 1,
-                    'cluster': 2,
-                    'destination': 3
-                };
-
-                const levelNodes = {};
-                nodes.forEach(node => {
-                    const level = levels[node._type];
-                    if (!levelNodes[level]) levelNodes[level] = [];
-                    levelNodes[level].push(node);
-                });
-
-                const levelX = [100, 300, 500, 700];
-                Object.keys(levelNodes).forEach(level => {
-                    const levelNodeList = levelNodes[level];
-                    const yStep = 500 / (levelNodeList.length + 1);
-                    levelNodeList.forEach((node, i) => {
-                        node.x = levelX[level];
-                        node.y = 50 + yStep * (i + 1);
-                    });
-                });
+        showError: function(message) {
+            const chart = document.getElementById('topology-chart');
+            if (chart) {
+                chart.innerHTML = `<div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
+                    <i class="bi bi-exclamation-triangle text-warning fs-1 mb-2"></i><div>${message}</div>
+                </div>`;
             }
-
-            return {};
         },
 
-        // ===== Tooltip Formatter =====
+        // ===== Tooltip =====
         formatTooltip: function(params) {
             if (params.dataType === 'node') {
                 const node = params.data._original;
@@ -398,52 +454,28 @@
                 const typeStr = this.getNodeTypeString(node.type);
                 const statusStr = this.getStatusString(node.status);
 
-                let html = `<div style="font-weight:bold;margin-bottom:5px;">${node.label}</div>`;
-                html += `<div style="font-size:12px;color:#666;">${this.t('topology.detail.type')}: ${this.getNodeTypeName(typeStr)}</div>`;
-                html += `<div style="font-size:12px;color:#666;">${this.t('topology.detail.status')}: ${this.getStatusName(statusStr)}</div>`;
+                let html = `<div style="font-weight:600;margin-bottom:4px;">${node.label}</div>`;
+                html += `<div style="font-size:12px;color:#6b7280;">${this.t('topology.detail.type')}: ${this.getNodeTypeName(typeStr)}</div>`;
+                html += `<div style="font-size:12px;color:#6b7280;">${this.t('topology.detail.status')}: ${this.getStatusName(statusStr)}</div>`;
 
-                // Add specific info based on node type
                 if (typeStr === 'route') {
-                    if (data.path) html += `<div style="font-size:12px;">${this.t('topology.detail.matchPath')}: ${data.path}</div>`;
-                    if (data.methods && data.methods.length) {
-                        html += `<div style="font-size:12px;">${this.t('topology.detail.httpMethods')}: ${data.methods.join(', ')}</div>`;
-                    }
-                    if (data.clusterId) html += `<div style="font-size:12px;">${this.t('topology.legend.cluster')}: ${data.clusterId}</div>`;
+                    if (data.path) html += `<div style="font-size:11px;margin-top:2px;"><code>${data.path}</code></div>`;
+                    if (data.clusterId) html += `<div style="font-size:11px;">${this.t('topology.detail.targetCluster')}: ${data.clusterId}</div>`;
                 } else if (typeStr === 'cluster') {
-                    html += `<div style="font-size:12px;">${this.t('topology.detail.loadBalancing')}: ${data.loadBalancingPolicy || '默认'}</div>`;
-                    html += `<div style="font-size:12px;">${this.t('topology.detail.healthStatus')}: ${data.healthyCount}/${data.totalCount}</div>`;
-                    if (data.sessionAffinity) html += `<div style="font-size:12px;">${this.t('topology.detail.sessionAffinity')}: ${this.t('topology.detail.enabled')}</div>`;
+                    html += `<div style="font-size:11px;">${this.t('topology.detail.healthStatus')}: ${data.healthyCount || 0}/${data.totalCount || 0}</div>`;
                 } else if (typeStr === 'destination') {
-                    if (data.health) html += `<div style="font-size:12px;">${this.t('topology.detail.healthStatus')}: ${data.health}</div>`;
-                    if (data.address) html += `<div style="font-size:12px;">${this.t('topology.detail.address')}: ${data.address}</div>`;
+                    if (data.address) html += `<div style="font-size:11px;"><code>${data.address}</code></div>`;
+                    if (data.health) html += `<div style="font-size:11px;">${this.t('topology.detail.healthStatus')}: ${data.health}</div>`;
                 }
-
                 return html;
+
             } else if (params.dataType === 'edge') {
-                const edge = params.data._original;
-                return `<div>${this.t('topology.detail.connection')}</div><div style="font-size:12px;color:#666;">${this.t('topology.detail.type')}: ${edge.type}</div>`;
+                const edge = params.data._original || {};
+                const colorMap = { Request: '请求', Forward: '转发', Proxy: '代理' };
+                return `<div><b>${this.t('topology.detail.connection')}</b></div>
+                    <div style="font-size:11px;color:#6b7280;">${this.t('topology.detail.type')}: ${colorMap[edge.type] || '-'}</div>`;
             }
             return '';
-        },
-
-        getNodeTypeName: function(type) {
-            const keys = {
-                gateway: 'topology.legend.gateway',
-                route: 'topology.legend.route',
-                cluster: 'topology.legend.cluster',
-                destination: 'topology.legend.destination'
-            };
-            return this.t(keys[type]) || type;
-        },
-
-        getStatusName: function(status) {
-            const keys = {
-                healthy: 'topology.legend.healthy',
-                warning: 'topology.legend.warning',
-                error: 'topology.legend.error',
-                unknown: 'topology.legend.error'
-            };
-            return this.t(keys[status]) || status;
         },
 
         // ===== Detail Panel =====
@@ -456,22 +488,15 @@
             document.getElementById('detail-title').textContent = node.label;
 
             let content = '<table class="table table-sm table-borderless mb-0" style="font-size:13px;">';
-
-            // Common fields
-            content += `<tr><td class="text-muted" style="width:100px;">ID</td><td><code>${node.id}</code></td></tr>`;
+            content += `<tr><td class="text-muted" style="width:110px;">ID</td><td><code style="font-size:11px;">${node.id}</code></td></tr>`;
             content += `<tr><td class="text-muted">${this.t('topology.detail.type')}</td><td>${this.getNodeTypeName(typeStr)}</td></tr>`;
             content += `<tr><td class="text-muted">${this.t('topology.detail.status')}</td><td><span class="badge bg-${this.getStatusClass(statusStr)}">${this.getStatusName(statusStr)}</span></td></tr>`;
 
-            // Type-specific fields
             if (typeStr === 'route') {
                 if (data.path) content += `<tr><td class="text-muted">${this.t('topology.detail.matchPath')}</td><td><code>${data.path}</code></td></tr>`;
-                if (data.methods && data.methods.length) {
-                    content += `<tr><td class="text-muted">${this.t('topology.detail.httpMethods')}</td><td>${data.methods.map(m => `<span class="badge bg-secondary me-1">${m}</span>`).join('')}</td></tr>`;
-                }
-                if (data.hosts && data.hosts.length) {
-                    content += `<tr><td class="text-muted">${this.t('topology.detail.hosts')}</td><td>${data.hosts.join(', ')}</td></tr>`;
-                }
-                if (data.clusterId) content += `<tr><td class="text-muted">${this.t('topology.detail.targetCluster')}</td><td><a href="#" onclick="TopologyModule.goToCluster('${data.clusterId}')">${data.clusterId}</a></td></tr>`;
+                if (data.methods && data.methods.length) content += `<tr><td class="text-muted">${this.t('topology.detail.httpMethods')}</td><td>${data.methods.map(m => `<span class="badge bg-secondary me-1">${m}</span>`).join('')}</td></tr>`;
+                if (data.hosts && data.hosts.length) content += `<tr><td class="text-muted">${this.t('topology.detail.hosts')}</td><td>${data.hosts.join(', ')}</td></tr>`;
+                if (data.clusterId) content += `<tr><td class="text-muted">${this.t('topology.detail.targetCluster')}</td><td><a href="javascript:void(0)" onclick="TopologyModule.goToCluster('${data.clusterId}')">${data.clusterId}</a></td></tr>`;
                 if (data.order !== undefined) content += `<tr><td class="text-muted">${this.t('topology.detail.priority')}</td><td>${data.order}</td></tr>`;
                 if (data.rateLimiterPolicy) content += `<tr><td class="text-muted">${this.t('topology.detail.rateLimitPolicy')}</td><td>${data.rateLimiterPolicy}</td></tr>`;
                 if (data.timeoutPolicy) content += `<tr><td class="text-muted">${this.t('topology.detail.timeoutPolicy')}</td><td>${data.timeoutPolicy}</td></tr>`;
@@ -479,12 +504,15 @@
                 if (data.transformCount) content += `<tr><td class="text-muted">${this.t('topology.detail.transforms')}</td><td>${data.transformCount}</td></tr>`;
             } else if (typeStr === 'cluster') {
                 content += `<tr><td class="text-muted">${this.t('topology.detail.loadBalancing')}</td><td>${data.loadBalancingPolicy || '默认'}</td></tr>`;
-                content += `<tr><td class="text-muted">${this.t('topology.detail.healthStatus')}</td><td>${this.t('topology.legend.healthy')}: ${data.healthyCount} / ${this.t('topology.unhealthy')}: ${data.unhealthyCount} / ${this.t('topology.legend.warning')}: ${data.unknownCount}</td></tr>`;
-                if (data.sessionAffinity) {
-                    content += `<tr><td class="text-muted">${this.t('topology.detail.sessionAffinity')}</td><td><span class="badge bg-success">${this.t('topology.detail.enabled')}</span></td></tr>`;
-                }
+                content += `<tr><td class="text-muted">${this.t('topology.detail.healthStatus')}</td><td>
+                    <span class="text-success">${data.healthyCount || 0}</span> /
+                    <span class="text-warning">${data.unknownCount || 0}</span> /
+                    <span class="text-danger">${data.unhealthyCount || 0}</span>
+                </td></tr>`;
+                if (data.sessionAffinity) content += `<tr><td class="text-muted">${this.t('topology.detail.sessionAffinity')}</td><td><span class="badge bg-success">${this.t('topology.detail.enabled')}</span></td></tr>`;
                 if (data.healthCheckActive) content += `<tr><td class="text-muted">${this.t('topology.detail.activeHealthCheck')}</td><td><span class="badge bg-success">${this.t('topology.detail.enabled')}</span></td></tr>`;
                 if (data.healthCheckPassive) content += `<tr><td class="text-muted">${this.t('topology.detail.passiveHealthCheck')}</td><td><span class="badge bg-success">${this.t('topology.detail.enabled')}</span></td></tr>`;
+                content += `<tr><td class="text-muted" colspan="2"><a href="javascript:void(0)" onclick="TopologyModule.goToCluster('${node.id}')" class="small">查看集群详情 &rarr;</a></td></tr>`;
             } else if (typeStr === 'destination') {
                 if (data.address) content += `<tr><td class="text-muted">${this.t('topology.detail.address')}</td><td><code>${data.address}</code></td></tr>`;
                 if (data.host) content += `<tr><td class="text-muted">${this.t('topology.detail.host')}</td><td>${data.host}</td></tr>`;
@@ -494,7 +522,19 @@
             }
 
             content += '</table>';
+            document.getElementById('detail-content').innerHTML = content;
+            document.getElementById('topology-detail').style.display = 'block';
+        },
 
+        showEdgeDetail: function(edgeData) {
+            const edge = edgeData._original || {};
+            const colorMap = { Request: '请求', Forward: '转发', Proxy: '代理' };
+            document.getElementById('detail-title').textContent = this.t('topology.detail.connection');
+            const content = `<table class="table table-sm table-borderless mb-0" style="font-size:13px;">
+                <tr><td class="text-muted" style="width:110px;">${this.t('topology.detail.type')}</td><td>${colorMap[edge.type] || '-'}</td></tr>
+                <tr><td class="text-muted">Source</td><td><code>${edge.source || '-'}</code></td></tr>
+                <tr><td class="text-muted">Target</td><td><code>${edge.target || '-'}</code></td></tr>
+            </table>`;
             document.getElementById('detail-content').innerHTML = content;
             document.getElementById('topology-detail').style.display = 'block';
         },
@@ -503,14 +543,18 @@
             document.getElementById('topology-detail').style.display = 'none';
         },
 
+        getNodeTypeName: function(type) {
+            const keys = { gateway: 'topology.legend.gateway', route: 'topology.legend.route', cluster: 'topology.legend.cluster', destination: 'topology.legend.destination' };
+            return this.t(keys[type]) || type;
+        },
+
+        getStatusName: function(status) {
+            const keys = { healthy: 'topology.legend.healthy', warning: 'topology.legend.warning', error: 'topology.legend.error', unknown: 'topology.legend.error' };
+            return this.t(keys[status]) || status;
+        },
+
         getStatusClass: function(status) {
-            const classes = {
-                healthy: 'success',
-                warning: 'warning',
-                error: 'danger',
-                unknown: 'secondary'
-            };
-            return classes[status] || 'secondary';
+            return { healthy: 'success', warning: 'warning', error: 'danger', unknown: 'secondary' }[status] || 'secondary';
         },
 
         goToCluster: function(clusterId) {
@@ -518,173 +562,34 @@
             window.location.href = `/${routePrefix}/clusters?highlight=${encodeURIComponent(clusterId)}`;
         },
 
-        // ===== Traffic Animation =====
-        // Traffic effect is now handled by ECharts edgeEffect
-
-        toggleTraffic: function() {
-            this.trafficEnabled = !this.trafficEnabled;
-            const btn = document.getElementById('btn-toggle-traffic');
-            if (btn) {
-                btn.classList.toggle('active', this.trafficEnabled);
-                btn.classList.toggle('btn-primary', this.trafficEnabled);
-                btn.classList.toggle('btn-outline-secondary', !this.trafficEnabled);
-            }
-            // Apply traffic effect immediately
-            this.applyTrafficEffect();
-        },
-
-        applyTrafficEffect: function() {
-            if (!this.chart) return;
-
-            if (this.trafficEnabled) {
-                // Enable edge line effect (flow animation)
-                this.chart.setOption({
-                    series: [{
-                        edgeEffect: {
-                            show: true,
-                            period: 4,
-                            trailLength: 0.2,
-                            symbol: 'arrow',
-                            symbolSize: 8,
-                            color: '#3b82f6'
-                        }
-                    }]
-                });
-            } else {
-                // Disable edge line effect
-                this.chart.setOption({
-                    series: [{
-                        edgeEffect: {
-                            show: false
-                        }
-                    }]
-                });
-            }
-        },
-
-        // ===== Layout Switching =====
-        switchLayout: function(mode) {
-            this.currentLayout = mode;
-            this.renderGraph();
-        },
-
-        // ===== Auto Refresh =====
-        startAutoRefresh: function() {
-            this.stopAutoRefresh();
-            this.refreshInterval = setInterval(() => {
-                this.loadTopology();
-            }, 30000); // Refresh every 30 seconds
-        },
-
-        stopAutoRefresh: function() {
-            if (this.refreshInterval) {
-                clearInterval(this.refreshInterval);
-                this.refreshInterval = null;
-            }
-        },
-
-        // ===== UI Controls =====
-        fitView: function() {
-            if (this.chart) {
-                this.chart.dispatchAction({
-                    type: 'restore'
-                });
-            }
-        },
-
-        toggleFullscreen: function() {
-            const chartContainer = document.querySelector('.card-panel:has(#topology-chart)');
-            if (!chartContainer) return;
-
-            if (!document.fullscreenElement) {
-                chartContainer.requestFullscreen().then(() => {
-                    // Resize chart after entering fullscreen
-                    setTimeout(() => {
-                        if (this.chart) {
-                            this.chart.resize();
-                        }
-                    }, 100);
-                }).catch(err => {
-                    console.error('[Topology] Fullscreen error:', err);
-                });
-            } else {
-                document.exitFullscreen().then(() => {
-                    setTimeout(() => {
-                        if (this.chart) {
-                            this.chart.resize();
-                        }
-                    }, 100);
-                });
-            }
-        },
-
-        refresh: function() {
-            this.loadTopology();
-        },
-
-        showLoading: function() {
-            const el = document.getElementById('topology-loading');
-            if (el) el.style.display = 'block';
-        },
-
-        hideLoading: function() {
-            const el = document.getElementById('topology-loading');
-            if (el) el.style.display = 'none';
-        },
-
-        showError: function(message) {
-            const chart = document.getElementById('topology-chart');
-            if (chart) {
-                chart.innerHTML = `<div class="d-flex align-items-center justify-content-center h-100 text-danger"><i class="bi bi-exclamation-triangle me-2"></i>${message}</div>`;
-            }
-        },
-
-        // ===== Event Handlers =====
         setupEvents: function() {
-            // Layout mode radio buttons
             document.querySelectorAll('input[name="layoutMode"]').forEach(radio => {
-                radio.addEventListener('change', (e) => {
-                    this.switchLayout(e.target.value);
-                });
+                radio.addEventListener('change', (e) => this.switchLayout(e.target.value));
             });
 
-            // Toggle traffic button
             const trafficBtn = document.getElementById('btn-toggle-traffic');
             if (trafficBtn) {
                 trafficBtn.addEventListener('click', () => this.toggleTraffic());
                 trafficBtn.classList.add('active', 'btn-primary');
             }
 
-            // Fit view button
             const fitBtn = document.getElementById('btn-fit-view');
-            if (fitBtn) {
-                fitBtn.addEventListener('click', () => this.fitView());
-            }
+            if (fitBtn) fitBtn.addEventListener('click', () => this.fitView());
 
-            // Refresh button
             const refreshBtn = document.getElementById('btn-refresh');
-            if (refreshBtn) {
-                refreshBtn.addEventListener('click', () => this.refresh());
-            }
+            if (refreshBtn) refreshBtn.addEventListener('click', () => this.refresh());
 
-            // Fullscreen button
             const fullscreenBtn = document.getElementById('btn-fullscreen');
-            if (fullscreenBtn) {
-                fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
-            }
+            if (fullscreenBtn) fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
         },
 
-        // ===== Cleanup =====
         destroy: function() {
             this.stopAutoRefresh();
-            if (this.chart) {
-                this.chart.dispose();
-                this.chart = null;
-            }
+            if (this._resizeHandler) { window.removeEventListener('resize', this._resizeHandler); this._resizeHandler = null; }
+            if (this.chart) { this.chart.dispose(); this.chart = null; }
             this.initialized = false;
         }
     };
 
-    // Export to window
     window.TopologyModule = TopologyModule;
 })();

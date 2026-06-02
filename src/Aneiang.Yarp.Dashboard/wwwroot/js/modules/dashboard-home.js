@@ -11,22 +11,14 @@
         // ===== Initialization =====
         init: async function() {
             if (this.initialized) return;
-            
+
             console.log('[Home] Initializing...');
-            
-            try {
-                // Load initial data
-                await this.loadInfo();
-                
-                // Setup event listeners
-                this.setupEvents();
-                
-                this.initialized = true;
-                console.log('[Home] Initialized');
-            } catch (error) {
-                console.error('[Home] Init failed:', error);
-                throw error;
-            }
+
+            // Setup event listeners
+            this.setupEvents();
+
+            this.initialized = true;
+            console.log('[Home] Initialized');
         },
 
         // ===== Load Gateway Info =====

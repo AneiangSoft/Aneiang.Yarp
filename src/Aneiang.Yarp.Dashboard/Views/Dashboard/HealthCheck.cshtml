@@ -128,25 +128,12 @@
     // Enhanced Health Check Module
     (function() {
         var gaugeChart = null;
-        var healthData = null;
-
-        function init() {
-            // Patch the original loadHealthStatus to include our enhancements
-            if (window.HealthCheckModule && HealthCheckModule.loadHealthStatus) {
-                var originalLoad = HealthCheckModule.loadHealthStatus;
-                HealthCheckModule.loadHealthStatus = async function() {
-                    await originalLoad();
-                    await loadHealthSummary();
-                };
-            }
-        }
 
         async function loadHealthSummary() {
             try {
-                var result = await DashboardApi.endpoints.getHealthSummary();
-                if (result.code !== 200 || !result.data) return;
+                var healthData = await DashboardApi.endpoints.getHealthSummary();
+                if (!healthData) return;
 
-                healthData = result.data;
                 renderHealthGauge(healthData.healthScore);
                 renderHealthSummary(healthData);
                 renderCriticalAlerts();
@@ -301,15 +288,9 @@
             return key;
         }
 
-        // Patch HealthCheckModule
+        // Extend existing HealthCheckModule (defined in dashboard-healthcheck.js)
         window.HealthCheckModule = window.HealthCheckModule || {};
-        window.HealthCheckModule.init = init;
         window.HealthCheckModule.loadHealthSummary = loadHealthSummary;
-        window.HealthCheckModule.toggleFilter = toggleFilter;
-        window.HealthCheckModule.checkDestination = checkDestination;
-
-        // Auto-init
-        init();
     })();
 
     // Initialize
@@ -324,6 +305,9 @@
 
         if (window.DashboardApp?.modules?.healthcheck?.init) await DashboardApp.modules.healthcheck.init();
         if (window.HealthCheckModule?.loadHealthStatus) await HealthCheckModule.loadHealthStatus();
+
+        // Load health summary (enhanced data)
+        if (window.HealthCheckModule?.loadHealthSummary) await HealthCheckModule.loadHealthSummary();
 
         document.dispatchEvent(new CustomEvent('dashboard:ready'));
     })();

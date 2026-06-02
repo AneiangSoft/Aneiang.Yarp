@@ -19,6 +19,34 @@
         console.log('[Dashboard] Module registered:', name);
     };
 
+    // ===== Module Cleanup =====
+    window.DashboardApp.cleanup = function() {
+        // Cleanup modules first
+        Object.keys(this.modules).forEach(function(name) {
+            var module = this.modules[name];
+            if (module && typeof module.destroy === 'function') {
+                console.log('[Dashboard] Cleaning up module:', name);
+                module.destroy();
+            }
+        }.bind(this));
+        this.modules = {};
+
+        // Cleanup core state
+        if (window.DashboardState && typeof window.DashboardState.cleanup === 'function') {
+            window.DashboardState.cleanup();
+        }
+
+        // Cleanup performance monitors
+        if (window.DashboardPerformance && typeof window.DashboardPerformance.cleanupAll === 'function') {
+            window.DashboardPerformance.cleanupAll();
+        }
+
+        // Cleanup events handlers
+        if (window.DashboardEvents && typeof window.DashboardEvents.cleanup === 'function') {
+            window.DashboardEvents.cleanup();
+        }
+    };
+
     // ===== Core Initialization (utilities only) =====
     window.DashboardApp.init = async function() {
         if (this.initialized) {

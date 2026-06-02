@@ -4,6 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - @((ViewBag.Locale as string) == "en-US" ? "Gateway Dashboard" : "网关维护仪表盘")</title>
+    <!-- Disable back/forward cache -->
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <script>
+        // Prevent bfcache - critical for single-page-like behavior
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted || performance.getEntriesByType('navigation')[0]?.type === 'back_forward') {
+                window.location.reload();
+            }
+        });
+    </script>
     <link href="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
     <link href="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet" />
     <link href="/_content/Aneiang.Yarp.Dashboard/styles/dashboard-editor.css" rel="stylesheet" />
@@ -1478,7 +1490,7 @@
                 <i class="bi bi-share"></i> <span data-i18n="layout.tab.topology">拓扑图</span>
             </a>
             <a class="nav-link @(currentPage == "stats" ? "active" : "")" href="/@prefix/stats">
-                <i class="bi bi-bar-chart-line"></i> <span data-i18n="layout.tab.stats">统计</span>
+                <i class="bi bi-bar-chart-line"></i> <span data-i18n="layout.tab.stats">访问统计</span>
             </a>
         </div>
         
@@ -1551,6 +1563,24 @@
         // DashboardApp - must exist before any module script loads
         window.DashboardApp = window.DashboardApp || { version: '2.3.0', initialized: false, modules: {} };
         window.DashboardApp.registerModule = function(name, module) { this.modules[name] = module; };
+        window.DashboardApp.cleanup = function() {
+            Object.keys(this.modules).forEach(function(name) {
+                var module = this.modules[name];
+                if (module && typeof module.destroy === 'function') {
+                    module.destroy();
+                }
+            }.bind(this));
+            this.modules = {};
+            if (window.DashboardState && typeof window.DashboardState.cleanup === 'function') {
+                window.DashboardState.cleanup();
+            }
+            if (window.DashboardPerformance && typeof window.DashboardPerformance.cleanupAll === 'function') {
+                window.DashboardPerformance.cleanupAll();
+            }
+            if (window.DashboardEvents && typeof window.DashboardEvents.cleanup === 'function') {
+                window.DashboardEvents.cleanup();
+            }
+        };
         function switchLocale() {
             var next = CURRENT_LOCALE === 'en-US' ? 'zh-CN' : 'en-US';
             document.cookie = 'dashboard_locale=' + next + ';path=/;max-age=' + (365*86400);

@@ -1,92 +1,126 @@
 @{
     ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Statistics" : "访问统计";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+    var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
+    var v = "2.3.0.14";
 }
 
 <!-- Summary Stats Cards -->
 <div class="row g-3 mb-3">
-    <div class="col-md-3 col-sm-6">
-        <div class="stat-card">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <div class="stat-value" id="stat-total-requests">-</div>
-                    <div class="stat-label" data-i18n="stats.totalRequests">总请求数</div>
-                </div>
-                <div class="stat-icon" style="background:#eff6ff;color:#3b82f6;"><i class="bi bi-arrow-down-up"></i></div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card stat-card--blue">
+            <div class="stat-card__icon"><i class="bi bi-arrow-down-up"></i></div>
+            <div class="stat-card__body">
+                <div class="stat-card__value" id="stat-total-requests">-</div>
+                <div class="stat-card__label" data-i18n="stats.totalRequests">总请求数</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6">
-        <div class="stat-card">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <div class="stat-value" id="stat-success-rate">-</div>
-                    <div class="stat-label" data-i18n="stats.successRate">成功率</div>
-                </div>
-                <div class="stat-icon" style="background:#f0fdf4;color:#22c55e;"><i class="bi bi-check-circle"></i></div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card stat-card--green">
+            <div class="stat-card__icon"><i class="bi bi-check-circle"></i></div>
+            <div class="stat-card__body">
+                <div class="stat-card__value" id="stat-success-rate">-</div>
+                <div class="stat-card__label" data-i18n="stats.successRate">成功率</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6">
-        <div class="stat-card">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <div class="stat-value" id="stat-avg-latency">-</div>
-                    <div class="stat-label" data-i18n="stats.avgLatency">平均延迟</div>
-                </div>
-                <div class="stat-icon" style="background:#fefce8;color:#eab308;"><i class="bi bi-stopwatch"></i></div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card stat-card--amber">
+            <div class="stat-card__icon"><i class="bi bi-stopwatch"></i></div>
+            <div class="stat-card__body">
+                <div class="stat-card__value" id="stat-avg-latency">-</div>
+                <div class="stat-card__label" data-i18n="stats.avgLatency">平均延迟</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6">
-        <div class="stat-card">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <div class="stat-value" id="stat-rpm">-</div>
-                    <div class="stat-label" data-i18n="stats.rpm">每分钟请求</div>
-                </div>
-                <div class="stat-icon" style="background:#f0f9ff;color:#0ea5e9;"><i class="bi bi-lightning"></i></div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card stat-card--purple">
+            <div class="stat-card__icon"><i class="bi bi-lightning"></i></div>
+            <div class="stat-card__body">
+                <div class="stat-card__value" id="stat-rpm">-</div>
+                <div class="stat-card__label" data-i18n="stats.rpm">每分钟请求</div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Charts Row -->
+<!-- Toolbar: time range + refresh -->
+<div class="card-panel mb-3">
+    <div class="card-body py-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-1">
+            <span class="text-muted small me-1"><i class="bi bi-clock-history me-1"></i><span data-i18n="stats.timeRange">时间范围</span></span>
+            <div class="btn-group btn-group-sm" role="group" id="time-range-group">
+                <input type="radio" class="btn-check" name="timeRange" id="range-1h" value="60" checked>
+                <label class="btn btn-outline-secondary" for="range-1h">1h</label>
+                <input type="radio" class="btn-check" name="timeRange" id="range-6h" value="360">
+                <label class="btn btn-outline-secondary" for="range-6h">6h</label>
+                <input type="radio" class="btn-check" name="timeRange" id="range-24h" value="1440">
+                <label class="btn btn-outline-secondary" for="range-24h">24h</label>
+                <input type="radio" class="btn-check" name="timeRange" id="range-7d" value="10080">
+                <label class="btn btn-outline-secondary" for="range-7d">7d</label>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-muted small" id="stats-last-updated"></span>
+            <button class="btn btn-sm btn-outline-secondary" id="stats-refresh-btn" title="刷新">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 1: QPS + Error Rate -->
 <div class="row g-3 mb-3">
-    <!-- QPS Trend Chart -->
-    <div class="col-md-6">
+    <div class="col-lg-8">
         <div class="card-panel">
-            <div class="card-header">
+            <div class="card-header d-flex align-items-center justify-content-between">
                 <span><i class="bi bi-graph-up me-2"></i><span data-i18n="stats.chart.qps">QPS 趋势</span></span>
+                <div class="d-flex align-items-center gap-3 small text-muted" id="qps-legend">
+                    <span><i class="bi bi-circle-fill" style="color:#6366f1;font-size:8px"></i> QPS</span>
+                </div>
             </div>
             <div class="card-body">
-                <div style="height:220px;">
+                <div style="height:240px;position:relative;">
                     <canvas id="qps-chart"></canvas>
                 </div>
             </div>
         </div>
     </div>
-    <!-- Latency Trend Chart -->
-    <div class="col-md-6">
-        <div class="card-panel">
+    <div class="col-lg-4">
+        <div class="card-panel h-100">
             <div class="card-header">
-                <span><i class="bi bi-stopwatch me-2"></i><span data-i18n="stats.chart.latency">延迟分布 (P50/P90/P99)</span></span>
+                <span><i class="bi bi-pie-chart me-2"></i><span data-i18n="stats.chart.statusCodes">状态码分布</span></span>
             </div>
-            <div class="card-body">
-                <div style="height:220px;">
-                    <canvas id="latency-chart"></canvas>
+            <div class="card-body d-flex align-items-center justify-content-center">
+                <div style="height:220px;width:100%;">
+                    <canvas id="status-chart"></canvas>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Error Rate Chart -->
+<!-- Charts Row 2: Latency + Error Rate -->
 <div class="row g-3 mb-3">
-    <div class="col-md-6">
+    <div class="col-lg-6">
+        <div class="card-panel">
+            <div class="card-header">
+                <span><i class="bi bi-stopwatch me-2"></i><span data-i18n="stats.chart.latency">延迟分布</span></span>
+                <span class="badge bg-secondary small">P50 / P90 / P99</span>
+            </div>
+            <div class="card-body">
+                <div style="height:200px;">
+                    <canvas id="latency-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
         <div class="card-panel">
             <div class="card-header">
                 <span><i class="bi bi-exclamation-triangle me-2"></i><span data-i18n="stats.chart.errorRate">错误率趋势</span></span>
+                <span class="badge bg-danger small" id="error-rate-badge" style="display:none">0%</span>
             </div>
             <div class="card-body">
                 <div style="height:200px;">
@@ -95,321 +129,148 @@
             </div>
         </div>
     </div>
-    <div class="col-md-6">
+</div>
+
+<!-- Top Routes & Top Clusters -->
+<div class="row g-3 mb-3">
+    <div class="col-lg-6">
         <div class="card-panel">
             <div class="card-header">
-                <span><i class="bi bi-pie-chart me-2"></i><span data-i18n="stats.chart.statusCodes">状态码分布</span></span>
+                <span><i class="bi bi-signpost-split me-2"></i><span>热门路由</span></span>
+                <span class="badge bg-primary small" id="top-routes-count"></span>
             </div>
-            <div class="card-body">
-                <div style="height:200px;">
-                    <canvas id="status-chart"></canvas>
-                </div>
+            <div class="card-body" style="max-height:280px;overflow-y:auto;">
+                <div id="top-routes-list" class="stats-list"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card-panel">
+            <div class="card-header">
+                <span><i class="bi bi-diagram-3 me-2"></i><span>热门集群</span></span>
+                <span class="badge bg-info small" id="top-clusters-count"></span>
+            </div>
+            <div class="card-body" style="max-height:280px;overflow-y:auto;">
+                <div id="top-clusters-list" class="stats-list"></div>
             </div>
         </div>
     </div>
 </div>
 
 @section Scripts {
-@{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
-<!-- Chart.js for statistics charts -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
-
-<!-- Performance Optimizations -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-performance.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-indexeddb.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-worker.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-sw-register.js?v=@v"></script>
-
-<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-stats.js?v=@v"></script>
-
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-stats-page.js?v=@v"></script>
 <script>
     window.__dashboard = window.__dashboard || {};
     var dash = window.__dashboard;
-    dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
+    dash.basePath = '/' + '@prefix';
+    dash.routePrefix = '@prefix';
     dash.token = localStorage.getItem('dashboard_token');
-    dash.CURRENT_LOCALE = '@ViewBag.Locale';
-    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
-    dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
-    dash.currentPage = '@ViewBag.CurrentPage';
+
+    document.addEventListener('DOMContentLoaded', function() {
+        window.DashboardApi.init();
+        StatsPageModule.init();
+    });
 </script>
-
-<script>
-    // Enhanced Stats Module with Charts - Data binding fixed
-    (function() {
-        var qpsChart, latencyChart, errorChart, statusChart;
-        var cachedStatsData = null; // Cache for stats data
-
-        async function initEnhancedStats() {
-            await loadEnhancedStats();
-        }
-
-        async function loadEnhancedStats() {
-            // First load stats data (contains latency percentiles and status codes)
-            // Note: DashboardApi automatically unwraps { code: 200, data: {...} }
-            try {
-                var statsData = await DashboardApi.endpoints.getStats();
-                console.log('[Stats] Stats data loaded:', statsData);
-                if (statsData) {
-                    cachedStatsData = statsData;
-                    updateSummaryCards(statsData);
-                    renderLatencyChartFromStats(statsData);
-                    renderStatusChartFromStats(statsData);
-                } else {
-                    showNoData();
-                }
-            } catch (e) {
-                console.error('[Stats] Failed to load stats data:', e);
-                showNoData();
-            }
-
-            // Then load traffic data for QPS and error rate charts
-            try {
-                var trafficData = await DashboardApi.endpoints.getTrafficData(60); // 1 hour of data
-                console.log('[Stats] Traffic data loaded:', trafficData);
-                if (trafficData) {
-                    renderQpsChart(trafficData);
-                    renderErrorChart(trafficData);
-                }
-            } catch (e) {
-                console.error('[Stats] Failed to load traffic data:', e);
-            }
-        }
-
-        function showNoData() {
-            updateElement('stat-total-requests', '-');
-            updateElement('stat-success-rate', '-');
-            updateElement('stat-avg-latency', '-');
-            updateElement('stat-rpm', '-');
-        }
-
-        function updateSummaryCards(data) {
-            // DashboardApi unwraps { code: 200, data: {...} } and converts PascalCase to camelCase
-            if (!data || data.hasData === false) {
-                showNoData();
-                return;
-            }
-
-            updateElement('stat-total-requests', (data.totalRequests || 0).toLocaleString());
-            updateElement('stat-success-rate', (data.successRate || 0) + '%');
-            updateElement('stat-avg-latency', (data.avgLatency || 0) + 'ms');
-            updateElement('stat-rpm', data.requestsPerMin || '0');
-        }
-
-        function renderQpsChart(data) {
-            var ctx = document.getElementById('qps-chart');
-            if (!ctx) return;
-
-            if (qpsChart) qpsChart.destroy();
-
-            // DashboardApi converts PascalCase to camelCase (Labels, Qps -> labels, qps)
-            if (!data || !data.labels || data.labels.length === 0) {
-                ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">暂无数据</div>';
-                return;
-            }
-
-            qpsChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: data.labels,
-                    datasets: [{
-                        label: 'QPS',
-                        data: data.qps,
-                        borderColor: '#6366f1',
-                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 0,
-                        pointHoverRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { maxTicksLimit: 6, font: { size: 10 } } },
-                        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 } } }
-                    }
-                }
-            });
-        }
-
-        // Render latency chart using aggregated stats data (bar chart showing P50/P90/P99)
-        function renderLatencyChartFromStats(data) {
-            var ctx = document.getElementById('latency-chart');
-            if (!ctx) return;
-
-            if (latencyChart) latencyChart.destroy();
-
-            // If no data, show empty message
-            if (!data || data.hasData === false) {
-                ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">暂无数据</div>';
-                return;
-            }
-
-            // Use aggregated P50/P90/P99 from stats API (camelCase)
-            var p50 = data.p50 || 0;
-            var p90 = data.p90 || 0;
-            var p99 = data.p99 || 0;
-
-            latencyChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['P50', 'P90', 'P99'],
-                    datasets: [{
-                        label: '延迟 (ms)',
-                        data: [p50, p90, p99],
-                        backgroundColor: ['#22c55e', '#f59e0b', '#ef4444'],
-                        borderRadius: 6,
-                        barThickness: 40
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return context.parsed.y + ' ms';
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: { grid: { display: false } },
-                        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 } }, title: { display: true, text: 'ms' } }
-                    }
-                }
-            });
-        }
-
-        function renderErrorChart(data) {
-            var ctx = document.getElementById('error-chart');
-            if (!ctx) return;
-
-            if (errorChart) errorChart.destroy();
-
-            // DashboardApi converts PascalCase to camelCase (Labels, Errors)
-            if (!data || !data.labels || data.labels.length === 0) {
-                ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">暂无数据</div>';
-                return;
-            }
-
-            var errorRates = data.qps.map(function(qps, i) {
-                if (qps === 0) return 0;
-                return Math.round((data.errors[i] / qps) * 100);
-            });
-
-            errorChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: data.labels,
-                    datasets: [{
-                        label: '错误率 (%)',
-                        data: errorRates,
-                        borderColor: '#ef4444',
-                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { maxTicksLimit: 6, font: { size: 10 } } },
-                        y: { beginAtZero: true, max: 100, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 }, callback: function(v) { return v + '%'; } } }
-                    }
-                }
-            });
-        }
-
-        // Render status chart using real statusCodes data from stats API
-        function renderStatusChartFromStats(data) {
-            var ctx = document.getElementById('status-chart');
-            if (!ctx) return;
-
-            if (statusChart) statusChart.destroy();
-
-            // If no data, show empty message (camelCase: hasData, statusCodes)
-            if (!data || data.hasData === false || !data.statusCodes || data.statusCodes.length === 0) {
-                ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">暂无数据</div>';
-                return;
-            }
-
-            // Aggregate status codes into 2xx, 4xx, 5xx (camelCase: code, count)
-            var count2xx = 0, count4xx = 0, count5xx = 0;
-            data.statusCodes.forEach(function(item) {
-                var code = item.code;
-                var count = item.count || 0;
-                if (code >= 200 && code < 300) count2xx += count;
-                else if (code >= 400 && code < 500) count4xx += count;
-                else if (code >= 500) count5xx += count;
-            });
-
-            statusChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['2xx', '4xx', '5xx'],
-                    datasets: [{
-                        data: [count2xx, count4xx, count5xx],
-                        backgroundColor: ['#22c55e', '#f59e0b', '#ef4444'],
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } }
-                    },
-                    cutout: '60%'
-                }
-            });
-        }
-
-        function updateElement(id, value) {
-            var el = document.getElementById(id);
-            if (el) el.textContent = value;
-        }
-
-        // Expose to global for refresh
-        window.EnhancedStats = { init: initEnhancedStats, loadEnhancedStats: loadEnhancedStats };
-    })();
-
-    // Initialize
-    (async function() {
-        if (window.DashboardUtils) DashboardUtils.init();
-        if (window.DashboardApi) DashboardApi.init();
-        if (window.DashboardState) DashboardState.init();
-        if (window.DashboardI18n) DashboardI18n.init();
-        if (window.DashboardStorage) DashboardStorage.init();
-        if (window.DashboardModals) DashboardModals.init();
-        if (window.DashboardEvents) DashboardEvents.setup();
-
-        if (window.DashboardApp?.modules?.stats?.init) await DashboardApp.modules.stats.init();
-        if (window.StatsModule?.loadStats) await StatsModule.loadStats();
-        if (window.EnhancedStats?.init) await EnhancedStats.init();
-
-        document.dispatchEvent(new CustomEvent('dashboard:ready'));
-    })();
-</script>
+}
 
 <style>
-@@keyframes spin { to { transform: rotate(360deg); } }
-.spin { display:inline-block; animation: spin .6s linear infinite; }
-</style>
+.stat-card {
+    background: var(--panel-bg, #fff);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
+.stat-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    transform: translateY(-1px);
+}
+.stat-card__icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+.stat-card--blue .stat-card__icon { background: #eff6ff; color: #3b82f6; }
+.stat-card--green .stat-card__icon { background: #f0fdf4; color: #22c55e; }
+.stat-card--amber .stat-card__icon { background: #fefce8; color: #eab308; }
+.stat-card--purple .stat-card__icon { background: #f5f3ff; color: #7c3aed; }
+.stat-card__value {
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--text-color, #111827);
+}
+.stat-card__label {
+    font-size: 0.78rem;
+    color: #9ca3af;
+    margin-top: 2px;
+}
+
+.stats-list { display: flex; flex-direction: column; gap: 6px; }
+.stats-list-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: var(--hover-bg, #f9fafb);
+    transition: background 0.15s;
+}
+.stats-list-row:hover { background: var(--hover-bg-active, #f3f4f6); }
+.stats-list-rank {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    flex-shrink: 0;
+    background: #e5e7eb;
+    color: #6b7280;
+}
+.stats-list-rank.top-1 { background: #fef3c7; color: #d97706; }
+.stats-list-rank.top-2 { background: #e5e7eb; color: #6b7280; }
+.stats-list-rank.top-3 { background: #fef3c7; color: #92400e; opacity: 0.7; }
+.stats-list-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-color, #374151);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.stats-list-value {
+    font-size: 11px;
+    color: #9ca3af;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+}
+.stats-list-bar-wrap {
+    width: 80px;
+    height: 4px;
+    background: #f3f4f6;
+    border-radius: 2px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.stats-list-bar {
+    height: 100%;
+    border-radius: 2px;
+    background: #6366f1;
+    transition: width 0.5s ease;
+}
+</style>

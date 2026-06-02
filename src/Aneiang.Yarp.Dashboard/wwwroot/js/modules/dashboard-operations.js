@@ -56,10 +56,8 @@
      */
     async function loadAlertSummary() {
         try {
-            var result = await DashboardApi.endpoints.getAlertSummary();
-            if (result.code !== 200 || !result.data) return;
-
-            var data = result.data;
+            var data = await DashboardApi.endpoints.getAlertSummary();
+            if (!data) return;
             
             // Update alert cards
             updateElement('alert-unhealthy', data.unhealthyCount > 0 ? data.unhealthyCount : '-');
@@ -81,10 +79,8 @@
      */
     async function loadTrafficChart() {
         try {
-            var result = await DashboardApi.endpoints.getTrafficData(currentTimeRange);
-            if (result.code !== 200 || !result.data) return;
-
-            var data = result.data;
+            var data = await DashboardApi.endpoints.getTrafficData(currentTimeRange);
+            if (!data) return;
             renderTrafficChart(data);
             
             // Update current QPS badge
@@ -203,10 +199,8 @@
      */
     async function loadTopErrors() {
         try {
-            var result = await DashboardApi.endpoints.getTopIssues(5);
-            if (result.code !== 200 || !result.data) return;
-
-            var data = result.data;
+            var data = await DashboardApi.endpoints.getTopIssues(5);
+            if (!data) return;
             renderErrorRoutes(data.errorRoutes || []);
             renderSlowClusters(data.slowClusters || []);
         } catch (e) {
@@ -279,13 +273,12 @@
     async function emergencyDisable() {
         try {
             // Load route list
-            var result = await DashboardApi.endpoints.getRouteList();
-            if (result.code !== 200 || !result.data) {
+            var routes = await DashboardApi.endpoints.getRouteList();
+            if (!routes || !Array.isArray(routes)) {
                 alert(__('overview.quickActions.loadFailed') || '加载路由列表失败');
                 return;
             }
 
-            var routes = result.data || [];
             var disabledRoutes = routes.filter(function(r) { return r.disabled; });
             var enabledRoutes = routes.filter(function(r) { return !r.disabled; });
 
@@ -379,7 +372,8 @@
                 alert((__('overview.quickActions.disabledSuccess') || '路由已禁用') + ': ' + routeId);
                 // Refresh overview page
                 if (window.DashboardApp && DashboardApp.modules && DashboardApp.modules.home) {
-                    DashboardApp.modules.home.load();
+                    DashboardApp.modules.home.loadInfo();
+                    DashboardApp.modules.home.updateStatCards();
                 }
             } else {
                 alert((__('overview.quickActions.disabledFailed') || '禁用失败') + ': ' + (result.message || ''));
@@ -396,13 +390,12 @@
      */
     async function emergencyEnable() {
         try {
-            var result = await DashboardApi.endpoints.getRouteList();
-            if (result.code !== 200 || !result.data) {
+            var routes = await DashboardApi.endpoints.getRouteList();
+            if (!routes || !Array.isArray(routes)) {
                 alert(__('overview.quickActions.loadFailed') || '加载路由列表失败');
                 return;
             }
 
-            var routes = result.data || [];
             var disabledRoutes = routes.filter(function(r) { return r.disabled; });
 
             var modalHtml = createRouteSelectModal(disabledRoutes, 'enable');
@@ -428,7 +421,8 @@
             if (result.code === 200) {
                 alert((__('overview.quickActions.enabledSuccess') || '路由已启用') + ': ' + routeId);
                 if (window.DashboardApp && DashboardApp.modules && DashboardApp.modules.home) {
-                    DashboardApp.modules.home.load();
+                    DashboardApp.modules.home.loadInfo();
+                    DashboardApp.modules.home.updateStatCards();
                 }
             } else {
                 alert((__('overview.quickActions.enabledFailed') || '启用失败') + ': ' + (result.message || ''));

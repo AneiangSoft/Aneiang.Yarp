@@ -2,7 +2,7 @@
     ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Topology" : "拓扑图";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
     var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
-    var v = "2.3.0.11";
+    var v = "2.3.0.21";
 }
 
 @* Stats Cards *@
@@ -147,8 +147,8 @@
 
 @* Topology Chart Container *@
 <div class="card-panel">
-    <div class="card-body p-0 position-relative" style="min-height: 600px;">
-        <div id="topology-chart" style="width: 100%; height: 600px;"></div>
+    <div class="card-body p-0 position-relative" style="min-height: 680px;">
+        <div id="topology-chart" style="width: 100%; height: 680px;"></div>
         
         @* Loading Indicator *@
         <div id="topology-loading" class="position-absolute top-50 start-50 translate-middle">
@@ -232,7 +232,11 @@
 }
 
 #topology-chart {
-    background: var(--panel-bg, #fafafa);
+    background: transparent;
+}
+
+#topology-chart canvas {
+    border-radius: 0 0 calc(0.5rem - 1px) calc(0.5rem - 1px);
 }
 
 .vr {

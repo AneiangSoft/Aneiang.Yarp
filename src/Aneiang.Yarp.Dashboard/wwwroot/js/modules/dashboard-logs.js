@@ -35,22 +35,16 @@
 
             console.log('[Logs] Initializing with virtual scrolling...');
 
-            try {
-                // Initialize virtual scrolling measurements
-                this.initVirtualScroll();
+            this.initVirtualScroll();
+            this.setupEvents();
 
-                // Load initial logs
-                await this.loadLogs();
+            this.initialized = true;
+            console.log('[Logs] Initialized with virtual scrolling');
+        },
 
-                // Setup event listeners
-                this.setupEvents();
-
-                this.initialized = true;
-                console.log('[Logs] Initialized with virtual scrolling');
-            } catch (error) {
-                console.error('[Logs] Init failed:', error);
-                throw error;
-            }
+        destroy: function() {
+            this.stopPolling();
+            this.initialized = false;
         },
 
         // ===== Virtual Scrolling Setup =====
