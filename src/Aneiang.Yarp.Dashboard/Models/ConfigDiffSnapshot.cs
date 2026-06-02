@@ -79,7 +79,11 @@ public class DiffEntry
     public DiffEntityType EntityType { get; set; }
     public string EntityId { get; set; } = string.Empty;
     public string? ParentId { get; set; }
-    public DiffFieldChange? FieldChange { get; set; }
+
+    /// <summary>All field-level changes for this entity. Replaces the single FieldChange property.</summary>
+    public List<DiffFieldChange> FieldChanges { get; set; } = new();
+
+    /// <summary>Human-readable description of the change.</summary>
     public string Description { get; set; } = string.Empty;
 }
 

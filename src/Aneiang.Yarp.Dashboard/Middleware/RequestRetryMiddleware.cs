@@ -2,7 +2,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Models;
-using System.Text.Json;
+using System.Buffers;
+using System.Text;
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Model;
 
@@ -139,16 +140,42 @@ public sealed class RequestRetryMiddleware
         }
     }
 
-    private static async Task<byte[]?> ReadRequestBodyAsync(HttpRequest request)
+    /// <summary>Maximum request body size for retry buffering. Prevents OOM from large uploads.</summary>
+    private const int MaxRetryBodySizeBytes = 1024 * 1024; // 1MB hard limit
+
+    private async Task<byte[]?> ReadRequestBodyAsync(HttpRequest request)
     {
-        if (request.ContentLength == null || request.ContentLength == 0)
+        if (request.ContentLength is null or 0)
             return null;
 
+        // Hard size limit — prevents OOM on multi-GB uploads
+        if (request.ContentLength > MaxRetryBodySizeBytes)
+        {
+            _logger.LogDebug("Request body ({Size} bytes) exceeds retry buffer limit ({Limit} bytes), skipping retry",
+                request.ContentLength, MaxRetryBodySizeBytes);
+            return null;
+        }
+
         request.Body.Seek(0, SeekOrigin.Begin);
-        using var ms = new MemoryStream();
-        await request.Body.CopyToAsync(ms);
-        request.Body.Seek(0, SeekOrigin.Begin);
-        return ms.ToArray();
+        var pool = ArrayPool<byte>.Shared;
+        var buffer = pool.Rent((int)request.ContentLength);
+        try
+        {
+            int read = 0;
+            int bytesRead;
+            while ((bytesRead = await request.Body.ReadAsync(buffer.AsMemory(read, (int)request.ContentLength - read))) > 0)
+            {
+                read += bytesRead;
+                // Safety check: if we somehow read more than ContentLength suggested
+                if (read > MaxRetryBodySizeBytes) break;
+            }
+            request.Body.Seek(0, SeekOrigin.Begin);
+            return buffer.AsSpan(0, read).ToArray();
+        }
+        finally
+        {
+            pool.Return(buffer);
+        }
     }
 
     private static bool IsRetryEnabled(RouteConfig routeConfig)

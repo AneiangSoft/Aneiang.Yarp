@@ -35,8 +35,23 @@ public static class DashboardApplicationBuilderExtensions
         Action<IReverseProxyApplicationBuilder>? configureProxyPipeline = null)
     {
         // Static files for Dashboard UI
+        // RCL wwwroot is published alongside the host app — configure the web root
+        // to point to Aneiang.Yarp.Dashboard's wwwroot so its assets are served.
+        //var dashboardWebRoot = Path.Combine(
+        //    AppDomain.CurrentDomain.BaseDirectory,
+        //    "Aneiang.Yarp.Dashboard.wwwroot");
+        //if (Directory.Exists(dashboardWebRoot))
+        //{
+        //    app.UseStaticFiles(new StaticFileOptions
+        //    {
+        //        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(dashboardWebRoot)
+        //    });
+        //}
+        //else
+        //{
+        //    app.UseStaticFiles();
+        //}
         app.UseStaticFiles();
-
         // Request capture runs on the main pipeline (before endpoint routing)
         app.UseMiddleware<YarpRequestCaptureMiddleware>();
 

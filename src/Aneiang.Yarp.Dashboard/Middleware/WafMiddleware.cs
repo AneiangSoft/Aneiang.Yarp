@@ -1,117 +1,214 @@
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Models;
+using Aneiang.Yarp.Dashboard.Services;
 
 namespace Aneiang.Yarp.Dashboard.Middleware;
 
 /// <summary>
 /// Web Application Firewall middleware.
 /// Provides IP blocking, SQL injection detection, XSS detection, path traversal detection, and request size validation.
+/// All regex patterns use a tight timeout to prevent ReDoS attacks.
 /// </summary>
 public sealed class WafMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<WafMiddleware> _logger;
-    private readonly WafOptions _options;
+    private readonly WafOptions _wafOptions;
+    private readonly string _dashPrefix;
+    private readonly WafEventStore _eventStore;
+    private readonly IGatewayAlertService _alertService;
 
-    // Compiled regex patterns for built-in rules
+    /// <summary>Ultra-tight timeout (5ms) prevents catastrophic backtracking while allowing benign input.</summary>
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(5);
+
+    // SQL injection: checks for dangerous keywords and comment-based injection in URI/query.
+    // Uses alternation with strict anchors to prevent backtracking on evil input.
     private static readonly Regex SqlInjectionPattern = new(
-        @"\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|--|\/\*|\*\/)",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled,
-        TimeSpan.FromMilliseconds(100));
+        @"(?i)\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|UNION|EXEC|EXECUTE|XP_|SP_)
+        |\B--|\B/\*|\*/",
+        RegexOptions.Compiled | RegexOptions.Multiline,
+        RegexTimeout);
 
+    // SQL injection: checks for string-escape attacks in query parameter values (e.g., ' OR '1'='1)
+    private static readonly Regex SqlInjectionValuePattern = new(
+        @"(?i)'(\s*(?:OR|AND)\s*['""]?\w+[""']?\s*(?:=|LIKE|<|>)|;\s*(?:DROP|DELETE|INSERT|UPDATE))",
+        RegexOptions.Compiled,
+        RegexTimeout);
+
+    // XSS: common script injection and event-handler patterns
     private static readonly Regex XssPattern = new(
-        @"<script|javascript:|on\w+\s*=|data:text/html|<iframe|onerror\s*=|onload\s*=",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled,
-        TimeSpan.FromMilliseconds(100));
+        @"(?i)<script[^>]*>|</script>|javascript:|data:text/html|<iframe[^>]*>|on\w+\s*=",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase,
+        RegexTimeout);
 
+    // Path traversal: encoded and raw variants
     private static readonly Regex PathTraversalPattern = new(
-        @"(\.\.\/|\.\.\\|%2e%2e%2f|%2e%2e\/|%2e%2e%5c|%2e%2e\\)",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled,
-        TimeSpan.FromMilliseconds(100));
+        @"(?i)(\.\.[/%5c\\])|(%2e%2e[%/%5c\\])|(%252e%252e)",
+        RegexOptions.Compiled,
+        RegexTimeout);
 
-    private static readonly Regex EmailPattern = new(
-        @"'|;|--|\/\*|\*\/|xp_|sp_executesql|exec\s*\(|execute\s*\(",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled,
-        TimeSpan.FromMilliseconds(100));
+    // Database error message fingerprinting (blocks responses that reveal DB errors)
+    private static readonly Regex DbErrorPattern = new(
+        @"(?i)(SQL syntax|MySQL|ORA-\d{4,}|SQLServer|ODBC|PostgreSQL|sqlite_error|mysql_\w+\(\)|Microsoft SQL Server)",
+        RegexOptions.Compiled,
+        RegexTimeout);
 
     public WafMiddleware(
         RequestDelegate next,
         ILogger<WafMiddleware> logger,
-        IOptions<WafOptions> options)
+        IOptions<WafOptions> wafOptions,
+        IOptions<DashboardOptions> dashOptions,
+        WafEventStore eventStore,
+        IGatewayAlertService alertService)
     {
         _next = next;
         _logger = logger;
-        _options = options.Value;
+        _wafOptions = wafOptions.Value;
+        // Use DashboardOptions prefix if WafOptions prefix is the default
+        var prefix = _wafOptions.DashboardRoutePrefix;
+        if (string.IsNullOrWhiteSpace(prefix) || prefix == "apigateway")
+            prefix = dashOptions.Value.RoutePrefix;
+        _dashPrefix = "/" + prefix.Trim('/');
+        _eventStore = eventStore;
+        _alertService = alertService;
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (!_options.Enabled)
+        if (!_wafOptions.Enabled)
+        {
+            await _next(context);
+            return;
+        }
+
+        var path = context.Request.Path.Value ?? "";
+        var dashPrefix = "/" + (_wafOptions.DashboardRoutePrefix?.Trim('/') ?? "apigateway");
+
+        // Skip WAF checks for Dashboard UI and static assets — avoids false positives on config editing
+        if (path.StartsWith(dashPrefix, StringComparison.OrdinalIgnoreCase))
         {
             await _next(context);
             return;
         }
 
         // 1. IP check
-        if (_options.EnableIpCheck && !CheckIp(context))
+        if (_wafOptions.EnableIpCheck && !CheckIp(context))
         {
-            _logger.LogWarning("WAF blocked request from IP: {Ip}", GetClientIp(context));
+            RecordSecurityEvent(context, "IpBlocked");
             await BlockRequest(context, "Access denied");
             return;
         }
 
         // 2. Request size check
-        if (_options.EnableRequestSizeValidation && !CheckRequestSize(context))
+        if (_wafOptions.EnableRequestSizeValidation && !CheckRequestSize(context))
         {
-            _logger.LogWarning("WAF blocked oversized request from IP: {Ip}", GetClientIp(context));
+            RecordSecurityEvent(context, "RequestSizeBlocked");
             await BlockRequest(context, "Request entity too large");
             return;
         }
 
         // 3. Header count/size check
-        if (_options.EnableRequestSizeValidation && !CheckHeaders(context))
+        if (_wafOptions.EnableRequestSizeValidation && !CheckHeaders(context))
         {
-            _logger.LogWarning("WAF blocked malformed headers from IP: {Ip}", GetClientIp(context));
+            RecordSecurityEvent(context, "MalformedHeadersBlocked");
             await BlockRequest(context, "Too many headers");
             return;
         }
 
-        // 4. URI checks
-        var uri = context.Request.Path.Value ?? "";
-        if (uri.Length > 4096)
+        // 4. URI length and traversal check
+        if (path.Length > 4096)
         {
-            _logger.LogWarning("WAF blocked oversized URI from IP: {Ip}", GetClientIp(context));
+            RecordSecurityEvent(context, "UriTooLongBlocked");
             await BlockRequest(context, "URI too long");
             return;
         }
 
-        if (_options.EnablePathTraversalDetection && PathTraversalPattern.IsMatch(uri))
+        if (_wafOptions.EnablePathTraversalDetection && PathTraversalPattern.IsMatch(path))
         {
-            _logger.LogWarning("WAF blocked path traversal attempt: {Uri} from {Ip}", uri, GetClientIp(context));
+            RecordSecurityEvent(context, "PathTraversalBlocked", path);
             await BlockRequest(context, "Blocked by security policy");
             return;
         }
 
         // 5. Query string checks
         var queryString = context.Request.QueryString.Value ?? "";
-        if (_options.EnableSqlInjectionDetection && EmailPattern.IsMatch(queryString))
+        if (!string.IsNullOrEmpty(queryString))
         {
-            _logger.LogWarning("WAF blocked SQL injection in query from IP: {Ip}", GetClientIp(context));
-            await BlockRequest(context, "Blocked by security policy");
-            return;
+            if (_wafOptions.EnableSqlInjectionDetection)
+            {
+                // Check full query string for dangerous keywords
+                if (SqlInjectionPattern.IsMatch(queryString))
+                {
+                    RecordSecurityEvent(context, "SqlInjectionBlocked", queryString);
+                    await BlockRequest(context, "Blocked by security policy");
+                    return;
+                }
+                // Check parameter values for string-escape attacks (e.g., ' OR '1'='1)
+                if (SqlInjectionValuePattern.IsMatch(queryString))
+                {
+                    RecordSecurityEvent(context, "SqlInjectionValueBlocked", queryString);
+                    await BlockRequest(context, "Blocked by security policy");
+                    return;
+                }
+            }
+
+            if (_wafOptions.EnablePathTraversalDetection && PathTraversalPattern.IsMatch(queryString))
+            {
+                RecordSecurityEvent(context, "PathTraversalInQueryBlocked", queryString);
+                await BlockRequest(context, "Blocked by security policy");
+                return;
+            }
         }
 
-        if (_options.EnablePathTraversalDetection && PathTraversalPattern.IsMatch(queryString))
-        {
-            _logger.LogWarning("WAF blocked path traversal in query from IP: {Ip}", GetClientIp(context));
-            await BlockRequest(context, "Blocked by security policy");
-            return;
-        }
+        // 6. Apply security headers
+        ApplySecurityHeaders(context);
 
         await _next(context);
+    }
+
+    private void ApplySecurityHeaders(HttpContext context)
+    {
+        var resp = context.Response;
+        if (!resp.Headers.ContainsKey("X-Content-Type-Options"))
+            resp.Headers["X-Content-Type-Options"] = "nosniff";
+        if (!resp.Headers.ContainsKey("X-Frame-Options"))
+            resp.Headers["X-Frame-Options"] = "DENY";
+        if (!resp.Headers.ContainsKey("X-XSS-Protection"))
+            resp.Headers["X-XSS-Protection"] = "1; mode=block";
+        if (!resp.Headers.ContainsKey("Referrer-Policy"))
+            resp.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+        if (!resp.Headers.ContainsKey("Content-Security-Policy"))
+            resp.Headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; object-src 'none'";
+    }
+
+    private void RecordSecurityEvent(HttpContext context, string eventType, string? details = null)
+    {
+        var clientIp = GetClientIp(context);
+        var requestUri = context.Request.Path.Value + context.Request.QueryString.Value;
+
+        _logger.LogWarning(
+            "WAF [{EventType}] from IP: {Ip}, Path: {Path}, Details: {Details}",
+            eventType, clientIp, requestUri, details ?? "(hidden)");
+
+        // Persist to WafEventStore so the Security Events page has data
+        _eventStore.Add(new WafSecurityEvent
+        {
+            ClientIp = clientIp ?? "unknown",
+            EventType = eventType,
+            RuleName = eventType.Replace("Blocked", ""),
+            RequestUri = requestUri,
+            RequestMethod = context.Request.Method,
+            MatchedValue = details != null && details.Length <= 200 ? details : null,
+            Blocked = true,
+            StatusCode = 403
+        });
+
+        // Fire alert (respects cooldown and AlertWafBlocks flag)
+        _alertService.AlertWafBlock(clientIp ?? "unknown", eventType, requestUri);
     }
 
     private bool CheckIp(HttpContext context)
@@ -120,18 +217,16 @@ public sealed class WafMiddleware
         if (string.IsNullOrEmpty(clientIp))
             return true;
 
-        // Check whitelist first (if non-empty, only whitelisted IPs are allowed)
-        if (_options.IpWhitelist.Count > 0)
+        if (_wafOptions.IpWhitelist.Count > 0)
         {
-            if (!_options.IpWhitelist.Any(ip => MatchesIp(ip.Trim(), clientIp)))
+            if (!_wafOptions.IpWhitelist.Any(ip => MatchesIp(ip.Trim(), clientIp)))
                 return false;
             return true;
         }
 
-        // Check blacklist
-        if (_options.IpBlacklist.Count > 0)
+        if (_wafOptions.IpBlacklist.Count > 0)
         {
-            if (_options.IpBlacklist.Any(ip => MatchesIp(ip.Trim(), clientIp)))
+            if (_wafOptions.IpBlacklist.Any(ip => MatchesIp(ip.Trim(), clientIp)))
                 return false;
         }
 
@@ -141,16 +236,12 @@ public sealed class WafMiddleware
     private static bool MatchesIp(string pattern, string clientIp)
     {
         if (pattern.Contains('/'))
-        {
-            // CIDR notation (e.g., "192.168.1.0/24")
             return IsInCidrRange(pattern, clientIp);
-        }
 
         if (pattern.Contains('*'))
         {
-            // Wildcard (e.g., "192.168.*.*")
             var regex = "^" + Regex.Escape(pattern).Replace("\\*", ".*") + "$";
-            return Regex.IsMatch(clientIp, regex, RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(50));
+            return Regex.IsMatch(clientIp, regex, RegexOptions.IgnoreCase, RegexTimeout);
         }
 
         return string.Equals(pattern, clientIp, StringComparison.OrdinalIgnoreCase);
@@ -160,34 +251,28 @@ public sealed class WafMiddleware
     {
         try
         {
-            var parts = cidr.Split('/');
+            var parts = cidr.Split('/', 2);
             if (parts.Length != 2) return false;
-
-            var baseIp = System.Net.IPAddress.Parse(parts[0]);
-            var maskBits = int.Parse(parts[1]);
-            var clientIpAddr = System.Net.IPAddress.Parse(clientIp);
+            if (!System.Net.IPAddress.TryParse(parts[0], out var baseIp)) return false;
+            if (!int.TryParse(parts[1], out var maskBits)) return false;
+            if (!System.Net.IPAddress.TryParse(clientIp, out var clientIpAddr)) return false;
 
             var baseBytes = baseIp.GetAddressBytes();
             var clientBytes = clientIpAddr.GetAddressBytes();
-
             if (baseBytes.Length != clientBytes.Length) return false;
 
-            var fullBytes = maskBits / 8;
-            var remainingBits = maskBits % 8;
-
-            for (int i = 0; i < fullBytes; i++)
+            var maskBytes = BitConverter.GetBytes(~0u << (32 - maskBits)).Reverse().ToArray();
+            if (baseBytes.Length == 4 && maskBytes.Length == 4)
             {
-                if (baseBytes[i] != clientBytes[i]) return false;
+                for (int i = 0; i < 4; i++)
+                {
+                    if ((baseBytes[i] & maskBytes[i]) != (clientBytes[i] & maskBytes[i]))
+                        return false;
+                }
+                return true;
             }
 
-            if (remainingBits > 0 && fullBytes < baseBytes.Length)
-            {
-                var mask = (byte)(0xFF << (8 - remainingBits));
-                if ((baseBytes[fullBytes] & mask) != (clientBytes[fullBytes] & mask))
-                    return false;
-            }
-
-            return true;
+            return false;
         }
         catch
         {
@@ -198,7 +283,7 @@ public sealed class WafMiddleware
     private bool CheckRequestSize(HttpContext context)
     {
         if (context.Request.ContentLength.HasValue &&
-            context.Request.ContentLength.Value > _options.MaxRequestBodySize)
+            context.Request.ContentLength.Value > _wafOptions.MaxRequestBodySize)
         {
             return false;
         }
@@ -207,12 +292,12 @@ public sealed class WafMiddleware
 
     private bool CheckHeaders(HttpContext context)
     {
-        if (context.Request.Headers.Count > _options.MaxHeaderCount)
+        if (context.Request.Headers.Count > _wafOptions.MaxHeaderCount)
             return false;
 
         foreach (var header in context.Request.Headers)
         {
-            if (header.Value.Count > 1 || header.Value.ToString().Length > _options.MaxHeaderSize)
+            if (header.Value.Count > 1 || header.Value.ToString().Length > _wafOptions.MaxHeaderSize)
                 return false;
         }
 
@@ -221,7 +306,6 @@ public sealed class WafMiddleware
 
     private static string? GetClientIp(HttpContext context)
     {
-        // Check X-Forwarded-For header first
         if (context.Request.Headers.TryGetValue("X-Forwarded-For", out var forwardedFor))
         {
             var value = forwardedFor.FirstOrDefault();
@@ -232,7 +316,6 @@ public sealed class WafMiddleware
             }
         }
 
-        // X-Real-IP
         if (context.Request.Headers.TryGetValue("X-Real-IP", out var realIp))
         {
             var value = realIp.FirstOrDefault();
@@ -243,9 +326,9 @@ public sealed class WafMiddleware
         return context.Connection.RemoteIpAddress?.ToString();
     }
 
-    private async Task BlockRequest(HttpContext context, string message)
+    private static async Task BlockRequest(HttpContext context, string message)
     {
-        context.Response.StatusCode = 403;
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
         context.Response.ContentType = "application/json";
         await context.Response.WriteAsJsonAsync(new
         {

@@ -222,8 +222,8 @@ public class ConfigSnapshotService : IConfigSnapshotService
                         ChangeType = DiffChangeType.Modified,
                         EntityType = DiffEntityType.Route,
                         EntityId = toRoute.RouteId,
-                        FieldChange = fieldChanges.First(),
-                        Description = $"Route '{toRoute.RouteId}' modified: {fieldChanges.First().FieldName}"
+                        FieldChanges = fieldChanges,
+                        Description = $"Route '{toRoute.RouteId}' modified: {string.Join(", ", fieldChanges.Select(f => f.FieldName))}"
                     });
                 }
             }
@@ -274,8 +274,8 @@ public class ConfigSnapshotService : IConfigSnapshotService
                         ChangeType = DiffChangeType.Modified,
                         EntityType = DiffEntityType.Cluster,
                         EntityId = toCluster.ClusterId,
-                        FieldChange = fieldChanges.First(),
-                        Description = $"Cluster '{toCluster.ClusterId}' modified: {fieldChanges.First().FieldName}"
+                        FieldChanges = fieldChanges,
+                        Description = $"Cluster '{toCluster.ClusterId}' modified: {string.Join(", ", fieldChanges.Select(f => f.FieldName))}"
                     });
                 }
 
@@ -310,8 +310,8 @@ public class ConfigSnapshotService : IConfigSnapshotService
                                 EntityType = DiffEntityType.Destination,
                                 EntityId = toDest.DestinationId,
                                 ParentId = toCluster.ClusterId,
-                                FieldChange = changes.First(),
-                                Description = $"Destination '{toDest.DestinationId}' modified: {changes.First().FieldName}"
+                                FieldChanges = changes,
+                                Description = $"Destination '{toDest.DestinationId}' modified: {string.Join(", ", changes.Select(f => f.FieldName))}"
                             });
                         }
                     }
