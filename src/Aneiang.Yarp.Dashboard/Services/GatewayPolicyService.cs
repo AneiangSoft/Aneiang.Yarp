@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 namespace Aneiang.Yarp.Dashboard.Services;
 
 /// <summary>
-/// Service for managing gateway policies.
+/// Service for managing gateway policies using structured storage.
 /// </summary>
 public interface IGatewayPolicyService
 {
@@ -23,20 +23,17 @@ public interface IGatewayPolicyService
 }
 
 /// <summary>
-/// In-memory implementation of gateway policy service with JSON file persistence.
+/// Implementation of gateway policy service with structured storage.
 /// Integrates with DynamicYarpConfigService to apply policy metadata to routes.
 /// </summary>
 public class GatewayPolicyService : IGatewayPolicyService
 {
-    private const string Category = "gateway-policies";
-    private readonly IDataStore _store;
+    private readonly IStructuredDataStore _store;
     private readonly DynamicYarpConfigService _yarpConfig;
     private readonly ILogger<GatewayPolicyService> _logger;
-    private GatewayPolicyCollection? _policies;
-    private readonly SemaphoreSlim _lock = new(1, 1);
 
     public GatewayPolicyService(
-        IDataStore store,
+        IStructuredDataStore store,
         DynamicYarpConfigService yarpConfig,
         ILogger<GatewayPolicyService> logger)
     {
@@ -45,89 +42,53 @@ public class GatewayPolicyService : IGatewayPolicyService
         _logger = logger;
     }
 
-    private async Task<GatewayPolicyCollection> LoadOrCreateAsync()
-    {
-        if (_policies != null)
-            return _policies;
-
-        await _lock.WaitAsync();
-        try
-        {
-            if (_policies != null)
-                return _policies;
-
-            _policies = await _store.GetDocumentAsync<GatewayPolicyCollection>(Category) ?? new GatewayPolicyCollection();
-            _logger.LogInformation("Loaded {Count} policies from storage", _policies.Policies.Count);
-            return _policies;
-        }
-        finally
-        {
-            _lock.Release();
-        }
-    }
-
-    private async Task SaveAsync(GatewayPolicyCollection policies)
-    {
-        policies.LastModified = DateTime.UtcNow;
-        await _store.SetDocumentAsync(Category, policies);
-    }
-
     /// <inheritdoc />
     public async Task<IReadOnlyList<GatewayPolicy>> GetAllPoliciesAsync()
     {
-        var policies = await LoadOrCreateAsync();
-        return policies.Policies.AsReadOnly();
+        var entities = await _store.GetAllPoliciesAsync();
+        return entities.ToGatewayPolicies().AsReadOnly();
     }
 
     /// <inheritdoc />
     public async Task<GatewayPolicy?> GetPolicyAsync(string policyId)
     {
-        var policies = await LoadOrCreateAsync();
-        return policies.Policies.FirstOrDefault(p =>
-            string.Equals(p.PolicyId, policyId, StringComparison.OrdinalIgnoreCase));
+        var entity = await _store.GetPolicyAsync(policyId);
+        return entity?.ToGatewayPolicy();
     }
 
     /// <inheritdoc />
     public async Task<GatewayPolicy> CreatePolicyAsync(GatewayPolicy policy)
     {
-        var policies = await LoadOrCreateAsync();
-
         if (string.IsNullOrWhiteSpace(policy.PolicyId))
         {
             policy.PolicyId = Guid.NewGuid().ToString("N")[..12];
         }
 
-        if (policies.Policies.Any(p => string.Equals(p.PolicyId, policy.PolicyId, StringComparison.OrdinalIgnoreCase)))
+        var existing = await _store.GetPolicyAsync(policy.PolicyId);
+        if (existing != null)
         {
             throw new InvalidOperationException($"Policy with ID '{policy.PolicyId}' already exists");
         }
 
         policy.CreatedAt = DateTime.UtcNow;
-        policies.Policies.Add(policy);
+        await _store.SavePolicyAsync(policy.ToEntity());
 
-        await SaveAsync(policies);
         _logger.LogInformation("Created policy '{PolicyId}' ({Name})", policy.PolicyId, policy.DisplayName);
-
         return policy;
     }
 
     /// <inheritdoc />
     public async Task<GatewayPolicy?> UpdatePolicyAsync(string policyId, GatewayPolicy policy)
     {
-        var policies = await LoadOrCreateAsync();
-        var existing = policies.Policies.FirstOrDefault(p =>
-            string.Equals(p.PolicyId, policyId, StringComparison.OrdinalIgnoreCase));
-
+        var existing = await _store.GetPolicyAsync(policyId);
         if (existing == null)
             return null;
 
-        var index = policies.Policies.IndexOf(existing);
-        policy.PolicyId = existing.PolicyId;
+        policy.PolicyId = policyId;
         policy.CreatedAt = existing.CreatedAt;
         policy.CreatedBy = existing.CreatedBy;
-        policies.Policies[index] = policy;
 
-        await SaveAsync(policies);
+        await _store.SavePolicyAsync(policy.ToEntity());
         _logger.LogInformation("Updated policy '{PolicyId}'", policyId);
 
         return policy;
@@ -136,17 +97,12 @@ public class GatewayPolicyService : IGatewayPolicyService
     /// <inheritdoc />
     public async Task<bool> DeletePolicyAsync(string policyId)
     {
-        var policies = await LoadOrCreateAsync();
-        var existing = policies.Policies.FirstOrDefault(p =>
-            string.Equals(p.PolicyId, policyId, StringComparison.OrdinalIgnoreCase));
-
+        var existing = await _store.GetPolicyAsync(policyId);
         if (existing == null)
             return false;
 
-        policies.Policies.Remove(existing);
-        await SaveAsync(policies);
+        await _store.DeletePolicyAsync(policyId);
         _logger.LogInformation("Deleted policy '{PolicyId}'", policyId);
-
         return true;
     }
 
@@ -169,25 +125,25 @@ public class GatewayPolicyService : IGatewayPolicyService
         // Merge all enabled feature metadata into a flat dictionary
         var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        if (policy.CircuitBreaker != null && policy.CircuitBreaker.Enabled)
+        if (policy.CircuitBreaker?.Enabled == true)
         {
             foreach (var kvp in policy.CircuitBreaker.ToMetadata())
                 metadata[kvp.Key] = kvp.Value;
         }
 
-        if (policy.Retry != null && policy.Retry.Enabled)
+        if (policy.Retry?.Enabled == true)
         {
             foreach (var kvp in policy.Retry.ToMetadata())
                 metadata[kvp.Key] = kvp.Value;
         }
 
-        if (policy.RateLimit != null && policy.RateLimit.Enabled)
+        if (policy.RateLimit?.Enabled == true)
         {
             foreach (var kvp in policy.RateLimit.ToMetadata())
                 metadata[kvp.Key] = kvp.Value;
         }
 
-        if (policy.Waf != null && policy.Waf.Enabled)
+        if (policy.Waf?.Enabled == true)
         {
             foreach (var kvp in policy.Waf.ToMetadata())
                 metadata[kvp.Key] = kvp.Value;

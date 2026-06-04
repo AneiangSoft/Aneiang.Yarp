@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.Logging;
@@ -5,19 +6,24 @@ using Microsoft.Extensions.Logging;
 namespace Aneiang.Yarp.Dashboard.Services;
 
 /// <summary>
-/// Persists webhook settings via <see cref="IDataStore"/>.
+/// Persists webhook settings via <see cref="IStructuredDataStore"/>.
 /// Uses in-memory caching to avoid blocking async calls.
 /// </summary>
 public class WebhookSettingsPersistenceService
 {
-    private const string Category = "webhook-settings";
-    private readonly IDataStore _store;
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    };
+
+    private readonly IStructuredDataStore _store;
     private readonly ILogger<WebhookSettingsPersistenceService> _logger;
     private WebhookSettingsData? _cachedData;
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
     private bool _initialized;
 
-    public WebhookSettingsPersistenceService(IDataStore store, ILogger<WebhookSettingsPersistenceService> logger)
+    public WebhookSettingsPersistenceService(IStructuredDataStore store, ILogger<WebhookSettingsPersistenceService> logger)
     {
         _store = store;
         _logger = logger;
@@ -46,11 +52,45 @@ public class WebhookSettingsPersistenceService
     {
         try
         {
-            return await _store.GetDocumentAsync<WebhookSettingsData>(Category, ct);
+            var entity = await _store.GetWebhookSettingsAsync(ct);
+            if (entity == null) return null;
+
+            return new WebhookSettingsData
+            {
+                DingTalkEndpoints = ParseEndpoints(entity.Endpoints),
+                GenericEndpoints = new List<WebhookEndpoint>(),
+                EnabledEvents = ParseEvents(entity.Events)
+            };
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to load webhook settings from store");
+            _logger.LogWarning(ex, "Failed to load webhook settings from structured store");
+            return null;
+        }
+    }
+
+    private static List<WebhookEndpoint> ParseEndpoints(string? json)
+    {
+        if (string.IsNullOrEmpty(json)) return new List<WebhookEndpoint>();
+        try
+        {
+            return JsonSerializer.Deserialize<List<WebhookEndpoint>>(json, _jsonOptions) ?? new List<WebhookEndpoint>();
+        }
+        catch
+        {
+            return new List<WebhookEndpoint>();
+        }
+    }
+
+    private static List<string>? ParseEvents(string? json)
+    {
+        if (string.IsNullOrEmpty(json)) return null;
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(json, _jsonOptions);
+        }
+        catch
+        {
             return null;
         }
     }
@@ -61,17 +101,7 @@ public class WebhookSettingsPersistenceService
         if (_initialized && _cachedData != null)
             return _cachedData;
 
-        try
-        {
-            _cachedData = _store.GetDocumentAsync<WebhookSettingsData>(Category).GetAwaiter().GetResult();
-            _initialized = true;
-            return _cachedData;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to load webhook settings from store");
-            return null;
-        }
+        return LoadInternalAsync(CancellationToken.None).GetAwaiter().GetResult();
     }
 
     /// <summary>Save webhook settings to store.</summary>
@@ -79,9 +109,21 @@ public class WebhookSettingsPersistenceService
     {
         try
         {
-            _store.SetDocumentAsync(Category, data).GetAwaiter().GetResult();
+            var entity = new WebhookSettingsEntity
+            {
+                Enabled = data.DingTalkEndpoints?.Any(e => !string.IsNullOrEmpty(e.Url)) == true ||
+                         data.GenericEndpoints?.Any(e => !string.IsNullOrEmpty(e.Url)) == true,
+                Endpoints = JsonSerializer.Serialize(data.DingTalkEndpoints, _jsonOptions),
+                Events = data.EnabledEvents != null ? JsonSerializer.Serialize(data.EnabledEvents, _jsonOptions) : null,
+                TimeoutSeconds = 30,
+                RetryCount = 3,
+                Secret = data.DingTalkEndpoints?.FirstOrDefault()?.Secret,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _store.SaveWebhookSettingsAsync(entity).GetAwaiter().GetResult();
             _cachedData = data;
-            _logger.LogInformation("Webhook settings saved");
+            _logger.LogInformation("Webhook settings saved to structured store");
             return true;
         }
         catch (Exception ex)

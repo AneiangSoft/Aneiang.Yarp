@@ -272,4 +272,168 @@
         }
     };
 
+    // ===== Performance Utilities =====
+    
+    /**
+     * Diff render - only update changed rows
+     * @param {HTMLElement} container - Container element
+     * @param {Array} items - New data items
+     * @param {string} keyProp - Property name for unique key
+     * @param {Function} createFn - Function to create new element (item) => HTMLElement
+     * @param {Function} updateFn - Optional function to update existing element (el, item) => void
+     */
+    window.DashboardUtils.diffRender = function(container, items, keyProp, createFn, updateFn) {
+        if (!container) return;
+        
+        const startTime = performance.now();
+        
+        // Get existing rows
+        const existingRows = new Map();
+        container.querySelectorAll('[data-key]').forEach(row => {
+            existingRows.set(row.dataset.key, row);
+        });
+        
+        // Track new keys
+        const newKeys = new Set(items.map(item => String(item[keyProp])));
+        
+        // Remove rows that no longer exist
+        existingRows.forEach((row, key) => {
+            if (!newKeys.has(key)) {
+                row.remove();
+            }
+        });
+        
+        // Update or create rows
+        const fragment = document.createDocumentFragment();
+        const movedRows = [];
+        
+        items.forEach((item, index) => {
+            const key = String(item[keyProp]);
+            const existingRow = existingRows.get(key);
+            
+            if (existingRow) {
+                // Update existing row
+                if (updateFn) {
+                    updateFn(existingRow, item);
+                }
+                // Store for reordering
+                movedRows.push(existingRow);
+            } else {
+                // Create new row
+                const newRow = createFn(item);
+                if (newRow) {
+                    newRow.dataset.key = key;
+                    fragment.appendChild(newRow);
+                }
+            }
+        });
+        
+        // Append new rows
+        if (fragment.childNodes.length > 0) {
+            container.appendChild(fragment);
+        }
+        
+        // Reorder rows to match new order (using efficient reordering)
+        const currentRows = Array.from(container.querySelectorAll('[data-key]'));
+        if (currentRows.length === items.length) {
+            items.forEach((item, index) => {
+                const key = String(item[keyProp]);
+                const row = existingRows.get(key) || container.querySelector(`[data-key="${key}"]`);
+                if (row && container.children[index] !== row) {
+                    container.insertBefore(row, container.children[index] || null);
+                }
+            });
+        }
+        
+        const endTime = performance.now();
+        console.log(`[DiffRender] Updated ${items.length} items in ${(endTime - startTime).toFixed(2)}ms`);
+    };
+
+    /**
+     * Batch render using requestAnimationFrame
+     * @param {Array} items - Items to render
+     * @param {Function} renderFn - Function to render each batch
+     * @param {number} batchSize - Items per batch (default: 50)
+     */
+    window.DashboardUtils.batchRender = async function(items, renderFn, batchSize) {
+        batchSize = batchSize || 50;
+        const total = items.length;
+        let index = 0;
+        
+        return new Promise((resolve) => {
+            const renderBatch = () => {
+                const start = index;
+                const end = Math.min(index + batchSize, total);
+                
+                for (; index < end; index++) {
+                    renderFn(items[index], index);
+                }
+                
+                if (index < total) {
+                    requestAnimationFrame(renderBatch);
+                } else {
+                    resolve();
+                }
+            };
+            
+            renderBatch();
+        });
+    };
+
+    /**
+     * Create element with children efficiently
+     * @param {string} tag - Tag name
+     * @param {Object} options - Options
+     * @param {Array} children - Child elements or strings
+     */
+    window.DashboardUtils.createEl = function(tag, options, children) {
+        const el = document.createElement(tag);
+        
+        if (options) {
+            if (options.className) el.className = options.className;
+            if (options.style) Object.assign(el.style, options.style);
+            if (options.dataset) Object.assign(el.dataset, options.dataset);
+            if (options.attrs) {
+                Object.keys(options.attrs).forEach(key => {
+                    el.setAttribute(key, options.attrs[key]);
+                });
+            }
+            if (options.text) el.textContent = options.text;
+            if (options.html) el.innerHTML = options.html;
+            if (options.on) {
+                Object.keys(options.on).forEach(event => {
+                    el.addEventListener(event, options.on[event]);
+                });
+            }
+        }
+        
+        if (children) {
+            children.forEach(child => {
+                if (typeof child === 'string') {
+                    el.appendChild(document.createTextNode(child));
+                } else if (child instanceof Node) {
+                    el.appendChild(child);
+                }
+            });
+        }
+        
+        return el;
+    };
+
+    /**
+     * Event delegation helper
+     * @param {HTMLElement} container - Container element
+     * @param {string} selector - CSS selector for target elements
+     * @param {string} event - Event name
+     * @param {Function} handler - Event handler
+     */
+    window.DashboardUtils.delegate = function(container, selector, event, handler) {
+        container.addEventListener(event, function(e) {
+            const target = e.target.closest(selector);
+            if (target && container.contains(target)) {
+                handler.call(target, e, target);
+            }
+        });
+    };
+
 })();

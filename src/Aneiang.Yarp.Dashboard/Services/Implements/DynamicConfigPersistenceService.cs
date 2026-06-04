@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Aneiang.Yarp.Dashboard.Storage;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
@@ -7,26 +8,25 @@ using Microsoft.Extensions.Logging;
 namespace Aneiang.Yarp.Dashboard.Services.Implements;
 
 /// <summary>
-/// Service for persisting and loading dynamic gateway configurations.
-/// Delegates storage to <see cref="IDataStore"/> for pluggable backends.
+/// Service for persisting and loading dynamic gateway configurations using structured storage.
+/// Routes and clusters are stored in separate tables for better query performance.
 /// Uses in-memory caching to avoid blocking async calls.
 /// </summary>
 public class DynamicConfigPersistenceService : IDynamicConfigPersistenceService
 {
-    private const string Category = "dynamic-config";
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true
     };
 
-    private readonly IDataStore _store;
+    private readonly IStructuredDataStore _store;
     private readonly ILogger<DynamicConfigPersistenceService> _logger;
     private GatewayDynamicConfig? _cachedConfig;
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
     private bool _initialized;
 
-    public DynamicConfigPersistenceService(IDataStore store, ILogger<DynamicConfigPersistenceService> logger)
+    public DynamicConfigPersistenceService(IStructuredDataStore store, ILogger<DynamicConfigPersistenceService> logger)
     {
         _store = store;
         _logger = logger;
@@ -58,17 +58,33 @@ public class DynamicConfigPersistenceService : IDynamicConfigPersistenceService
     {
         try
         {
-            var config = await _store.GetDocumentAsync<GatewayDynamicConfig>(Category, ct);
-            if (config == null)
+            // Load routes and clusters from structured tables
+            var routeEntities = await _store.GetAllRoutesAsync(ct);
+            var clusterEntities = await _store.GetAllClustersAsync(ct);
+
+            var config = new GatewayDynamicConfig
             {
-                _logger.LogDebug("Dynamic config not found in store");
-                return new GatewayDynamicConfig();
+                Routes = routeEntities.ToRouteConfigs(),
+                Clusters = new List<DynamicClusterConfig>()
+            };
+
+            // Load destinations for each cluster
+            foreach (var clusterEntity in clusterEntities)
+            {
+                var cluster = clusterEntity.ToClusterConfig();
+                var destEntities = await _store.GetDestinationsAsync(clusterEntity.ClusterId, ct);
+                cluster.Destinations = destEntities.ToDestinations();
+                config.Clusters.Add(cluster);
             }
+
+            _logger.LogDebug("Loaded {RouteCount} routes and {ClusterCount} clusters from structured store",
+                config.Routes.Count, config.Clusters.Count);
+
             return config;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load dynamic config from store");
+            _logger.LogError(ex, "Failed to load dynamic config from structured store");
             return new GatewayDynamicConfig();
         }
     }
@@ -79,57 +95,20 @@ public class DynamicConfigPersistenceService : IDynamicConfigPersistenceService
         if (_initialized && _cachedConfig != null)
             return _cachedConfig;
 
-        // Fallback: only happens before preload completes (shouldn't occur in normal flow)
-        try
-        {
-            var config = _store.GetDocumentAsync<GatewayDynamicConfig>(Category).GetAwaiter().GetResult();
-            if (config == null)
-            {
-                _logger.LogDebug("Dynamic config not found in store");
-                return new GatewayDynamicConfig();
-            }
-            return config;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load dynamic config from store");
-            return new GatewayDynamicConfig();
-        }
+        // Fallback: load directly from store
+        return LoadConfigInternalAsync(CancellationToken.None).GetAwaiter().GetResult();
     }
 
     /// <inheritdoc />
     public void SaveConfig(GatewayDynamicConfig config)
     {
-        try
-        {
-            config.LastModified = DateTime.Now;
-            _store.SetDocumentAsync(Category, config).GetAwaiter().GetResult();
-            _cachedConfig = config;
-            _logger.LogInformation(
-                "Saved dynamic config: {RouteCount} routes, {ClusterCount} clusters",
-                config.Routes.Count, config.Clusters.Count);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to save dynamic config");
-            throw;
-        }
+        SaveConfigAsync(config).GetAwaiter().GetResult();
     }
 
     /// <inheritdoc />
     public void DeleteConfig()
     {
-        try
-        {
-            _store.DeleteDocumentAsync(Category).GetAwaiter().GetResult();
-            _cachedConfig = new GatewayDynamicConfig();
-            _logger.LogInformation("Deleted dynamic config from store");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to delete dynamic config");
-            throw;
-        }
+        DeleteConfigAsync().GetAwaiter().GetResult();
     }
 
     /// <inheritdoc />
@@ -137,7 +116,8 @@ public class DynamicConfigPersistenceService : IDynamicConfigPersistenceService
     {
         try
         {
-            return _store.DocumentExistsAsync(Category).GetAwaiter().GetResult();
+            var routes = _store.GetAllRoutesAsync().GetAwaiter().GetResult();
+            return routes.Count > 0;
         }
         catch
         {
@@ -158,8 +138,23 @@ public class DynamicConfigPersistenceService : IDynamicConfigPersistenceService
     {
         try
         {
-            config.LastModified = DateTime.Now;
-            await _store.SetDocumentAsync(Category, config);
+            config.LastModified = DateTime.UtcNow;
+
+            // Save routes to structured table
+            var routeEntities = config.Routes.Select(r => r.ToEntity()).ToList();
+            await _store.SaveRoutesAsync(routeEntities);
+
+            // Save clusters to structured table
+            var clusterEntities = config.Clusters.Select(c => c.ToEntity()).ToList();
+            await _store.SaveClustersAsync(clusterEntities);
+
+            // Save destinations for each cluster
+            foreach (var cluster in config.Clusters)
+            {
+                var destEntities = cluster.Destinations.Select(d => d.ToEntity(cluster.ClusterId)).ToList();
+                await _store.SaveDestinationsAsync(cluster.ClusterId, destEntities);
+            }
+
             _cachedConfig = config;
             _logger.LogInformation(
                 "Saved dynamic config: {RouteCount} routes, {ClusterCount} clusters",
@@ -177,9 +172,22 @@ public class DynamicConfigPersistenceService : IDynamicConfigPersistenceService
     {
         try
         {
-            await _store.DeleteDocumentAsync(Category);
+            // Delete all routes
+            var routes = await _store.GetAllRoutesAsync();
+            foreach (var route in routes)
+            {
+                await _store.DeleteRouteAsync(route.RouteId);
+            }
+
+            // Delete all clusters (cascades to destinations)
+            var clusters = await _store.GetAllClustersAsync();
+            foreach (var cluster in clusters)
+            {
+                await _store.DeleteClusterAsync(cluster.ClusterId);
+            }
+
             _cachedConfig = new GatewayDynamicConfig();
-            _logger.LogInformation("Deleted dynamic config from store");
+            _logger.LogInformation("Deleted all dynamic config from structured store");
         }
         catch (Exception ex)
         {

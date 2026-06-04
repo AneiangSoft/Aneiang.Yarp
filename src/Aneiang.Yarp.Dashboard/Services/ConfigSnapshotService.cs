@@ -1,11 +1,12 @@
 using Aneiang.Yarp.Dashboard.Models;
+using Aneiang.Yarp.Dashboard.Storage;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
 
 namespace Aneiang.Yarp.Dashboard.Services;
 
-/// <summary>Service for managing configuration snapshots and diffs.</summary>
+/// <summary>Service for managing configuration snapshots and diffs using structured storage.</summary>
 public interface IConfigSnapshotService
 {
     /// <summary>Creates a new snapshot of the current gateway configuration.</summary>
@@ -29,15 +30,14 @@ public interface IConfigSnapshotService
 
 public class ConfigSnapshotService : IConfigSnapshotService
 {
-    private readonly IDataStore _dataStore;
+    private readonly IStructuredDataStore _store;
     private readonly DynamicYarpConfigService _yarpConfig;
-    private const string CollectionName = "config_snapshots";
 
     public ConfigSnapshotService(
-        IDataStore dataStore,
+        IStructuredDataStore store,
         DynamicYarpConfigService yarpConfig)
     {
-        _dataStore = dataStore;
+        _store = store;
         _yarpConfig = yarpConfig;
     }
 
@@ -84,23 +84,41 @@ public class ConfigSnapshotService : IConfigSnapshotService
             snapshot.Clusters.Add(clusterSnapshot);
         }
 
-        await _dataStore.AddToCollectionAsync(CollectionName, snapshot);
+        // Save to structured store
+        var entity = new ConfigHistoryEntity
+        {
+            VersionId = snapshot.Id,
+            Description = snapshot.Description,
+            CreatedBy = snapshot.CreatedBy,
+            CreatedAt = snapshot.CreatedAt,
+            ConfigData = System.Text.Json.JsonSerializer.Serialize(snapshot)
+        };
+        await _store.SaveConfigHistoryAsync(entity);
+
         return snapshot;
     }
 
     public async Task<ConfigDiffSnapshot?> GetSnapshotAsync(string id)
     {
-        var all = await _dataStore.GetCollectionAsync<ConfigDiffSnapshot>(CollectionName);
-        return all.FirstOrDefault(s => s.Id == id);
+        var entity = await _store.GetConfigHistoryAsync(id);
+        if (entity == null) return null;
+
+        return System.Text.Json.JsonSerializer.Deserialize<ConfigDiffSnapshot>(entity.ConfigData);
     }
 
     public async Task<List<ConfigDiffSnapshot>> GetSnapshotsAsync(int limit = 50)
     {
-        var all = await _dataStore.GetCollectionAsync<ConfigDiffSnapshot>(CollectionName);
-        return all
-            .OrderByDescending(s => s.CreatedAt)
-            .Take(limit)
-            .ToList();
+        var entities = await _store.GetConfigHistoryListAsync(limit);
+        var snapshots = new List<ConfigDiffSnapshot>();
+
+        foreach (var entity in entities)
+        {
+            var snapshot = System.Text.Json.JsonSerializer.Deserialize<ConfigDiffSnapshot>(entity.ConfigData);
+            if (snapshot != null)
+                snapshots.Add(snapshot);
+        }
+
+        return snapshots;
     }
 
     public async Task<ConfigDiffResult> CompareAsync(string fromId, string toId)
@@ -130,13 +148,18 @@ public class ConfigSnapshotService : IConfigSnapshotService
 
     public async Task<int> CleanupOldSnapshotsAsync(int keepCount = 100)
     {
-        var all = await GetSnapshotsAsync(int.MaxValue);
+        var all = await _store.GetConfigHistoryListAsync(int.MaxValue);
         if (all.Count <= keepCount)
             return 0;
 
-        // Note: Full cleanup requires adding DeleteFromCollectionAsync to IDataStore
-        // For now, just return the count that would be deleted
-        return Math.Max(0, all.Count - keepCount);
+        // Delete old snapshots
+        var toDelete = all.Skip(keepCount).ToList();
+        foreach (var entity in toDelete)
+        {
+            await _store.DeleteConfigHistoryAsync(entity.VersionId);
+        }
+
+        return toDelete.Count;
     }
 
     private Task<ConfigDiffSnapshot> CreateSnapshotFromCurrentAsync()
