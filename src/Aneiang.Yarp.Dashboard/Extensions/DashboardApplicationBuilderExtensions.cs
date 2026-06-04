@@ -1,9 +1,11 @@
 using Aneiang.Yarp.Dashboard.Middleware;
-using Aneiang.Yarp.Dashboard.Services;
-using Aneiang.Yarp.Extensions;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Dashboard.Extensions;
 
@@ -34,47 +36,66 @@ public static class DashboardApplicationBuilderExtensions
         this IApplicationBuilder app,
         Action<IReverseProxyApplicationBuilder>? configureProxyPipeline = null)
     {
-        // Static files for Dashboard UI
-        // RCL wwwroot is published alongside the host app — configure the web root
-        // to point to Aneiang.Yarp.Dashboard's wwwroot so its assets are served.
-        //var dashboardWebRoot = Path.Combine(
-        //    AppDomain.CurrentDomain.BaseDirectory,
-        //    "Aneiang.Yarp.Dashboard.wwwroot");
-        //if (Directory.Exists(dashboardWebRoot))
-        //{
-        //    app.UseStaticFiles(new StaticFileOptions
-        //    {
-        //        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(dashboardWebRoot)
-        //    });
-        //}
-        //else
-        //{
-        //    app.UseStaticFiles();
-        //}
         app.UseStaticFiles();
+
         // Request capture runs on the main pipeline (before endpoint routing)
         app.UseMiddleware<YarpRequestCaptureMiddleware>();
 
         // WAF middleware runs on the main pipeline before proxy routing
         app.UseMiddleware<WafMiddleware>();
 
-        // Map the YARP proxy branch WITH core + dashboard middleware inside it.
         if (app is IEndpointRouteBuilder endpoints)
         {
+            endpoints.Map("/_content/Aneiang.Yarp.Dashboard/{**path}", async context =>
+            {
+                var path = context.Request.RouteValues["path"]?.ToString() ?? "";
+                var filePath = $"_content/Aneiang.Yarp.Dashboard/{path}";
+
+                var fileInfo = context.RequestServices
+                    .GetRequiredService<IWebHostEnvironment>()
+                    .WebRootFileProvider
+                    .GetFileInfo(filePath);
+
+                if (fileInfo.Exists)
+                {
+                    context.Response.ContentType = GetContentType(filePath);
+                    await context.Response.SendFileAsync(fileInfo);
+                }
+                else
+                {
+                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                }
+            });
+
             endpoints.MapReverseProxy(proxyPipeline =>
             {
-                // Core gateway middleware inside the proxy branch
-                proxyPipeline.UseAneiangYarp();
-
-                // Always register circuit breaker and retry middleware
+                proxyPipeline.UseMiddleware<BuiltinTransformMiddleware>();
                 proxyPipeline.UseMiddleware<CircuitBreakerMiddleware>();
                 proxyPipeline.UseMiddleware<RequestRetryMiddleware>();
-
-                // Allow user customization of the proxy pipeline
                 configureProxyPipeline?.Invoke(proxyPipeline);
             });
         }
 
         return app;
+    }
+
+    private static string GetContentType(string filePath)
+    {
+        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        return ext switch
+        {
+            ".js" => "application/javascript",
+            ".css" => "text/css",
+            ".html" => "text/html",
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".gif" => "image/gif",
+            ".svg" => "image/svg+xml",
+            ".woff" => "font/woff",
+            ".woff2" => "font/woff2",
+            ".ttf" => "font/ttf",
+            ".eot" => "application/vnd.ms-fontobject",
+            _ => "application/octet-stream"
+        };
     }
 }

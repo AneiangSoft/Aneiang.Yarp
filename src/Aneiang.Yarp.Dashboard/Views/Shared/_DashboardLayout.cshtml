@@ -92,8 +92,34 @@
             filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.3));
         }
         
+        /* Sidebar Navigation Container with Scroll */
+        .sidebar-nav {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-bottom: 12px;
+        }
+        
+        /* Custom Scrollbar for Sidebar */
+        .sidebar-nav::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .sidebar-nav::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .sidebar-nav::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15);
+            border-radius: 2px;
+        }
+        
+        .sidebar-nav::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.25);
+        }
+        
         .sidebar .nav-section {
-            padding: 12px 0;
+            padding: 8px 0;
         }
         
         .sidebar .section-title { 
@@ -160,9 +186,58 @@
         }
         
         .sidebar-footer {
-            margin-top: auto;
             padding: 12px;
             border-top: 1px solid rgba(255,255,255,0.06);
+            background: linear-gradient(180deg, transparent 0%, var(--sidebar-bg) 20%);
+            flex-shrink: 0;
+        }
+
+        /* Submenu Styles */
+        .nav-submenu {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background: rgba(0,0,0,0.15);
+        }
+
+        .nav-submenu.expanded {
+            max-height: 500px;
+        }
+
+        .nav-submenu .nav-link {
+            padding-left: 48px;
+            font-size: 13px;
+            border-left: none;
+        }
+
+        .nav-submenu .nav-link::before {
+            display: none;
+        }
+
+        .nav-submenu .nav-link:hover {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .nav-submenu .nav-link.active {
+            background: rgba(99, 102, 241, 0.08);
+        }
+
+        /* Menu Toggle Indicator */
+        .nav-link.has-submenu {
+            position: relative;
+        }
+
+        .nav-link.has-submenu::after {
+            content: '\F285';
+            font-family: 'bootstrap-icons';
+            font-size: 12px;
+            margin-left: auto;
+            transition: transform 0.3s ease;
+            opacity: 0.5;
+        }
+
+        .nav-link.has-submenu.expanded::after {
+            transform: rotate(90deg);
         }
         
         .sidebar-user {
@@ -1470,71 +1545,83 @@
             <i class="bi bi-hdd-rack"></i>
             <span data-i18n="layout.brand">网关维护仪表盘</span>
         </div>
-        
+
         @{
             var currentPage = ViewBag.CurrentPage as string ?? "overview";
             var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
         }
-        <div class="nav-section">
-            <div class="section-title" data-i18n="layout.section.monitor">监控</div>
-            <a class="nav-link @(currentPage == "overview" ? "active" : "")" href="/@prefix">
-                <i class="bi bi-speedometer2"></i> <span data-i18n="layout.tab.overview">总览</span>
-            </a>
-            <a class="nav-link @(currentPage == "clusters" ? "active" : "")" href="/@prefix/clusters">
-                <i class="bi bi-diagram-3"></i> <span data-i18n="layout.tab.services">服务集群</span>
-            </a>
-            <a class="nav-link @(currentPage == "routes" ? "active" : "")" href="/@prefix/routes">
-                <i class="bi bi-signpost-split"></i> <span data-i18n="layout.tab.routes">路由配置</span>
-            </a>
-            <a class="nav-link @(currentPage == "topology" ? "active" : "")" href="/@prefix/topology">
-                <i class="bi bi-share"></i> <span data-i18n="layout.tab.topology">拓扑图</span>
-            </a>
-            <a class="nav-link @(currentPage == "stats" ? "active" : "")" href="/@prefix/stats">
-                <i class="bi bi-bar-chart-line"></i> <span data-i18n="layout.tab.stats">访问统计</span>
-            </a>
+        <div class="sidebar-nav">
+            <div class="nav-section">
+                <div class="section-title" data-i18n="layout.section.monitor">监控</div>
+                <a class="nav-link @(currentPage == "overview" ? "active" : "")" href="/@prefix">
+                    <i class="bi bi-speedometer2"></i> <span data-i18n="layout.tab.overview">总览</span>
+                </a>
+                <a class="nav-link has-submenu @(currentPage == "clusters" || currentPage == "routes" || currentPage == "topology" ? "expanded" : "")" data-toggle="submenu" href="#">
+                    <i class="bi bi-diagram-3"></i> <span>服务管理</span>
+                </a>
+                <div class="nav-submenu @(currentPage == "clusters" || currentPage == "routes" || currentPage == "topology" ? "expanded" : "")">
+                    <a class="nav-link @(currentPage == "clusters" ? "active" : "")" href="/@prefix/clusters">
+                        <span data-i18n="layout.tab.services">服务集群</span>
+                    </a>
+                    <a class="nav-link @(currentPage == "routes" ? "active" : "")" href="/@prefix/routes">
+                        <span data-i18n="layout.tab.routes">路由配置</span>
+                    </a>
+                    <a class="nav-link @(currentPage == "topology" ? "active" : "")" href="/@prefix/topology">
+                        <span data-i18n="layout.tab.topology">拓扑图</span>
+                    </a>
+                </div>
+                <a class="nav-link @(currentPage == "stats" ? "active" : "")" href="/@prefix/stats">
+                    <i class="bi bi-bar-chart-line"></i> <span data-i18n="layout.tab.stats">访问统计</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <div class="section-title" data-i18n="layout.section.diag">诊断</div>
+                @if (ViewBag.EnableProxyLogging != false)
+                {
+                <a class="nav-link @(currentPage == "logs" ? "active" : "")" href="/@prefix/logs">
+                    <i class="bi bi-journal-text"></i> <span data-i18n="layout.tab.logs">日志</span>
+                </a>
+                }
+                <a class="nav-link @(currentPage == "circuits" ? "active" : "")" href="/@prefix/circuits">
+                    <i class="bi bi-lightning-charge"></i> <span data-i18n="layout.tab.circuits">熔断状态</span>
+                </a>
+                <a class="nav-link @(currentPage == "alerts" ? "active" : "")" href="/@prefix/alerts">
+                    <i class="bi bi-bell"></i> <span data-i18n="layout.tab.alerts">告警中心</span>
+                </a>
+                <a class="nav-link @(currentPage == "security" ? "active" : "")" href="/@prefix/security">
+                    <i class="bi bi-shield-lock"></i> <span data-i18n="layout.tab.security">安全事件</span>
+                </a>
+                <a class="nav-link @(currentPage == "healthcheck" ? "active" : "")" href="/@prefix/healthcheck">
+                    <i class="bi bi-heart-pulse"></i> <span data-i18n="layout.tab.healthcheck">健康检查</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <div class="section-title" data-i18n="layout.section.config">配置</div>
+                <a class="nav-link has-submenu @(currentPage == "history" || currentPage == "policies" || currentPage == "plugins" ? "expanded" : "")" data-toggle="submenu" href="#">
+                    <i class="bi bi-sliders"></i> <span>配置管理</span>
+                </a>
+                <div class="nav-submenu @(currentPage == "history" || currentPage == "policies" || currentPage == "plugins" ? "expanded" : "")">
+                    <a class="nav-link @(currentPage == "history" ? "active" : "")" href="/@prefix/history">
+                        <span data-i18n="layout.tab.history">配置历史</span>
+                    </a>
+                    <a class="nav-link @(currentPage == "policies" ? "active" : "")" href="/@prefix/policies">
+                        <span data-i18n="layout.tab.policies">策略管理</span>
+                    </a>
+                    <a class="nav-link @(currentPage == "plugins" ? "active" : "")" href="/@prefix/plugins">
+                        <span data-i18n="layout.tab.plugins">插件管理</span>
+                    </a>
+                </div>
+                <a class="nav-link @(currentPage == "audit" ? "active" : "")" href="/@prefix/audit">
+                    <i class="bi bi-shield-check"></i> <span data-i18n="layout.tab.audit">审计日志</span>
+                </a>
+                <a class="nav-link @(currentPage == "settings" ? "active" : "")" href="/@prefix/settings">
+                    <i class="bi bi-gear"></i> <span data-i18n="layout.tab.settings">设置</span>
+                </a>
+            </div>
         </div>
-        
-        <div class="nav-section">
-            <div class="section-title" data-i18n="layout.section.diag">诊断</div>
-            @if (ViewBag.EnableProxyLogging != false)
-            {
-            <a class="nav-link @(currentPage == "logs" ? "active" : "")" href="/@prefix/logs">
-                <i class="bi bi-journal-text"></i> <span data-i18n="layout.tab.logs">日志</span>
-            </a>
-            }
-            <a class="nav-link @(currentPage == "circuits" ? "active" : "")" href="/@prefix/circuits">
-                <i class="bi bi-lightning-charge"></i> <span data-i18n="layout.tab.circuits">熔断状态</span>
-            </a>
-            <a class="nav-link @(currentPage == "alerts" ? "active" : "")" href="/@prefix/alerts">
-                <i class="bi bi-bell"></i> <span data-i18n="layout.tab.alerts">告警中心</span>
-            </a>
-            <a class="nav-link @(currentPage == "security" ? "active" : "")" href="/@prefix/security">
-                <i class="bi bi-shield-lock"></i> <span data-i18n="layout.tab.security">安全事件</span>
-            </a>
-            <a class="nav-link @(currentPage == "healthcheck" ? "active" : "")" href="/@prefix/healthcheck">
-                <i class="bi bi-heart-pulse"></i> <span data-i18n="layout.tab.healthcheck">健康检查</span>
-            </a>
-        </div>
-        
-        <div class="nav-section">
-            <div class="section-title" data-i18n="layout.section.config">配置</div>
-            <a class="nav-link @(currentPage == "history" ? "active" : "")" href="/@prefix/history">
-                <i class="bi bi-clock-history"></i> <span data-i18n="layout.tab.history">配置历史</span>
-            </a>
-            <a class="nav-link @(currentPage == "policies" ? "active" : "")" href="/@prefix/policies">
-                <i class="bi bi-sliders"></i> <span data-i18n="layout.tab.policies">策略管理</span>
-            </a>
-            <a class="nav-link @(currentPage == "plugins" ? "active" : "")" href="/@prefix/plugins">
-                <i class="bi bi-puzzle"></i> <span data-i18n="layout.tab.plugins">插件管理</span>
-            </a>
-            <a class="nav-link @(currentPage == "audit" ? "active" : "")" href="/@prefix/audit">
-                <i class="bi bi-shield-check"></i> <span data-i18n="layout.tab.audit">审计日志</span>
-            </a>
-            <a class="nav-link @(currentPage == "settings" ? "active" : "")" href="/@prefix/settings">
-                <i class="bi bi-gear"></i> <span data-i18n="layout.tab.settings">设置</span>
-            </a>
-        </div>
-        
+
         <div class="sidebar-footer">
             <div class="sidebar-user">
                 <span class="user-info">
@@ -1559,6 +1646,13 @@
         var I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
         var CURRENT_LOCALE = '@ViewBag.Locale';
         function __(key) { return I18N[key] || key; }
+
+        // Dashboard configuration for SPA router
+        window.__dashboard = {
+            routePrefix: '@ViewBag.DashboardRoutePrefix',
+            currentPage: '@ViewBag.CurrentPage',
+            locale: '@ViewBag.Locale'
+        };
 
         // DashboardApp - must exist before any module script loads
         window.DashboardApp = window.DashboardApp || { version: '2.3.0', initialized: false, modules: {} };
@@ -1635,19 +1729,34 @@
             if (usernameEl && username) {
                 usernameEl.textContent = username;
             }
+
+            // Initialize submenu toggles
+            document.querySelectorAll('[data-toggle="submenu"]').forEach(function(toggle) {
+                toggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var isExpanded = this.classList.contains('expanded');
+                    var submenu = this.nextElementSibling;
+
+                    if (isExpanded) {
+                        this.classList.remove('expanded');
+                        if (submenu && submenu.classList.contains('nav-submenu')) {
+                            submenu.classList.remove('expanded');
+                        }
+                    } else {
+                        this.classList.add('expanded');
+                        if (submenu && submenu.classList.contains('nav-submenu')) {
+                            submenu.classList.add('expanded');
+                        }
+                    }
+                });
+            });
         });
     </script>
     <script src="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap/js/bootstrap.bundle.min.js"></script>
     
-    <!-- CodeMirror for JSON Editor with Schema Support -->
-    <link rel="stylesheet" href="/_content/Aneiang.Yarp.Dashboard/lib/codemirror/codemirror.min.css" />
-    <link rel="stylesheet" href="/_content/Aneiang.Yarp.Dashboard/lib/codemirror/material-darker.min.css" />
-    <script src="/_content/Aneiang.Yarp.Dashboard/lib/codemirror/codemirror.min.js"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/lib/codemirror/javascript.min.js"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/lib/codemirror/show-hint.min.js"></script>
-    <link rel="stylesheet" href="/_content/Aneiang.Yarp.Dashboard/lib/codemirror/show-hint.min.css" />
-    <!-- Fallback if CodeMirror fails to load -->
-    <script src="/_content/Aneiang.Yarp.Dashboard/lib/codemirror/codemirror-fallback.js"></script>
+    <!-- SPA Router for page navigation without full reload -->
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-spa-router.js"></script>
     
     @await RenderSectionAsync("Scripts", required: false)
 </body>

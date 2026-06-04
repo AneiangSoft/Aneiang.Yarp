@@ -57,6 +57,11 @@ public sealed class WafMiddleware
         RegexOptions.Compiled,
         RegexTimeout);
 
+    /// <summary>
+    /// Content root path for the Dashboard static files. Used to skip logging for frontend resources.
+    /// </summary>
+    private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
+
     public WafMiddleware(
         RequestDelegate next,
         ILogger<WafMiddleware> logger,
@@ -89,7 +94,8 @@ public sealed class WafMiddleware
         var dashPrefix = "/" + (_wafOptions.DashboardRoutePrefix?.Trim('/') ?? "apigateway");
 
         // Skip WAF checks for Dashboard UI and static assets — avoids false positives on config editing
-        if (path.StartsWith(dashPrefix, StringComparison.OrdinalIgnoreCase))
+        if (path.StartsWith(dashPrefix, StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith(ContentRoot, StringComparison.OrdinalIgnoreCase))
         {
             await _next(context);
             return;

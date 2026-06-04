@@ -19,6 +19,12 @@ public sealed class RequestRetryMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<RequestRetryMiddleware> _logger;
     private readonly RetryOptions _options;
+    private readonly string _dashPrefix;
+    /// <summary>
+    /// Content root path for the Dashboard static files. Used to skip logging for frontend resources.
+    /// </summary>
+    private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
+
 
     private static readonly HashSet<string> NonIdempotentMethods = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -28,15 +34,26 @@ public sealed class RequestRetryMiddleware
     public RequestRetryMiddleware(
         RequestDelegate next,
         ILogger<RequestRetryMiddleware> logger,
-        IOptions<RetryOptions> options)
+        IOptions<RetryOptions> options,
+        IOptions<DashboardOptions> dashOptions)
     {
         _next = next;
         _logger = logger;
         _options = options.Value;
+        _dashPrefix = "/" + dashOptions.Value.RoutePrefix.Trim('/');
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
+        // Skip Dashboard UI and API requests - they should not go through retry logic
+        var path = context.Request.Path.Value ?? "";
+        if (path.StartsWith(_dashPrefix, StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith(ContentRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            await _next(context);
+            return;
+        }
+
         var proxyFeature = context.Features.Get<IReverseProxyFeature>();
         var routeConfig = proxyFeature?.Route?.Config;
         var clusterId = routeConfig?.ClusterId;

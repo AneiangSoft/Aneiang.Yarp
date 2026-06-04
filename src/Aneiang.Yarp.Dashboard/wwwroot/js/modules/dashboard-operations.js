@@ -344,7 +344,7 @@
 
         document.body.insertAdjacentHTML('beforeend', html);
         var modalEl = document.getElementById('route-select-modal');
-        var modal = new bootstrap.Modal(modalEl);
+        var modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
 
         document.getElementById('confirm-route-action').onclick = function() {
             var select = document.getElementById('route-select');

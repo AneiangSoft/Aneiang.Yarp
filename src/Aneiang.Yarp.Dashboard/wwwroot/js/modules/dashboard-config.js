@@ -86,7 +86,7 @@
         document.body.insertAdjacentHTML('beforeend', modalHtml);
 
         const modalEl = document.getElementById(modalId);
-        const bsModal = new bootstrap.Modal(modalEl);
+        const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
         let importData = null;
 
         // Setup file drop zone
@@ -245,7 +245,7 @@
 
         document.body.insertAdjacentHTML('beforeend', loadingHtml);
         const modalEl = document.getElementById(modalId);
-        const bsModal = new bootstrap.Modal(modalEl);
+        const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
         bsModal.show();
 
         // Fetch history
@@ -521,7 +521,7 @@
 
         document.body.insertAdjacentHTML('beforeend', modalHtml);
         const modalEl = document.getElementById(modalId);
-        const bsModal = new bootstrap.Modal(modalEl);
+        const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
 
         // Data structure: each platform has an array of { url, secret } endpoints
         var platformData = {};

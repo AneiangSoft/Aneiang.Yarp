@@ -20,6 +20,11 @@ public sealed class CircuitBreakerMiddleware
     private readonly ILogger<CircuitBreakerMiddleware> _logger;
     private readonly CircuitBreakerOptions _options;
     private readonly IGatewayAlertService _alertService;
+    private readonly string _dashPrefix;
+    /// <summary>
+    /// Content root path for the Dashboard static files. Used to skip logging for frontend resources.
+    /// </summary>
+    private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
 
     private static readonly ConcurrentDictionary<string, CircuitState> _circuits = new();
     private static readonly object _stateLock = new();
@@ -32,16 +37,27 @@ public sealed class CircuitBreakerMiddleware
         RequestDelegate next,
         ILogger<CircuitBreakerMiddleware> logger,
         IOptions<CircuitBreakerOptions> options,
+        IOptions<DashboardOptions> dashOptions,
         IGatewayAlertService alertService)
     {
         _next = next;
         _logger = logger;
         _options = options.Value;
         _alertService = alertService;
+        _dashPrefix = "/" + dashOptions.Value.RoutePrefix.Trim('/');
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
+        // Skip Dashboard UI and API requests - they should not go through circuit breaker
+        var path = context.Request.Path.Value ?? "";
+        if (path.StartsWith(_dashPrefix, StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith(ContentRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            await _next(context);
+            return;
+        }
+
         var proxyFeature = context.Features.Get<IReverseProxyFeature>();
         var clusterId = proxyFeature?.Route?.Config?.ClusterId;
         var destinationId = proxyFeature?.ProxiedDestination?.DestinationId;

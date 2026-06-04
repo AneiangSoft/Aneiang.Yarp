@@ -118,7 +118,7 @@
         if (existing) existing.remove();
 
         const modalHtml = `
-            <div class="modal fade" id="${confirmModalId}" tabindex="-1">
+            <div class="modal fade" id="${confirmModalId}" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content" style="border-radius:16px;border:none;box-shadow:0 25px 50px rgba(0,0,0,0.25);overflow:hidden;">
                         <div class="modal-header" style="background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);border-bottom:1px solid #e2e8f0;padding:18px 24px;">
@@ -149,7 +149,7 @@
         document.body.insertAdjacentHTML('beforeend', modalHtml);
 
         const modalEl = document.getElementById(confirmModalId);
-        const bsModal = new bootstrap.Modal(modalEl);
+        const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
 
         // Confirm button handler
         document.getElementById('confirm-btn').addEventListener('click', function() {
@@ -242,7 +242,7 @@
 
         // Build modal
         const modalHtml = `
-            <div class="modal fade" id="${modalId}" tabindex="-1">
+            <div class="modal fade" id="${modalId}" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
                 <div class="modal-dialog modal-dialog-centered modal-${size}">
                     <div class="modal-content" style="border-radius:16px;border:none;box-shadow:0 25px 50px rgba(0,0,0,0.25);overflow:hidden;">
                         <div class="modal-header" style="background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);border-bottom:1px solid #e2e8f0;padding:18px 24px;">
@@ -275,7 +275,7 @@
         document.body.insertAdjacentHTML('beforeend', modalHtml);
 
         const modalEl = document.getElementById(modalId);
-        const bsModal = new bootstrap.Modal(modalEl);
+        const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
 
         // Save button handler
         document.getElementById(modalId + '-save').addEventListener('click', function() {
@@ -455,7 +455,7 @@
         ` : '';
 
         const modalHtml = `
-            <div class="modal fade" id="${modalId}" tabindex="-1">
+            <div class="modal fade" id="${modalId}" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
                 <div class="modal-dialog modal-dialog-centered modal-xl">
                     <div class="modal-content" style="border-radius:16px;border:none;box-shadow:0 25px 50px rgba(0,0,0,0.25);overflow:hidden;">
                         <div class="modal-header" style="background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);border-bottom:1px solid #e2e8f0;padding:18px 24px;">
@@ -504,7 +504,7 @@
         document.body.insertAdjacentHTML('beforeend', modalHtml);
 
         const modalEl = document.getElementById(modalId);
-        const bsModal = new bootstrap.Modal(modalEl);
+        const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
 
         // Initialize Monaco Editor with Schema
         let editor = null;

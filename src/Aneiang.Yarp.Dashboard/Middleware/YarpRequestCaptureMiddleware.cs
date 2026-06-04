@@ -1,4 +1,5 @@
 using Aneiang.Yarp.Dashboard.Models;
+using Aneiang.Yarp.Dashboard.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
@@ -7,7 +8,7 @@ using System.Diagnostics;
 using System.Text;
 using Yarp.ReverseProxy.Model;
 
-namespace Aneiang.Yarp.Dashboard.Services;
+namespace Aneiang.Yarp.Dashboard.Middleware;
 
 /// <summary>
 /// Captures incoming proxy request/response details before YARP processes the request.
@@ -53,6 +54,12 @@ public sealed class YarpRequestCaptureMiddleware
     };
 
     /// <summary>
+    /// Content root path for the Dashboard static files. Used to skip logging for frontend resources.
+    /// </summary>
+    private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
+
+
+    /// <summary>
     /// Creates the middleware.
     /// Pre-computes and caches all configuration values for optimal performance.
     /// </summary>
@@ -95,7 +102,8 @@ public sealed class YarpRequestCaptureMiddleware
         }
 
         // Skip Dashboard requests
-        if (context.Request.Path.StartsWithSegments(_dashPrefix, StringComparison.OrdinalIgnoreCase))
+        if (context.Request.Path.StartsWithSegments(_dashPrefix, StringComparison.OrdinalIgnoreCase) ||
+            context.Request.Path.StartsWithSegments(ContentRoot, StringComparison.OrdinalIgnoreCase))
         {
             await _next(context);
             return;

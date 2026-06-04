@@ -18,7 +18,7 @@
             var self = this;
             setTimeout(function() {
                 if (window.bootstrap) {
-                    self.modal = new window.bootstrap.Modal(document.getElementById('policyModal'), { backdrop: true });
+                    self.modal = new window.bootstrap.Modal(document.getElementById('policyModal'), { backdrop: 'static', keyboard: false });
                 }
             }, 100);
         },
