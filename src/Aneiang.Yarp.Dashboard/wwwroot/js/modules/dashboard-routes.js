@@ -1583,7 +1583,7 @@
                         
                 document.body.insertAdjacentHTML('beforeend', modalHtml);
                 const modalEl = document.getElementById(modalId);
-                const bsModal = new bootstrap.Modal(modalEl);
+                const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
                 const inputEl = document.getElementById(modalId + '-input');
         
                 document.getElementById(modalId + '-confirm').addEventListener('click', function() {

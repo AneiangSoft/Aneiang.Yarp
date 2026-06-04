@@ -98,7 +98,7 @@
             }
 
             // Show modal
-            var bsModal = new bootstrap.Modal(modal);
+            var bsModal = new bootstrap.Modal(modal, { backdrop: 'static', keyboard: false });
             bsModal.show();
         },
 

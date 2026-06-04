@@ -1,7 +1,9 @@
+using Aneiang.Yarp.Dashboard.Models;
+using Aneiang.Yarp.Middleware;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
-namespace Aneiang.Yarp.Middleware;
+namespace Aneiang.Yarp.Dashboard.Middleware;
 
 /// <summary>
 /// Built-in request/response transform middleware.
@@ -12,16 +14,28 @@ public sealed class BuiltinTransformMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly BuiltinTransformOptions _options;
+    private readonly string _dashPrefix;
+    /// <summary>
+    /// Content root path for the Dashboard static files. Used to skip logging for frontend resources.
+    /// </summary>
+    private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
 
-    public BuiltinTransformMiddleware(RequestDelegate next, IOptions<BuiltinTransformOptions> options)
+    public BuiltinTransformMiddleware(RequestDelegate next, IOptions<BuiltinTransformOptions> options, IOptions<DashboardOptions> dashboardOptions)
     {
         _next = next;
         _options = options.Value;
+        _dashPrefix = "/" + dashboardOptions.Value.RoutePrefix.Trim('/');
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // ─── Request transforms ───
+        //Skip Dashboard requests
+        if (context.Request.Path.StartsWithSegments(_dashPrefix, StringComparison.OrdinalIgnoreCase) ||
+            context.Request.Path.StartsWithSegments(ContentRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            await _next(context);
+            return;
+        }
 
         // Add X-Request-Id if not present
         if (_options.EnableRequestIdHeader &&
