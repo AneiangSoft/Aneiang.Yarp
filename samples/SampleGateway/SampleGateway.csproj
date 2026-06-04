@@ -1,18 +1,39 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\Aneiang.Yarp\Aneiang.Yarp.csproj" />
-    <ProjectReference Include="..\..\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\..\src\Aneiang.Yarp\Aneiang.Yarp.csproj" />
+		<ProjectReference Include="..\..\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+	</ItemGroup>
+
+
+	<!-- 复制 Dashboard 的 wwwroot 文件到输出目录 -->
+	<Target Name="CopyDashboardStaticFiles" AfterTargets="Build">
+		<ItemGroup>
+			<DashboardWwwroot Include="..\..\src\Aneiang.Yarp.Dashboard\wwwroot\**\*" />
+		</ItemGroup>
+		<Copy SourceFiles="%(DashboardWwwroot.FullPath)"
+		      DestinationFiles="$(TargetDir)_content\Aneiang.Yarp.Dashboard\%(DashboardWwwroot.RecursiveDir)%(DashboardWwwroot.Filename)%(DashboardWwwroot.Extension)"
+		      SkipUnchangedFiles="true" />
+	</Target>
+
+	<!-- 发布时也复制 -->
+	<Target Name="PublishDashboardStaticFiles" AfterTargets="Publish">
+		<ItemGroup>
+			<DashboardWwwroot Include="..\..\src\Aneiang.Yarp.Dashboard\wwwroot\**\*" />
+		</ItemGroup>
+		<Copy SourceFiles="%(DashboardWwwroot.FullPath)"
+		      DestinationFiles="$(PublishDir)_content\Aneiang.Yarp.Dashboard\%(DashboardWwwroot.RecursiveDir)%(DashboardWwwroot.Filename)%(DashboardWwwroot.Extension)"
+		      SkipUnchangedFiles="true" />
+	</Target>
 
 </Project>

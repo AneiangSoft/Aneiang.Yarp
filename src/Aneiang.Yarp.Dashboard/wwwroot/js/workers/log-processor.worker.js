@@ -285,6 +285,97 @@ const handlers = {
         }
 
         return { unique, duplicates: duplicates.length, originalCount: logs.length };
+    },
+
+    // Filter and sort routes
+    filterRoutes: (data) => {
+        const { routes, filters } = data;
+        const { search, method, source } = filters;
+
+        let filtered = routes;
+
+        // Search filter
+        if (search) {
+            const searchLower = search.toLowerCase();
+            filtered = filtered.filter(route => {
+                const routeId = (route.routeId || '').toLowerCase();
+                const path = ((route.match && route.match.path) || '').toLowerCase();
+                const clusterId = (route.clusterId || '').toLowerCase();
+                return routeId.includes(searchLower) || 
+                       path.includes(searchLower) || 
+                       clusterId.includes(searchLower);
+            });
+        }
+
+        // Method filter
+        if (method && method !== 'all') {
+            filtered = filtered.filter(route => {
+                const methods = route.match && route.match.methods || [];
+                return methods.includes(method);
+            });
+        }
+
+        // Source filter
+        if (source && source !== 'all') {
+            filtered = filtered.filter(route => (route.source || 'config') === source);
+        }
+
+        // Sort by order
+        filtered.sort((a, b) => {
+            const orderA = a.order !== null && a.order !== undefined ? a.order : 999999;
+            const orderB = b.order !== null && b.order !== undefined ? b.order : 999999;
+            return orderA - orderB;
+        });
+
+        return { filtered, count: filtered.length, total: routes.length };
+    },
+
+    // Calculate route statistics
+    calculateRouteStats: (data) => {
+        const { routes } = data;
+        
+        const stats = {
+            total: routes.length,
+            bySource: {},
+            byMethod: {},
+            byCluster: {},
+            disabled: 0,
+            withTransforms: 0,
+            withAuthorization: 0
+        };
+
+        for (const route of routes) {
+            // Source stats
+            const src = route.source || 'config';
+            stats.bySource[src] = (stats.bySource[src] || 0) + 1;
+
+            // Method stats
+            const methods = route.match && route.match.methods || [];
+            if (methods.length === 0) {
+                stats.byMethod['ANY'] = (stats.byMethod['ANY'] || 0) + 1;
+            } else {
+                methods.forEach(m => {
+                    stats.byMethod[m] = (stats.byMethod[m] || 0) + 1;
+                });
+            }
+
+            // Cluster stats
+            const cluster = route.clusterId || '(none)';
+            stats.byCluster[cluster] = (stats.byCluster[cluster] || 0) + 1;
+
+            // Feature stats
+            if (route.metadata && route.metadata.Disabled === 'true') {
+                stats.disabled++;
+            }
+            if (route.transforms && route.transforms.length > 0) {
+                stats.withTransforms++;
+            }
+            if (route.authorizationPolicy || route.authorizationPolicy === '') {
+                stats.withAuthorization++;
+            }
+        }
+
+        return { stats };
     }
 };
 

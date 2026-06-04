@@ -7,13 +7,13 @@ using Microsoft.Extensions.Logging;
 namespace Aneiang.Yarp.Dashboard.Extensions;
 
 /// <summary>
-/// Extension methods for registering <see cref="IDataStore"/> based on <see cref="StorageOptions"/>.
+/// Extension methods for registering storage services based on <see cref="StorageOptions"/>.
 /// </summary>
 public static class StorageServiceCollectionExtensions
 {
     /// <summary>
-    /// Register <see cref="IDataStore"/> singleton based on <c>Gateway:Storage</c> configuration section.
-    /// If the section is missing, defaults to <see cref="StorageProvider.JsonFile"/>.
+    /// Register storage services based on <c>Gateway:Storage</c> configuration section.
+    /// Defaults to <see cref="StorageProvider.Sqlite"/> with structured schema.
     /// </summary>
     public static IServiceCollection AddAneiangStorage(
         this IServiceCollection services,
@@ -25,19 +25,29 @@ public static class StorageServiceCollectionExtensions
         var storageOptions = new StorageOptions();
         configuration.GetSection(StorageOptions.SectionName).Bind(storageOptions);
 
+        // Register legacy IDataStore for backward compatibility
         services.AddSingleton<IDataStore>(sp =>
         {
             var loggerBase = sp.GetRequiredService<ILoggerFactory>();
 
             return storageOptions.Provider switch
             {
-                StorageProvider.Sqlite => new SqliteDataStore(storageOptions,
-                    loggerBase.CreateLogger<SqliteDataStore>()),
                 StorageProvider.Redis => new RedisDataStore(storageOptions,
                     loggerBase.CreateLogger<RedisDataStore>()),
-                _ => new JsonFileDataStore(storageOptions,
-                    loggerBase.CreateLogger<JsonFileDataStore>())
+                _ => new SqliteDataStore(storageOptions,
+                    loggerBase.CreateLogger<SqliteDataStore>())
             };
+        });
+
+        // Register structured data store (new recommended approach)
+        services.AddSingleton<IStructuredDataStore>(sp =>
+        {
+            var loggerBase = sp.GetRequiredService<ILoggerFactory>();
+            var store = new StructuredSqliteStore(storageOptions,
+                loggerBase.CreateLogger<StructuredSqliteStore>());
+            // Initialize on startup
+            store.InitializeAsync().GetAwaiter().GetResult();
+            return store;
         });
 
         return services;

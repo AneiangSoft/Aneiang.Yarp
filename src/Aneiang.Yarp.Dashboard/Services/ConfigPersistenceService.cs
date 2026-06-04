@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Dashboard.Services.Implements;
+using Aneiang.Yarp.Dashboard.Storage;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
@@ -10,8 +11,8 @@ using Yarp.ReverseProxy.Configuration;
 namespace Aneiang.Yarp.Dashboard.Services;
 
 /// <summary>
-/// Service for managing configuration snapshots, import/export, and version history.
-/// Snapshots are persisted via <see cref="IDataStore"/> so they survive restarts.
+/// Service for managing configuration snapshots, import/export, and version history using structured storage.
+/// Snapshots are persisted via <see cref="IStructuredDataStore"/> so they survive restarts.
 /// </summary>
 public class ConfigPersistenceService
 {
@@ -21,12 +22,11 @@ public class ConfigPersistenceService
         WriteIndented = true
     };
 
-    private const string SnapshotCategory = "config-snapshots";
     private const int MaxHistorySize = 50;
 
     private readonly IDynamicConfigPersistenceService _filePersistence;
     private readonly DynamicYarpConfigService? _dynamicConfig;
-    private readonly IDataStore _store;
+    private readonly IStructuredDataStore _store;
     private readonly ILogger<ConfigPersistenceService> _logger;
     private readonly List<ConfigSnapshot> _history = new();
     private readonly object _historyLock = new();
@@ -39,7 +39,7 @@ public class ConfigPersistenceService
         IDynamicConfigPersistenceService filePersistence,
         ILogger<ConfigPersistenceService> logger,
         DynamicYarpConfigService? dynamicConfig = null,
-        IDataStore? store = null)
+        IStructuredDataStore? store = null)
     {
         _filePersistence = filePersistence;
         _logger = logger;
@@ -47,7 +47,7 @@ public class ConfigPersistenceService
         _store = store ?? throw new ArgumentNullException(nameof(store));
     }
 
-    /// <summary>Load persisted snapshot history from IDataStore on first access.</summary>
+    /// <summary>Load persisted snapshot history from structured store on first access.</summary>
     private async Task EnsureHistoryLoadedAsync()
     {
         if (_historyLoaded) return;
@@ -55,11 +55,15 @@ public class ConfigPersistenceService
 
         try
         {
-            var persisted = await _store.GetCollectionAsync<ConfigSnapshot>(SnapshotCategory);
+            var entities = await _store.GetConfigHistoryListAsync(MaxHistorySize);
             lock (_historyLock)
             {
-                _history.AddRange(persisted);
-                _logger.LogDebug("Loaded {Count} snapshots from store", persisted.Count);
+                foreach (var entity in entities)
+                {
+                    var snapshot = entity.ToConfigSnapshot();
+                    _history.Add(snapshot);
+                }
+                _logger.LogDebug("Loaded {Count} snapshots from structured store", entities.Count);
             }
         }
         catch (Exception ex)
@@ -335,8 +339,9 @@ public class ConfigPersistenceService
             }
         }
 
-        // Persist to store (fire-and-forget for performance)
-        _ = _store.AddToCollectionAsync(SnapshotCategory, snapshot);
+        // Persist to structured store
+        var entity = snapshot.ToEntity("dashboard-user");
+        _ = _store.SaveConfigHistoryAsync(entity);
 
         _logger.LogInformation(
             "Configuration snapshot saved: {VersionId}, Description: {Description}",
@@ -370,7 +375,6 @@ public class ConfigPersistenceService
                 return _history.ToList().AsReadOnly();
             }
         }
-        // Fallback for initial load - this should be called after app startup
         return Array.Empty<ConfigSnapshot>();
     }
 
@@ -385,6 +389,16 @@ public class ConfigPersistenceService
         lock (_historyLock)
         {
             snapshot = _history.FirstOrDefault(s => s.VersionId == versionId);
+        }
+
+        if (snapshot == null)
+        {
+            // Try to load from structured store
+            var entity = await _store.GetConfigHistoryAsync(versionId);
+            if (entity != null)
+            {
+                snapshot = entity.ToConfigSnapshot();
+            }
         }
 
         if (snapshot == null)

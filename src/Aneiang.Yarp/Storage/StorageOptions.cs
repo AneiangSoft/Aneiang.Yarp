@@ -3,10 +3,7 @@ namespace Aneiang.Yarp.Storage;
 /// <summary>Storage provider type.</summary>
 public enum StorageProvider
 {
-    /// <summary>JSON file persistence (default, backward-compatible).</summary>
-    JsonFile,
-
-    /// <summary>SQLite database.</summary>
+    /// <summary>SQLite database (default).</summary>
     Sqlite,
 
     /// <summary>Redis cache/database.</summary>
@@ -35,26 +32,14 @@ public class StorageOptions
     /// <summary>Config section name.</summary>
     public const string SectionName = "Gateway:Storage";
 
-    /// <summary>Storage provider. Default: <see cref="StorageProvider.JsonFile"/>.</summary>
-    public StorageProvider Provider { get; set; } = StorageProvider.JsonFile;
-
-    /// <summary>JSON file storage options.</summary>
-    public JsonFileStorageOptions JsonFile { get; set; } = new();
+    /// <summary>Storage provider. Default: <see cref="StorageProvider.Sqlite"/>.</summary>
+    public StorageProvider Provider { get; set; } = StorageProvider.Sqlite;
 
     /// <summary>SQLite storage options.</summary>
     public SqliteStorageOptions Sqlite { get; set; } = new();
 
     /// <summary>Redis storage options.</summary>
     public RedisStorageOptions Redis { get; set; } = new();
-}
-
-/// <summary>JSON file storage options.</summary>
-public class JsonFileStorageOptions
-{
-    /// <summary>
-    /// Base directory for JSON files. Defaults to <c>AppDomain.CurrentDomain.BaseDirectory</c>.
-    /// </summary>
-    public string BasePath { get; set; } = "";
 }
 
 /// <summary>SQLite storage options.</summary>

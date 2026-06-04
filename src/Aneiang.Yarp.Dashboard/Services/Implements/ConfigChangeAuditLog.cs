@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using Aneiang.Yarp.Dashboard.Storage;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
@@ -8,9 +9,9 @@ using Microsoft.Extensions.Logging;
 namespace Aneiang.Yarp.Dashboard.Services.Implements;
 
 /// <summary>
-/// Audit log store for gateway configuration changes.
+/// Audit log store for gateway configuration changes using structured storage.
 /// Uses in-memory <see cref="ConcurrentQueue{T}"/> for fast writes,
-/// and persists to <see cref="IDataStore"/> so entries survive restarts.
+/// and persists to <see cref="IStructuredDataStore"/> for structured query capability.
 /// Thread-safe, bounded by max capacity (ring-buffer style).
 /// </summary>
 public class ConfigChangeAuditLog : IConfigChangeAuditLog
@@ -21,7 +22,6 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
         WriteIndented = false
     };
 
-    private const string Category = "audit-log";
     private const int MaxCapacity = 200;
 
     private readonly ConcurrentQueue<ConfigChangeAudit> _entries = new();
@@ -29,7 +29,7 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
     private long _evictedCount;
     private bool _loaded;
 
-    private readonly IDataStore _store;
+    private readonly IStructuredDataStore _store;
     private readonly ILogger<ConfigChangeAuditLog> _logger;
 
     /// <summary>
@@ -37,7 +37,7 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
     /// </summary>
     public event Action<string, string, string?, object?>? OnConfigChanged;
 
-    public ConfigChangeAuditLog(IDataStore store, ILogger<ConfigChangeAuditLog> logger)
+    public ConfigChangeAuditLog(IStructuredDataStore store, ILogger<ConfigChangeAuditLog> logger)
     {
         _store = store;
         _logger = logger;
@@ -50,19 +50,19 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
 
         lock (_entries)
         {
-            if (_loaded) return; // Double-check locking
+            if (_loaded) return;
             _loaded = true;
         }
 
         try
         {
-            var persisted = await _store.GetCollectionAsync<ConfigChangeAudit>(Category);
-            foreach (var entry in persisted)
+            var persisted = await _store.GetAuditLogsAsync(MaxCapacity);
+            foreach (var entity in persisted)
             {
-                _entries.Enqueue(entry);
+                _entries.Enqueue(entity.ToConfigChangeAudit());
                 Interlocked.Increment(ref _totalCount);
             }
-            _logger.LogDebug("Loaded {Count} audit entries from store", persisted.Count);
+            _logger.LogDebug("Loaded {Count} audit entries from structured store", persisted.Count);
         }
         catch (Exception ex)
         {
@@ -75,8 +75,6 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
     {
         if (_loaded) return;
 
-        // Fire-and-forget initialization with exception handling
-        // This avoids blocking the thread while loading from persistent store
         _ = Task.Run(async () =>
         {
             try
@@ -93,8 +91,6 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
     /// <inheritdoc />
     public void Record(ConfigChangeAudit entry)
     {
-        // Non-blocking initialization - if not loaded, start loading in background
-        // Entries recorded before load completes will be in memory but not persisted until next load
         EnsureLoaded();
 
         _entries.Enqueue(entry);
@@ -115,12 +111,12 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
             entry.Action, entry.Target, entry.Operator ?? "unknown",
             entry.Success ? "OK" : $"FAIL: {entry.ErrorMessage}");
 
-        // Persist to store (fire-and-forget with error handling)
+        // Persist to structured store
         _ = Task.Run(async () =>
         {
             try
             {
-                await _store.AddToCollectionAsync(Category, entry);
+                await _store.SaveAuditLogAsync(entry.ToEntity());
             }
             catch (Exception ex)
             {
@@ -166,15 +162,12 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
     /// <inheritdoc />
     public IReadOnlyList<ConfigChangeAudit> GetRecent(int count = 50)
     {
-        // Non-blocking - start loading in background if needed
         EnsureLoaded();
 
-        // Return entries without sorting if not many entries (optimization)
         var entries = _entries.ToArray();
         if (entries.Length <= 1)
             return entries.Take(count).ToList();
 
-        // Use Array.Sort for better performance than OrderByDescending on small collections
         Array.Sort(entries, (a, b) => b.Timestamp.CompareTo(a.Timestamp));
         return entries.Take(count).ToList();
     }
@@ -184,4 +177,11 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
 
     /// <inheritdoc />
     public long EvictedCount => Volatile.Read(ref _evictedCount);
+
+    /// <summary>Query audit logs by target from structured store.</summary>
+    public async Task<IReadOnlyList<ConfigChangeAudit>> GetByTargetAsync(string target, int count = 50)
+    {
+        var entities = await _store.GetAuditLogsByTargetAsync(target, count);
+        return entities.ToConfigChangeAudits();
+    }
 }

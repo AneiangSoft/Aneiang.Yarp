@@ -4,82 +4,6 @@
     var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
 }
 
-<!-- Alert Summary Bar - 运维告警摘要 -->
-<div id="alert-summary-bar" class="row g-3 mb-3">
-    <div class="col-md-3 col-sm-6">
-        <div class="stat-card" style="border-left: 4px solid #ef4444;">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <div class="stat-value" id="alert-unhealthy" style="color:#ef4444;">-</div>
-                    <div class="stat-label" data-i18n="overview.alert.unhealthy">异常节点</div>
-                </div>
-                <div class="stat-icon" style="background:#fef2f2;color:#ef4444;"><i class="bi bi-heartbreak"></i></div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3 col-sm-6">
-        <div class="stat-card" style="border-left: 4px solid #f59e0b;">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <div class="stat-value" id="alert-circuit" style="color:#f59e0b;">-</div>
-                    <div class="stat-label" data-i18n="overview.alert.circuit">熔断中</div>
-                </div>
-                <div class="stat-icon" style="background:#fffbeb;color:#f59e0b;"><i class="bi bi-lightning-slash"></i></div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3 col-sm-6">
-        <div class="stat-card" style="border-left: 4px solid #3b82f6;">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <div class="stat-value" id="alert-rate-limit">-</div>
-                    <div class="stat-label" data-i18n="overview.alert.rateLimit">限流触发</div>
-                </div>
-                <div class="stat-icon" style="background:#eff6ff;color:#3b82f6;"><i class="bi bi-speedometer2"></i></div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3 col-sm-6">
-        <div class="stat-card" style="border-left: 4px solid #8b5cf6;">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <div class="stat-value" id="alert-events">-</div>
-                    <div class="stat-label" data-i18n="overview.alert.events">未处理事件</div>
-                </div>
-                <div class="stat-icon" style="background:#f5f3ff;color:#8b5cf6;"><i class="bi bi-bell"></i></div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Quick Actions Bar - 快捷运维操作 -->
-<div class="card-panel mb-3">
-    <div class="card-body py-3">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-            <div class="d-flex align-items-center gap-2">
-                <span class="text-muted small"><i class="bi bi-lightning-charge me-1"></i><span data-i18n="overview.quickActions.title">快捷操作</span></span>
-            </div>
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-                <button class="btn btn-sm btn-outline-danger" onclick="OpsModule.emergencyDisable()">
-                    <i class="bi bi-shield-exclamation"></i> <span data-i18n="overview.quickActions.emergency">紧急禁用</span>
-                </button>
-                <button class="btn btn-sm btn-outline-success" onclick="OpsModule.emergencyEnable()">
-                    <i class="bi bi-shield-check"></i> <span data-i18n="overview.quickActions.emergencyEnable">紧急启用</span>
-                </button>
-                <button class="btn btn-sm btn-outline-warning" onclick="OpsModule.refreshHealth()">
-                    <i class="bi bi-arrow-clockwise"></i> <span data-i18n="overview.quickActions.health">刷新健康</span>
-                </button>
-                <button class="btn btn-sm btn-outline-primary" onclick="OpsModule.exportSnapshot()">
-                    <i class="bi bi-download"></i> <span data-i18n="overview.quickActions.export">导出快照</span>
-                </button>
-                <button class="btn btn-sm btn-outline-secondary" onclick="overviewRefresh(this)">
-                    <i class="bi bi-arrow-repeat"></i> <span data-i18n="overview.quickActions.refresh">刷新全部</span>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Stat cards -->
 <div id="stat-bar" class="row g-3 mb-3">
     <div class="col-12">
@@ -254,19 +178,6 @@
     </div>
 </div>
 
-<!-- Statistics panel -->
-@* <div id="stats-panel" class="card-panel mb-3">
-    <div class="card-header">
-        <span><i class="bi bi-bar-chart-line me-2"></i><span data-i18n="stats.title">访问统计</span></span>
-        <div class="d-flex align-items-center" style="gap:12px;white-space:nowrap;">
-            <a href="/@prefix/stats" class="btn btn-sm btn-outline-primary">
-                <i class="bi bi-arrow-right"></i> <span data-i18n="home.viewAll">详情</span>
-            </a>
-        </div>
-    </div>
-    <div id="stats-content" class="card-body"></div>
-</div> *@
-
 @section Scripts {
 @{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
 <!-- Chart.js for traffic chart -->
@@ -287,7 +198,7 @@
 <!-- Modules -->
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-stats.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-operations.js?v=@v"></script>
+@* <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-operations.js?v=@v"></script> *@
 
 <script>
     window.__dashboard = window.__dashboard || {};

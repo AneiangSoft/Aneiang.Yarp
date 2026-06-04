@@ -172,6 +172,29 @@
             }
         },
 
+        // ===== Route Processing Methods =====
+        async filterRoutes(routes, filters) {
+            try {
+                await this.init();
+                const { result } = await this.send('filterRoutes', { routes, filters });
+                return result.filtered;
+            } catch (err) {
+                console.warn('[Worker] Route filter failed, falling back to main thread:', err);
+                return this.fallbackFilterRoutes(routes, filters);
+            }
+        },
+
+        async calculateRouteStats(routes) {
+            try {
+                await this.init();
+                const { result } = await this.send('calculateRouteStats', { routes });
+                return result.stats;
+            } catch (err) {
+                console.warn('[Worker] Route stats failed, falling back to main thread:', err);
+                return this.fallbackRouteStats(routes);
+            }
+        },
+
         // ===== Fallback Implementations =====
         fallbackFilter(logs, filters) {
             const { search, level, status, timeRange, gatewayOnly } = filters;
@@ -267,6 +290,48 @@
             }
 
             return Array.from(buckets.values());
+        },
+
+        fallbackFilterRoutes(routes, filters) {
+            const { search, method, source } = filters;
+            let filtered = routes;
+
+            if (search) {
+                const searchLower = search.toLowerCase();
+                filtered = filtered.filter(route => {
+                    const routeId = (route.routeId || '').toLowerCase();
+                    const path = ((route.match && route.match.path) || '').toLowerCase();
+                    return routeId.includes(searchLower) || path.includes(searchLower);
+                });
+            }
+
+            if (method && method !== 'all') {
+                filtered = filtered.filter(route => {
+                    const methods = route.match && route.match.methods || [];
+                    return methods.includes(method);
+                });
+            }
+
+            if (source && source !== 'all') {
+                filtered = filtered.filter(route => (route.source || 'config') === source);
+            }
+
+            filtered.sort((a, b) => {
+                const orderA = a.order !== null && a.order !== undefined ? a.order : 999999;
+                const orderB = b.order !== null && b.order !== undefined ? b.order : 999999;
+                return orderA - orderB;
+            });
+
+            return filtered;
+        },
+
+        fallbackRouteStats(routes) {
+            return {
+                total: routes.length,
+                bySource: {},
+                byMethod: {},
+                disabled: 0
+            };
         },
 
         // ===== Cleanup =====

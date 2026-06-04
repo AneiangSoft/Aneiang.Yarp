@@ -3,35 +3,20 @@
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
-<!-- Stat bar (compact) -->
-<div id="stat-bar" class="row g-3 mb-3">
-    <div class="col-12">
-        <div class="info-bar">
-            <div class="info-bar-content">
-                <span><i class="bi bi-diagram-3"></i><span data-i18n="index.stat.clusters">服务集群：</span><strong id="stat-clusters">-</strong></span>
-                <span><i class="bi bi-heart-pulse"></i><span data-i18n="index.stat.health">健康状态：</span><strong id="stat-healthy" style="color:#22c55e;">-</strong></span>
-            </div>
-            <div class="info-bar-actions">
-                <div class="btn-group btn-group-sm" style="border:1px solid var(--border-color);border-radius:8px;overflow:hidden;">
-                    <button class="btn px-2 py-1 view-toggle active" data-view="cards" onclick="ClustersView.toggle('cards')" title="卡片视图" style="font-size:13px;background:var(--primary-color);color:#fff;border:none;">
-                        <i class="bi bi-grid-3x3-gap"></i>
-                    </button>
-                    <button class="btn px-2 py-1 view-toggle" data-view="table" onclick="ClustersView.toggle('table')" title="表格视图" style="font-size:13px;background:var(--card-bg);color:var(--text-secondary);border:none;">
-                        <i class="bi bi-list-ul"></i>
-                    </button>
-                </div>
-                <button class="btn btn-icon btn-outline-primary" onclick="clustersRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
-                    <i class="bi bi-arrow-clockwise"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Cluster panel -->
 <div id="cluster-panel" class="card-panel mb-3">
     <div class="card-header">
         <span><i class="bi bi-hdd-stack me-2"></i><span data-i18n="index.cluster.title">集群 &amp; 目标节点状态</span></span>
+        <div class="info-bar-actions">
+            <div class="btn-group btn-group-sm" style="border:1px solid var(--border-color);border-radius:8px;overflow:hidden;">
+                <button class="btn px-2 py-1 view-toggle active" data-view="cards" onclick="ClustersView.toggle('cards')" title="卡片视图" style="font-size:13px;background:var(--primary-color);color:#fff;border:none;">
+                    <i class="bi bi-grid-3x3-gap"></i>
+                </button>
+                <button class="btn px-2 py-1 view-toggle" data-view="table" onclick="ClustersView.toggle('table')" title="表格视图" style="font-size:13px;background:var(--card-bg);color:var(--text-secondary);border:none;">
+                    <i class="bi bi-list-ul"></i>
+                </button>
+            </div>
+        </div>
         <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
             <span class="refresh-badge" id="cluster-refresh-time"></span>
             <span class="refresh-badge"><span data-i18n="index.cluster.showing">显示 </span><strong id="cluster-display-count">0</strong><span data-i18n="index.cluster.of"> / </span><span id="cluster-total-count">0</span><span data-i18n="index.cluster.entries"> 个</span></span>

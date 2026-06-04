@@ -219,21 +219,51 @@
             };
         },
                         
-        // ===== Bind Filter Events =====
+        // ===== Bind Filter Events (Optimized) =====
         _bindFilterEvents: function() {
             const self = this;
             
-            // Search input - live search on input
+            // Search input - optimized debounced live search
             const searchInput = document.getElementById('route-search-input');
             if (searchInput) {
-                // Debounced live search
                 let searchTimeout = null;
+                let lastValue = '';
+                
                 searchInput.addEventListener('input', function(e) {
+                    const value = e.target.value;
+                    
+                    // Clear existing timeout
                     clearTimeout(searchTimeout);
-                    searchTimeout = setTimeout(function() {
-                        window.DashboardState.set('filters.routes.search', searchInput.value);
+                    
+                    // Empty value or first character - immediate response
+                    if (!value || !lastValue) {
+                        window.DashboardState.set('filters.routes.search', value);
                         self.renderRoutes();
-                    }, 300);
+                    } else {
+                        // Debounced for subsequent typing
+                        searchTimeout = setTimeout(function() {
+                            window.DashboardState.set('filters.routes.search', value);
+                            self.renderRoutes();
+                        }, 200); // Reduced from 300ms to 200ms for better responsiveness
+                    }
+                    
+                    lastValue = value;
+                    
+                    // Update clear button visibility immediately
+                    const clearBtn = document.getElementById('route-clear-btn');
+                    if (clearBtn) {
+                        clearBtn.style.display = value ? '' : 'none';
+                    }
+                });
+
+                // Handle Escape key to clear search
+                searchInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        searchInput.value = '';
+                        window.DashboardState.set('filters.routes.search', '');
+                        self.renderRoutes();
+                        searchInput.blur();
+                    }
                 });
             }
             
@@ -242,11 +272,17 @@
             if (clearBtn) {
                 clearBtn.addEventListener('click', function() {
                     const input = document.getElementById('route-search-input');
-                    if (input) input.value = ''; 
+                    if (input) {
+                        input.value = '';
+                        input.focus();
+                    }
                     window.DashboardState.set('filters.routes.search', '');
                     window.DashboardState.set('filters.routes.method', 'all');
                     window.DashboardState.set('filters.routes.source', 'all');
                     self.renderRoutes();
+                    
+                    // Update clear button
+                    clearBtn.style.display = 'none';
                 });
             }
             
@@ -287,8 +323,81 @@
 
                 
         // ===== Render Route Rows =====
-        // ===== Render Route Cards =====
+        // ===== Render Route Cards (Optimized with DocumentFragment) =====
         renderRouteCards: function(routes) {
+            var container = document.getElementById('route-cards-view');
+            if (!container) return;
+
+            if (routes.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:48px 0;">' +
+                    '<i class="bi bi-signpost-split" style="font-size:2.5rem;opacity:0.4;color:#64748b;display:block;margin-bottom:12px;"></i>' +
+                    '<div style="font-size:14px;color:#64748b;">' + __('index.route.empty') + '</div>' +
+                    '<div style="font-size:12px;color:#94a3b8;margin-top:6px;">' + __('index.route.emptyHelp') + '</div></div>';
+                return;
+            }
+
+            // Sort by order
+            var sortedRoutes = routes.slice().sort(function(a, b) {
+                var orderA = a.order !== null && a.order !== undefined ? a.order : 999999;
+                var orderB = b.order !== null && b.order !== undefined ? b.order : 999999;
+                return orderA - orderB;
+            });
+
+            // Use DocumentFragment for better performance
+            var fragment = document.createDocumentFragment();
+            var gridContainer = document.createElement('div');
+            gridContainer.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px;';
+
+            // Batch render for large lists
+            if (sortedRoutes.length > 50) {
+                this._renderCardsBatched(sortedRoutes, gridContainer, function() {
+                    container.innerHTML = '';
+                    fragment.appendChild(gridContainer);
+                    container.appendChild(fragment);
+                });
+                return;
+            }
+
+            // Standard render for smaller lists
+            sortedRoutes.forEach(function(route) {
+                var card = this.createRouteCardDOM(route);
+                if (card) gridContainer.appendChild(card);
+            }.bind(this));
+
+            container.innerHTML = '';
+            fragment.appendChild(gridContainer);
+            container.appendChild(fragment);
+        },
+
+        // ===== Batch Render Cards using requestAnimationFrame =====
+        _renderCardsBatched: function(routes, container, onComplete) {
+            var batchSize = 30;
+            var index = 0;
+            var total = routes.length;
+
+            var renderBatch = function() {
+                var end = Math.min(index + batchSize, total);
+                var fragment = document.createDocumentFragment();
+
+                for (; index < end; index++) {
+                    var card = RoutesModule.createRouteCardDOM(routes[index]);
+                    if (card) fragment.appendChild(card);
+                }
+
+                container.appendChild(fragment);
+
+                if (index < total) {
+                    requestAnimationFrame(renderBatch);
+                } else {
+                    if (onComplete) onComplete();
+                }
+            };
+
+            renderBatch();
+        },
+
+        // ===== Render Route Cards (Legacy - falls back to string HTML) =====
+        _renderRouteCardsLegacy: function(routes) {
             var container = document.getElementById('route-cards-view');
             if (!container) return;
 
@@ -409,9 +518,7 @@
         },
 
         renderRouteRows: function(routes, tbody) {
-            window.DashboardDOM.clear(tbody);
-
-            const fragment = document.createDocumentFragment();
+            if (!tbody) return;
 
             // Sort by order
             const sortedRoutes = [...routes].sort((a, b) => {
@@ -420,13 +527,134 @@
                 return orderA - orderB;
             });
 
-            sortedRoutes.forEach(function(route) {
+            // Check if this is first render or we should use diff
+            const existingRowCount = tbody.querySelectorAll('tr[data-route-id]').length;
+            const isFirstRender = existingRowCount === 0;
+            
+            // Use diff rendering for updates with many items
+            if (!isFirstRender && existingRowCount > 10) {
+                this._renderRouteRowsDiff(sortedRoutes, tbody);
+            } else {
+                this._renderRouteRowsStandard(sortedRoutes, tbody);
+            }
+        },
+
+        // ===== Standard Render (full rebuild - used for first render) =====
+        _renderRouteRowsStandard: function(routes, tbody) {
+            window.DashboardDOM.clear(tbody);
+            const fragment = document.createDocumentFragment();
+
+            routes.forEach(function(route) {
                 var isExpanded = (window.DashboardState.get('ui.expandedRoutes') || new Set()).has(route.routeId);
                 var rows = this.createRouteRows(route, isExpanded);
                 rows.forEach(function(row) { fragment.appendChild(row); });
             }.bind(this));
 
             tbody.appendChild(fragment);
+        },
+
+        // ===== Diff Render (only update changed rows) =====
+        _renderRouteRowsDiff: function(routes, tbody) {
+            const startTime = performance.now();
+            
+            // Get existing rows grouped by routeId
+            const existingRows = new Map();
+            tbody.querySelectorAll('tr[data-route-id]').forEach(row => {
+                const routeId = row.dataset.routeId;
+                if (!existingRows.has(routeId)) {
+                    existingRows.set(routeId, []);
+                }
+                existingRows.get(routeId).push(row);
+            });
+
+            // Track which routeIds should exist
+            const newRouteIds = new Set(routes.map(r => r.routeId));
+            
+            // Remove rows that no longer exist
+            existingRows.forEach((rows, routeId) => {
+                if (!newRouteIds.has(routeId)) {
+                    rows.forEach(row => row.remove());
+                }
+            });
+
+            // Build new order and update/create rows
+            const rowOrder = [];
+
+            routes.forEach(function(route) {
+                const routeRows = existingRows.get(route.routeId);
+                var isExpanded = (window.DashboardState.get('ui.expandedRoutes') || new Set()).has(route.routeId);
+
+                if (routeRows && routeRows.length > 0) {
+                    // Reuse existing rows
+                    const mainRow = routeRows[0];
+                    const detailRow = routeRows[1];
+                    
+                    // Update main row content (check for changes)
+                    this._updateRouteRowContent(mainRow, route, isExpanded);
+                    
+                    if (isExpanded && !detailRow) {
+                        // Need to add detail row
+                        const newDetailRow = this.createRouteDetailRow(route);
+                        newDetailRow.dataset.routeId = route.routeId;
+                        rowOrder.push(mainRow, newDetailRow);
+                    } else if (!isExpanded && detailRow) {
+                        // Need to remove detail row
+                        detailRow.remove();
+                        rowOrder.push(mainRow);
+                    } else {
+                        // Same structure
+                        rowOrder.push(mainRow);
+                        if (detailRow) {
+                            detailRow.dataset.routeId = route.routeId;
+                            rowOrder.push(detailRow);
+                        }
+                    }
+                } else {
+                    // Create new rows
+                    var rows = this.createRouteRows(route, isExpanded);
+                    rows.forEach(row => rowOrder.push(row));
+                }
+            }.bind(this));
+
+            // Reorder rows in DOM efficiently
+            rowOrder.forEach(function(row) {
+                tbody.appendChild(row);
+            });
+
+            const endTime = performance.now();
+            console.log(`[Routes] Diff render: ${routes.length} routes in ${(endTime - startTime).toFixed(2)}ms`);
+        },
+
+        // ===== Update Route Row Content (for diff updates) =====
+        _updateRouteRowContent: function(row, route, isExpanded) {
+            // Update expand icon
+            const expandIcon = row.querySelector('.row-expand-icon');
+            if (expandIcon) {
+                expandIcon.classList.toggle('expanded', isExpanded);
+            }
+
+            // Update disabled state
+            const wasDisabled = row.classList.contains('route-disabled');
+            const isDisabled = route.metadata && route.metadata.Disabled === 'true';
+            if (wasDisabled !== isDisabled) {
+                row.classList.toggle('route-disabled', isDisabled);
+                // Update disabled badge in name cell
+                const nameDiv = row.querySelector('td:nth-child(3) div');
+                if (nameDiv) {
+                    const existingBadge = nameDiv.querySelector('.badge.bg-secondary');
+                    if (isDisabled && !existingBadge) {
+                        const disabledBadge = document.createElement('span');
+                        disabledBadge.className = 'badge bg-secondary ms-1';
+                        disabledBadge.style.cssText = 'font-size:10px;padding:2px 5px;';
+                        disabledBadge.title = __('index.route.disabled') || '已禁用';
+                        disabledBadge.innerHTML = '<i class="bi bi-ban me-1"></i>' + (__('index.route.disabledShort') || '禁用');
+                        const nameStrong = nameDiv.querySelector('strong');
+                        if (nameStrong) nameStrong.after(disabledBadge);
+                    } else if (!isDisabled && existingBadge) {
+                        existingBadge.remove();
+                    }
+                }
+            }
         },
 
         // ===== Create Route Rows =====
@@ -1574,6 +1802,209 @@
             document.addEventListener('dashboard:localeChange', () => {
                 this.renderRoutes();
             });
+
+            // Setup event delegation for card and table views
+            this._setupEventDelegation();
+        },
+
+        // ===== Event Delegation Setup =====
+        _setupEventDelegation: function() {
+            const self = this;
+
+            // Card view delegation
+            const cardsContainer = document.getElementById('route-cards-view');
+            if (cardsContainer) {
+                cardsContainer.addEventListener('click', function(e) {
+                    const card = e.target.closest('.route-card');
+                    if (!card) return;
+
+                    const routeId = card.dataset.routeId;
+                    if (!routeId) return;
+
+                    // Check button clicks
+                    if (e.target.closest('.btn-edit') || e.target.closest('[data-action="edit"]')) {
+                        e.stopPropagation();
+                        self.showEditModal(routeId);
+                    } else if (e.target.closest('.btn-delete') || e.target.closest('[data-action="delete"]')) {
+                        e.stopPropagation();
+                        self.deleteRoute(routeId);
+                    } else if (e.target.closest('.btn-toggle') || e.target.closest('[data-action="toggle"]')) {
+                        e.stopPropagation();
+                        const route = self._findRouteById(routeId);
+                        if (route) {
+                            const isDisabled = route.metadata && route.metadata.Disabled === 'true';
+                            self.toggleRouteEnabled(routeId, !isDisabled);
+                        }
+                    } else {
+                        // Card click - toggle expand
+                        self.toggleRoute(routeId);
+                    }
+                });
+            }
+
+            // Table view delegation
+            const tableContainer = document.getElementById('route-table-view');
+            if (tableContainer) {
+                tableContainer.addEventListener('click', function(e) {
+                    const row = e.target.closest('tr[data-route-id]');
+                    if (!row) return;
+
+                    const routeId = row.dataset.routeId;
+                    if (!routeId) return;
+
+                    // Check button clicks
+                    if (e.target.closest('.btn-edit')) {
+                        e.stopPropagation();
+                        self.showEditModal(routeId);
+                    } else if (e.target.closest('.btn-delete')) {
+                        e.stopPropagation();
+                        self.deleteRoute(routeId);
+                    } else if (e.target.closest('.btn-toggle')) {
+                        e.stopPropagation();
+                        const route = self._findRouteById(routeId);
+                        if (route) {
+                            const isDisabled = route.metadata && route.metadata.Disabled === 'true';
+                            self.toggleRouteEnabled(routeId, !isDisabled);
+                        }
+                    } else if (!e.target.closest('.copy-btn') && !e.target.closest('.btn-group')) {
+                        // Row click - toggle expand
+                        self.toggleRoute(routeId);
+                    }
+                });
+            }
+        },
+
+        // ===== Helper: Find Route by ID =====
+        _findRouteById: function(routeId) {
+            const routes = window.DashboardState.get('data.routes') || [];
+            return routes.find(r => r.routeId === routeId);
+        },
+
+        // ===== Optimized Render Methods =====
+
+        // ===== Create Route Card (DOM-based for performance) =====
+        createRouteCardDOM: function(route) {
+            const pathText = route.match && route.match.path || '-';
+            const methods = route.match && route.match.methods || [];
+            const hostText = route.match && route.match.hosts && route.match.hosts.length > 0 ? route.match.hosts[0] : '';
+            const hasTransforms = route.transforms && route.transforms.length > 0;
+            const hasAuthorization = route.authorizationPolicy || route.authorizationPolicy === '';
+            const isDisabled = route.metadata && route.metadata.Disabled === 'true';
+            const accentColor = isDisabled ? '#94a3b8' : (route.clusterId ? '#3b82f6' : '#94a3b8');
+
+            // Create card element
+            const card = document.createElement('div');
+            card.className = 'route-card';
+            card.dataset.routeId = route.routeId;
+            card.dataset.key = route.routeId; // For diff tracking
+            card.style.cssText = 'border:1px solid var(--border-color);border-left:4px solid ' + accentColor + 
+                ';border-radius:12px;background:var(--card-bg);overflow:hidden;transition:box-shadow 0.2s,transform 0.15s;cursor:pointer;' + 
+                (isDisabled ? 'opacity:0.7;' : '');
+            
+            // Hover effects
+            card.addEventListener('mouseenter', function() {
+                this.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+                this.style.transform = 'translateY(-1px)';
+            });
+            card.addEventListener('mouseleave', function() {
+                this.style.boxShadow = 'none';
+                this.style.transform = 'none';
+            });
+
+            // Card content HTML
+            card.innerHTML = this._buildCardHTML(route, pathText, methods, hostText, hasTransforms, hasAuthorization, isDisabled);
+
+            return card;
+        },
+
+        // ===== Build Card HTML (separate for easier maintenance) =====
+        _buildCardHTML: function(route, pathText, methods, hostText, hasTransforms, hasAuthorization, isDisabled) {
+            const orderBadge = route.order !== null && route.order !== undefined 
+                ? '<span class="route-order-badge" style="background:' + (route.order < 100 ? '#fef3c7' : route.order < 1000 ? '#e0e7ff' : '#f1f5f9') + ';color:' + (route.order < 100 ? '#92400e' : route.order < 1000 ? '#3730a3' : '#64748b') + '">' + route.order + '</span>'
+                : '<span class="route-order-badge" style="background:#f1f5f9;color:#94a3b8">-</span>';
+
+            const disabledBadge = isDisabled 
+                ? '<span class="route-badge disabled" title="' + (window.__ ? __("index.route.disabled") : "已禁用") + '"><i class="bi bi-ban"></i>' + (window.__ ? __("index.route.disabledShort") : "禁用") + '</span>' 
+                : '';
+
+            const hostBadge = hostText 
+                ? '<span class="route-host"><i class="bi bi-globe"></i>' + window.DashboardUtils.escapeHtml(hostText) + '</span>' 
+                : '';
+
+            const indicators = [];
+            if (hasTransforms) indicators.push('<i class="bi bi-arrow-left-right" style="color:#8b5cf6;" title="Transforms"></i>');
+            if (hasAuthorization) indicators.push('<i class="bi bi-shield-lock" style="color:#f59e0b;" title="Authorization"></i>');
+            const indicatorHtml = indicators.length > 0 ? '<span class="route-indicators">' + indicators.join('') + '</span>' : '';
+
+            const toggleBtnClass = isDisabled ? 'btn-success' : 'btn-warning';
+            const toggleBtnIcon = isDisabled ? 'bi-play-fill' : 'bi-pause-fill';
+            const toggleTitle = isDisabled ? (window.__ ? __("index.route.enable") : "启用") : (window.__ ? __("index.route.disable") : "禁用");
+
+            let methodsHtml = '';
+            if (methods.length > 0) {
+                const mColors = { 'GET': '#22c55e', 'POST': '#3b82f6', 'PUT': '#f59e0b', 'DELETE': '#ef4444', 'PATCH': '#8b5cf6', 'HEAD': '#64748b', 'OPTIONS': '#94a3b8' };
+                const mBg = { 'GET': '#f0fdf4', 'POST': '#eff6ff', 'PUT': '#fffbeb', 'DELETE': '#fef2f2', 'PATCH': '#f5f3ff', 'HEAD': '#f8fafc', 'OPTIONS': '#f8fafc' };
+                const mBorder = { 'GET': '#bbf7d0', 'POST': '#bfdbfe', 'PUT': '#fde68a', 'DELETE': '#fecaca', 'PATCH': '#ddd6fe', 'HEAD': '#e2e8f0', 'OPTIONS': '#e2e8f0' };
+                methodsHtml = methods.map(m => {
+                    const c = mColors[m] || '#64748b';
+                    return '<span class="route-method" style="background:' + (mBg[m] || '#f8fafc') + ';color:' + c + ';border-color:' + (mBorder[m] || '#e2e8f0') + '">' + m + '</span>';
+                }).join('');
+            } else {
+                methodsHtml = '<span class="route-method-any">ANY</span>';
+            }
+
+            const clusterHtml = route.clusterId 
+                ? '<span class="route-cluster"><i class="bi bi-diagram-3"></i>' + window.DashboardUtils.escapeHtml(route.clusterId) + '</span>' 
+                : '';
+
+            return '<div class="route-card-header">' +
+                '<div class="route-card-title">' +
+                orderBadge +
+                '<div class="route-name-wrap">' +
+                '<div class="route-name" title="' + window.DashboardUtils.escapeHtml(route.routeId) + '">' + window.DashboardUtils.escapeHtml(route.routeId) + '</div>' +
+                '<div class="route-meta">' +
+                window.DashboardUtils.createSourceBadge(route.source) +
+                disabledBadge +
+                hostBadge +
+                indicatorHtml +
+                '</div>' +
+                '</div>' +
+                '</div>' +
+                '<div class="route-card-actions">' +
+                '<button class="btn-toggle btn btn-sm" title="' + toggleTitle + '" data-action="toggle"><i class="bi ' + toggleBtnIcon + '"></i></button>' +
+                '<button class="btn-edit btn btn-sm" title="' + (window.__ ? __("index.route.edit") : "编辑") + '" data-action="edit"><i class="bi bi-pencil"></i></button>' +
+                '<button class="btn-delete btn btn-sm" title="' + (window.__ ? __("index.route.delete") : "删除") + '" data-action="delete"><i class="bi bi-trash"></i></button>' +
+                '</div>' +
+                '</div>' +
+                '<div class="route-card-body">' +
+                '<div class="route-path-row">' +
+                '<span class="route-path-icon"><i class="bi bi-signpost-2"></i></span>' +
+                '<code class="route-path">' + window.DashboardUtils.escapeHtml(pathText) + '</code>' +
+                '</div>' +
+                '<div class="route-bottom-row">' +
+                clusterHtml +
+                methodsHtml +
+                '</div>' +
+                '</div>';
+        },
+
+        // ===== Create Route Row for Table (with key for diff) =====
+        createRouteRowsOptimized: function(route, isExpanded) {
+            var rows = [];
+
+            // Main row
+            var mainTr = this.createRouteMainRow(route, isExpanded);
+            mainTr.dataset.key = route.routeId; // For diff tracking
+            rows.push(mainTr);
+
+            // Expanded detail row
+            if (isExpanded) {
+                var detailTr = this.createRouteDetailRow(route);
+                detailTr.dataset.key = route.routeId + '-detail';
+                rows.push(detailTr);
+            }
+
+            return rows;
         }
     };
 
