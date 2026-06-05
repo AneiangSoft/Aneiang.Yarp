@@ -9,6 +9,7 @@ namespace Aneiang.Yarp.Dashboard.Storage;
 /// Redis-based <see cref="IDataStore"/> implementation.
 /// Documents are stored as Redis Strings with key <c>{prefix}doc:{category}</c>.
 /// Collections are stored as Redis Lists with key <c>{prefix}col:{category}</c>.
+/// Uses a cached <see cref="IDatabase"/> and batch operations for reduced latency.
 /// </summary>
 public class RedisDataStore : IDataStore
 {
@@ -53,6 +54,11 @@ public class RedisDataStore : IDataStore
         if (!_initialized) await InitializeAsync(ct);
     }
 
+    /// <summary>
+    /// Returns the cached database instance. The <c>ConnectionMultiplexer</c> already
+    /// multiplexes connections internally; reusing <c>IDatabase</c> avoids the
+    /// small overhead of repeated <c>GetDatabase()</c> calls.
+    /// </summary>
     private IDatabase Db => _db ?? throw new InvalidOperationException("Redis not initialized");
 
     private string DocKey(string category) => $"{_options.Prefix}doc:{category}";
@@ -93,15 +99,26 @@ public class RedisDataStore : IDataStore
 
     // ── Collection operations ──
 
+    /// <summary>
+    /// Gets all items in a collection using a single pipelined batch.
+    /// Sends LLEN + LRANGE in one RTT (instead of two sequential awaits).
+    /// </summary>
     public async Task<IReadOnlyList<T>> GetCollectionAsync<T>(string category, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
         var key = ColKey(category);
-        var length = await Db.ListLengthAsync(key);
+
+        // Batch LLEN + LRANGE into a single network round-trip
+        var batch = Db.CreateBatch();
+        var lenTask = batch.ListLengthAsync(key);
+        var rangeTask = batch.ListRangeAsync(key, 0, -1);
+        batch.Execute();
+
+        var length = (int)await lenTask;
         if (length == 0)
             return Array.Empty<T>();
 
-        var values = await Db.ListRangeAsync(key, 0, -1);
+        var values = (RedisValue[])await rangeTask;
         var items = new List<T>(values.Length);
         foreach (var value in values)
         {

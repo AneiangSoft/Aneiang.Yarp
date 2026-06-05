@@ -86,14 +86,14 @@
                     window.DashboardApi.endpoints.getRoutes()
                 ]);
 
-                // Update state
+                // Update state — ServiceTabs will render from this without re-fetching
                 window.DashboardState.set('data.clusters', clusters || []);
                 window.DashboardState.set('data.routes', routes || []);
 
                 // Calculate stats
                 const clusterCount = (clusters || []).length;
                 const routeCount = (routes || []).length;
-                
+
                 // Use healthyCount/unknownCount/unhealthyCount from backend
                 const healthy = (clusters || []).reduce((sum, c) => sum + (c.healthyCount || 0), 0);
                 const unknown = (clusters || []).reduce((sum, c) => sum + (c.unknownCount || 0), 0);
@@ -112,6 +112,12 @@
                 // Render preview lists
                 this.renderClusterPreview(clusters || []);
                 this.renderRoutePreview(routes || []);
+
+                // Trigger ServiceTabs to render clusters if that tab is active (data already loaded)
+                if (window.ServiceTabs && window.ServiceTabs.current === 'clusters') {
+                    window.DashboardApp?.modules?.clusters?.init?.();
+                    window.DashboardApp?.modules?.clusters?.renderClusters?.();
+                }
 
             } catch (error) {
                 console.error('[Home] Update stats failed:', error);

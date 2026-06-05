@@ -251,11 +251,11 @@
         validateConfig: (config) => DashboardApi.post('/api/config/validate', config),
 
         // Audit Logs
-        getAuditLogs: (count, action) => DashboardApi.get('/audit-logs', { count: count || 100, action: action || '' }),
+        getAuditLogs: (count, action) => DashboardApi.get('/api/audit-logs', { count: count || 100, action: action || '' }),
 
         // Circuit Breaker
-        getCircuitBreakerStatus: () => DashboardApi.get('/circuit-breaker/status'),
-        resetCircuitBreakers: () => DashboardApi.post('/circuit-breaker/reset'),
+        getCircuitBreakerStatus: () => DashboardApi.get('/api/circuit-breaker/status'),
+        resetCircuitBreakers: () => DashboardApi.post('/api/circuit-breaker/reset', {}),
 
         // Alerts
         getAlerts: (count) => DashboardApi.get('/api/alerts', { count: count || 100 }),
@@ -294,7 +294,7 @@
 
         // Operations (Enhanced Dashboard)
         getTrafficData: (minutes) => DashboardApi.get('/api/operations/traffic', { minutes }),
-        getAlertSummary: () => DashboardApi.get('/api/operations/alert-summary'),
+        getOpsAlertSummary: () => DashboardApi.get('/api/operations/alert-summary'),
         getTopIssues: (count) => DashboardApi.get('/api/operations/top-issues', { count }),
         exportSnapshot: () => DashboardApi.get('/api/operations/snapshot')
     };

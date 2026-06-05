@@ -79,116 +79,16 @@ public class DashboardController : Controller
         return View();
     }
 
-    /// <summary>Dashboard clusters page.</summary>
-    [HttpGet("clusters")]
-    public IActionResult Clusters()
+    /// <summary>
+    /// All other pages are handled as SPA tabs from the overview page.
+    /// Redirects to overview so the SPA router reads the hash and shows the correct tab.
+    /// </summary>
+    [HttpGet("{page}")]
+    public IActionResult Page(string page)
     {
-        SetCommonViewBag("clusters");
-        return View();
-    }
-
-    /// <summary>Dashboard routes page.</summary>
-    [HttpGet("routes")]
-    public IActionResult Routes()
-    {
-        SetCommonViewBag("routes");
-        return View();
-    }
-
-    /// <summary>Dashboard topology visualization page.</summary>
-    [HttpGet("topology")]
-    public IActionResult Topology()
-    {
-        SetCommonViewBag("topology");
-        return View();
-    }
-
-    /// <summary>Dashboard logs page.</summary>
-    [HttpGet("logs")]
-    public IActionResult Logs()
-    {
-        SetCommonViewBag("logs");
-        return View();
-    }
-
-    /// <summary>Dashboard statistics page.</summary>
-    [HttpGet("stats")]
-    public IActionResult Stats()
-    {
-        SetCommonViewBag("stats");
-        return View();
-    }
-
-    /// <summary>Dashboard configuration history page.</summary>
-    [HttpGet("history")]
-    public IActionResult History()
-    {
-        SetCommonViewBag("history");
-        return View();
-    }
-
-    /// <summary>Dashboard audit log page.</summary>
-    [HttpGet("audit")]
-    public IActionResult Audit()
-    {
-        SetCommonViewBag("audit");
-        return View();
-    }
-
-    /// <summary>Dashboard settings page (webhook, import/export, etc.).</summary>
-    [HttpGet("settings")]
-    public IActionResult Settings()
-    {
-        SetCommonViewBag("settings");
-        return View();
-    }
-
-    /// <summary>Dashboard health check page.</summary>
-    [HttpGet("healthcheck")]
-    public IActionResult HealthCheck()
-    {
-        SetCommonViewBag("healthcheck");
-        return View();
-    }
-
-    /// <summary>Dashboard circuit breaker status page.</summary>
-    [HttpGet("circuits")]
-    public IActionResult Circuits()
-    {
-        SetCommonViewBag("circuits");
-        return View();
-    }
-
-    /// <summary>Dashboard alert center page.</summary>
-    [HttpGet("alerts")]
-    public IActionResult Alerts()
-    {
-        SetCommonViewBag("alerts");
-        return View();
-    }
-
-    /// <summary>Dashboard security events page.</summary>
-    [HttpGet("security")]
-    public IActionResult Security()
-    {
-        SetCommonViewBag("security");
-        return View();
-    }
-
-    /// <summary>Dashboard policy editor page.</summary>
-    [HttpGet("policies")]
-    public IActionResult Policies()
-    {
-        SetCommonViewBag("policies");
-        return View();
-    }
-
-    /// <summary>Dashboard plugin manager page.</summary>
-    [HttpGet("plugins")]
-    public IActionResult Plugins()
-    {
-        SetCommonViewBag("plugins");
-        return View();
+        // Serve the overview page; the SPA router will switch to the requested tab.
+        SetCommonViewBag(page);
+        return View("Overview");
     }
 
     /// <summary>Dashboard login page.</summary>
@@ -317,7 +217,7 @@ public class DashboardController : Controller
         int totalRequests = 0;
         int successCount = 0;
         int errorCount = 0;
-        DateTime maxTimestamp = DateTime.MinValue;
+        DateTime maxResponseTimestamp = DateTime.MinValue;
 
         // Single-pass aggregation
         foreach (var entry in snapshot.Entries)
@@ -337,8 +237,8 @@ public class DashboardController : Controller
                 if (entry.ElapsedMs.HasValue)
                     latencies.Add(entry.ElapsedMs.Value);
 
-                if (entry.Timestamp > maxTimestamp)
-                    maxTimestamp = entry.Timestamp;
+                if (entry.Timestamp > maxResponseTimestamp)
+                    maxResponseTimestamp = entry.Timestamp;
             }
             else if (entry.EventType == LogEventType.ProxyRequest)
             {
@@ -347,10 +247,11 @@ public class DashboardController : Controller
             }
         }
 
+        // RPM will be computed by binary search in BuildStatsResponse
         return BuildStatsResponse(
             totalRequests, successCount, errorCount,
             latencies, statusCodeCounts, routeCounts, clusterCounts,
-            maxTimestamp, snapshot.Entries);
+            maxResponseTimestamp, snapshot.Entries);
     }
 
     /// <summary>
@@ -417,7 +318,7 @@ public class DashboardController : Controller
         var mergedClusters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         int totalRequests = 0, successCount = 0, errorCount = 0;
-        DateTime maxTimestamp = DateTime.MinValue;
+        DateTime maxResponseTimestamp = DateTime.MinValue;
 
         foreach (var r in results)
         {
@@ -428,13 +329,13 @@ public class DashboardController : Controller
             totalRequests += r.localTotal;
             successCount += r.localSuccess;
             errorCount += r.localError;
-            if (r.localMaxTs > maxTimestamp) maxTimestamp = r.localMaxTs;
+            if (r.localMaxTs > maxResponseTimestamp) maxResponseTimestamp = r.localMaxTs;
         }
 
         return BuildStatsResponse(
             totalRequests, successCount, errorCount,
             allLatencies, mergedStatusCodes, mergedRoutes, mergedClusters,
-            maxTimestamp, entries);
+            maxResponseTimestamp, entries);
     }
 
     /// <summary>
@@ -456,33 +357,50 @@ public class DashboardController : Controller
         int totalRequests, int successCount, int errorCount,
         List<double> latencies, Dictionary<int, int> statusCodeCounts,
         Dictionary<string, int> routeCounts, Dictionary<string, int> clusterCounts,
-        DateTime maxTimestamp, List<LogEntry> entries)
+        DateTime maxResponseTimestamp, List<LogEntry> entries)
     {
         if (totalRequests == 0)
             return Json(new { code = 200, data = new { hasData = false } });
 
-        // Calculate latency percentiles
+        // Sort latencies once for percentile computation
         double avgLatency = 0, p50 = 0, p90 = 0, p99 = 0;
         if (latencies.Count > 0)
         {
             latencies.Sort();
             avgLatency = latencies.Average();
+            // All three percentiles from the same sorted list — single sort, O(n log n)
             p50 = CalculatePercentileSorted(latencies, 0.50);
             p90 = CalculatePercentileSorted(latencies, 0.90);
             p99 = CalculatePercentileSorted(latencies, 0.99);
         }
 
-        // Requests per minute
+        // Requests per minute: binary search on response timestamps — O(log n) instead of O(n) re-scan.
+        // Entries are roughly time-ordered from the ring buffer; collect response timestamps
+        // into a sorted list and use binary search to count entries within the last minute.
         int requestsPerMin = 0;
-        if (maxTimestamp > DateTime.MinValue)
+        if (maxResponseTimestamp > DateTime.MinValue)
         {
-            var oneMinAgo = maxTimestamp.AddMinutes(-1);
-            foreach (var entry in entries)
+            var oneMinAgo = maxResponseTimestamp.AddMinutes(-1);
+            var responseTimestamps = new List<DateTime>(totalRequests);
+            foreach (var e in entries)
             {
-                if (entry.EventType == LogEventType.ProxyResponse && entry.Timestamp >= oneMinAgo)
+                if (e.EventType == LogEventType.ProxyResponse)
+                    responseTimestamps.Add(e.Timestamp);
+            }
+            if (responseTimestamps.Count > 0)
+            {
+                responseTimestamps.Sort();
+                // Binary search: find first index >= oneMinAgo
+                int lo = 0, hi = responseTimestamps.Count;
+                while (lo < hi)
                 {
-                    requestsPerMin++;
+                    int mid = lo + (hi - lo) / 2;
+                    if (responseTimestamps[mid] < oneMinAgo)
+                        lo = mid + 1;
+                    else
+                        hi = mid;
                 }
+                requestsPerMin = responseTimestamps.Count - lo;
             }
         }
 

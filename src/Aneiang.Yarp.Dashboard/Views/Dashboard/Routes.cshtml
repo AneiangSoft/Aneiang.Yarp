@@ -67,59 +67,7 @@
 </div>
 
 @section Scripts {
-@{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
-<!-- Core Infrastructure -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
-
-<!-- Schema Service -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-service.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-validator.js?v=@v"></script>
-
-<!-- Monaco Editor -->
-<script>
-    window.MonacoEnvironment = {
-        getWorkerUrl: function(workerId, label) {
-            var workerPath = '/_content/Aneiang.Yarp.Dashboard/lib/monaco/';
-            if (label === 'json') return workerPath + 'language/json/jsonWorker.js';
-            if (label === 'css') return workerPath + 'language/css/cssWorker.js';
-            if (label === 'html') return workerPath + 'language/html/htmlWorker.js';
-            if (label === 'typescript' || label === 'javascript') return workerPath + 'language/typescript/tsWorker.js';
-            return workerPath + 'editor/editor.worker.js';
-        }
-    };
-    window.__monacoReady = new Promise(function(resolve) {
-        window.__monacoResolve = resolve;
-    });
-</script>
-<script src="/_content/Aneiang.Yarp.Dashboard/lib/monaco/loader.js?v=@v"></script>
-<script>
-    require.config({ paths: { vs: '/_content/Aneiang.Yarp.Dashboard/lib/monaco' } });
-    require(['vs/editor/editor.main'], function() {
-        window.__monacoResolve();
-    });
-</script>
-
-<!-- Editor Layer -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-monaco-editor.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-config-editor.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-form-builder.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-diff-panel.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-validation-panel.js?v=@v"></script>
-
-<!-- Events -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
-
-<!-- Modules -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-routes.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-config.js?v=@v"></script>
-
+<!-- Page config (shared scripts now in _DashboardLayout.cshtml) -->
 <script>
     window.__dashboard = window.__dashboard || {};
     var dash = window.__dashboard;
@@ -128,7 +76,7 @@
     dash.CURRENT_LOCALE = '@ViewBag.Locale';
     dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
     dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
-    dash.currentPage = '@ViewBag.CurrentPage';
+    dash.currentPage = 'routes';
 </script>
 
 <script>
@@ -164,24 +112,12 @@
 
 <script>
     (async function() {
-        if (window.DashboardUtils) DashboardUtils.init();
-        if (window.DashboardApi) DashboardApi.init();
-        if (window.DashboardState) DashboardState.init();
-        if (window.DashboardI18n) DashboardI18n.init();
-        if (window.DashboardStorage) DashboardStorage.init();
-        if (window.DashboardModals) DashboardModals.init();
-        if (window.DashboardEvents) DashboardEvents.setup();
-
-        if (window.DashboardSchemaService) await DashboardSchemaService.load();
-        if (window.__monacoReady) await __monacoReady;
-
+        DashboardApi.init();
         if (window.DashboardApp?.modules?.routes?.init) await DashboardApp.modules.routes.init();
         if (window.DashboardApp?.modules?.routes?.loadRoutes) await DashboardApp.modules.routes.loadRoutes();
-
         document.dispatchEvent(new CustomEvent('dashboard:ready'));
     })();
 
-    // Routes-specific refresh handler
     window.routesRefresh = async function(btn) {
         var originalText = btn.innerHTML;
         btn.innerHTML = '<i class="bi bi-arrow-clockwise spin me-1"></i>';

@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Security.Cryptography;
 using Aneiang.Yarp.Dashboard.Controllers;
 using Aneiang.Yarp.Dashboard.Extensions;
@@ -12,6 +13,7 @@ using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -64,6 +66,40 @@ public static class DashboardServiceCollectionExtensions
             {
                 options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
             });
+
+        // Unified caching: single IMemoryCache instance shared by all query services.
+        // Replaces the fragmented 3-layer cache (DashboardCacheService + ConcurrentDictionary
+        // per service + IMemoryCache) with a single coherent layer.
+        services.AddMemoryCache();
+
+        // SignalR for real-time topology traffic visualization.
+        // Clients on the /topology page receive live traffic updates every 2 seconds.
+        services.AddSignalR();
+
+        // Response Compression: Brotli (preferred) + Gzip fallbacks.
+        // Brotli achieves ~15-25% better compression than gzip for typical web content.
+        // Must be added before any middleware that writes responses.
+        services.AddResponseCompression(options =>
+        {
+            options.EnableForHttps = true;
+            options.Providers.Add<BrotliCompressionProvider>();
+            options.Providers.Add<GzipCompressionProvider>();
+            options.MimeTypes = new[]
+            {
+                "text/plain", "text/css", "text/javascript", "text/html", "text/xml",
+                "application/javascript", "application/json", "application/xml",
+                "application/xml-dtd", "application/atom+xml", "application/octet-stream",
+                "image/svg+xml",
+            };
+        });
+        services.Configure<BrotliCompressionProviderOptions>(options =>
+        {
+            options.Level = System.IO.Compression.CompressionLevel.Fastest;
+        });
+        services.Configure<GzipCompressionProviderOptions>(options =>
+        {
+            options.Level = System.IO.Compression.CompressionLevel.Fastest;
+        });
 
         // ── Storage backend (IDataStore) ─────────────────────────────────
         services.AddAneiangStorage(services.BuildServiceProvider().GetRequiredService<IConfiguration>());
@@ -175,6 +211,13 @@ public static class DashboardServiceCollectionExtensions
 
         // Default health check service
         services.AddHostedService<DefaultHealthCheckService>();
+
+        // Startup warmup: pre-initializes SQLite, MemoryCache, and query services
+        // to eliminate cold-start latency on the first request.
+        services.AddHostedService<StartupWarmupService>();
+
+        // Real-time traffic broadcast via SignalR for topology page.
+        services.AddHostedService<TrafficBroadcastService>();
 
         // JWT secret provider (singleton so it caches the secret after first load)
         services.AddSingleton<JwtSecretProvider>();

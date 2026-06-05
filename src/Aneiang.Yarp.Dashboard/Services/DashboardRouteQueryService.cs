@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Aneiang.Yarp.Dashboard.Models.Dtos;
 using Aneiang.Yarp.Services;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Aneiang.Yarp.Dashboard.Services;
 
@@ -20,62 +21,54 @@ internal readonly struct DestinationInfoEntry
 }
 
 /// <summary>
-/// Implementation of dashboard route query service with caching.
+/// Implementation of dashboard route query service.
+/// Uses <see cref="IMemoryCache"/> for unified caching (shared across all query services).
 /// </summary>
 internal sealed class DashboardRouteQueryService : IDashboardRouteQueryService
 {
     private readonly DynamicYarpConfigService _dynamicConfig;
-
-    // Simple in-memory cache with 5-second expiration
-    private readonly ConcurrentDictionary<string, CacheEntry> _cache = new();
-    private readonly TimeSpan _cacheExpiration = TimeSpan.FromSeconds(5);
-
-    private class CacheEntry
-    {
-        public IReadOnlyList<DashboardRouteResponse> Routes { get; init; } = new List<DashboardRouteResponse>();
-        public DateTime CachedAt { get; init; }
-    }
+    private readonly IMemoryCache _memoryCache;
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// Initializes a new instance of DashboardRouteQueryService.
     /// </summary>
     /// <param name="dynamicConfig">Dynamic YARP config service.</param>
+    /// <param name="memoryCache">Unified memory cache for all query services.</param>
     public DashboardRouteQueryService(
-        DynamicYarpConfigService dynamicConfig)
+        DynamicYarpConfigService dynamicConfig,
+        IMemoryCache memoryCache)
     {
         _dynamicConfig = dynamicConfig;
+        _memoryCache = memoryCache;
     }
 
     /// <inheritdoc />
     public IReadOnlyList<DashboardRouteResponse> GetRoutes()
     {
-        const string cacheKey = "routes";
+        const string cacheKey = "dashboard:routes:query";
 
-        // Try to get from cache
-        if (_cache.TryGetValue(cacheKey, out var entry) &&
-            DateTime.Now - entry.CachedAt < _cacheExpiration)
+        // Use IMemoryCache for unified caching with configurable TTL
+        if (_memoryCache.TryGetValue(cacheKey, out IReadOnlyList<DashboardRouteResponse>? cached) && cached is not null)
         {
-            return entry.Routes;
+            return cached;
         }
 
-        // Build routes (expensive operation)
         var routes = BuildRoutes();
 
-        // Update cache
-        _cache[cacheKey] = new CacheEntry
-        {
-            Routes = routes,
-            CachedAt = DateTime.Now
-        };
-
+        _memoryCache.Set(cacheKey, routes, CacheDuration);
         return routes;
     }
+
+    /// <summary>
+    /// Invalidates the routes query cache. Call after configuration changes.
+    /// </summary>
+    public void Invalidate() => _memoryCache.Remove("dashboard:routes:query");
 
     private IReadOnlyList<DashboardRouteResponse> BuildRoutes()
     {
         var routes = _dynamicConfig.GetRoutes();
 
-        // Use strong-typed struct instead of anonymous object to eliminate reflection
         var clusterDest = _dynamicConfig.GetClusters()
             .ToDictionary(
                 c => c.ClusterId,
