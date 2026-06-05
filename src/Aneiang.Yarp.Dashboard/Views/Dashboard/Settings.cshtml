@@ -92,24 +92,8 @@
 <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-service.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-validator.js?v=@v"></script>
 
-<!-- Monaco for import modal -->
-<script>
-    window.MonacoEnvironment = {
-        getWorkerUrl: function(workerId, label) {
-            var workerPath = '/_content/Aneiang.Yarp.Dashboard/lib/monaco/';
-            if (label === 'json') return workerPath + 'language/json/jsonWorker.js';
-            return workerPath + 'editor/editor.worker.js';
-        }
-    };
-    window.__monacoReady = new Promise(function(resolve) {
-        window.__monacoResolve = resolve;
-    });
-</script>
-<script src="/_content/Aneiang.Yarp.Dashboard/lib/monaco/loader.js?v=@v"></script>
-<script>
-    require.config({ paths: { vs: '/_content/Aneiang.Yarp.Dashboard/lib/monaco' } });
-    require(['vs/editor/editor.main'], function() { window.__monacoResolve(); });
-</script>
+<!-- Monaco for import modal — lazy loaded -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/lazy-monaco-loader.js?v=@v"></script>
 
 <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-monaco-editor.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-config-editor.js?v=@v"></script>
@@ -142,7 +126,7 @@
         if (window.DashboardEvents) DashboardEvents.setup();
 
         if (window.DashboardSchemaService) await DashboardSchemaService.load();
-        if (window.__monacoReady) await __monacoReady;
+        if (window.LazyMonacoLoader) await window.LazyMonacoLoader.ensure();
 
         // Load settings data
         try {

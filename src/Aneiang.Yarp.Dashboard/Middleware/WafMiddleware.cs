@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
@@ -24,6 +26,9 @@ public sealed class WafMiddleware
 
     /// <summary>Ultra-tight timeout (5ms) prevents catastrophic backtracking while allowing benign input.</summary>
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(5);
+
+    // Cache for compiled wildcard IP regex patterns — avoids creating new Regex per request.
+    private static readonly ConcurrentDictionary<string, Regex> WildcardRegexCache = new();
 
     // SQL injection: checks for dangerous keywords and comment-based injection in URI/query.
     // Uses alternation with strict anchors to prevent backtracking on evil input.
@@ -73,7 +78,6 @@ public sealed class WafMiddleware
         _next = next;
         _logger = logger;
         _wafOptions = wafOptions.Value;
-        // Use DashboardOptions prefix if WafOptions prefix is the default
         var prefix = _wafOptions.DashboardRoutePrefix;
         if (string.IsNullOrWhiteSpace(prefix) || prefix == "apigateway")
             prefix = dashOptions.Value.RoutePrefix;
@@ -93,7 +97,6 @@ public sealed class WafMiddleware
         var path = context.Request.Path.Value ?? "";
         var dashPrefix = "/" + (_wafOptions.DashboardRoutePrefix?.Trim('/') ?? "apigateway");
 
-        // Skip WAF checks for Dashboard UI and static assets — avoids false positives on config editing
         if (path.StartsWith(dashPrefix, StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith(ContentRoot, StringComparison.OrdinalIgnoreCase))
         {
@@ -101,7 +104,6 @@ public sealed class WafMiddleware
             return;
         }
 
-        // 1. IP check
         if (_wafOptions.EnableIpCheck && !CheckIp(context))
         {
             RecordSecurityEvent(context, "IpBlocked");
@@ -109,7 +111,6 @@ public sealed class WafMiddleware
             return;
         }
 
-        // 2. Request size check
         if (_wafOptions.EnableRequestSizeValidation && !CheckRequestSize(context))
         {
             RecordSecurityEvent(context, "RequestSizeBlocked");
@@ -117,7 +118,6 @@ public sealed class WafMiddleware
             return;
         }
 
-        // 3. Header count/size check
         if (_wafOptions.EnableRequestSizeValidation && !CheckHeaders(context))
         {
             RecordSecurityEvent(context, "MalformedHeadersBlocked");
@@ -125,7 +125,6 @@ public sealed class WafMiddleware
             return;
         }
 
-        // 4. URI length and traversal check
         if (path.Length > 4096)
         {
             RecordSecurityEvent(context, "UriTooLongBlocked");
@@ -140,20 +139,17 @@ public sealed class WafMiddleware
             return;
         }
 
-        // 5. Query string checks
         var queryString = context.Request.QueryString.Value ?? "";
         if (!string.IsNullOrEmpty(queryString))
         {
             if (_wafOptions.EnableSqlInjectionDetection)
             {
-                // Check full query string for dangerous keywords
                 if (SqlInjectionPattern.IsMatch(queryString))
                 {
                     RecordSecurityEvent(context, "SqlInjectionBlocked", queryString);
                     await BlockRequest(context, "Blocked by security policy");
                     return;
                 }
-                // Check parameter values for string-escape attacks (e.g., ' OR '1'='1)
                 if (SqlInjectionValuePattern.IsMatch(queryString))
                 {
                     RecordSecurityEvent(context, "SqlInjectionValueBlocked", queryString);
@@ -170,7 +166,6 @@ public sealed class WafMiddleware
             }
         }
 
-        // 6. Apply security headers
         ApplySecurityHeaders(context);
 
         await _next(context);
@@ -187,8 +182,15 @@ public sealed class WafMiddleware
             resp.Headers["X-XSS-Protection"] = "1; mode=block";
         if (!resp.Headers.ContainsKey("Referrer-Policy"))
             resp.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+
+        // CSP: default restrictive + allow additional script sources from config (e.g., Monaco Editor CDN)
         if (!resp.Headers.ContainsKey("Content-Security-Policy"))
-            resp.Headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; object-src 'none'";
+        {
+            var csp = "default-src 'self'; script-src 'self'";
+            if (!string.IsNullOrWhiteSpace(_wafOptions.ExtraScriptSources))
+                csp += " " + _wafOptions.ExtraScriptSources;
+            resp.Headers["Content-Security-Policy"] = csp;
+        }
     }
 
     private void RecordSecurityEvent(HttpContext context, string eventType, string? details = null)
@@ -200,7 +202,6 @@ public sealed class WafMiddleware
             "WAF [{EventType}] from IP: {Ip}, Path: {Path}, Details: {Details}",
             eventType, clientIp, requestUri, details ?? "(hidden)");
 
-        // Persist to WafEventStore so the Security Events page has data
         _eventStore.Add(new WafSecurityEvent
         {
             ClientIp = clientIp ?? "unknown",
@@ -213,7 +214,6 @@ public sealed class WafMiddleware
             StatusCode = 403
         });
 
-        // Fire alert (respects cooldown and AlertWafBlocks flag)
         _alertService.AlertWafBlock(clientIp ?? "unknown", eventType, requestUri);
     }
 
@@ -239,6 +239,10 @@ public sealed class WafMiddleware
         return true;
     }
 
+    /// <summary>
+    /// Matches a client IP against an IP pattern (exact, CIDR, or wildcard).
+    /// Wildcard patterns use a cached compiled <see cref="Regex"/> to avoid GC pressure.
+    /// </summary>
     private static bool MatchesIp(string pattern, string clientIp)
     {
         if (pattern.Contains('/'))
@@ -246,44 +250,66 @@ public sealed class WafMiddleware
 
         if (pattern.Contains('*'))
         {
-            var regex = "^" + Regex.Escape(pattern).Replace("\\*", ".*") + "$";
-            return Regex.IsMatch(clientIp, regex, RegexOptions.IgnoreCase, RegexTimeout);
+            var cachedRegex = WildcardRegexCache.GetOrAdd(pattern, p =>
+                new Regex(
+                    "^" + Regex.Escape(p).Replace("\\*", ".*") + "$",
+                    RegexOptions.IgnoreCase,
+                    RegexTimeout));
+            return cachedRegex.IsMatch(clientIp);
         }
 
         return string.Equals(pattern, clientIp, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Checks if client IP is within a CIDR range using zero-allocation bit operations on spans.
+    /// </summary>
     private static bool IsInCidrRange(string cidr, string clientIp)
     {
-        try
+        var slashIdx = cidr.IndexOf('/');
+        if (slashIdx < 0) return false;
+
+        if (!IPAddress.TryParse(cidr.AsSpan(0, slashIdx), out var baseIp))
+            return false;
+        if (!IPAddress.TryParse(clientIp, out var clientIpAddr))
+            return false;
+
+        var baseBytes = baseIp.GetAddressBytes();
+        var clientBytes = clientIpAddr.GetAddressBytes();
+        if (baseBytes.Length != clientBytes.Length)
+            return false;
+
+        if (!int.TryParse(cidr.AsSpan(slashIdx + 1), out var maskBits))
+            return false;
+
+        if (baseBytes.Length == 4)
         {
-            var parts = cidr.Split('/', 2);
-            if (parts.Length != 2) return false;
-            if (!System.Net.IPAddress.TryParse(parts[0], out var baseIp)) return false;
-            if (!int.TryParse(parts[1], out var maskBits)) return false;
-            if (!System.Net.IPAddress.TryParse(clientIp, out var clientIpAddr)) return false;
+            // IPv4: zero-allocation bit mask using inline bit operations.
+            // mask = ~0u << (32 - maskBits) in host byte order.
+            // Read base and client as big-endian uint32 for comparison.
+            uint baseUint = ((uint)baseBytes[0] << 24) | ((uint)baseBytes[1] << 16) | ((uint)baseBytes[2] << 8) | baseBytes[3];
+            uint clientUint = ((uint)clientBytes[0] << 24) | ((uint)clientBytes[1] << 16) | ((uint)clientBytes[2] << 8) | clientBytes[3];
+            uint mask = maskBits == 0 ? 0u : (~0u << (32 - maskBits));
+            return (baseUint & mask) == (clientUint & mask);
+        }
 
-            var baseBytes = baseIp.GetAddressBytes();
-            var clientBytes = clientIpAddr.GetAddressBytes();
-            if (baseBytes.Length != clientBytes.Length) return false;
-
-            var maskBytes = BitConverter.GetBytes(~0u << (32 - maskBits)).Reverse().ToArray();
-            if (baseBytes.Length == 4 && maskBytes.Length == 4)
+        // IPv6: simple length check (prefix matching beyond /64 is uncommon)
+        if (baseBytes.Length == 16)
+        {
+            var fullBytes = maskBits / 8;
+            var remainingBits = maskBits % 8;
+            for (int i = 0; i < fullBytes; i++)
             {
-                for (int i = 0; i < 4; i++)
-                {
-                    if ((baseBytes[i] & maskBytes[i]) != (clientBytes[i] & maskBytes[i]))
-                        return false;
-                }
-                return true;
+                if (baseBytes[i] != clientBytes[i])
+                    return false;
             }
+            if (remainingBits > 0 && (baseBytes[fullBytes] & (0xFF << (8 - remainingBits))) !=
+                (clientBytes[fullBytes] & (0xFF << (8 - remainingBits))))
+                return false;
+            return true;
+        }
 
-            return false;
-        }
-        catch
-        {
-            return false;
-        }
+        return false;
     }
 
     private bool CheckRequestSize(HttpContext context)

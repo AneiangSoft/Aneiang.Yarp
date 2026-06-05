@@ -171,22 +171,38 @@
         },
 
         /**
-         * Ensure Monaco is loaded
+         * Ensure Monaco is loaded using the lazy loader.
+         * Falls back to the legacy window.__monacoReady promise if available
+         * (for pages that still eagerly load Monaco in <head>).
          */
         _ensureMonacoLoaded: function() {
             var self = this;
-            
+
             if (this.monacoReady) {
                 return Promise.resolve();
             }
 
-            if (typeof monaco !== 'undefined') {
+            // Monaco already globally available — use it directly
+            if (typeof monaco !== 'undefined' && monaco.editor) {
                 this.monacoReady = true;
                 return Promise.resolve();
             }
 
-            // Monaco not loaded, return error
-            return Promise.reject('Monaco Editor not loaded. Ensure loader.js is included.');
+            // Use the lazy loader if available (recommended path)
+            if (window.LazyMonacoLoader) {
+                return window.LazyMonacoLoader.ensure().then(function() {
+                    self.monacoReady = true;
+                });
+            }
+
+            // Fallback: legacy window.__monacoReady promise from eagerly-loaded pages
+            if (window.__monacoReady) {
+                return window.__monacoReady.then(function() {
+                    self.monacoReady = true;
+                });
+            }
+
+            return Promise.reject('Monaco Editor not available. Add lazy-monaco-loader.js or Monaco loader.js to the page.');
         },
 
         /**

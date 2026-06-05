@@ -513,8 +513,11 @@
         // Load schema for this specific type
         let schemaPromise = schemaType ? this.loadSchema(schemaType) : Promise.resolve(null);
 
-        // Wait for Monaco and Schema to be ready
-        Promise.all([window.__monacoReady || Promise.resolve(), schemaPromise]).then(function(results) {
+        // Wait for Monaco and Schema to be ready (uses lazy loader if available)
+        var monacoReadyPromise = window.LazyMonacoLoader
+            ? window.LazyMonacoLoader.ensure()
+            : (window.__monacoReady || Promise.resolve());
+        Promise.all([monacoReadyPromise, schemaPromise]).then(function(results) {
             const monacoReady = typeof monaco !== 'undefined' && monaco.editor;
             const schema = results[1];
 

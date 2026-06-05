@@ -129,13 +129,12 @@ public class DashboardCacheService
 public static class DashboardCacheExtensions
 {
     /// <summary>
-    /// Adds dashboard caching services including OutputCache and MemoryCache.
+    /// Adds dashboard caching services including OutputCache.
+    /// Note: <c>AddMemoryCache()</c> is already called by <c>AddAneiangYarpDashboard</c>
+    /// and should NOT be called again here.
     /// </summary>
     public static IServiceCollection AddDashboardCaching(this IServiceCollection services)
     {
-        // Add memory cache for computed data
-        services.AddMemoryCache();
-
         // Add output caching for API responses
         services.AddOutputCache(options =>
         {

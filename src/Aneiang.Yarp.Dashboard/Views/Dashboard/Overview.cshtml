@@ -179,27 +179,7 @@
 </div>
 
 @section Scripts {
-@{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
-<!-- Chart.js for traffic chart -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
-<!-- Core Infrastructure -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
-
-<!-- Events -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
-
-<!-- Modules -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-stats.js?v=@v"></script>
-@* <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-operations.js?v=@v"></script> *@
-
+<!-- Page config (shared scripts now in _DashboardLayout.cshtml) -->
 <script>
     window.__dashboard = window.__dashboard || {};
     var dash = window.__dashboard;
@@ -208,20 +188,18 @@
     dash.CURRENT_LOCALE = '@ViewBag.Locale';
     dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
     dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
-    dash.currentPage = '@ViewBag.CurrentPage';
+    dash.currentPage = 'overview';
 </script>
 
-<script>
-    // Initialize only relevant modules for overview page
-    (async function() {
-        if (window.DashboardUtils) DashboardUtils.init();
-        if (window.DashboardApi) DashboardApi.init();
-        if (window.DashboardState) DashboardState.init();
-        if (window.DashboardI18n) DashboardI18n.init();
-        if (window.DashboardStorage) DashboardStorage.init();
-        if (window.DashboardModals) DashboardModals.init();
-        if (window.DashboardEvents) DashboardEvents.setup();
+<!-- Chart.js for traffic chart -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
+<!-- Operations module (for overview charts) -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-operations.js"></script>
+
+<script>
+    (async function() {
+        DashboardApi.init();
         // Init modules
         if (window.DashboardApp?.modules?.home?.init) await DashboardApp.modules.home.init();
         if (window.DashboardApp?.modules?.stats?.init) await DashboardApp.modules.stats.init();
@@ -237,7 +215,6 @@
         document.dispatchEvent(new CustomEvent('dashboard:ready'));
     })();
 
-    // Overview-specific refresh handler
     window.overviewRefresh = async function(btn) {
         var originalText = btn.innerHTML;
         btn.innerHTML = '<i class="bi bi-arrow-clockwise spin me-1"></i>';

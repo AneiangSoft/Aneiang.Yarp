@@ -386,6 +386,13 @@ public class WafOptions
 
     /// <summary>Enable request size validation. Default: true.</summary>
     public bool EnableRequestSizeValidation { get; set; } = true;
+
+    /// <summary>
+    /// Additional CSP script-src directives, e.g., for Monaco Editor CDN or other trusted external sources.
+    /// Example: <c>"https://cdn.example.com"</c>
+    /// Configure to allow external script sources without weakening the default <c>script-src 'self'</c>.
+    /// </summary>
+    public string? ExtraScriptSources { get; set; }
 }
 
 /// <summary>

@@ -1,8 +1,10 @@
+using Aneiang.Yarp.Dashboard.Hubs;
 using Aneiang.Yarp.Dashboard.Middleware;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Yarp.ReverseProxy.Configuration;
@@ -36,6 +38,10 @@ public static class DashboardApplicationBuilderExtensions
         this IApplicationBuilder app,
         Action<IReverseProxyApplicationBuilder>? configureProxyPipeline = null)
     {
+        // Response compression must be FIRST — before any middleware that reads/writes the body.
+        // This compresses static files, API JSON responses, and Razor HTML output.
+        app.UseResponseCompression();
+
         app.UseStaticFiles();
 
         // Request capture runs on the main pipeline (before endpoint routing)
@@ -66,6 +72,9 @@ public static class DashboardApplicationBuilderExtensions
                     context.Response.StatusCode = StatusCodes.Status404NotFound;
                 }
             });
+
+            // Real-time traffic hub for topology page
+            endpoints.MapHub<TrafficHub>("/hubs/traffic");
 
             endpoints.MapReverseProxy(proxyPipeline =>
             {

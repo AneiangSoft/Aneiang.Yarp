@@ -21,15 +21,24 @@
         },
 
         // ===== Load Routes =====
-        loadRoutes: async function() {
+        loadRoutes: async function(forceReload) {
             try {
                 const container = window.DashboardDOM.safe('#route-tbody');
                 if (!container) return;
 
+                const cached = window.DashboardState.get('data.routes');
+
+                // Use cached data if already loaded and not forcing reload
+                if (!forceReload && Array.isArray(cached) && cached.length > 0) {
+                    window.DashboardState.set('data.routes', cached);
+                    this.renderRoutes();
+                    return;
+                }
+
                 window.DashboardDOM.showLoading(container, __('index.route.loading'));
 
                 const routes = await window.DashboardApi.endpoints.getRoutes();
-                
+
                 // Update state
                 window.DashboardState.set('data.routes', routes || []);
 

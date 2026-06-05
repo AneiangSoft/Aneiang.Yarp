@@ -1537,6 +1537,81 @@
             overflow-y: auto;
             margin-top: 4px;
         }
+
+        /* Top Tab Bar */
+        .top-tab-bar {
+            display: flex;
+            gap: 2px;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 0 0 8px;
+            overflow-x: auto;
+            scrollbar-width: thin;
+            flex-shrink: 0;
+        }
+        .top-tab-bar::-webkit-scrollbar { height: 3px; }
+        .top-tab-bar::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 2px; }
+        .top-tab-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 8px 12px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            white-space: nowrap;
+            transition: color 0.15s, border-color 0.15s;
+            flex-shrink: 0;
+        }
+        .top-tab-btn i { font-size: 13px; }
+        .top-tab-btn:hover { color: var(--text-primary); }
+        .top-tab-btn.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        /* Compact Sidebar Nav */
+        .sidebar-nav { flex: 1; overflow-y: auto; padding: 4px 0; }
+        .sidebar-nav::-webkit-scrollbar { width: 3px; }
+        .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+        .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+        .sidebar-nav::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+        .sidebar .nav-link {
+            color: rgba(255,255,255,0.6);
+            padding: 7px 16px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-left: 3px solid transparent;
+            border-radius: 0;
+            transition: color 0.15s, background 0.15s, border-left-color 0.15s;
+        }
+        .sidebar .nav-link:hover {
+            color: rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.06);
+            border-left-color: rgba(255,255,255,0.3);
+        }
+        .sidebar .nav-link.active {
+            color: var(--primary-light);
+            background: rgba(99,102,241,0.12);
+            border-left-color: var(--primary-color);
+            font-weight: 600;
+        }
+        .sidebar .nav-link i { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+        .sidebar .nav-link span { overflow: hidden; text-overflow: ellipsis; }
+
+        /* Section title removed from sidebar (now in tab bar) */
+        .sidebar .section-title { display: none; }
+        .sidebar .nav-section { padding: 0; }
+        .sidebar .nav-submenu,
+        .sidebar .nav-link.has-submenu,
+        .sidebar .nav-link.has-submenu::after { display: none; }
     </style>
 </head>
 <body>
@@ -1551,75 +1626,65 @@
             var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
         }
         <div class="sidebar-nav">
-            <div class="nav-section">
-                <div class="section-title" data-i18n="layout.section.monitor">监控</div>
-                <a class="nav-link @(currentPage == "overview" ? "active" : "")" href="/@prefix">
-                    <i class="bi bi-speedometer2"></i> <span data-i18n="layout.tab.overview">总览</span>
-                </a>
-                <a class="nav-link has-submenu @(currentPage == "clusters" || currentPage == "routes" || currentPage == "topology" ? "expanded" : "")" data-toggle="submenu" href="#">
-                    <i class="bi bi-diagram-3"></i> <span>服务管理</span>
-                </a>
-                <div class="nav-submenu @(currentPage == "clusters" || currentPage == "routes" || currentPage == "topology" ? "expanded" : "")">
-                    <a class="nav-link @(currentPage == "clusters" ? "active" : "")" href="/@prefix/clusters">
-                        <span data-i18n="layout.tab.services">服务集群</span>
-                    </a>
-                    <a class="nav-link @(currentPage == "routes" ? "active" : "")" href="/@prefix/routes">
-                        <span data-i18n="layout.tab.routes">路由配置</span>
-                    </a>
-                    <a class="nav-link @(currentPage == "topology" ? "active" : "")" href="/@prefix/topology">
-                        <span data-i18n="layout.tab.topology">拓扑图</span>
-                    </a>
-                </div>
-                <a class="nav-link @(currentPage == "stats" ? "active" : "")" href="/@prefix/stats">
-                    <i class="bi bi-bar-chart-line"></i> <span data-i18n="layout.tab.stats">访问统计</span>
-                </a>
-            </div>
-
-            <div class="nav-section">
-                <div class="section-title" data-i18n="layout.section.diag">诊断</div>
-                @if (ViewBag.EnableProxyLogging != false)
-                {
-                <a class="nav-link @(currentPage == "logs" ? "active" : "")" href="/@prefix/logs">
-                    <i class="bi bi-journal-text"></i> <span data-i18n="layout.tab.logs">日志</span>
-                </a>
-                }
-                <a class="nav-link @(currentPage == "circuits" ? "active" : "")" href="/@prefix/circuits">
-                    <i class="bi bi-lightning-charge"></i> <span data-i18n="layout.tab.circuits">熔断状态</span>
-                </a>
-                <a class="nav-link @(currentPage == "alerts" ? "active" : "")" href="/@prefix/alerts">
-                    <i class="bi bi-bell"></i> <span data-i18n="layout.tab.alerts">告警中心</span>
-                </a>
-                <a class="nav-link @(currentPage == "security" ? "active" : "")" href="/@prefix/security">
-                    <i class="bi bi-shield-lock"></i> <span data-i18n="layout.tab.security">安全事件</span>
-                </a>
-                <a class="nav-link @(currentPage == "healthcheck" ? "active" : "")" href="/@prefix/healthcheck">
-                    <i class="bi bi-heart-pulse"></i> <span data-i18n="layout.tab.healthcheck">健康检查</span>
-                </a>
-            </div>
-
-            <div class="nav-section">
-                <div class="section-title" data-i18n="layout.section.config">配置</div>
-                <a class="nav-link has-submenu @(currentPage == "history" || currentPage == "policies" || currentPage == "plugins" ? "expanded" : "")" data-toggle="submenu" href="#">
-                    <i class="bi bi-sliders"></i> <span>配置管理</span>
-                </a>
-                <div class="nav-submenu @(currentPage == "history" || currentPage == "policies" || currentPage == "plugins" ? "expanded" : "")">
-                    <a class="nav-link @(currentPage == "history" ? "active" : "")" href="/@prefix/history">
-                        <span data-i18n="layout.tab.history">配置历史</span>
-                    </a>
-                    <a class="nav-link @(currentPage == "policies" ? "active" : "")" href="/@prefix/policies">
-                        <span data-i18n="layout.tab.policies">策略管理</span>
-                    </a>
-                    <a class="nav-link @(currentPage == "plugins" ? "active" : "")" href="/@prefix/plugins">
-                        <span data-i18n="layout.tab.plugins">插件管理</span>
-                    </a>
-                </div>
-                <a class="nav-link @(currentPage == "audit" ? "active" : "")" href="/@prefix/audit">
-                    <i class="bi bi-shield-check"></i> <span data-i18n="layout.tab.audit">审计日志</span>
-                </a>
-                <a class="nav-link @(currentPage == "settings" ? "active" : "")" href="/@prefix/settings">
-                    <i class="bi bi-gear"></i> <span data-i18n="layout.tab.settings">设置</span>
-                </a>
-            </div>
+            <a class="nav-link @(currentPage == "overview" ? "active" : "")" href="/@prefix/">
+                <i class="bi bi-speedometer2"></i>
+                <span data-i18n="layout.tab.overview">总览</span>
+            </a>
+            <a class="nav-link @(currentPage == "clusters" ? "active" : "")" href="/@prefix/clusters">
+                <i class="bi bi-diagram-3"></i>
+                <span data-i18n="layout.tab.clusters">服务集群</span>
+            </a>
+            <a class="nav-link @(currentPage == "routes" ? "active" : "")" href="/@prefix/routes">
+                <i class="bi bi-signpost-split"></i>
+                <span data-i18n="layout.tab.routes">路由配置</span>
+            </a>
+            <a class="nav-link @(currentPage == "stats" ? "active" : "")" href="/@prefix/stats">
+                <i class="bi bi-bar-chart-line"></i>
+                <span data-i18n="layout.tab.stats">访问统计</span>
+            </a>
+            @if (ViewBag.EnableProxyLogging != false)
+            {
+            <a class="nav-link @(currentPage == "logs" ? "active" : "")" href="/@prefix/logs">
+                <i class="bi bi-journal-text"></i>
+                <span data-i18n="layout.tab.logs">日志</span>
+            </a>
+            }
+            <a class="nav-link @(currentPage == "circuits" ? "active" : "")" href="/@prefix/circuits">
+                <i class="bi bi-lightning-charge"></i>
+                <span data-i18n="layout.tab.circuits">熔断状态</span>
+            </a>
+            <a class="nav-link @(currentPage == "alerts" ? "active" : "")" href="/@prefix/alerts">
+                <i class="bi bi-bell"></i>
+                <span data-i18n="layout.tab.alerts">告警中心</span>
+            </a>
+            <a class="nav-link @(currentPage == "security" ? "active" : "")" href="/@prefix/security">
+                <i class="bi bi-shield-lock"></i>
+                <span data-i18n="layout.tab.security">安全事件</span>
+            </a>
+            <a class="nav-link @(currentPage == "healthcheck" ? "active" : "")" href="/@prefix/healthcheck">
+                <i class="bi bi-heart-pulse"></i>
+                <span data-i18n="layout.tab.healthcheck">健康检查</span>
+            </a>
+            <a class="nav-link @(currentPage == "history" ? "active" : "")" href="/@prefix/history">
+                <i class="bi bi-clock-history"></i>
+                <span data-i18n="layout.tab.history">配置历史</span>
+            </a>
+            <a class="nav-link @(currentPage == "policies" ? "active" : "")" href="/@prefix/policies">
+                <i class="bi bi-shield"></i>
+                <span data-i18n="layout.tab.policies">策略管理</span>
+            </a>
+            <a class="nav-link @(currentPage == "plugins" ? "active" : "")" href="/@prefix/plugins">
+                <i class="bi bi-puzzle"></i>
+                <span data-i18n="layout.tab.plugins">插件管理</span>
+            </a>
+            <a class="nav-link @(currentPage == "audit" ? "active" : "")" href="/@prefix/audit">
+                <i class="bi bi-shield-check"></i>
+                <span data-i18n="layout.tab.audit">审计日志</span>
+            </a>
+            <a class="nav-link @(currentPage == "settings" ? "active" : "")" href="/@prefix/settings">
+                <i class="bi bi-gear"></i>
+                <span data-i18n="layout.tab.settings">设置</span>
+            </a>
         </div>
 
         <div class="sidebar-footer">
@@ -1639,8 +1704,69 @@
     </nav>
 
     <div class="main-content">
+        <!-- Top tab bar -->
+        <div class="top-tab-bar" id="topTabBar">
+            <button class="top-tab-btn" data-tab="overview" onclick="window.location.href='/@prefix/'">
+                <i class="bi bi-speedometer2"></i><span>总览</span>
+            </button>
+            <button class="top-tab-btn" data-tab="clusters" onclick="window.location.href='/@prefix/clusters'">
+                <i class="bi bi-diagram-3"></i><span>集群</span>
+            </button>
+            <button class="top-tab-btn" data-tab="routes" onclick="window.location.href='/@prefix/routes'">
+                <i class="bi bi-signpost-split"></i><span>路由</span>
+            </button>
+            <button class="top-tab-btn" data-tab="stats" onclick="window.location.href='/@prefix/stats'">
+                <i class="bi bi-bar-chart-line"></i><span>统计</span>
+            </button>
+            <button class="top-tab-btn" data-tab="logs" onclick="window.location.href='/@prefix/logs'">
+                <i class="bi bi-journal-text"></i><span>日志</span>
+            </button>
+            <button class="top-tab-btn" data-tab="circuits" onclick="window.location.href='/@prefix/circuits'">
+                <i class="bi bi-lightning-charge"></i><span>熔断</span>
+            </button>
+            <button class="top-tab-btn" data-tab="alerts" onclick="window.location.href='/@prefix/alerts'">
+                <i class="bi bi-bell"></i><span>告警</span>
+            </button>
+            <button class="top-tab-btn" data-tab="security" onclick="window.location.href='/@prefix/security'">
+                <i class="bi bi-shield-lock"></i><span>安全</span>
+            </button>
+            <button class="top-tab-btn" data-tab="healthcheck" onclick="window.location.href='/@prefix/healthcheck'">
+                <i class="bi bi-heart-pulse"></i><span>健康</span>
+            </button>
+            <button class="top-tab-btn" data-tab="history" onclick="window.location.href='/@prefix/history'">
+                <i class="bi bi-clock-history"></i><span>历史</span>
+            </button>
+            <button class="top-tab-btn" data-tab="policies" onclick="window.location.href='/@prefix/policies'">
+                <i class="bi bi-shield"></i><span>策略</span>
+            </button>
+            <button class="top-tab-btn" data-tab="plugins" onclick="window.location.href='/@prefix/plugins'">
+                <i class="bi bi-puzzle"></i><span>插件</span>
+            </button>
+            <button class="top-tab-btn" data-tab="audit" onclick="window.location.href='/@prefix/audit'">
+                <i class="bi bi-shield-check"></i><span>审计</span>
+            </button>
+            <button class="top-tab-btn" data-tab="settings" onclick="window.location.href='/@prefix/settings'">
+                <i class="bi bi-gear"></i><span>设置</span>
+            </button>
+        </div>
+
+        <!-- Tab content panels -->
+        <div id="tab-overview" class="page-tab-content">
+            <!-- Overview.cshtml content via RenderBody below -->
+        </div>
+        <!-- Other tab content panels are intentionally empty.
+             After switching to direct page navigation (each page is a full MVC view),
+             RenderBody() renders the correct page content based on the controller route. -->
+
+
+        <!-- Standalone page content -->
+        <div id="standalone-page-content" style="display:none;"></div>
         @RenderBody()
     </div>
+
+    <!-- Top page loading bar -->
+    <div id="page-loading-bar" style="display:none;position:fixed;top:0;left:240px;right:0;height:2px;background:var(--primary-color);z-index:9999;animation:loadingBar 1s ease-in-out infinite;"></div>
+    <style>@@keyframes loadingBar{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}@@media(max-width:768px){#page-loading-bar{left:0;}}</style>
 
     <script>
         var I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
@@ -1757,7 +1883,56 @@
     
     <!-- SPA Router for page navigation without full reload -->
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-spa-router.js"></script>
-    
+
+    @{
+        var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString();
+    }
+    <!-- Shared scripts — loaded once, cached by browser, reused across all pages -->
+    <!-- 1. Core Infrastructure -->
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-core.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
+    <!-- 2. Performance Optimizations -->
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-performance.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-indexeddb.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-worker.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-sw-register.js?v=@v"></script>
+    <!-- 3. Schema Service -->
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-service.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-validator.js?v=@v"></script>
+    <!-- 4. Monaco Editor — lazy loaded on demand -->
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/lazy-monaco-loader.js?v=@v"></script>
+    <!-- 5. Editor Layer -->
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-monaco-editor.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-config-editor.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-form-builder.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-diff-panel.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-validation-panel.js?v=@v"></script>
+    <!-- 6. App Bootstrap & Events -->
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-bootstrap.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
+    <!-- 7. Shared Modules (all pages may need them) -->
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-clusters.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-routes.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-logs.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-stats.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-history.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-audit.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-config.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-operations.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-circuits.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-alerts.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-security.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-healthcheck.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-policies.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-plugins.js?v=@v"></script>
+
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

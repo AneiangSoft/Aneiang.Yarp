@@ -1,506 +1,271 @@
 /**
- * Dashboard SPA Router - Single Page Application navigation
- * Keeps page state and prevents full page reloads when switching tabs
+ * Dashboard SPA Router - Single Page Application navigation via hash routing.
+ * Keeps page state and prevents full page reloads when switching tabs.
+ * URL format: /{prefix}/#{page}  e.g. /apigateway/#clusters
  */
 (function() {
     'use strict';
 
-    window.DashboardRouter = window.DashboardRouter || {};
+    window.DashboardRouter = window.DashboardRouter || {
+        _initialized: false,
+        _currentTab: null,
+        _pageCache: new Map(),
+        _maxCacheSize: 10,
+        _loadIndicatorTimer: null,
 
-    // ===== State =====
-    let _isNavigating = false;
-    let _currentPath = null;
-    let _abortController = null;
+        init: function() {
+            if (this._initialized) return;
+            this._initialized = true;
 
-    // ===== Cache for loaded pages =====
-    const _pageCache = new Map();
-    const _maxCacheSize = 10;
+            document.addEventListener('click', this._handleClick.bind(this));
+            window.addEventListener('hashchange', this._handleHashChange.bind(this));
+            window.addEventListener('popstate', this._handlePopState.bind(this));
 
-    // ===== Initialize =====
-    window.DashboardRouter.init = function() {
-        if (this._initialized) return;
-        this._initialized = true;
+            // Initial tab from URL hash
+            var initialTab = location.hash.replace('#', '').split('/').pop() || 'overview';
+            this.navigate(initialTab, false);
 
-        // Intercept all navigation link clicks
-        document.addEventListener('click', handleLinkClick);
+            console.log('[Router] SPA router initialized, initial tab:', initialTab);
+        },
 
-        // Handle browser back/forward buttons
-        window.addEventListener('popstate', handlePopState);
+        cleanup: function() {
+            document.removeEventListener('click', this._handleClick.bind(this));
+            window.removeEventListener('hashchange', this._handleHashChange.bind(this));
+            window.removeEventListener('popstate', this._handlePopState.bind(this));
+            this._pageCache.clear();
+            this._initialized = false;
+        },
 
-        // Store initial path
-        _currentPath = window.location.pathname;
+        navigate: function(tab, pushState) {
+            if (!tab) tab = 'overview';
+            if (tab === this._currentTab && pushState !== false) return;
 
-        console.log('[Router] SPA router initialized');
-    };
+            var dashPrefix = window.__dashboard?.routePrefix || 'apigateway';
+            var newHash = '/' + dashPrefix + '#' + tab;
+            var prefix = '/' + dashPrefix;
 
-    // ===== Cleanup =====
-    window.DashboardRouter.cleanup = function() {
-        document.removeEventListener('click', handleLinkClick);
-        window.removeEventListener('popstate', handlePopState);
-        if (_abortController) {
-            _abortController.abort();
-        }
-        _pageCache.clear();
-        this._initialized = false;
-    };
-
-    // ===== Handle Link Clicks =====
-    function handleLinkClick(e) {
-        // Find closest anchor element
-        const link = e.target.closest('a');
-        if (!link) return;
-
-        // Skip if modifier keys are pressed (let browser handle it)
-        if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
-
-        // Skip external links
-        const href = link.getAttribute('href');
-        if (!href || href.startsWith('http') || href.startsWith('//') || href.startsWith('#')) return;
-
-        // Skip if explicitly marked to skip SPA
-        if (link.hasAttribute('data-no-spa')) return;
-
-        // Check if it's a dashboard link
-        const dashPrefix = window.__dashboard?.routePrefix || 'apigateway';
-        if (!href.startsWith('/' + dashPrefix) && !href.startsWith(dashPrefix)) return;
-
-        // Skip if it's the logout link
-        if (href.includes('logout') || link.getAttribute('onclick')) return;
-
-        // Prevent default navigation
-        e.preventDefault();
-
-        // Navigate to the path
-        navigateTo(href);
-    }
-
-    // ===== Handle Browser Back/Forward =====
-    function handlePopState(e) {
-        if (e.state && e.state.path) {
-            loadPage(e.state.path, false);
-        }
-    }
-
-    // ===== Navigate to Path =====
-    window.DashboardRouter.navigateTo = navigateTo;
-    function navigateTo(path, pushState = true) {
-        if (_isNavigating || path === _currentPath) return;
-
-        _isNavigating = true;
-
-        // Show loading indicator
-        showLoading();
-
-        // Abort any pending navigation
-        if (_abortController) {
-            _abortController.abort();
-        }
-        _abortController = new AbortController();
-
-        // Update URL if needed
-        if (pushState) {
-            window.history.pushState({ path: path }, '', path);
-        }
-
-        // Load the page content
-        loadPageContent(path)
-            .then(content => {
-                updatePageContent(content, path);
-                _currentPath = path;
-
-                // Update active menu item
-                updateActiveMenuItem(path);
-
-                // Scroll to top
-                window.scrollTo(0, 0);
-            })
-            .catch(err => {
-                if (err.name !== 'AbortError') {
-                    console.error('[Router] Navigation failed:', err);
-                    // Fallback to full page reload on error
-                    window.location.href = path;
-                }
-            })
-            .finally(() => {
-                hideLoading();
-                _isNavigating = false;
-            });
-    }
-
-    // ===== Load Page Content =====
-    async function loadPageContent(path) {
-        // Check cache first
-        if (_pageCache.has(path)) {
-            const cached = _pageCache.get(path);
-            // Only use cache if it's less than 30 seconds old
-            if (Date.now() - cached.timestamp < 30000) {
-                console.log('[Router] Using cached page:', path);
-                return cached.content;
+            if (pushState !== false) {
+                history.pushState({ tab: tab }, '', newHash);
             }
-        }
 
-        // Fetch the page
-        const response = await fetch(path, {
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'text/html'
-            },
-            signal: _abortController.signal
-        });
+            this._switchTab(tab);
+            this._currentTab = tab;
+            this._updateActiveMenuItem(tab);
 
-        if (!response.ok) {
-            throw new Error('Failed to load page: ' + response.status);
-        }
+            console.log('[Router] Navigated to tab:', tab);
+        },
 
-        const html = await response.text();
+        _handleClick: function(e) {
+            var link = e.target.closest('a');
+            if (!link) return;
+            if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+            if (link.hasAttribute('data-no-spa')) return;
 
-        // Parse and extract main content
-        const content = extractMainContent(html);
+            var href = link.getAttribute('href');
+            if (!href) return;
 
-        // Cache the content
-        cachePage(path, content);
+            // Skip external links
+            if (href.startsWith('http') || href.startsWith('//')) return;
 
-        return content;
-    }
+            // Extract hash part
+            var hashIndex = href.indexOf('#');
+            if (hashIndex === -1) return; // No hash, let browser handle (e.g. login page)
 
-    // ===== Extract Main Content from HTML =====
-    function extractMainContent(html) {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
+            var pathPart = href.substring(0, hashIndex);
+            var hashPart = href.substring(hashIndex + 1);
 
-        // Get the main content
-        const mainContent = doc.querySelector('.main-content');
-        if (!mainContent) {
-            // Fallback: return body content if no main-content found
-            return doc.body.innerHTML;
-        }
+            if (!hashPart) return;
 
-        // Also extract any page-specific scripts
-        const scripts = doc.querySelectorAll('script');
-        const pageScripts = [];
-        scripts.forEach(script => {
-            // Skip library scripts and inline dashboard scripts
-            if (script.src && (
-                script.src.includes('bootstrap') ||
-                script.src.includes('codemirror') ||
-                script.src.includes('monaco') ||
-                script.src.includes('dashboard-core.js') ||
-                script.src.includes('dashboard-state.js') ||
-                script.src.includes('dashboard-api.js') ||
-                script.src.includes('dashboard-spa-router.js')
-            )) {
+            // Skip if path doesn't match our dashboard prefix
+            var dashPrefix = window.__dashboard?.routePrefix || 'apigateway';
+            var expectedPath = '/' + dashPrefix;
+            if (pathPart !== expectedPath && pathPart !== dashPrefix) return;
+
+            e.preventDefault();
+
+            // If tab content is embedded (not cached), just switch tabs
+            if (document.getElementById('tab-' + hashPart) !== null) {
+                this.navigate(hashPart, true);
                 return;
             }
-            // Keep module scripts
-            if (script.src && script.src.includes('/js/modules/')) {
-                pageScripts.push({ src: script.src, content: script.textContent });
+
+            // Otherwise, use AJAX page load (for standalone pages)
+            this._loadPage('/' + dashPrefix + '/' + hashPart, hashPart);
+        },
+
+        _handleHashChange: function() {
+            var tab = location.hash.replace('#', '').split('/').pop() || 'overview';
+            if (tab !== this._currentTab) {
+                this._switchTab(tab);
+                this._currentTab = tab;
+                this._updateActiveMenuItem(tab);
             }
-        });
+        },
 
-        // Extract any section scripts
-        const sectionScripts = doc.querySelectorAll('[data-page-script]');
-        sectionScripts.forEach(script => {
-            pageScripts.push({ content: script.textContent });
-        });
+        _handlePopState: function(e) {
+            var tab = location.hash.replace('#', '').split('/').pop() || 'overview';
+            if (tab !== this._currentTab) {
+                this._switchTab(tab);
+                this._currentTab = tab;
+                this._updateActiveMenuItem(tab);
+            }
+        },
 
-        return {
-            html: mainContent.innerHTML,
-            scripts: pageScripts,
-            title: doc.title
-        };
-    }
+        _switchTab: function(tab) {
+            var self = this;
 
-    // ===== Update Page Content =====
-    function updatePageContent(content, path) {
-        const mainContent = document.querySelector('.main-content');
-        if (!mainContent) return;
-
-        // Cleanup existing modules
-        if (window.DashboardApp && typeof window.DashboardApp.cleanup === 'function') {
-            window.DashboardApp.cleanup();
-        }
-
-        // Update content
-        mainContent.innerHTML = content.html;
-
-        // Update page title
-        if (content.title) {
-            document.title = content.title;
-        }
-
-        // Execute page scripts
-        if (content.scripts && content.scripts.length > 0) {
-            content.scripts.forEach(scriptInfo => {
-                if (scriptInfo.src) {
-                    // Load external script
-                    loadScript(scriptInfo.src);
-                } else if (scriptInfo.content) {
-                    // Execute inline script
-                    try {
-                        // Use Function to execute in global scope but with proper error handling
-                        new Function(scriptInfo.content)();
-                    } catch (err) {
-                        console.error('[Router] Script execution error:', err);
-                    }
-                }
+            // Hide all tab content sections
+            document.querySelectorAll('.page-tab-content').forEach(function(el) {
+                el.style.display = 'none';
             });
-        }
 
-        // Trigger page load event
-        document.dispatchEvent(new CustomEvent('dashboard:pageLoaded', {
-            detail: { path: path }
-        }));
+            // Deactivate all tab buttons
+            document.querySelectorAll('.top-tab-btn').forEach(function(btn) {
+                btn.classList.remove('active');
+            });
 
-        // Re-initialize i18n for new content
-        if (typeof initializeI18n === 'function') {
-            initializeI18n();
-        }
+            // Show target tab content
+            var targetContent = document.getElementById('tab-' + tab);
+            if (targetContent) {
+                targetContent.style.display = '';
 
-        // Initialize page-specific modules after a short delay to ensure scripts are loaded
-        setTimeout(() => {
-            initializePageModules(path);
-        }, 50);
-    }
-
-    // ===== Initialize Page Modules =====
-    function initializePageModules(path) {
-        // Extract page name from path
-        const pathParts = path.split('/').filter(p => p);
-        const pageName = pathParts.length > 1 ? pathParts[1] : 'overview';
-
-        console.log('[Router] Initializing page module:', pageName);
-
-        // Map page names to their module initializers
-        const moduleMap = {
-            'overview': () => {
-                if (window.DashboardApp?.modules?.overview?.loadData) {
-                    window.DashboardApp.modules.overview.loadData();
-                } else if (typeof loadOverviewData === 'function') {
-                    loadOverviewData();
-                }
-            },
-            'clusters': () => {
-                if (window.DashboardApp?.modules?.clusters?.loadClusters) {
-                    window.DashboardApp.modules.clusters.loadClusters();
-                }
-            },
-            'routes': () => {
-                if (window.DashboardApp?.modules?.routes?.loadRoutes) {
-                    window.DashboardApp.modules.routes.loadRoutes();
-                }
-            },
-            'topology': () => {
-                if (window.DashboardApp?.modules?.topology?.init) {
-                    window.DashboardApp.modules.topology.init();
-                }
-            },
-            'stats': () => {
-                if (window.DashboardApp?.modules?.stats?.loadStats) {
-                    window.DashboardApp.modules.stats.loadStats();
-                }
-            },
-            'logs': () => {
-                if (window.DashboardApp?.modules?.logs?.loadLogs) {
-                    window.DashboardApp.modules.logs.loadLogs();
-                }
-            },
-            'circuits': () => {
-                if (window.DashboardApp?.modules?.circuits?.loadCircuits) {
-                    window.DashboardApp.modules.circuits.loadCircuits();
-                }
-            },
-            'alerts': () => {
-                if (window.DashboardApp?.modules?.alerts?.loadAlerts) {
-                    window.DashboardApp.modules.alerts.loadAlerts();
-                }
-            },
-            'security': () => {
-                if (window.DashboardApp?.modules?.security?.loadSecurity) {
-                    window.DashboardApp.modules.security.loadSecurity();
-                }
-            },
-            'healthcheck': () => {
-                if (window.DashboardApp?.modules?.healthcheck?.loadData) {
-                    window.DashboardApp.modules.healthcheck.loadData();
-                }
-            },
-            'history': () => {
-                if (window.DashboardApp?.modules?.history?.loadHistory) {
-                    window.DashboardApp.modules.history.loadHistory();
-                }
-            },
-            'policies': () => {
-                if (window.DashboardApp?.modules?.policies?.loadPolicies) {
-                    window.DashboardApp.modules.policies.loadPolicies();
-                }
-            },
-            'plugins': () => {
-                if (window.DashboardApp?.modules?.plugins?.loadPlugins) {
-                    window.DashboardApp.modules.plugins.loadPlugins();
-                }
-            },
-            'audit': () => {
-                if (window.DashboardApp?.modules?.audit?.loadAudit) {
-                    window.DashboardApp.modules.audit.loadAudit();
-                }
-            },
-            'settings': () => {
-                if (window.DashboardApp?.modules?.settings?.loadSettings) {
-                    window.DashboardApp.modules.settings.loadSettings();
+                // Trigger lazy load for this tab (first time only)
+                if (!targetContent.dataset.loaded) {
+                    targetContent.dataset.loaded = '1';
+                    self._triggerTabLoad(tab);
                 }
             }
-        };
 
-        // Execute module initializer if found
-        if (moduleMap[pageName]) {
-            try {
-                moduleMap[pageName]();
-            } catch (err) {
-                console.error('[Router] Module init error:', err);
+            // Activate corresponding tab button
+            var targetBtn = document.querySelector('.top-tab-btn[data-tab="' + tab + '"]');
+            if (targetBtn) targetBtn.classList.add('active');
+
+            // Re-init i18n for new content
+            if (window.DashboardI18n && typeof window.DashboardI18n.init === 'function') {
+                DashboardI18n.init();
             }
-        }
 
-        // Also dispatch a custom event that modules can listen for
-        document.dispatchEvent(new CustomEvent('dashboard:init:' + pageName));
-    }
+            document.dispatchEvent(new CustomEvent('dashboard:tabChanged', { detail: { tab: tab } }));
+        },
 
-    // ===== Load External Script =====
-    function loadScript(src) {
-        // Check if script already exists
-        if (document.querySelector('script[src="' + src + '"]')) {
-            return Promise.resolve();
-        }
+        _triggerTabLoad: function(tab) {
+            console.log('[Router] Lazy loading tab:', tab);
+            var handlers = {
+                'overview': function() {
+                    if (window.DashboardApp?.modules?.home?.loadInfo) DashboardApp.modules.home.loadInfo();
+                    if (window.OpsModule?.loadAlertSummary) OpsModule.loadAlertSummary();
+                    if (window.OpsModule?.loadTrafficChart) OpsModule.loadTrafficChart();
+                    if (window.OpsModule?.loadTopErrors) OpsModule.loadTopErrors();
+                },
+                'clusters': function() {
+                    if (window.DashboardApp?.modules?.clusters?.init) DashboardApp.modules.clusters.init();
+                    if (window.DashboardApp?.modules?.clusters?.loadClusters) DashboardApp.modules.clusters.loadClusters();
+                },
+                'routes': function() {
+                    if (window.DashboardApp?.modules?.routes?.init) DashboardApp.modules.routes.init();
+                    if (window.DashboardApp?.modules?.routes?.loadRoutes) DashboardApp.modules.routes.loadRoutes();
+                },
+                'stats': function() {
+                    if (window.DashboardApp?.modules?.stats?.init) DashboardApp.modules.stats.init();
+                    if (window.DashboardApp?.modules?.stats?.loadStats) DashboardApp.modules.stats.loadStats();
+                },
+                'logs': function() {
+                    if (window.DashboardApp?.modules?.logs?.init) DashboardApp.modules.logs.init();
+                    if (window.DashboardApp?.modules?.logs?.loadLogs) DashboardApp.modules.logs.loadLogs();
+                },
+                'circuits': function() {
+                    if (window.DashboardApp?.modules?.circuits?.init) DashboardApp.modules.circuits.init();
+                    if (window.DashboardApp?.modules?.circuits?.loadCircuits) DashboardApp.modules.circuits.loadCircuits();
+                },
+                'alerts': function() {
+                    if (window.DashboardApp?.modules?.alerts?.init) DashboardApp.modules.alerts.init();
+                    if (window.DashboardApp?.modules?.alerts?.loadAlerts) DashboardApp.modules.alerts.loadAlerts();
+                },
+                'security': function() {
+                    if (window.DashboardApp?.modules?.security?.init) DashboardApp.modules.security.init();
+                    if (window.DashboardApp?.modules?.security?.loadSecurity) DashboardApp.modules.security.loadSecurity();
+                },
+                'healthcheck': function() {
+                    if (window.DashboardApp?.modules?.healthcheck?.init) DashboardApp.modules.healthcheck.init();
+                    if (window.DashboardApp?.modules?.healthcheck?.loadData) DashboardApp.modules.healthcheck.loadData();
+                },
+                'history': function() {
+                    if (window.DashboardApp?.modules?.history?.init) DashboardApp.modules.history.init();
+                    if (window.DashboardApp?.modules?.history?.loadHistory) DashboardApp.modules.history.loadHistory();
+                },
+                'policies': function() {
+                    if (window.DashboardApp?.modules?.policies?.init) DashboardApp.modules.policies.init();
+                    if (window.DashboardApp?.modules?.policies?.loadPolicies) DashboardApp.modules.policies.loadPolicies();
+                },
+                'plugins': function() {
+                    if (window.DashboardApp?.modules?.plugins?.init) DashboardApp.modules.plugins.init();
+                    if (window.DashboardApp?.modules?.plugins?.loadPlugins) DashboardApp.modules.plugins.loadPlugins();
+                },
+                'audit': function() {
+                    if (window.DashboardApp?.modules?.audit?.init) DashboardApp.modules.audit.init();
+                    if (window.DashboardApp?.modules?.audit?.loadAudit) DashboardApp.modules.audit.loadAudit();
+                },
+                'settings': function() {
+                    if (window.DashboardApp?.modules?.settings?.init) DashboardApp.modules.settings.init();
+                    if (window.DashboardApp?.modules?.settings?.loadSettings) DashboardApp.modules.settings.loadSettings();
+                }
+            };
 
-        return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = src;
-            script.async = true;
-            script.onload = resolve;
-            script.onerror = reject;
-            document.body.appendChild(script);
-        });
-    }
-
-    // ===== Cache Page =====
-    function cachePage(path, content) {
-        // Remove oldest entries if cache is full
-        while (_pageCache.size >= _maxCacheSize) {
-            const firstKey = _pageCache.keys().next().value;
-            _pageCache.delete(firstKey);
-        }
-
-        _pageCache.set(path, {
-            content: content,
-            timestamp: Date.now()
-        });
-    }
-
-    // ===== Update Active Menu Item =====
-    function updateActiveMenuItem(path) {
-        // Remove active from all nav links
-        document.querySelectorAll('.sidebar .nav-link').forEach(link => {
-            link.classList.remove('active');
-        });
-
-        // Find and activate the matching link
-        const links = document.querySelectorAll('.sidebar .nav-link');
-        links.forEach(link => {
-            const href = link.getAttribute('href');
-            if (href && path === href) {
-                link.classList.add('active');
+            if (handlers[tab]) {
+                try { handlers[tab](); } catch (e) { console.error('[Router] Tab load error:', e); }
             }
-        });
-    }
 
-    // ===== Show/Hide Loading =====
-    function showLoading() {
-        // Create loading overlay if not exists
-        let loader = document.getElementById('spa-loading-indicator');
-        if (!loader) {
-            loader = document.createElement('div');
-            loader.id = 'spa-loading-indicator';
-            loader.innerHTML = '<div class="spinner"></div>';
-            loader.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 240px;
-                right: 0;
-                bottom: 0;
-                background: rgba(241, 245, 249, 0.8);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                z-index: 9999;
-                opacity: 0;
-                transition: opacity 0.2s ease;
-            `;
-            document.body.appendChild(loader);
+            document.dispatchEvent(new CustomEvent('dashboard:tabLoaded', { detail: { tab: tab } }));
+        },
 
-            // Add spinner styles
-            const style = document.createElement('style');
-            style.textContent = `
-                #spa-loading-indicator .spinner {
-                    width: 40px;
-                    height: 40px;
-                    border: 3px solid #e2e8f0;
-                    border-top-color: #6366f1;
-                    border-radius: 50%;
-                    animation: spin 0.8s linear infinite;
-                }
-                @keyframes spin {
-                    to { transform: rotate(360deg); }
-                }
-            `;
-            document.head.appendChild(style);
-        }
-
-        // Show with animation
-        requestAnimationFrame(() => {
-            loader.style.opacity = '1';
-        });
-    }
-
-    function hideLoading() {
-        const loader = document.getElementById('spa-loading-indicator');
-        if (loader) {
-            loader.style.opacity = '0';
-            setTimeout(() => {
-                if (loader.parentElement) {
-                    loader.remove();
-                }
+        _loadPage: function(path, tab) {
+            var self = this;
+            if (this._loadIndicatorTimer) clearTimeout(this._loadIndicatorTimer);
+            this._loadIndicatorTimer = setTimeout(function() {
+                var el = document.getElementById('page-loading-bar');
+                if (el) el.style.display = '';
             }, 200);
-        }
-    }
 
-    // ===== Prefetch Page (for hover) =====
-    window.DashboardRouter.prefetch = function(path) {
-        if (_pageCache.has(path)) return;
-
-        // Use requestIdleCallback if available
-        const schedule = window.requestIdleCallback || window.setTimeout;
-        schedule(() => {
             fetch(path, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'text/html'
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'text/html' }
+            })
+            .then(function(r) { return r.text(); })
+            .then(function(html) {
+                var content = self._extractContent(html);
+                self._pageCache.set(path, { html: content, timestamp: Date.now() });
+                if (self._pageCache.size > self._maxCacheSize) {
+                    var firstKey = self._pageCache.keys().next().value;
+                    self._pageCache.delete(firstKey);
                 }
             })
-            .then(r => r.text())
-            .then(html => {
-                const content = extractMainContent(html);
-                cachePage(path, content);
-            })
-            .catch(() => {
-                // Silent fail for prefetch
+            .catch(function() {})
+            .finally(function() {
+                if (self._loadIndicatorTimer) clearTimeout(self._loadIndicatorTimer);
+                var el = document.getElementById('page-loading-bar');
+                if (el) el.style.display = 'none';
             });
-        }, { timeout: 2000 });
+        },
+
+        _extractContent: function(html) {
+            var parser = new DOMParser();
+            var doc = parser.parseFromString(html, 'text/html');
+            var main = doc.querySelector('.main-content');
+            return main ? main.innerHTML : doc.body.innerHTML;
+        },
+
+        _updateActiveMenuItem: function(tab) {
+            document.querySelectorAll('.sidebar .nav-link').forEach(function(link) {
+                link.classList.remove('active');
+            });
+            var match = document.querySelector('.sidebar .nav-link[href$="#' + tab + '"]');
+            if (match) match.classList.add('active');
+        }
     };
 
-    // Auto-initialize
+    // Auto-init
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => window.DashboardRouter.init());
+        document.addEventListener('DOMContentLoaded', function() { window.DashboardRouter.init(); });
     } else {
         window.DashboardRouter.init();
     }
-
 })();

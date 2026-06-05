@@ -60,72 +60,107 @@
 
 
 
-<!-- Cluster panel -->
-<div id="cluster-panel" class="card-panel mb-3" style="display:none;">
-    <div class="card-header">
-        <span><i class="bi bi-hdd-stack me-2"></i><span data-i18n="index.cluster.title">集群 &amp; 目标节点状态</span></span>
-        <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
-            <span class="refresh-badge" id="cluster-refresh-time"></span>
-            <span class="refresh-badge"><span data-i18n="index.cluster.showing">显示 </span><strong id="cluster-display-count">0</strong><span data-i18n="index.cluster.of"> / </span><span id="cluster-total-count">0</span><span data-i18n="index.cluster.entries"> 个</span></span>
+<!-- Service tabs (clusters + routes) -->
+<div id="service-panel" class="card-panel mb-3">
+    <!-- Tab bar -->
+    <div class="service-tabs">
+        <button class="service-tab active" data-tab="clusters" onclick="ServiceTabs.switch('clusters')">
+            <i class="bi bi-diagram-3"></i>
+            <span data-i18n="index.serviceTab.clusters">服务集群</span>
+        </button>
+        <button class="service-tab" data-tab="routes" onclick="ServiceTabs.switch('routes')">
+            <i class="bi bi-signpost-split"></i>
+            <span data-i18n="index.serviceTab.routes">路由规则</span>
+        </button>
+        <div class="service-tab-actions">
+            <!-- View toggle (clusters) -->
+            <div id="clusters-view-toggle" class="btn-group btn-group-sm" style="border:1px solid var(--border-color);border-radius:8px;overflow:hidden;display:none;">
+                <button class="btn px-2 py-1 view-toggle active" data-view="cards" onclick="ClustersView.toggle('cards')" title="卡片视图" style="font-size:13px;background:var(--primary-color);color:#fff;border:none;">
+                    <i class="bi bi-grid-3x3-gap"></i>
+                </button>
+                <button class="btn px-2 py-1 view-toggle" data-view="table" onclick="ClustersView.toggle('table')" title="表格视图" style="font-size:13px;background:var(--card-bg);color:var(--text-secondary);border:none;">
+                    <i class="bi bi-list-ul"></i>
+                </button>
+            </div>
+            <!-- View toggle (routes) -->
+            <div id="routes-view-toggle" class="btn-group btn-group-sm" style="border:1px solid var(--border-color);border-radius:8px;overflow:hidden;display:none;">
+                <button class="btn px-2 py-1 view-toggle active" data-view="cards" onclick="RoutesView.toggle('cards')" title="卡片视图" style="font-size:13px;background:var(--primary-color);color:#fff;border:none;">
+                    <i class="bi bi-grid-3x3-gap"></i>
+                </button>
+                <button class="btn px-2 py-1 view-toggle" data-view="table" onclick="RoutesView.toggle('table')" title="表格视图" style="font-size:13px;background:var(--card-bg);color:var(--text-secondary);border:none;">
+                    <i class="bi bi-list-ul"></i>
+                </button>
+            </div>
+            <button class="btn btn-icon btn-outline-primary" id="service-refresh-btn" onclick="ServiceTabs.refresh()" data-i18n-title="index.btn.refresh" title="刷新">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+        <div class="service-tab-counts">
+            <span class="refresh-badge" id="service-refresh-time"></span>
+            <span class="refresh-badge" id="service-count-label"></span>
         </div>
     </div>
-    
-    <!-- Filter toolbar container -->
-    <div id="cluster-filter-container"></div>
-    
-    <div class="table-responsive">
-        <table class="table table-hover align-middle" style="table-layout:fixed;width:100%">
-            <thead>
-                <tr>
-                    <th style="width:40px"></th>
-                    <th style="width:15%"><span data-i18n="index.cluster.th.name">集群名称</span></th>
-                    <th style="width:90px"><span data-i18n="index.cluster.th.source">来源</span></th>
-                    <th style="width:10%"><span data-i18n="index.cluster.th.dest">节点名</span></th>
-                    <th style="width:22%"><span data-i18n="index.cluster.th.address">目标地址</span></th>
-                    <th style="width:9%"><span data-i18n="index.cluster.th.active">主动健康</span></th>
-                    <th style="width:9%"><span data-i18n="index.cluster.th.passive">被动健康</span></th>
-                    <th style="width:9%"><span data-i18n="index.cluster.th.policy">均衡策略</span></th>
-                    <th style="width:80px"><span data-i18n="index.cluster.th.actions">操作</span></th>
-                </tr>
-            </thead>
-            <tbody id="cluster-tbody">
-                <tr><td colspan="9" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
-            </tbody>
-        </table>
-    </div>
-</div>
 
-<!-- Route panel -->
-<div id="route-panel" class="card-panel mb-3" style="display:none;">
-    <div class="card-header">
-        <span><i class="bi bi-signpost-split me-2"></i><span data-i18n="index.route.title">路由规则列表</span></span>
-        <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
-            <span class="refresh-badge" id="route-refresh-time"></span>
-            <span class="refresh-badge"><span data-i18n="index.route.showing">Showing </span><strong id="route-display-count">0</strong><span data-i18n="index.route.of"> / </span><span id="route-total-count">0</span><span data-i18n="index.route.entries"> entries</span></span>
+    <!-- Cluster tab content -->
+    <div id="tab-clusters" class="service-tab-content">
+        <!-- Filter toolbar container -->
+        <div id="cluster-filter-container"></div>
+
+        <!-- Cards view -->
+        <div id="cluster-cards-view" class="card-body"></div>
+
+        <!-- Table view -->
+        <div id="cluster-table-view" style="display:none;">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width:38px"></th>
+                            <th><span data-i18n="index.cluster.th.name">集群名称</span></th>
+                            <th style="width:90px"><span data-i18n="index.source.filter">来源</span></th>
+                            <th style="width:90px"><span data-i18n="index.cluster.health.filter">健康状态</span></th>
+                            <th style="width:80px"><span data-i18n="index.cluster.destCount">节点数</span></th>
+                            <th style="width:110px"><span data-i18n="index.cluster.loadBalancing">负载策略</span></th>
+                            <th style="width:80px"><span data-i18n="index.cluster.th.actions">操作</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="cluster-tbody">
+                        <tr><td colspan="7" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
-    
-    <!-- Filter toolbar container -->
-    <div id="route-filter-container"></div>
-    
-    <div class="table-responsive">
-        <table class="table table-hover align-middle" style="table-layout:fixed;width:100%">
-            <thead>
-                <tr>
-                    <th style="width:40px"></th>
-                    <th style="width:60px"><span data-i18n="index.route.th.order">优先级</span></th>
-                    <th style="width:15%"><span data-i18n="index.route.th.name">路由名称</span></th>
-                    <th style="width:90px"><span data-i18n="index.route.th.source">来源</span></th>
-                    <th style="width:22%"><span data-i18n="index.route.th.path">匹配路径</span></th>
-                    <th style="width:14%"><span data-i18n="index.route.th.cluster">关联集群</span></th>
-                    <th style="width:14%"><span data-i18n="index.route.th.methods">允许方法</span></th>
-                    <th style="width:80px"><span data-i18n="index.route.th.actions">操作</span></th>
-                </tr>
-            </thead>
-            <tbody id="route-tbody">
-                <tr><td colspan="8" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
-            </tbody>
-        </table>
+
+    <!-- Route tab content -->
+    <div id="tab-routes" class="service-tab-content" style="display:none;">
+        <!-- Filter toolbar container -->
+        <div id="route-filter-container"></div>
+
+        <!-- Cards view -->
+        <div id="route-cards-view" class="card-body"></div>
+
+        <!-- Table view -->
+        <div id="route-table-view" style="display:none;">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width:36px"></th>
+                            <th style="width:56px"><span data-i18n="index.route.orderCol">优先级</span></th>
+                            <th style="width:22%"><span data-i18n="index.route.th.name">路由名称</span></th>
+                            <th><span data-i18n="index.route.th.path">匹配路径</span></th>
+                            <th style="width:140px"><span data-i18n="index.route.clusterCol">集群</span></th>
+                            <th style="width:120px"><span data-i18n="index.route.methodCol">方法</span></th>
+                            <th style="width:80px"><span data-i18n="index.route.th.actions">操作</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="route-tbody">
+                        <tr><td colspan="7" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -185,73 +220,8 @@
 </div>
 
 @section Scripts {
-@{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
-<!-- 1. Core Infrastructure -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-core.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
-
-<!-- 1.5 Performance Optimizations -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-performance.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-indexeddb.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-worker.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-sw-register.js?v=@v"></script>
-
-<!-- 2. Schema Service (sync load) -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-service.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-validator.js?v=@v"></script>
-
-<!-- 3. Monaco Editor (async load) -->
+<!-- Page config (must be available before DashboardApp.init()) -->
 <script>
-    // Configure Monaco Worker paths BEFORE loading loader
-    window.MonacoEnvironment = {
-        getWorkerUrl: function(workerId, label) {
-            var basePath = '/_content/Aneiang.Yarp.Dashboard/lib/monaco/';
-            // Use workerMain.js which properly bootstraps the AMD loader in workers
-            return basePath + 'base/worker/workerMain.js';
-        }
-    }; 
-
-    window.__monacoReady = new Promise(function(resolve) {
-        window.__monacoResolve = resolve;
-    });
-</script>
-<script src="/_content/Aneiang.Yarp.Dashboard/lib/monaco/loader.js?v=@v"></script>
-<script>
-    require.config({ paths: { vs: '/_content/Aneiang.Yarp.Dashboard/lib/monaco' } });
-    require(['vs/editor/editor.main'], function() {
-        window.__monacoResolve();
-    });
-</script>
-
-<!-- 4. Editor Layer -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-monaco-editor.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-config-editor.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-form-builder.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-diff-panel.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-validation-panel.js?v=@v"></script>
-
-<!-- 5. App Bootstrap & Events -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-bootstrap.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
-
-<!-- 6. Modules -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-clusters.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-routes.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-logs.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-stats.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-history.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-audit.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-config.js?v=@v"></script>
-
-<script>
-    // Initialize dashboard config
     window.__dashboard = window.__dashboard || {};
     var dash = window.__dashboard;
     dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
@@ -259,10 +229,198 @@
     dash.CURRENT_LOCALE = '@ViewBag.Locale';
     dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
     dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
+    dash.currentPage = 'overview';
+</script>
+
+<!-- Service tabs JS -->
+<script>
+(function() {
+    // ServiceTabs: tab switching for clusters/routes on the overview page
+    window.ServiceTabs = {
+        current: localStorage.getItem('service_tab') || 'clusters',
+        _clustersLoaded: false,
+        _routesLoaded: false,
+
+        switch: function(tab) {
+            this.current = tab;
+            localStorage.setItem('service_tab', tab);
+
+            // Tab buttons
+            document.querySelectorAll('.service-tab').forEach(function(btn) {
+                btn.classList.toggle('active', btn.dataset.tab === tab);
+            });
+
+            // Tab content panels
+            document.querySelectorAll('.service-tab-content').forEach(function(content) {
+                content.style.display = content.id === 'tab-' + tab ? '' : 'none';
+            });
+
+            // Show/hide view toggles
+            var clustersToggle = document.getElementById('clusters-view-toggle');
+            var routesToggle = document.getElementById('routes-view-toggle');
+            if (clustersToggle) clustersToggle.style.display = tab === 'clusters' ? '' : 'none';
+            if (routesToggle) routesToggle.style.display = tab === 'routes' ? '' : 'none';
+
+            // Count label
+            this._updateCountLabel(tab);
+
+            // Lazy-load data
+            if (tab === 'clusters' && !this._clustersLoaded) {
+                this._clustersLoaded = true;
+                window.DashboardApp?.modules?.clusters?.init?.();
+                window.DashboardApp?.modules?.clusters?.loadClusters?.();
+            } else if (tab === 'routes' && !this._routesLoaded) {
+                this._routesLoaded = true;
+                window.DashboardApp?.modules?.routes?.init?.();
+                window.DashboardApp?.modules?.routes?.loadRoutes?.();
+            }
+        },
+
+        refresh: function() {
+            var tab = this.current;
+            var btn = document.getElementById('service-refresh-btn');
+            if (!btn) return;
+            var original = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise spin me-1"></i>';
+            btn.disabled = true;
+            Promise.resolve().then(function() {
+                if (tab === 'clusters') {
+                    return window.DashboardApp?.modules?.clusters?.loadClusters?.();
+                } else {
+                    return window.DashboardApp?.modules?.routes?.loadRoutes?.();
+                }
+            }).finally(function() {
+                btn.innerHTML = original;
+                btn.disabled = false;
+            });
+        },
+
+        _updateCountLabel: function(tab) {
+            var label = document.getElementById('service-count-label');
+            if (!label) return;
+            if (tab === 'clusters') {
+                var total = (window.DashboardState?.get('data.clusters') || []).length;
+                var filtered = (window.DashboardState?.getFilteredClusters?.() || []).length;
+                label.innerHTML = '<span>' + filtered + ' / ' + total + ' <span data-i18n="index.cluster.entries">个</span></span>';
+            } else {
+                var total = (window.DashboardState?.get('data.routes') || []).length;
+                var filtered = (window.DashboardState?.getFilteredRoutes?.() || []).length;
+                label.innerHTML = '<span>' + filtered + ' / ' + total + ' entries</span>';
+            }
+        },
+
+        init: function() {
+            var self = this;
+            document.addEventListener('DOMContentLoaded', function() {
+                // Initialize ClustersView (same as Clusters.cshtml)
+                if (!window.ClustersView) {
+                    window.ClustersView = {
+                        current: localStorage.getItem('clusters_view') || 'cards',
+                        toggle: function(view) {
+                            this.current = view;
+                            localStorage.setItem('clusters_view', view);
+                            var cardsView = document.getElementById('cluster-cards-view');
+                            var tableView = document.getElementById('cluster-table-view');
+                            document.querySelectorAll('#clusters-view-toggle .view-toggle').forEach(function(b) {
+                                if (b.dataset.view === view) {
+                                    b.style.background = 'var(--primary-color)';
+                                    b.style.color = '#fff';
+                                    b.classList.add('active');
+                                } else {
+                                    b.style.background = 'var(--card-bg)';
+                                    b.style.color = 'var(--text-secondary)';
+                                    b.classList.remove('active');
+                                }
+                            });
+                            if (cardsView) cardsView.style.display = view === 'cards' ? '' : 'none';
+                            if (tableView) tableView.style.display = view === 'table' ? '' : 'none';
+                        }
+                    };
+                }
+                // Restore saved view for clusters
+                ClustersView.toggle(localStorage.getItem('clusters_view') || 'cards');
+
+                // Initialize RoutesView (same as Routes.cshtml)
+                if (!window.RoutesView) {
+                    window.RoutesView = {
+                        current: localStorage.getItem('routes_view') || 'cards',
+                        toggle: function(view) {
+                            this.current = view;
+                            localStorage.setItem('routes_view', view);
+                            var cardsView = document.getElementById('route-cards-view');
+                            var tableView = document.getElementById('route-table-view');
+                            document.querySelectorAll('#routes-view-toggle .view-toggle').forEach(function(b) {
+                                if (b.dataset.view === view) {
+                                    b.style.background = 'var(--primary-color)';
+                                    b.style.color = '#fff';
+                                    b.classList.add('active');
+                                } else {
+                                    b.style.background = 'var(--card-bg)';
+                                    b.style.color = 'var(--text-secondary)';
+                                    b.classList.remove('active');
+                                }
+                            });
+                            if (cardsView) cardsView.style.display = view === 'cards' ? '' : 'none';
+                            if (tableView) tableView.style.display = view === 'table' ? '' : 'none';
+                        }
+                    };
+                }
+                // Restore saved view for routes
+                RoutesView.toggle(localStorage.getItem('routes_view') || 'cards');
+
+                // Restore saved tab
+                self.switch(localStorage.getItem('service_tab') || 'clusters');
+            });
+        }
+    };
+    window.ServiceTabs.init();
+})();
 </script>
 
 <style>
-@@keyframes spin { to { transform: rotate(360deg); } }
-.spin { display:inline-block; animation: spin .6s linear infinite; }
+.service-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: #f8fafc;
+    flex-wrap: wrap;
+}
+.service-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+}
+.service-tab:hover { color: var(--text-primary); }
+.service-tab.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    font-weight: 600;
+}
+.service-tab i { font-size: 14px; }
+.service-tab-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    padding: 6px 0;
+}
+.service-tab-counts {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 0 0 8px;
+}
 </style>
 }

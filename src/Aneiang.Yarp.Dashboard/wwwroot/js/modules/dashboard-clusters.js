@@ -21,15 +21,25 @@
         },
 
         // ===== Load Clusters =====
-        loadClusters: async function() {
+        loadClusters: async function(forceReload) {
             try {
                 const container = window.DashboardDOM.safe('#cluster-tbody');
                 if (!container) return;
 
+                const state = window.DashboardState;
+                const cached = state.get('data.clusters');
+
+                // Use cached data if already loaded and not forcing reload
+                if (!forceReload && Array.isArray(cached) && cached.length > 0) {
+                    window.DashboardState.set('data.clusters', cached);
+                    this.renderClusters();
+                    return;
+                }
+
                 window.DashboardDOM.showLoading(container, __('index.cluster.loading'));
 
                 const clusters = await window.DashboardApi.endpoints.getClusters();
-                
+
                 // Update state
                 window.DashboardState.set('data.clusters', clusters || []);
 
