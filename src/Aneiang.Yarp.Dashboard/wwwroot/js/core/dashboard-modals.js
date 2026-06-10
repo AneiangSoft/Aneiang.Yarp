@@ -259,13 +259,18 @@
                                 ${formHtml}
                             </form>
                         </div>
-                        <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
-                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
-                                ${window.__('modal.cancelBtn')}
-                            </button>
-                            <button type="button" class="btn btn-primary btn-sm" id="${modalId}-save" style="min-width:80px;">
-                                <i class="bi bi-check-lg me-1"></i>${window.__('modal.saveBtn')}
-                            </button>
+                        <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;justify-content:space-between;">
+                            <div>
+                                ${config.jsonModeCallback ? `<button type="button" class="btn btn-outline-secondary btn-sm" id="${modalId}-json-switch" style="font-size:12px;"><i class="bi bi-braces me-1"></i>${window.__('modal.jsonMode') || 'JSON'}</button>` : ''}
+                            </div>
+                            <div style="display:flex;gap:8px;">
+                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
+                                    ${window.__('modal.cancelBtn')}
+                                </button>
+                                <button type="button" class="btn btn-primary btn-sm" id="${modalId}-save" style="min-width:80px;">
+                                    <i class="bi bi-check-lg me-1"></i>${window.__('modal.saveBtn')}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -331,6 +336,18 @@
                 bsModal.hide();
             }
         });
+
+        // JSON mode switch handler
+        if (config.jsonModeCallback) {
+            const jsonSwitchBtn = document.getElementById(modalId + '-json-switch');
+            if (jsonSwitchBtn) {
+                jsonSwitchBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    bsModal.hide();
+                    config.jsonModeCallback();
+                });
+            }
+        }
 
         // Remove modal on hide
         modalEl.addEventListener('hidden.bs.modal', function() {

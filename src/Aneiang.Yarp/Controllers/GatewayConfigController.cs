@@ -3,6 +3,7 @@ using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Controllers;
 
@@ -13,10 +14,14 @@ namespace Aneiang.Yarp.Controllers;
 public class GatewayConfigController : ControllerBase
 {
     private readonly DynamicYarpConfigService _dynamicConfig;
+    private readonly ILogger<GatewayConfigController> _logger;
 
     /// <summary>Creates a new instance of the controller.</summary>
-    public GatewayConfigController(DynamicYarpConfigService dynamicConfig)
-        => _dynamicConfig = dynamicConfig;
+    public GatewayConfigController(DynamicYarpConfigService dynamicConfig, ILogger<GatewayConfigController> logger)
+    {
+        _dynamicConfig = dynamicConfig;
+        _logger = logger;
+    }
 
     /// <summary>Register or update a route and its cluster.</summary>
     [HttpPost("register-route")]
@@ -106,6 +111,7 @@ public class GatewayConfigController : ControllerBase
         }
         catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to update route {RouteId}: invalid JSON", routeId);
             return BadRequest(new { code = 400, message = $"Invalid JSON: {ex.Message}" });
         }
     }
@@ -204,6 +210,7 @@ public class GatewayConfigController : ControllerBase
             }
             catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Batch register failed for route {RouteName}", routeReq.RouteName);
                 results.Add(new { route = routeReq.RouteName, success = false, message = ex.Message });
                 allSucceeded = false;
             }
@@ -235,6 +242,7 @@ public class GatewayConfigController : ControllerBase
             }
             catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Batch delete failed for route {RouteName}", routeName);
                 results.Add(new { route = routeName, success = false, message = ex.Message });
                 allSucceeded = false;
             }
@@ -285,6 +293,7 @@ public class GatewayConfigController : ControllerBase
             }
             catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Batch toggle failed for route {RouteName}", routeName);
                 results.Add(new { route = routeName, success = false, message = ex.Message });
                 allSucceeded = false;
             }

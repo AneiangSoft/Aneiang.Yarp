@@ -1,9 +1,20 @@
 namespace Aneiang.Yarp.Storage;
 
 /// <summary>
-/// Unified data store interface supporting multiple persistence backends
-/// (JSON file, SQLite, Redis). Provides document and collection operations.
+/// Unified document-level data store interface supporting multiple persistence backends
+/// (JSON file, SQLite, Redis). Provides key-value document and collection operations.
 /// </summary>
+/// <remarks>
+/// <para><b>Purpose:</b> General-purpose document storage (key → value, category → list).</para>
+/// <para><b>When to use:</b> For simple document/collection CRUD where a flat key-category model suffices.
+/// Used by the core <c>Aneiang.Yarp</c> package for config file persistence.</para>
+/// <para><b>Relationship with <see cref="IStructuredDataStore"/>:</b>
+/// <c>IDataStore</c> is the lower-level, schema-agnostic abstraction used by
+/// <c>IDynamicConfigPersistenceService</c>. <c>IStructuredDataStore</c> is the higher-level,
+/// schema-aware abstraction with dedicated entity types for route/cluster/policy/audit tables.
+/// Both may be backed by the same physical store (SQLite, Redis) but serve different layers.</para>
+/// <para><b>Backends:</b> JsonFileDataStore, SqliteDataStore, RedisDataStore.</para>
+/// </remarks>
 public interface IDataStore : IAsyncDisposable, IDisposable
 {
     /// <summary>Initialize the store (create tables, connections, directories, etc.).</summary>

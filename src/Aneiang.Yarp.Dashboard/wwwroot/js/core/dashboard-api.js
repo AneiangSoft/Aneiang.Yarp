@@ -63,7 +63,6 @@
             const token = this.getToken();
             if (token) {
                 requestHeaders['Authorization'] = `Bearer ${token}`;
-                requestHeaders['X-Requested-With'] = 'XMLHttpRequest';
             }
         }
 
@@ -207,17 +206,11 @@
         // Info
         getInfo: () => DashboardApi.get('/api/info'),
 
-        // Clusters
+        // Clusters (read-only list; CRUD via /api/config/*)
         getClusters: () => DashboardApi.get('/api/clusters'),
-        addCluster: (data) => DashboardApi.post('/api/clusters', data),
-        updateCluster: (id, data) => DashboardApi.put(`/api/clusters/${id}`, data),
-        deleteCluster: (id) => DashboardApi.delete(`/api/clusters/${id}`),
 
-        // Routes
+        // Routes (read-only list; CRUD via /api/config/*)
         getRoutes: () => DashboardApi.get('/api/routes'),
-        addRoute: (data) => DashboardApi.post('/api/routes', data),
-        updateRoute: (id, data) => DashboardApi.put(`/api/routes/${id}`, data),
-        deleteRoute: (id) => DashboardApi.delete(`/api/routes/${id}`),
 
         // Logs
         getLogs: (count = 100) => DashboardApi.get('/api/logs', { count }),
@@ -296,7 +289,17 @@
         getTrafficData: (minutes) => DashboardApi.get('/api/operations/traffic', { minutes }),
         getOpsAlertSummary: () => DashboardApi.get('/api/operations/alert-summary'),
         getTopIssues: (count) => DashboardApi.get('/api/operations/top-issues', { count }),
-        exportSnapshot: () => DashboardApi.get('/api/operations/snapshot')
+        exportSnapshot: () => DashboardApi.get('/api/operations/snapshot'),
+
+        // Config Snapshot & Diff (Stage 2)
+        getSnapshots: (limit) => DashboardApi.get('/api/dashboard/config/snapshots', { limit: limit || 50 }),
+        getSnapshot: (id) => DashboardApi.get('/api/dashboard/config/snapshots/' + id),
+        compareSnapshots: (fromId, toId) => DashboardApi.get('/api/dashboard/config/diff', { fromId, toId: toId || 'current' }),
+        compareWithCurrent: (fromId) => DashboardApi.get('/api/dashboard/config/diff/' + fromId + '/current'),
+        configDiff: (versionId) => DashboardApi.get('/api/config/diff/' + versionId),
+
+        // Cluster Toggle (Stage 2)
+        toggleCluster: (clusterId) => DashboardApi.post('/api/config/clusters/' + clusterId + '/toggle')
     };
 
     // Aliases: expose top-level convenience methods (used by page-level JS)

@@ -14,7 +14,7 @@ namespace Aneiang.Yarp.Dashboard.Services;
 /// Service for managing configuration snapshots, import/export, and version history using structured storage.
 /// Snapshots are persisted via <see cref="IStructuredDataStore"/> so they survive restarts.
 /// </summary>
-public class ConfigPersistenceService
+public class ConfigPersistenceService : IConfigPersistenceService
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -38,13 +38,13 @@ public class ConfigPersistenceService
     public ConfigPersistenceService(
         IDynamicConfigPersistenceService filePersistence,
         ILogger<ConfigPersistenceService> logger,
-        DynamicYarpConfigService? dynamicConfig = null,
-        IStructuredDataStore? store = null)
+        IStructuredDataStore store,
+        DynamicYarpConfigService? dynamicConfig = null)
     {
         _filePersistence = filePersistence;
         _logger = logger;
         _dynamicConfig = dynamicConfig;
-        _store = store ?? throw new ArgumentNullException(nameof(store));
+        _store = store;
     }
 
     /// <summary>Load persisted snapshot history from structured store on first access.</summary>

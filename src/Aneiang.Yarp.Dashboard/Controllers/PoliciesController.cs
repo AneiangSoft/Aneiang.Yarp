@@ -11,10 +11,10 @@ namespace Aneiang.Yarp.Dashboard.Controllers;
 [ApiController]
 public class PoliciesController : ControllerBase
 {
-    private readonly GatewayPolicyPersistenceService _persistence;
+    private readonly IGatewayPolicyPersistenceService _persistence;
     private GatewayPolicyCollection _collection;
 
-    public PoliciesController(GatewayPolicyPersistenceService persistence)
+    public PoliciesController(IGatewayPolicyPersistenceService persistence)
     {
         _persistence = persistence;
         _collection = _persistence.Load();

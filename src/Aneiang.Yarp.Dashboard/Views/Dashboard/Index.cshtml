@@ -73,24 +73,6 @@
             <span data-i18n="index.serviceTab.routes">路由规则</span>
         </button>
         <div class="service-tab-actions">
-            <!-- View toggle (clusters) -->
-            <div id="clusters-view-toggle" class="btn-group btn-group-sm" style="border:1px solid var(--border-color);border-radius:8px;overflow:hidden;display:none;">
-                <button class="btn px-2 py-1 view-toggle active" data-view="cards" onclick="ClustersView.toggle('cards')" title="卡片视图" style="font-size:13px;background:var(--primary-color);color:#fff;border:none;">
-                    <i class="bi bi-grid-3x3-gap"></i>
-                </button>
-                <button class="btn px-2 py-1 view-toggle" data-view="table" onclick="ClustersView.toggle('table')" title="表格视图" style="font-size:13px;background:var(--card-bg);color:var(--text-secondary);border:none;">
-                    <i class="bi bi-list-ul"></i>
-                </button>
-            </div>
-            <!-- View toggle (routes) -->
-            <div id="routes-view-toggle" class="btn-group btn-group-sm" style="border:1px solid var(--border-color);border-radius:8px;overflow:hidden;display:none;">
-                <button class="btn px-2 py-1 view-toggle active" data-view="cards" onclick="RoutesView.toggle('cards')" title="卡片视图" style="font-size:13px;background:var(--primary-color);color:#fff;border:none;">
-                    <i class="bi bi-grid-3x3-gap"></i>
-                </button>
-                <button class="btn px-2 py-1 view-toggle" data-view="table" onclick="RoutesView.toggle('table')" title="表格视图" style="font-size:13px;background:var(--card-bg);color:var(--text-secondary);border:none;">
-                    <i class="bi bi-list-ul"></i>
-                </button>
-            </div>
             <button class="btn btn-icon btn-outline-primary" id="service-refresh-btn" onclick="ServiceTabs.refresh()" data-i18n-title="index.btn.refresh" title="刷新">
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
@@ -106,11 +88,8 @@
         <!-- Filter toolbar container -->
         <div id="cluster-filter-container"></div>
 
-        <!-- Cards view -->
-        <div id="cluster-cards-view" class="card-body"></div>
-
         <!-- Table view -->
-        <div id="cluster-table-view" style="display:none;">
+        <div id="cluster-table-view">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead>
@@ -137,11 +116,8 @@
         <!-- Filter toolbar container -->
         <div id="route-filter-container"></div>
 
-        <!-- Cards view -->
-        <div id="route-cards-view" class="card-body"></div>
-
         <!-- Table view -->
-        <div id="route-table-view" style="display:none;">
+        <div id="route-table-view">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead>
@@ -230,6 +206,9 @@
     dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
     dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
     dash.currentPage = 'overview';
+
+    // Initialize i18n after setting translations (consistent with all other pages)
+    if (window.DashboardI18n) { window.DashboardI18n.init(); }
 </script>
 
 <!-- Service tabs JS -->
@@ -254,12 +233,6 @@
             document.querySelectorAll('.service-tab-content').forEach(function(content) {
                 content.style.display = content.id === 'tab-' + tab ? '' : 'none';
             });
-
-            // Show/hide view toggles
-            var clustersToggle = document.getElementById('clusters-view-toggle');
-            var routesToggle = document.getElementById('routes-view-toggle');
-            if (clustersToggle) clustersToggle.style.display = tab === 'clusters' ? '' : 'none';
-            if (routesToggle) routesToggle.style.display = tab === 'routes' ? '' : 'none';
 
             // Count label
             this._updateCountLabel(tab);
@@ -312,62 +285,6 @@
         init: function() {
             var self = this;
             document.addEventListener('DOMContentLoaded', function() {
-                // Initialize ClustersView (same as Clusters.cshtml)
-                if (!window.ClustersView) {
-                    window.ClustersView = {
-                        current: localStorage.getItem('clusters_view') || 'cards',
-                        toggle: function(view) {
-                            this.current = view;
-                            localStorage.setItem('clusters_view', view);
-                            var cardsView = document.getElementById('cluster-cards-view');
-                            var tableView = document.getElementById('cluster-table-view');
-                            document.querySelectorAll('#clusters-view-toggle .view-toggle').forEach(function(b) {
-                                if (b.dataset.view === view) {
-                                    b.style.background = 'var(--primary-color)';
-                                    b.style.color = '#fff';
-                                    b.classList.add('active');
-                                } else {
-                                    b.style.background = 'var(--card-bg)';
-                                    b.style.color = 'var(--text-secondary)';
-                                    b.classList.remove('active');
-                                }
-                            });
-                            if (cardsView) cardsView.style.display = view === 'cards' ? '' : 'none';
-                            if (tableView) tableView.style.display = view === 'table' ? '' : 'none';
-                        }
-                    };
-                }
-                // Restore saved view for clusters
-                ClustersView.toggle(localStorage.getItem('clusters_view') || 'cards');
-
-                // Initialize RoutesView (same as Routes.cshtml)
-                if (!window.RoutesView) {
-                    window.RoutesView = {
-                        current: localStorage.getItem('routes_view') || 'cards',
-                        toggle: function(view) {
-                            this.current = view;
-                            localStorage.setItem('routes_view', view);
-                            var cardsView = document.getElementById('route-cards-view');
-                            var tableView = document.getElementById('route-table-view');
-                            document.querySelectorAll('#routes-view-toggle .view-toggle').forEach(function(b) {
-                                if (b.dataset.view === view) {
-                                    b.style.background = 'var(--primary-color)';
-                                    b.style.color = '#fff';
-                                    b.classList.add('active');
-                                } else {
-                                    b.style.background = 'var(--card-bg)';
-                                    b.style.color = 'var(--text-secondary)';
-                                    b.classList.remove('active');
-                                }
-                            });
-                            if (cardsView) cardsView.style.display = view === 'cards' ? '' : 'none';
-                            if (tableView) tableView.style.display = view === 'table' ? '' : 'none';
-                        }
-                    };
-                }
-                // Restore saved view for routes
-                RoutesView.toggle(localStorage.getItem('routes_view') || 'cards');
-
                 // Restore saved tab
                 self.switch(localStorage.getItem('service_tab') || 'clusters');
             });

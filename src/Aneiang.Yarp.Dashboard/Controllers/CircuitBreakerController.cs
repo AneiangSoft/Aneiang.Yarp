@@ -6,7 +6,7 @@ namespace Aneiang.Yarp.Dashboard.Controllers;
 /// <summary>
 /// API controller for circuit breaker status monitoring and management.
 /// </summary>
-[Route("circuit-breaker")]
+[Route("api/circuit-breaker")]
 public class CircuitBreakerController : Controller
 {
     /// <summary>

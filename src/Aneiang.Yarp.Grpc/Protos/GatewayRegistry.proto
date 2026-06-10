@@ -4,6 +4,22 @@ package aneiang.yarp.v1;
 
 option csharp_namespace = "Aneiang.Yarp.GatewayRegistry";
 
+// ============================================================
+// Gateway Registry Service - Phase 1 (功能可用，路线明确)
+//
+// 状态：最小闭环已完成，HTTP+gRPC 双模注册均可工作
+//
+// Phase 1 已知限制：
+//   - 多 Paths 时仅保留第一个 (见 GrpcGatewayRegistryMapper)
+//   - 多 Destinations 时仅保留第一个有效地址
+//   - 无内置 gRPC 认证 (需配合外部 Auth 中间件)
+//
+// 后续路线：
+//   - Phase 2: 多 Path / 多 Destination 支持
+//   - Phase 2: gRPC 端点鉴权与 Dashboard 统一
+//   - Phase 3: TLS/mTLS, 双向流, 服务发现增强
+// ============================================================
+
 // Gateway Registry Service - handles service registration and heartbeat
 service GatewayRegistry {
   // Register a service with the gateway

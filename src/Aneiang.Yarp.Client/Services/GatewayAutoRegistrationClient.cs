@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using GatewayGrpc = Aneiang.Yarp.GatewayRegistry.GatewayRegistry;
+using Aneiang.Yarp.GatewayRegistry;
 using Aneiang.Yarp.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -26,6 +28,7 @@ public class GatewayAutoRegistrationClient
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<GatewayAutoRegistrationClient> _logger;
     private readonly KestrelAutoConfigService _kestrelConfig;
+    private readonly GatewayGrpc.GatewayRegistryClient _grpcClient;
 
     /// <summary>Initializes a new instance of GatewayAutoRegistrationClient.</summary>
     /// <param name="httpClientFactory">HTTP client factory.</param>
@@ -33,18 +36,21 @@ public class GatewayAutoRegistrationClient
     /// <param name="serviceProvider">Service provider.</param>
     /// <param name="logger">Logger instance.</param>
     /// <param name="kestrelConfig">Kestrel auto-configuration service.</param>
+    /// <param name="grpcClient">gRPC gateway registry client.</param>
     public GatewayAutoRegistrationClient(
         IHttpClientFactory httpClientFactory,
         IOptions<GatewayRegistrationOptions> options,
         IServiceProvider serviceProvider,
         ILogger<GatewayAutoRegistrationClient> logger,
-        KestrelAutoConfigService kestrelConfig)
+        KestrelAutoConfigService kestrelConfig,
+        GatewayGrpc.GatewayRegistryClient grpcClient)
     {
         _httpClientFactory = httpClientFactory;
         _options = options.Value;
         _serviceProvider = serviceProvider;
         _logger = logger;
         _kestrelConfig = kestrelConfig;
+        _grpcClient = grpcClient;
     }
 
     /// <summary>Register this service's route with the gateway.</summary>
@@ -64,6 +70,7 @@ public class GatewayAutoRegistrationClient
         var order = RegistrationOptionsResolver.GetOrder(_options);
         var transforms = RegistrationOptionsResolver.GetTransforms(_options);
         var useIpIsolation = RegistrationOptionsResolver.UseIpIsolation(_options);
+        var useGrpcRegistration = _options.UseGrpcRegistration == true;
 
         if (string.IsNullOrWhiteSpace(gatewayUrl) || string.IsNullOrWhiteSpace(destinationAddress))
         {
@@ -77,25 +84,21 @@ public class GatewayAutoRegistrationClient
         if (transforms != null && transforms.Count > 0)
             _logger.LogDebug("Transforms: {Transforms}", JsonSerializer.Serialize(transforms));
 
-        // If IP isolation is enabled, log it
         if (useIpIsolation)
         {
             _logger.LogInformation("IP-based isolation enabled. Gateway will route based on client IP address.");
         }
 
-        // Auto-resolve localhost to LAN IP
         if (RegistrationOptionsResolver.GetAutoResolveIp(_options))
         {
             var (resolvedAddress, warning) = ResolveLocalAddressWithCheck(destinationAddress);
             destinationAddress = resolvedAddress;
-            
-            // Log warning if any
+
             if (!string.IsNullOrWhiteSpace(warning))
             {
                 _logger.LogWarning(warning);
             }
-            
-            // Try to auto-configure Kestrel to listen on 0.0.0.0
+
             try
             {
                 var uri = new Uri(destinationAddress);
@@ -109,6 +112,11 @@ public class GatewayAutoRegistrationClient
 
         try
         {
+            if (useGrpcRegistration)
+            {
+                return await RegisterWithGrpcAsync(routeName, clusterName, matchPath, destinationAddress, ct).ConfigureAwait(false);
+            }
+
             using var http = _httpClientFactory.CreateClient();
             http.Timeout = TimeSpan.FromSeconds(RegistrationOptionsResolver.GetTimeoutSeconds(_options));
             ApplyAuthHeaders(http);
@@ -162,6 +170,7 @@ public class GatewayAutoRegistrationClient
     {
         var gatewayUrl = _options.GatewayUrl;
         var routeName = RegistrationOptionsResolver.GetRouteName(_options);
+        var useGrpcRegistration = _options.UseGrpcRegistration == true;
 
         if (string.IsNullOrWhiteSpace(gatewayUrl))
         {
@@ -171,11 +180,27 @@ public class GatewayAutoRegistrationClient
 
         try
         {
+            if (useGrpcRegistration)
+            {
+                var grpcResponse = await _grpcClient.UnregisterServiceAsync(new UnregisterServiceRequest
+                {
+                    ServiceId = routeName
+                }, cancellationToken: ct).ConfigureAwait(false);
+
+                if (grpcResponse.Success)
+                {
+                    _logger.LogInformation("gRPC unregistration OK: {Message}", grpcResponse.Message);
+                    return true;
+                }
+
+                _logger.LogWarning("gRPC unregistration failed: {Message}", grpcResponse.Message);
+                return false;
+            }
+
             using var http = _httpClientFactory.CreateClient();
             http.Timeout = TimeSpan.FromSeconds(RegistrationOptionsResolver.GetTimeoutSeconds(_options));
             ApplyAuthHeaders(http);
 
-            // For IP isolation, pass clientIp query parameter to remove only the matching destination
             var clientIp = RegistrationOptionsResolver.UseIpIsolation(_options) ? GetLocalIpv4() : null;
             var url = $"{gatewayUrl.TrimEnd('/')}/api/gateway/{routeName}";
             if (!string.IsNullOrWhiteSpace(clientIp))
@@ -218,6 +243,39 @@ public class GatewayAutoRegistrationClient
         }
     }
 
+    private async Task<bool> RegisterWithGrpcAsync(
+        string routeName,
+        string clusterName,
+        string matchPath,
+        string destinationAddress,
+        CancellationToken ct)
+    {
+        var response = await _grpcClient.RegisterServiceAsync(new RegisterServiceRequest
+        {
+            ServiceId = routeName,
+            ServiceName = clusterName,
+            Paths = { matchPath },
+            Destinations =
+            {
+                new Destination
+                {
+                    DestinationId = "d1",
+                    Address = destinationAddress,
+                    Enabled = true
+                }
+            }
+        }, cancellationToken: ct).ConfigureAwait(false);
+
+        if (response.Success)
+        {
+            _logger.LogInformation("gRPC registration OK: {Message}", response.Message);
+            return true;
+        }
+
+        _logger.LogWarning("gRPC registration failed: {Message}", response.Message);
+        return false;
+    }
+
     private void ApplyAuthHeaders(HttpClient http)
     {
         if (!string.IsNullOrWhiteSpace(_options.AuthToken))
@@ -245,35 +303,31 @@ public class GatewayAutoRegistrationClient
     private (string address, string? warning) ResolveLocalAddressWithCheck(string address)
     {
         if (string.IsNullOrWhiteSpace(address)) return (address, null);
-        
+
         try
         {
             var uri = new Uri(address);
             var host = uri.Host;
-            
+
             if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
                 host.Equals("127.0.0.1") || host.Equals("0.0.0.0"))
             {
-                // Check if service is listening on 0.0.0.0 (all interfaces)
                 bool isListeningOnAny = IsListeningOnAnyAddress(uri.Port);
-                
-                // Always resolve to LAN IP
                 var ip = GetLocalIpv4();
                 if (ip != null)
                 {
                     var resolved = $"{uri.Scheme}://{ip}:{uri.Port}{uri.PathAndQuery}";
-                    
-                    // If not listening on 0.0.0.0, add warning
+
                     if (!isListeningOnAny)
                     {
                         var warning = $"Service is listening on localhost only (port {uri.Port}), but registered with LAN IP {ip}. " +
                             $"Cross-machine access will fail until you configure Kestrel to listen on 0.0.0.0:\n" +
                             $"  - launchSettings.json: \"applicationUrl\": \"http://0.0.0.0:{uri.Port}\"\n" +
                             $"  - Or Program.cs: .UseUrls(\"http://0.0.0.0:{uri.Port}\")";
-                        
+
                         return (resolved, warning);
                     }
-                    
+
                     return (resolved, null);
                 }
             }
@@ -282,39 +336,36 @@ public class GatewayAutoRegistrationClient
         {
             _logger.LogWarning(ex, "Invalid URI format in address: {Address}", address);
         }
-        
+
         return (address, null);
     }
-    
+
     /// <summary>Check if the service is listening on 0.0.0.0 (all interfaces) for the given port.</summary>
     private static bool IsListeningOnAnyAddress(int port)
     {
         try
         {
-            // Check if any TCP listener is on 0.0.0.0:port
             var listeners = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties()
                 .GetActiveTcpListeners()
                 .Where(l => l.Port == port);
-            
+
             foreach (var listener in listeners)
             {
-                // 0.0.0.0 means listening on all interfaces
-                if (listener.Address.Equals(IPAddress.Any) || 
+                if (listener.Address.Equals(IPAddress.Any) ||
                     listener.Address.Equals(IPAddress.IPv6Any))
                 {
                     return true;
                 }
             }
-            
+
             return false;
         }
         catch
         {
-            // If we can't check, assume it's listening on 0.0.0.0 (optimistic)
             return true;
         }
     }
-    
+
     private static string? GetLocalIpv4()
     {
         try
@@ -325,7 +376,6 @@ public class GatewayAutoRegistrationClient
         }
         catch (Exception)
         {
-            // DNS resolution failed, return null to skip IP resolution
             return null;
         }
     }
@@ -338,12 +388,23 @@ public class GatewayAutoRegistrationClient
     {
         var gatewayUrl = _options.GatewayUrl;
         var routeName = RegistrationOptionsResolver.GetRouteName(_options);
+        var useGrpcRegistration = _options.UseGrpcRegistration == true;
 
         if (string.IsNullOrWhiteSpace(gatewayUrl))
             return false;
 
         try
         {
+            if (useGrpcRegistration)
+            {
+                var grpcResponse = await _grpcClient.HeartbeatAsync(new HeartbeatRequest
+                {
+                    ServiceId = routeName
+                }, cancellationToken: ct).ConfigureAwait(false);
+
+                return grpcResponse.Success;
+            }
+
             using var http = _httpClientFactory.CreateClient();
             http.Timeout = TimeSpan.FromSeconds(10);
             ApplyAuthHeaders(http);

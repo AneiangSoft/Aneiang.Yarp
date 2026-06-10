@@ -64,10 +64,10 @@
         <span><i class="bi bi-graph-up-arrow me-2"></i><span data-i18n="overview.chart.traffic">实时流量趋势 (QPS)</span></span>
         <div class="d-flex align-items-center gap-2">
             <span class="badge bg-success" id="current-qps">0 req/s</span>
-            <select class="form-select form-select-sm" id="chart-time-range" style="width:100px;" onchange="OpsModule.changeTimeRange(this.value)">
-                <option value="5">5分钟</option>
-                <option value="15" selected>15分钟</option>
-                <option value="60">1小时</option>
+            <select class="form-select form-select-sm" id="chart-time-range" style="width:110px;" onchange="OpsModule.changeTimeRange(this.value)">
+                <option value="5" data-i18n="overview.chart.timeRange.5min">5分钟</option>
+                <option value="15" selected data-i18n="overview.chart.timeRange.15min">15分钟</option>
+                <option value="60" data-i18n="overview.chart.timeRange.1hour">1小时</option>
             </select>
         </div>
     </div>
@@ -189,6 +189,9 @@
     dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
     dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
     dash.currentPage = 'overview';
+
+    // Initialize i18n after setting translations
+    if (window.DashboardI18n) { window.DashboardI18n.init(); }
 </script>
 
 <!-- Chart.js for traffic chart -->

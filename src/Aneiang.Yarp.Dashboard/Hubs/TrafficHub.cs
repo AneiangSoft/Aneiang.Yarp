@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json.Serialization;
+using Aneiang.Yarp.Dashboard.Services;
 using Microsoft.AspNetCore.SignalR;
 
 namespace Aneiang.Yarp.Dashboard.Hubs;
@@ -11,9 +12,22 @@ namespace Aneiang.Yarp.Dashboard.Hubs;
 public class TrafficHub : Hub
 {
     private static readonly ConcurrentDictionary<string, HashSet<string>> _routeSubscriptions = new();
+    private readonly IDashboardAuthorizationService _authorizationService;
+
+    public TrafficHub(IDashboardAuthorizationService authorizationService)
+    {
+        _authorizationService = authorizationService;
+    }
 
     public async Task SubscribeToRoutes(string[] routeIds)
     {
+        var httpContext = Context.GetHttpContext();
+        if (httpContext == null || !await _authorizationService.IsAuthorizedAsync(httpContext))
+        {
+            Context.Abort();
+            return;
+        }
+
         var groupName = string.Join(",", routeIds.OrderBy(r => r));
         foreach (var routeId in routeIds)
         {

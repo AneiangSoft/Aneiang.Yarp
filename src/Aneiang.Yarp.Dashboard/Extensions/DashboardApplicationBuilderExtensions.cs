@@ -16,6 +16,8 @@ namespace Aneiang.Yarp.Dashboard.Extensions;
 /// </summary>
 public static class DashboardApplicationBuilderExtensions
 {
+    private const string DashboardConfiguredKey = "__AneiangYarpDashboard_Configured";
+
     /// <summary>
     /// Register Dashboard middleware and map the YARP proxy endpoint with core middleware
     /// in the correct pipeline order.
@@ -38,6 +40,14 @@ public static class DashboardApplicationBuilderExtensions
         this IApplicationBuilder app,
         Action<IReverseProxyApplicationBuilder>? configureProxyPipeline = null)
     {
+        // Guard: prevent double registration that would cause duplicate
+        // middleware, duplicate MapReverseProxy, and double counting of requests.
+        if (app.Properties.TryGetValue(DashboardConfiguredKey, out _))
+        {
+            return app;
+        }
+        app.Properties[DashboardConfiguredKey] = true;
+
         // Response compression must be FIRST — before any middleware that reads/writes the body.
         // This compresses static files, API JSON responses, and Razor HTML output.
         app.UseResponseCompression();

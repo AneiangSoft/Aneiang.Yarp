@@ -53,6 +53,9 @@ public class GatewayRegistrationOptions
     /// <summary>Basic auth password. Must pair with <see cref="BasicAuthUsername"/>.</summary>
     public string? BasicAuthPassword { get; set; }
 
+    /// <summary>Use gRPC registration instead of the legacy HTTP registration endpoints.</summary>
+    public bool? UseGrpcRegistration { get; set; }
+
     /// <summary>
     /// Override downstream path prefix. If set, requests will be forwarded to this path prefix.
     /// </summary>

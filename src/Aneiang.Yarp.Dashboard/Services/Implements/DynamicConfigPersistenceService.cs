@@ -140,6 +140,35 @@ public class DynamicConfigPersistenceService : IDynamicConfigPersistenceService
         {
             config.LastModified = DateTime.UtcNow;
 
+            // Build the set of IDs that should exist after this save.
+            var targetRouteIds = new HashSet<string>(config.Routes.Select(r => r.RouteId), StringComparer.OrdinalIgnoreCase);
+            var targetClusterIds = new HashSet<string>(config.Clusters.Select(c => c.ClusterId), StringComparer.OrdinalIgnoreCase);
+
+            // ── Clean up stale records that were removed from config ──
+            // Routes: remove any stored route that is not in the current config.
+            var existingRoutes = await _store.GetAllRoutesAsync();
+            foreach (var existing in existingRoutes)
+            {
+                if (!targetRouteIds.Contains(existing.RouteId))
+                {
+                    await _store.DeleteRouteAsync(existing.RouteId);
+                    _logger.LogInformation("Deleted stale route '{RouteId}' (no longer in config)", existing.RouteId);
+                }
+            }
+
+            // Clusters: remove any stored cluster that is not in the current config.
+            var existingClusters = await _store.GetAllClustersAsync();
+            foreach (var existing in existingClusters)
+            {
+                if (!targetClusterIds.Contains(existing.ClusterId))
+                {
+                    // Delete destinations first (FK cascade handles this, but explicit is safer)
+                    await _store.DeleteDestinationsAsync(existing.ClusterId);
+                    await _store.DeleteClusterAsync(existing.ClusterId);
+                    _logger.LogInformation("Deleted stale cluster '{ClusterId}' (no longer in config)", existing.ClusterId);
+                }
+            }
+
             // Save routes to structured table
             var routeEntities = config.Routes.Select(r => r.ToEntity()).ToList();
             await _store.SaveRoutesAsync(routeEntities);

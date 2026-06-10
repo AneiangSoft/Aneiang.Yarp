@@ -1,5 +1,6 @@
 using Aneiang.Yarp.Dashboard.Models;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Aneiang.Yarp.Dashboard.Services;
@@ -11,13 +12,15 @@ namespace Aneiang.Yarp.Dashboard.Services;
 public sealed class DashboardAuthorizationService : IDashboardAuthorizationService
 {
     private readonly DashboardOptions _options;
+    private readonly ILogger<DashboardAuthorizationService> _logger;
 
     /// <summary>
     /// Creates the authorization service.
     /// </summary>
-    public DashboardAuthorizationService(IOptions<DashboardOptions> options)
+    public DashboardAuthorizationService(IOptions<DashboardOptions> options, ILogger<DashboardAuthorizationService> logger)
     {
         _options = options.Value;
+        _logger = logger;
     }
 
     /// <inheritdoc />
@@ -95,22 +98,45 @@ public sealed class DashboardAuthorizationService : IDashboardAuthorizationServi
         if (string.IsNullOrEmpty(secret))
             return false;
 
+        var token = ExtractJwtToken(context);
+        if (string.IsNullOrEmpty(token))
+            return false;
+
+        var (valid, _) = DashboardJwtHelper.ValidateToken(token, secret);
+        if (!valid)
+        {
+            _logger.LogWarning(
+                "Dashboard JWT validation failed for {Path}. RemoteIp: {RemoteIp}",
+                context.Request.Path,
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+        }
+
+        return valid;
+    }
+
+    private static string? ExtractJwtToken(HttpContext context)
+    {
         // Authorization header (for XHR/API calls)
         var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer "))
+        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
         {
-            var (valid, _) = DashboardJwtHelper.ValidateToken(authHeader[7..], secret);
-            if (valid) return true;
+            return authHeader[7..];
+        }
+
+        // WebSocket/SignalR clients often pass the token as a query parameter
+        var queryToken = context.Request.Query["token"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(queryToken))
+        {
+            return queryToken;
         }
 
         // dashboard_token cookie (for browser page loads)
         if (context.Request.Cookies.TryGetValue("dashboard_token", out var cookieToken)
             && !string.IsNullOrEmpty(cookieToken))
         {
-            var (valid, _) = DashboardJwtHelper.ValidateToken(cookieToken, secret);
-            return valid;
+            return cookieToken;
         }
 
-        return false;
+        return null;
     }
 }
