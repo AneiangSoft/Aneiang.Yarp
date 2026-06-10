@@ -15,6 +15,12 @@ public class WebhookSettingsRequest
     /// Supported values: AddRoute, UpdateRoute, RemoveRoute, AddCluster, UpdateCluster, RemoveCluster, RenameCluster, RollbackConfig.
     /// </summary>
     public List<string>? EnabledEvents { get; set; }
+
+    /// <summary>Webhook HTTP request timeout in seconds. Default 10.</summary>
+    public int TimeoutSeconds { get; set; } = 10;
+
+    /// <summary>Number of retry attempts on failure. Default 1.</summary>
+    public int RetryCount { get; set; } = 1;
 }
 
 /// <summary>

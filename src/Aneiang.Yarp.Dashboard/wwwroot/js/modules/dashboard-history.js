@@ -60,6 +60,7 @@
                     <td style="font-size:12px">${window.DashboardUtils.escapeHtml(entry.clientIp || '-')}</td>
                     <td>${entry.routeCount != null ? entry.routeCount : '-'} / ${entry.clusterCount != null ? entry.clusterCount : '-'}</td>
                     <td>
+                        ${!isLatest ? `<button class="btn btn-sm btn-outline-info me-1" onclick="HistoryModule.showDiff('${entry.versionId}')" title="${__('history.diff')}"><i class="bi bi-file-diff"></i></button>` : ''}
                         ${!isLatest ? `<button class="btn btn-sm btn-outline-warning" onclick="HistoryModule.rollback('${entry.versionId}')" title="${__('history.rollback')}"><i class="bi bi-arrow-counterclockwise"></i></button>` : ''}
                     </td>
                 </tr>`;
@@ -116,6 +117,29 @@
             navigator.clipboard.writeText(versionId).then(() => {
                 if (window.DashboardModals) window.DashboardModals.showSuccess(__('index.copied'));
             });
+        },
+
+        showDiff: async function(versionId) {
+            try {
+                if (window.DashboardModals) window.DashboardModals.showLoading(__('diff.loading'));
+                var data = await window.DashboardApi.endpoints.configDiff(versionId);
+                if (window.DashboardModals) window.DashboardModals.hideModal();
+
+                if (window.DashboardDiffPanel) {
+                    window.DashboardDiffPanel.showStructured(data, {
+                        title: __('diff.title') + ' (' + versionId + ')',
+                        summary: data.summary
+                    });
+                } else {
+                    if (window.DashboardModals) window.DashboardModals.showError(__('diff.loadFailed'));
+                }
+            } catch (error) {
+                console.error('[History] Diff failed:', error);
+                if (window.DashboardModals) {
+                    window.DashboardModals.hideModal();
+                    window.DashboardModals.showError(__('diff.loadFailed') + ': ' + (error.message || ''));
+                }
+            }
         },
 
         setupEvents: function() {

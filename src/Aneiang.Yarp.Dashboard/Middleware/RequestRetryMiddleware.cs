@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Models;
+using Aneiang.Yarp.Dashboard.Plugins;
 using System.Buffers;
 using System.Text;
 using Yarp.ReverseProxy.Configuration;
@@ -19,6 +20,7 @@ public sealed class RequestRetryMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<RequestRetryMiddleware> _logger;
     private readonly RetryOptions _options;
+    private readonly IGatewayPluginManager _pluginManager;
     private readonly string _dashPrefix;
     /// <summary>
     /// Content root path for the Dashboard static files. Used to skip logging for frontend resources.
@@ -35,11 +37,13 @@ public sealed class RequestRetryMiddleware
         RequestDelegate next,
         ILogger<RequestRetryMiddleware> logger,
         IOptions<RetryOptions> options,
-        IOptions<DashboardOptions> dashOptions)
+        IOptions<DashboardOptions> dashOptions,
+        IGatewayPluginManager pluginManager)
     {
         _next = next;
         _logger = logger;
         _options = options.Value;
+        _pluginManager = pluginManager;
         _dashPrefix = "/" + dashOptions.Value.RoutePrefix.Trim('/');
     }
 
@@ -49,6 +53,13 @@ public sealed class RequestRetryMiddleware
         var path = context.Request.Path.Value ?? "";
         if (path.StartsWith(_dashPrefix, StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith(ContentRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            await _next(context);
+            return;
+        }
+
+        // Respect plugin toggle state
+        if (!_pluginManager.IsPluginEnabled("request-retry"))
         {
             await _next(context);
             return;

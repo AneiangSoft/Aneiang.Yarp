@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using Aneiang.Yarp.Dashboard.Models;
@@ -22,6 +23,9 @@ public interface IGatewayPluginManager
 
     /// <summary>Enable or disable a plugin at runtime.</summary>
     void SetPluginEnabled(string pluginId, bool enabled);
+
+    /// <summary>Save current plugin states to persistent storage.</summary>
+    void SaveState();
 }
 
 /// <summary>
@@ -32,6 +36,7 @@ public class GatewayPluginManager : IGatewayPluginManager
     private readonly Dictionary<string, IGatewayPlugin> _plugins = new();
     private readonly Dictionary<string, bool> _enabledPlugins = new();
     private readonly ILogger<GatewayPluginManager> _logger;
+    private readonly string _stateFilePath;
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -41,9 +46,11 @@ public class GatewayPluginManager : IGatewayPluginManager
     public GatewayPluginManager(
         IEnumerable<IGatewayPlugin> plugins,
         IConfiguration configuration,
+        IHostEnvironment hostEnv,
         ILogger<GatewayPluginManager> logger)
     {
         _logger = logger;
+        _stateFilePath = Path.Combine(hostEnv.ContentRootPath, "plugin-states.json");
 
         var section = configuration.GetSection("Gateway:Dashboard:Plugins");
 
@@ -66,6 +73,9 @@ public class GatewayPluginManager : IGatewayPluginManager
                 plugin.DisplayName, plugin.Version, plugin.PluginId,
                 _enabledPlugins[plugin.PluginId]);
         }
+
+        // Override defaults with persisted state (if exists)
+        LoadState();
     }
 
     /// <inheritdoc />
@@ -96,5 +106,53 @@ public class GatewayPluginManager : IGatewayPluginManager
         _logger.LogInformation(
             "Plugin '{PluginId}' {Action}",
             pluginId, enabled ? "enabled" : "disabled");
+
+        SaveState();
+    }
+
+    /// <inheritdoc />
+    public void SaveState()
+    {
+        try
+        {
+            var state = new Dictionary<string, bool>();
+            foreach (var kvp in _enabledPlugins)
+                state[kvp.Key] = kvp.Value;
+
+            var json = JsonSerializer.Serialize(state, _jsonOptions);
+            File.WriteAllText(_stateFilePath, json);
+            _logger.LogDebug("Plugin state saved to {Path}", _stateFilePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to save plugin state to {Path}", _stateFilePath);
+        }
+    }
+
+    private void LoadState()
+    {
+        try
+        {
+            if (!File.Exists(_stateFilePath))
+                return;
+
+            var json = File.ReadAllText(_stateFilePath);
+            var state = JsonSerializer.Deserialize<Dictionary<string, bool>>(json, _jsonOptions);
+            if (state == null) return;
+
+            foreach (var kvp in state)
+            {
+                if (_plugins.ContainsKey(kvp.Key))
+                {
+                    _enabledPlugins[kvp.Key] = kvp.Value;
+                    _logger.LogInformation("Plugin '{PluginId}' state loaded from persistence: {Enabled}",
+                        kvp.Key, kvp.Value);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load plugin state from {Path}", _stateFilePath);
+        }
     }
 }

@@ -3,48 +3,21 @@
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
-<!-- Stat bar (compact) -->
-<div id="stat-bar" class="row g-3 mb-3">
-    <div class="col-12">
-        <div class="info-bar">
-            <div class="info-bar-content">
-                <span><i class="bi bi-signpost-split"></i><span data-i18n="index.stat.routes">路由规则：</span><strong id="stat-routes">-</strong></span>
-            </div>
-            <div class="info-bar-actions">
-                <div class="btn-group btn-group-sm" style="border:1px solid var(--border-color);border-radius:8px;overflow:hidden;">
-                    <button class="btn px-2 py-1 view-toggle active" data-view="cards" onclick="RoutesView.toggle('cards')" title="卡片视图" style="font-size:13px;background:var(--primary-color);color:#fff;border:none;">
-                        <i class="bi bi-grid-3x3-gap"></i>
-                    </button>
-                    <button class="btn px-2 py-1 view-toggle" data-view="table" onclick="RoutesView.toggle('table')" title="表格视图" style="font-size:13px;background:var(--card-bg);color:var(--text-secondary);border:none;">
-                        <i class="bi bi-list-ul"></i>
-                    </button>
-                </div>
-                <button class="btn btn-icon btn-outline-primary" onclick="routesRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
-                    <i class="bi bi-arrow-clockwise"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Route panel -->
 <div id="route-panel" class="card-panel mb-3">
     <div class="card-header">
         <span><i class="bi bi-signpost-split me-2"></i><span data-i18n="index.route.title">路由规则列表</span></span>
         <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
             <span class="refresh-badge" id="route-refresh-time"></span>
-            <span class="refresh-badge"><span data-i18n="index.route.showing">Showing </span><strong id="route-display-count">0</strong><span data-i18n="index.route.of"> / </span><span id="route-total-count">0</span><span data-i18n="index.route.entries"> entries</span></span>
+            <span class="refresh-badge"><span data-i18n="index.route.showing">显示 </span><strong id="route-display-count">0</strong><span data-i18n="index.route.of"> / </span><span id="route-total-count">0</span><span data-i18n="index.route.entries"> 个</span></span>
         </div>
     </div>
     
     <!-- Filter toolbar container -->
     <div id="route-filter-container"></div>
 
-    <!-- Cards view -->
-    <div id="route-cards-view" class="card-body"></div>
-
-    <!-- Table view (hidden by default) -->
-    <div id="route-table-view" style="display:none;">
+    <!-- Table view -->
+    <div id="route-table-view">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead>
@@ -77,37 +50,9 @@
     dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
     dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
     dash.currentPage = 'routes';
-</script>
 
-<script>
-    // View toggle for routes
-    window.RoutesView = {
-        current: localStorage.getItem('routes_view') || 'cards',
-        toggle: function(view) {
-            this.current = view;
-            localStorage.setItem('routes_view', view);
-            var cardsView = document.getElementById('route-cards-view');
-            var tableView = document.getElementById('route-table-view');
-            var btns = document.querySelectorAll('.view-toggle');
-            btns.forEach(function(b) {
-                if (b.dataset.view === view) {
-                    b.style.background = 'var(--primary-color)';
-                    b.style.color = '#fff';
-                    b.classList.add('active');
-                } else {
-                    b.style.background = 'var(--card-bg)';
-                    b.style.color = 'var(--text-secondary)';
-                    b.classList.remove('active');
-                }
-            });
-            if (cardsView) cardsView.style.display = view === 'cards' ? '' : 'none';
-            if (tableView) tableView.style.display = view === 'table' ? '' : 'none';
-        }
-    };
-    document.addEventListener('DOMContentLoaded', function() {
-        var saved = localStorage.getItem('routes_view') || 'cards';
-        RoutesView.toggle(saved);
-    });
+    // Initialize i18n after setting translations
+    if (window.DashboardI18n) { window.DashboardI18n.init(); }
 </script>
 
 <script>

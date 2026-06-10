@@ -42,8 +42,7 @@ internal sealed class DashboardAuthFilter : IAsyncAuthorizationFilter
         if (await _authService.IsAuthorizedAsync(context.HttpContext)) return;
 
         var request = context.HttpContext.Request;
-        var isApi = request.Headers["X-Requested-With"] == "XMLHttpRequest"
-            || (request.Headers["Accept"].FirstOrDefault()?.Contains("application/json") == true)
+        var isApi = (request.Headers["Accept"].FirstOrDefault()?.Contains("application/json") == true)
             || request.Path.StartsWithSegments($"/{_routePrefix}/api");
 
         if (isApi)

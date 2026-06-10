@@ -9,7 +9,7 @@ namespace Aneiang.Yarp.Dashboard.Services;
 /// Persists webhook settings via <see cref="IStructuredDataStore"/>.
 /// Uses in-memory caching to avoid blocking async calls.
 /// </summary>
-public class WebhookSettingsPersistenceService
+public class WebhookSettingsPersistenceService : IWebhookSettingsPersistenceService
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -104,8 +104,41 @@ public class WebhookSettingsPersistenceService
         return LoadInternalAsync(CancellationToken.None).GetAwaiter().GetResult();
     }
 
+    /// <summary>Load webhook settings from store asynchronously.</summary>
+    public async Task<WebhookSettingsData?> LoadAsync(CancellationToken ct = default)
+    {
+        if (_initialized && _cachedData != null)
+            return _cachedData;
+
+        await _cacheLock.WaitAsync(ct);
+        try
+        {
+            if (_initialized && _cachedData != null)
+                return _cachedData;
+
+            _cachedData = await LoadInternalAsync(ct);
+            _initialized = true;
+            return _cachedData;
+        }
+        finally
+        {
+            _cacheLock.Release();
+        }
+    }
+
     /// <summary>Save webhook settings to store.</summary>
     public bool Save(WebhookSettingsData data)
+    {
+        return SaveCoreAsync(data, CancellationToken.None).GetAwaiter().GetResult();
+    }
+
+    /// <summary>Save webhook settings to store asynchronously.</summary>
+    public async Task<bool> SaveAsync(WebhookSettingsData data, CancellationToken ct = default)
+    {
+        return await SaveCoreAsync(data, ct);
+    }
+
+    private async Task<bool> SaveCoreAsync(WebhookSettingsData data, CancellationToken ct)
     {
         try
         {
@@ -115,13 +148,13 @@ public class WebhookSettingsPersistenceService
                          data.GenericEndpoints?.Any(e => !string.IsNullOrEmpty(e.Url)) == true,
                 Endpoints = JsonSerializer.Serialize(data.DingTalkEndpoints, _jsonOptions),
                 Events = data.EnabledEvents != null ? JsonSerializer.Serialize(data.EnabledEvents, _jsonOptions) : null,
-                TimeoutSeconds = 30,
-                RetryCount = 3,
+                TimeoutSeconds = data.TimeoutSeconds > 0 ? data.TimeoutSeconds : 10,
+                RetryCount = data.RetryCount >= 0 ? data.RetryCount : 1,
                 Secret = data.DingTalkEndpoints?.FirstOrDefault()?.Secret,
                 UpdatedAt = DateTime.UtcNow
             };
 
-            _store.SaveWebhookSettingsAsync(entity).GetAwaiter().GetResult();
+            await _store.SaveWebhookSettingsAsync(entity, ct);
             _cachedData = data;
             _logger.LogInformation("Webhook settings saved to structured store");
             return true;
@@ -158,4 +191,10 @@ public class WebhookSettingsData
     /// Supported values: AddRoute, UpdateRoute, RemoveRoute, AddCluster, UpdateCluster, RemoveCluster, RenameCluster, RollbackConfig.
     /// </summary>
     public List<string>? EnabledEvents { get; set; }
+
+    /// <summary>HTTP request timeout in seconds. Default 10.</summary>
+    public int TimeoutSeconds { get; set; } = 10;
+
+    /// <summary>Number of retry attempts on failure. Default 1.</summary>
+    public int RetryCount { get; set; } = 1;
 }

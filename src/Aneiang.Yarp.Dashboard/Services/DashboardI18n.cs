@@ -29,6 +29,7 @@ public static class DashboardI18n
         ["layout.user.loggedIn"] = "已登录",
         ["layout.user.logout"] = "退出登录",
         ["layout.user.logoutConfirm"] = "确认退出登录？",
+        ["layout.tab.closeAll"] = "关闭全部",
 
         // ── Login ──
         ["login.title"] = "登录 - 网关仪表盘",
@@ -62,6 +63,9 @@ public static class DashboardI18n
         ["index.stat.health"] = "健康 / 未知 / 异常",
         ["index.stat.routes"] = "路由规则",
         ["index.loading"] = "加载中...",
+        ["index.serviceTab.clusters"] = "集群列表",
+        ["index.serviceTab.routes"] = "路由列表",
+        ["home.viewAll"] = "查看全部",
 
         // ── Index – search common ─
         ["index.search.clear"] = "清除",
@@ -69,6 +73,7 @@ public static class DashboardI18n
         // ── Index – cluster panel ──
         ["index.cluster.title"] = "集群 & 目标节点状态",
         ["index.cluster.add"] = "新增",
+        ["index.cluster.unavailable"] = "暂未开放",
         ["index.cluster.loading"] = "加载中...",
         ["index.cluster.loadFailed"] = "加载集群数据失败",
         ["index.cluster.search"] = "搜索集群",
@@ -110,6 +115,7 @@ public static class DashboardI18n
         // ── Index – route panel ─
         ["index.route.title"] = "路由规则列表",
         ["index.route.add"] = "新增",
+        ["index.route.unavailable"] = "暂未开放",
         ["index.route.loading"] = "加载中...",
         ["index.route.loadFailed"] = "加载路由数据失败",
         ["index.route.search"] = "搜索路由",
@@ -143,6 +149,11 @@ public static class DashboardI18n
         ["index.route.transforms"] = "请求转换",
         ["index.route.metadata"] = "元数据",
         ["index.route.basicInfo"] = "基本信息",
+        ["index.route.retry"] = "重试配置",
+        ["index.route.retry.enabled"] = "启用重试",
+        ["index.route.retry.maxRetries"] = "最大重试次数",
+        ["index.route.retry.statusCodes"] = "重试状态码",
+        ["index.route.retry.nonIdempotent"] = "重试非幂等请求",
 
         // ── Index – log panel ──
         ["index.log.title"] = "YARP 实时日志",
@@ -252,12 +263,11 @@ public static class DashboardI18n
         ["modal.deleteRoute"] = "删除路由",
         ["modal.clusterIdRequired"] = "集群ID和至少一个目标地址为必填项",
         ["modal.routeRequired"] = "路由的集群ID、匹配路径和目标地址为必填项",
-        ["modal.apiNotImplemented"] = "API尚未实现",
-        ["modal.apiNotImplementedCluster"] = "集群创建API尚未实现",
         ["modal.validationError"] = "请填写所有必填字段",
         ["modal.invalidJson"] = "JSON格式错误",
         ["modal.validJson"] = "JSON格式有效",
         ["modal.copyFailed"] = "复制失败",
+        ["modal.formatted"] = "已格式化",
         ["modal.validate"] = "验证",
 
         // ── Filter Toolbar ──
@@ -320,6 +330,17 @@ public static class DashboardI18n
         ["index.route.notEditable"] = "静态配置的路由无法通过Dashboard编辑",
         ["index.route.editDisabled"] = "静态配置无法编辑",
         ["index.route.deleting"] = "正在删除路由...",
+        ["index.route.disabled"] = "已禁用",
+        ["index.route.disabledShort"] = "禁用",
+        ["index.route.enable"] = "启用",
+        ["index.route.disable"] = "禁用",
+        ["index.route.confirmEnable"] = "确认启用路由 {id}？",
+        ["index.route.confirmDisable"] = "确认禁用路由 {id}？",
+        ["index.route.toggling"] = "正在操作...",
+        ["index.route.enabledSuccess"] = "路由已启用: {id}",
+        ["index.route.disabledSuccess"] = "路由已禁用: {id}",
+        ["index.route.enabledFailed"] = "启用路由失败",
+        ["index.route.disabledFailed"] = "禁用路由失败",
 
         // ── Import/Export ──
         ["config.management"] = "配置管理",
@@ -352,6 +373,7 @@ public static class DashboardI18n
         ["config.selectJsonFile"] = "请选择JSON文件",
         ["config.manualSnapshot"] = "手动快照",
         ["config.getHistoryFailed"] = "获取配置历史失败",
+        ["config.loading"] = "加载中...",
         ["config.close"] = "关闭",
 
         // ── Webhook Settings ──
@@ -418,9 +440,7 @@ public static class DashboardI18n
 
         // ── JSON Mode ──
         ["modal.addCluster"] = "添加集群 (JSON模式)",
-        ["modal.editCluster"] = "编辑集群 (JSON模式)",
         ["modal.addRoute"] = "添加路由 (JSON模式)",
-        ["modal.editRoute"] = "编辑路由 (JSON模式)",
         ["modal.clusterId"] = "输入集群ID",
         ["modal.clusterIdPlaceholder"] = "例如: my-service-cluster",
         ["modal.clusterIdHelp"] = "集群ID用于标识和引用此集群，建议使用服务名作为ID",
@@ -434,7 +454,6 @@ public static class DashboardI18n
         ["index.route.invalidMatch"] = "Match 配置无效，必须指定 Path 或 Hosts",
         ["index.route.clusterNotFound"] = "指定的集群不存在",
         ["index.cluster.destinations"] = "目标地址",
-        ["index.cluster.destCount"] = "节点数",
         ["index.cluster.health.filter"] = "健康状态",
         ["index.route.orderCol"] = "优先级",
         ["index.route.clusterCol"] = "集群",
@@ -443,6 +462,7 @@ public static class DashboardI18n
         ["index.copyJson"] = "复制JSON",
         ["index.copyJson.title"] = "复制YARP格式的JSON配置",
         ["index.copied"] = "已复制到剪贴板",
+        ["index.copyFailed"] = "复制失败",
         ["index.viewRawJson"] = "查看原始JSON",
         ["index.bool.yes"] = "是",
         ["index.bool.no"] = "否",
@@ -479,8 +499,8 @@ public static class DashboardI18n
         ["stats.p99Latency"] = "P99 耗时",
         ["stats.errorRate"] = "错误率",
         ["stats.statusCodes"] = "状态码分布",
-        ["stats.topRoutes"] = "路由排行",
-        ["stats.topClusters"] = "集群排行",
+        ["stats.topRoutes"] = "热门路由",
+        ["stats.topClusters"] = "热门集群",
         ["stats.requests"] = "请求",
         ["stats.latency"] = "耗时",
         ["stats.count"] = "次数",
@@ -491,6 +511,12 @@ public static class DashboardI18n
         ["stats.noDataHelp"] = "产生代理请求后统计数据将自动显示",
         ["stats.refresh"] = "刷新统计",
         ["stats.requestsPerMin"] = "请求/分钟",
+        ["stats.rpm"] = "每分钟请求",
+        ["stats.timeRange"] = "时间范围",
+        ["stats.chart.qps"] = "QPS 趋势",
+        ["stats.chart.statusCodes"] = "状态码分布",
+        ["stats.chart.latency"] = "延迟分布",
+        ["stats.chart.errorRate"] = "错误率趋势",
 
         // ── Config History panel ──
         ["layout.tab.history"] = "配置历史",
@@ -590,6 +616,48 @@ public static class DashboardI18n
         ["health.timeout"] = "超时",
         ["health.reactivation"] = "恢复周期",
         ["health.refresh"] = "刷新",
+        ["health.score"] = "健康评分",
+        ["health.summary"] = "集群健康概览",
+        ["health.total"] = "总计",
+        ["health.lastCheck"] = "上次检查",
+        ["health.critical.title"] = "异常目标节点",
+        ["health.th.cluster"] = "集群",
+        ["health.th.destination"] = "目标地址",
+        ["health.th.status"] = "状态",
+        ["health.th.reason"] = "原因",
+        ["health.th.actions"] = "操作",
+        ["health.filter.unhealthy"] = "仅显示异常",
+        ["health.reason.consecutiveFailures"] = "连续失败",
+        ["health.check"] = "检查",
+        ["health.status.healthy"] = "健康",
+        ["health.status.warning"] = "警告",
+        ["health.status.critical"] = "严重",
+        ["health.checking"] = "检查中...",
+
+        // ── Overview page ──
+        ["overview.chart.traffic"] = "流量趋势",
+        ["overview.top.errorRoutes"] = "异常路由排行",
+        ["overview.top.slowClusters"] = "延迟集群排行",
+        ["overview.top.th.route"] = "路由",
+        ["overview.top.th.errors"] = "错误数",
+        ["overview.top.th.rate"] = "错误率",
+        ["overview.top.th.cluster"] = "集群",
+        ["overview.top.th.avgLatency"] = "平均延迟",
+        ["overview.top.th.p99"] = "P99",
+        ["overview.top.empty"] = "暂无数据",
+        ["overview.quickActions.loadFailed"] = "加载路由列表失败",
+        ["overview.quickActions.selectDisable"] = "选择要禁用的路由",
+        ["overview.quickActions.selectEnable"] = "选择要启用的路由",
+        ["overview.quickActions.disable"] = "紧急禁用",
+        ["overview.quickActions.enable"] = "重新启用",
+        ["overview.quickActions.noEnabledRoutes"] = "没有可禁用的路由",
+        ["overview.quickActions.noDisabledRoutes"] = "没有可启用的路由",
+        ["overview.quickActions.confirmDisable"] = "确认紧急禁用路由 {id}？",
+        ["overview.quickActions.disabledSuccess"] = "路由已禁用: {id}",
+        ["overview.quickActions.disabledFailed"] = "禁用路由失败: {id}",
+        ["overview.quickActions.enabledSuccess"] = "路由已启用: {id}",
+        ["overview.quickActions.enabledFailed"] = "启用路由失败: {id}",
+        ["overview.quickActions.healthRefreshed"] = "健康状态已刷新",
 
         // ── Settings page ──
         ["settings.rateLimit"] = "限流设置",
@@ -797,6 +865,8 @@ public static class DashboardI18n
         ["plugin.enabled"] = "已启用",
         ["plugin.disabled"] = "已禁用",
         ["plugin.toggle"] = "切换",
+        ["plugin.toggleOn"] = "启用",
+        ["plugin.toggleOff"] = "禁用",
         ["plugin.toggleConfirm"] = "确认 {action} 插件 {name}？",
         ["plugin.enableSuccess"] = "插件已启用",
         ["plugin.disableSuccess"] = "插件已禁用",
@@ -808,6 +878,36 @@ public static class DashboardI18n
         ["plugin.refresh"] = "刷新",
         ["plugin.total"] = "共 {count} 个插件",
         ["plugin.version"] = "版本",
+
+        // ── Diff Panel ────────────────────────────────
+        ["diff.title"] = "配置差异对比",
+        ["diff.noChanges"] = "没有检测到变更",
+        ["diff.added"] = "新增",
+        ["diff.removed"] = "移除",
+        ["diff.modified"] = "修改",
+        ["diff.old"] = "旧值",
+        ["diff.new"] = "新值",
+        ["diff.close"] = "关闭",
+        ["diff.compareWithCurrent"] = "对比当前",
+        ["diff.loading"] = "加载差异...",
+        ["diff.loadFailed"] = "加载差异失败",
+
+        // ── Overview Chart ───────────────────────────
+        ["overview.chart.timeRange.5min"] = "5分钟",
+        ["overview.chart.timeRange.15min"] = "15分钟",
+        ["overview.chart.timeRange.1hour"] = "1小时",
+
+        // ── Cluster Toggle ───────────────────────────
+        ["index.cluster.enable"] = "启用",
+        ["index.cluster.disable"] = "禁用",
+        ["index.cluster.enableConfirm"] = "确认启用集群 {id}？",
+        ["index.cluster.disableConfirm"] = "确认禁用集群 {id}？",
+        ["index.cluster.enabled"] = "集群已启用",
+        ["index.cluster.disabled"] = "集群已禁用",
+        ["index.cluster.toggleFailed"] = "切换集群状态失败",
+
+        // ── History Diff ─────────────────────────────
+        ["history.diff"] = "差异对比",
 
     };
 
@@ -831,6 +931,7 @@ public static class DashboardI18n
         ["layout.user.loggedIn"] = "Logged in",
         ["layout.user.logout"] = "Logout",
         ["layout.user.logoutConfirm"] = "Confirm logout?",
+        ["layout.tab.closeAll"] = "Close All",
 
         // ── Login ──
         ["login.title"] = "Login - Gateway Dashboard",
@@ -864,6 +965,10 @@ public static class DashboardI18n
         ["index.stat.health"] = "Healthy / Unknown / Unhealthy",
         ["index.stat.routes"] = "Routes",
         ["index.loading"] = "Loading...",
+        ["index.serviceTab.clusters"] = "Cluster List",
+        ["index.serviceTab.routes"] = "Route List",
+        ["home.viewAll"] = "View All",
+
 
         // ── Index – search common ─
         ["index.search.clear"] = "Clear",
@@ -871,6 +976,7 @@ public static class DashboardI18n
         // ── Index – cluster panel ──
         ["index.cluster.title"] = "Cluster & Destination Status",
         ["index.cluster.add"] = "Add",
+        ["index.cluster.unavailable"] = "Temporarily unavailable",
         ["index.cluster.loading"] = "Loading...",
         ["index.cluster.loadFailed"] = "Failed to load clusters",
         ["index.cluster.search"] = "Search clusters",
@@ -912,6 +1018,7 @@ public static class DashboardI18n
         // ── Index – route panel ──
         ["index.route.title"] = "Route Rules",
         ["index.route.add"] = "Add",
+        ["index.route.unavailable"] = "Temporarily unavailable",
         ["index.route.loading"] = "Loading...",
         ["index.route.loadFailed"] = "Failed to load routes",
         ["index.route.search"] = "Search routes",
@@ -945,6 +1052,11 @@ public static class DashboardI18n
         ["index.route.transforms"] = "Transforms",
         ["index.route.metadata"] = "Metadata",
         ["index.route.basicInfo"] = "Basic Info",
+        ["index.route.retry"] = "Retry Configuration",
+        ["index.route.retry.enabled"] = "Retry Enabled",
+        ["index.route.retry.maxRetries"] = "Max Retries",
+        ["index.route.retry.statusCodes"] = "Retry Status Codes",
+        ["index.route.retry.nonIdempotent"] = "Retry Non-Idempotent",
 
         // ── Index – log panel ──
         ["index.log.title"] = "YARP Live Logs",
@@ -1054,12 +1166,11 @@ public static class DashboardI18n
         ["modal.deleteRoute"] = "Delete Route",
         ["modal.clusterIdRequired"] = "ClusterId and at least one destination are required",
         ["modal.routeRequired"] = "ClusterId, MatchPath, and DestinationAddress are required",
-        ["modal.apiNotImplemented"] = "API not implemented",
-        ["modal.apiNotImplementedCluster"] = "Cluster API not implemented",
         ["modal.validationError"] = "Please fill all required fields",
         ["modal.invalidJson"] = "Invalid JSON format",
         ["modal.validJson"] = "JSON is valid",
         ["modal.copyFailed"] = "Copy failed",
+        ["modal.formatted"] = "Formatted",
         ["modal.validate"] = "Validate",
 
         // ── Filter Toolbar ──
@@ -1122,6 +1233,18 @@ public static class DashboardI18n
         ["index.route.notEditable"] = "Static config route cannot be edited via Dashboard",
         ["index.route.editDisabled"] = "Static config cannot be edited",
         ["index.route.deleting"] = "Deleting route...",
+        ["index.route.disabled"] = "Disabled",
+        ["index.route.disabledShort"] = "Off",
+        ["index.route.enable"] = "Enable",
+        ["index.route.disable"] = "Disable",
+        ["index.route.confirmEnable"] = "Confirm enable route {id}?",
+        ["index.route.confirmDisable"] = "Confirm disable route {id}?",
+        ["index.route.toggling"] = "Processing...",
+        ["index.route.enabledSuccess"] = "Route enabled: {id}",
+        ["index.route.disabledSuccess"] = "Route disabled: {id}",
+        ["index.route.enabledFailed"] = "Failed to enable route",
+        ["index.route.disabledFailed"] = "Failed to disable route",
+
 
         // ── Import/Export ──
         ["config.management"] = "Config Management",
@@ -1154,6 +1277,7 @@ public static class DashboardI18n
         ["config.selectJsonFile"] = "Please select a JSON file",
         ["config.manualSnapshot"] = "Manual snapshot",
         ["config.getHistoryFailed"] = "Failed to get config history",
+        ["config.loading"] = "Loading...",
         ["config.close"] = "Close",
 
         // ── Webhook Settings ──
@@ -1220,9 +1344,7 @@ public static class DashboardI18n
 
         // ── JSON Mode ──
         ["modal.addCluster"] = "Add Cluster (JSON Mode)",
-        ["modal.editCluster"] = "Edit Cluster (JSON Mode)",
         ["modal.addRoute"] = "Add Route (JSON Mode)",
-        ["modal.editRoute"] = "Edit Route (JSON Mode)",
         ["modal.clusterId"] = "Enter Cluster ID",
         ["modal.clusterIdPlaceholder"] = "e.g.: my-service-cluster",
         ["modal.clusterIdHelp"] = "Cluster ID identifies this cluster, recommend using service name as ID",
@@ -1236,7 +1358,6 @@ public static class DashboardI18n
         ["index.route.invalidMatch"] = "Match config invalid, must specify Path or Hosts",
         ["index.route.clusterNotFound"] = "Specified cluster not found",
         ["index.cluster.destinations"] = "Destinations",
-        ["index.cluster.destCount"] = "Dests",
         ["index.cluster.health.filter"] = "Health",
         ["index.route.orderCol"] = "Order",
         ["index.route.clusterCol"] = "Cluster",
@@ -1245,6 +1366,7 @@ public static class DashboardI18n
         ["index.copyJson"] = "Copy JSON",
         ["index.copyJson.title"] = "Copy YARP-format JSON config",
         ["index.copied"] = "Copied to clipboard",
+        ["index.copyFailed"] = "Copy failed",
         ["index.viewRawJson"] = "View Raw JSON",
         ["index.bool.yes"] = "Yes",
         ["index.bool.no"] = "No",
@@ -1293,6 +1415,13 @@ public static class DashboardI18n
         ["stats.noDataHelp"] = "Statistics will appear after proxy requests are made",
         ["stats.refresh"] = "Refresh Stats",
         ["stats.requestsPerMin"] = "Req/min",
+        ["stats.rpm"] = "Requests per Minute",
+        ["stats.timeRange"] = "Time Range",
+        ["stats.chart.qps"] = "QPS Trend",
+        ["stats.chart.statusCodes"] = "Status Code Distribution",
+        ["stats.chart.latency"] = "Latency Distribution",
+        ["stats.chart.errorRate"] = "Error Rate Trend",
+
 
         // ── Config History panel ──
         ["layout.tab.history"] = "History",
@@ -1392,6 +1521,48 @@ public static class DashboardI18n
         ["health.timeout"] = "Timeout",
         ["health.reactivation"] = "Reactivation",
         ["health.refresh"] = "Refresh",
+        ["health.score"] = "Health Score",
+        ["health.summary"] = "Cluster Health Overview",
+        ["health.total"] = "Total",
+        ["health.lastCheck"] = "Last Check",
+        ["health.critical.title"] = "Unhealthy Destinations",
+        ["health.th.cluster"] = "Cluster",
+        ["health.th.destination"] = "Destination",
+        ["health.th.status"] = "Status",
+        ["health.th.reason"] = "Reason",
+        ["health.th.actions"] = "Actions",
+        ["health.filter.unhealthy"] = "Show Unhealthy Only",
+        ["health.reason.consecutiveFailures"] = "Consecutive Failures",
+        ["health.check"] = "Check",
+        ["health.status.healthy"] = "Healthy",
+        ["health.status.warning"] = "Warning",
+        ["health.status.critical"] = "Critical",
+        ["health.checking"] = "Checking...",
+
+        // ── Overview page ──
+        ["overview.chart.traffic"] = "Traffic Trend",
+        ["overview.top.errorRoutes"] = "Top Error Routes",
+        ["overview.top.slowClusters"] = "Top Slow Clusters",
+        ["overview.top.th.route"] = "Route",
+        ["overview.top.th.errors"] = "Errors",
+        ["overview.top.th.rate"] = "Error Rate",
+        ["overview.top.th.cluster"] = "Cluster",
+        ["overview.top.th.avgLatency"] = "Avg Latency",
+        ["overview.top.th.p99"] = "P99",
+        ["overview.top.empty"] = "No data",
+        ["overview.quickActions.loadFailed"] = "Failed to load routes",
+        ["overview.quickActions.selectDisable"] = "Select routes to disable",
+        ["overview.quickActions.selectEnable"] = "Select routes to enable",
+        ["overview.quickActions.disable"] = "Emergency Disable",
+        ["overview.quickActions.enable"] = "Re-enable",
+        ["overview.quickActions.noEnabledRoutes"] = "No routes to disable",
+        ["overview.quickActions.noDisabledRoutes"] = "No routes to enable",
+        ["overview.quickActions.confirmDisable"] = "Confirm emergency disable route {id}?",
+        ["overview.quickActions.disabledSuccess"] = "Route disabled: {id}",
+        ["overview.quickActions.disabledFailed"] = "Failed to disable route: {id}",
+        ["overview.quickActions.enabledSuccess"] = "Route enabled: {id}",
+        ["overview.quickActions.enabledFailed"] = "Failed to enable route: {id}",
+        ["overview.quickActions.healthRefreshed"] = "Health status refreshed",
 
         // ── Settings page ──
         ["settings.rateLimit"] = "Rate Limiting",
@@ -1599,6 +1770,8 @@ public static class DashboardI18n
         ["plugin.enabled"] = "Enabled",
         ["plugin.disabled"] = "Disabled",
         ["plugin.toggle"] = "Toggle",
+        ["plugin.toggleOn"] = "Enable",
+        ["plugin.toggleOff"] = "Disable",
         ["plugin.toggleConfirm"] = "Confirm {action} plugin {name}?",
         ["plugin.enableSuccess"] = "Plugin enabled",
         ["plugin.disableSuccess"] = "Plugin disabled",
@@ -1610,6 +1783,36 @@ public static class DashboardI18n
         ["plugin.refresh"] = "Refresh",
         ["plugin.total"] = "{count} plugins total",
         ["plugin.version"] = "Version",
+
+        // ── Diff Panel ────────────────────────────────
+        ["diff.title"] = "Configuration Diff",
+        ["diff.noChanges"] = "No changes detected",
+        ["diff.added"] = "Added",
+        ["diff.removed"] = "Removed",
+        ["diff.modified"] = "Modified",
+        ["diff.old"] = "Old",
+        ["diff.new"] = "New",
+        ["diff.close"] = "Close",
+        ["diff.compareWithCurrent"] = "Compare with Current",
+        ["diff.loading"] = "Loading diff...",
+        ["diff.loadFailed"] = "Failed to load diff",
+
+        // ── Overview Chart ───────────────────────────
+        ["overview.chart.timeRange.5min"] = "5 min",
+        ["overview.chart.timeRange.15min"] = "15 min",
+        ["overview.chart.timeRange.1hour"] = "1 hour",
+
+        // ── Cluster Toggle ───────────────────────────
+        ["index.cluster.enable"] = "Enable",
+        ["index.cluster.disable"] = "Disable",
+        ["index.cluster.enableConfirm"] = "Enable cluster {id}?",
+        ["index.cluster.disableConfirm"] = "Disable cluster {id}?",
+        ["index.cluster.enabled"] = "Cluster enabled",
+        ["index.cluster.disabled"] = "Cluster disabled",
+        ["index.cluster.toggleFailed"] = "Failed to toggle cluster state",
+
+        // ── History Diff ─────────────────────────────
+        ["history.diff"] = "Diff",
 
     };
 

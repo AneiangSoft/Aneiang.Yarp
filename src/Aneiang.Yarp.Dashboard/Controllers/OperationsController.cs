@@ -4,6 +4,7 @@ using Aneiang.Yarp.Dashboard.Models.Dtos;
 using Aneiang.Yarp.Dashboard.Services;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Aneiang.Yarp.Dashboard.Controllers;
 
@@ -19,17 +20,27 @@ public class OperationsController : ControllerBase
     private readonly IDashboardClusterQueryService _clusterQuery;
     private readonly IDashboardRouteQueryService _routeQuery;
     private readonly DynamicYarpConfigService _dynamicConfig;
+    private readonly IMemoryCache _memoryCache;
 
     public OperationsController(
         IDashboardLogQueryService logQuery,
         IDashboardClusterQueryService clusterQuery,
         IDashboardRouteQueryService routeQuery,
-        DynamicYarpConfigService dynamicConfig)
+        DynamicYarpConfigService dynamicConfig,
+        IMemoryCache memoryCache)
     {
         _logQuery = logQuery;
         _clusterQuery = clusterQuery;
         _routeQuery = routeQuery;
         _dynamicConfig = dynamicConfig;
+        _memoryCache = memoryCache;
+    }
+
+    /// <summary>Invalidates the dashboard query caches after a config mutation.</summary>
+    private void InvalidateQueryCaches()
+    {
+        _memoryCache.Remove("dashboard:routes:query");
+        _memoryCache.Remove("dashboard:clusters:query");
     }
 
     /// <summary>
@@ -265,6 +276,7 @@ public class OperationsController : ControllerBase
         var clientIp = GetClientIp();
         var result = await _dynamicConfig.TrySetRouteDisabled(routeId, true, "emergency", clientIp);
 
+        if (result.Success) InvalidateQueryCaches();
         return result.Success
             ? Ok(new { code = 200, message = result.Message, data = new { routeId, action = "disabled", timestamp = DateTime.Now } })
             : BadRequest(new { code = 400, message = result.Message });
@@ -283,6 +295,7 @@ public class OperationsController : ControllerBase
         var clientIp = GetClientIp();
         var result = await _dynamicConfig.TrySetRouteDisabled(routeId, false, "emergency", clientIp);
 
+        if (result.Success) InvalidateQueryCaches();
         return result.Success
             ? Ok(new { code = 200, message = result.Message, data = new { routeId, action = "enabled", timestamp = DateTime.Now } })
             : BadRequest(new { code = 400, message = result.Message });

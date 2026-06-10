@@ -96,36 +96,55 @@ public class WebhookNotificationService
 
     private async Task SendAsync(string url, WebhookPayload payload)
     {
-        try
+        int maxRetries = Math.Clamp(_options.WebhookRetryCount, 0, 5);
+        int timeoutSeconds = _options.WebhookTimeoutSeconds > 0 ? _options.WebhookTimeoutSeconds : 10;
+
+        for (int attempt = 0; attempt <= maxRetries; attempt++)
         {
-            var provider = ResolveProvider(url);
-            var secret = ResolveSecret(url, provider);
-            var request = provider.BuildRequest(url, payload, secret);
-
-            using var http = _httpClientFactory.CreateClient("webhook");
-            http.Timeout = TimeSpan.FromSeconds(10);
-
-            var httpRequest = new HttpRequestMessage(
-                new HttpMethod(request.Method), request.Url);
-
-            if (request.Body != null)
+            try
             {
-                httpRequest.Content = new StringContent(request.Body, System.Text.Encoding.UTF8, request.ContentType);
-            }
+                var provider = ResolveProvider(url);
+                var secret = ResolveSecret(url, provider);
+                var request = provider.BuildRequest(url, payload, secret);
 
-            foreach (var (key, value) in request.Headers)
+                using var http = _httpClientFactory.CreateClient("webhook");
+                http.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+
+                var httpRequest = new HttpRequestMessage(
+                    new HttpMethod(request.Method), request.Url);
+
+                if (request.Body != null)
+                {
+                    httpRequest.Content = new StringContent(request.Body, System.Text.Encoding.UTF8, request.ContentType);
+                }
+
+                foreach (var (key, value) in request.Headers)
+                {
+                    httpRequest.Headers.TryAddWithoutValidation(key, value);
+                }
+
+                var response = await http.SendAsync(httpRequest);
+                _logger.LogDebug(
+                    "Webhook sent to {Url} via {Provider}: {StatusCode}",
+                    url, provider.GetType().Name, (int)response.StatusCode);
+
+                // Success — no retry needed
+                return;
+            }
+            catch (Exception ex)
             {
-                httpRequest.Headers.TryAddWithoutValidation(key, value);
+                if (attempt < maxRetries)
+                {
+                    var delay = TimeSpan.FromMilliseconds(300 * (attempt + 1));
+                    _logger.LogDebug(ex, "Webhook to {Url} failed (attempt {Attempt}/{MaxRetries}), retrying in {Delay}ms",
+                        url, attempt + 1, maxRetries, delay.TotalMilliseconds);
+                    await Task.Delay(delay);
+                }
+                else
+                {
+                    _logger.LogWarning(ex, "Failed to send webhook to {Url} after {MaxRetries} retries", url, maxRetries);
+                }
             }
-
-            var response = await http.SendAsync(httpRequest);
-            _logger.LogDebug(
-                "Webhook sent to {Url} via {Provider}: {StatusCode}",
-                url, provider.GetType().Name, (int)response.StatusCode);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to send webhook to {Url}", url);
         }
     }
 

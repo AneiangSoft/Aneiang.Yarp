@@ -8,14 +8,6 @@
     <div class="card-header">
         <span><i class="bi bi-hdd-stack me-2"></i><span data-i18n="index.cluster.title">集群 &amp; 目标节点状态</span></span>
         <div class="info-bar-actions">
-            <div class="btn-group btn-group-sm" style="border:1px solid var(--border-color);border-radius:8px;overflow:hidden;">
-                <button class="btn px-2 py-1 view-toggle active" data-view="cards" onclick="ClustersView.toggle('cards')" title="卡片视图" style="font-size:13px;background:var(--primary-color);color:#fff;border:none;">
-                    <i class="bi bi-grid-3x3-gap"></i>
-                </button>
-                <button class="btn px-2 py-1 view-toggle" data-view="table" onclick="ClustersView.toggle('table')" title="表格视图" style="font-size:13px;background:var(--card-bg);color:var(--text-secondary);border:none;">
-                    <i class="bi bi-list-ul"></i>
-                </button>
-            </div>
         </div>
         <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
             <span class="refresh-badge" id="cluster-refresh-time"></span>
@@ -26,11 +18,8 @@
     <!-- Filter toolbar container -->
     <div id="cluster-filter-container"></div>
 
-    <!-- Cards view -->
-    <div id="cluster-cards-view" class="card-body"></div>
-
-    <!-- Table view (hidden by default) -->
-    <div id="cluster-table-view" style="display:none;">
+    <!-- Table view -->
+    <div id="cluster-table-view">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead>
@@ -63,37 +52,9 @@
     dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
     dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
     dash.currentPage = 'clusters';
-</script>
 
-<script>
-    // View toggle for clusters
-    window.ClustersView = {
-        current: localStorage.getItem('clusters_view') || 'cards',
-        toggle: function(view) {
-            this.current = view;
-            localStorage.setItem('clusters_view', view);
-            var cardsView = document.getElementById('cluster-cards-view');
-            var tableView = document.getElementById('cluster-table-view');
-            var btns = document.querySelectorAll('.view-toggle');
-            btns.forEach(function(b) {
-                if (b.dataset.view === view) {
-                    b.style.background = 'var(--primary-color)';
-                    b.style.color = '#fff';
-                    b.classList.add('active');
-                } else {
-                    b.style.background = 'var(--card-bg)';
-                    b.style.color = 'var(--text-secondary)';
-                    b.classList.remove('active');
-                }
-            });
-            if (cardsView) cardsView.style.display = view === 'cards' ? '' : 'none';
-            if (tableView) tableView.style.display = view === 'table' ? '' : 'none';
-        }
-    };
-    document.addEventListener('DOMContentLoaded', function() {
-        var saved = localStorage.getItem('clusters_view') || 'cards';
-        ClustersView.toggle(saved);
-    });
+    // Initialize i18n after setting translations
+    if (window.DashboardI18n) { window.DashboardI18n.init(); }
 </script>
 
 <script>

@@ -223,6 +223,12 @@ public class DashboardOptions
     /// </summary>
     public List<string>? WebhookEnabledEvents { get; set; }
 
+    /// <summary>Webhook HTTP request timeout in seconds. Default 10.</summary>
+    public int WebhookTimeoutSeconds { get; set; } = 10;
+
+    /// <summary>Number of retry attempts on webhook failure. Default 1. Set 0 to disable retries.</summary>
+    public int WebhookRetryCount { get; set; } = 1;
+
     // ─── Alerts ────────────────────────────────────────
 
     /// <summary>Enable gateway alert notifications. Default: false.</summary>

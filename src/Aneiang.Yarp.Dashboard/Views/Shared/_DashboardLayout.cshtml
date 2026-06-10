@@ -1549,30 +1549,114 @@
             scrollbar-width: thin;
             flex-shrink: 0;
         }
+        .top-tab-shell {
+            display: flex;
+            align-items: stretch;
+            gap: 12px;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: var(--shadow-sm);
+            padding: 8px 16px;
+            min-height: 52px;
+        }
+        .top-tab-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            overflow-x: auto;
+            scrollbar-width: thin;
+            flex: 1;
+            min-width: 0;
+        }
         .top-tab-bar::-webkit-scrollbar { height: 3px; }
         .top-tab-bar::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 2px; }
-        .top-tab-btn {
+        .top-tab-empty {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            padding: 8px 12px;
+            color: var(--text-muted);
+            font-size: 13px;
+            white-space: nowrap;
+            min-height: 34px;
+        }
+        .top-tab-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 10px 7px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background: #f8fafc;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            max-width: 240px;
+            flex-shrink: 0;
+        }
+        .top-tab-item:hover {
+            color: var(--text-primary);
+            border-color: #cbd5e1;
+            background: #f1f5f9;
+        }
+        .top-tab-item.active {
+            color: var(--primary-color);
+            border-color: rgba(99,102,241,0.25);
+            background: rgba(99,102,241,0.08);
+            box-shadow: inset 0 0 0 1px rgba(99,102,241,0.08);
+        }
+        .top-tab-title {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .top-tab-icon {
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+        .top-tab-close {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
             border: none;
+            border-radius: 999px;
             background: transparent;
+            color: inherit;
+            opacity: 0.72;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .top-tab-close:hover {
+            background: rgba(15,23,42,0.08);
+            opacity: 1;
+        }
+        .top-tab-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .top-tab-action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 36px;
+            padding: 0 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background: #fff;
             color: var(--text-secondary);
             font-size: 13px;
             font-weight: 500;
             cursor: pointer;
-            border-bottom: 2px solid transparent;
-            white-space: nowrap;
-            transition: color 0.15s, border-color 0.15s;
-            flex-shrink: 0;
+            transition: all 0.15s ease;
         }
-        .top-tab-btn i { font-size: 13px; }
-        .top-tab-btn:hover { color: var(--text-primary); }
-        .top-tab-btn.active {
-            color: var(--primary-color);
-            border-bottom-color: var(--primary-color);
-            font-weight: 600;
+        .top-tab-action-btn:hover {
+            color: var(--text-primary);
+            background: #f8fafc;
+            border-color: #cbd5e1;
         }
 
         /* Compact Sidebar Nav */
@@ -1606,12 +1690,7 @@
         .sidebar .nav-link i { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
         .sidebar .nav-link span { overflow: hidden; text-overflow: ellipsis; }
 
-        /* Section title removed from sidebar (now in tab bar) */
-        .sidebar .section-title { display: none; }
         .sidebar .nav-section { padding: 0; }
-        .sidebar .nav-submenu,
-        .sidebar .nav-link.has-submenu,
-        .sidebar .nav-link.has-submenu::after { display: none; }
     </style>
 </head>
 <body>
@@ -1624,67 +1703,93 @@
         @{
             var currentPage = ViewBag.CurrentPage as string ?? "overview";
             var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
+            var isEn = (ViewBag.Locale as string) == "en-US";
+
+            // Build grouped menu structure
+            var menuGroups = new[]
+            {
+                new {
+                    Key = "gateway",
+                    Title = isEn ? "Gateway" : "网关管理",
+                    Icon = "bi-hdd-rack",
+                    Items = new[] {
+                        new { Key = "overview", Title = isEn ? "Overview" : "总览", Icon = "bi-speedometer2", Path = $"/{prefix}/", Conditional = false },
+                        new { Key = "clusters", Title = isEn ? "Clusters" : "服务集群", Icon = "bi-diagram-3", Path = $"/{prefix}/clusters", Conditional = false },
+                        new { Key = "routes", Title = isEn ? "Routes" : "路由配置", Icon = "bi-signpost-split", Path = $"/{prefix}/routes", Conditional = false }
+                    }
+                },
+                new {
+                    Key = "monitoring",
+                    Title = isEn ? "Monitoring" : "监控运维",
+                    Icon = "bi-activity",
+                    Items = new[] {
+                        new { Key = "stats", Title = isEn ? "Statistics" : "访问统计", Icon = "bi-bar-chart-line", Path = $"/{prefix}/stats", Conditional = false },
+                        new { Key = "logs", Title = isEn ? "Logs" : "日志", Icon = "bi-journal-text", Path = $"/{prefix}/logs", Conditional = true },
+                        new { Key = "circuits", Title = isEn ? "Circuits" : "熔断状态", Icon = "bi-lightning-charge", Path = $"/{prefix}/circuits", Conditional = false },
+                        new { Key = "alerts", Title = isEn ? "Alerts" : "告警中心", Icon = "bi-bell", Path = $"/{prefix}/alerts", Conditional = false },
+                        new { Key = "healthcheck", Title = isEn ? "Health Check" : "健康检查", Icon = "bi-heart-pulse", Path = $"/{prefix}/healthcheck", Conditional = false }
+                    }
+                },
+                new {
+                    Key = "security",
+                    Title = isEn ? "Security" : "安全策略",
+                    Icon = "bi-shield-check",
+                    Items = new[] {
+                        new { Key = "security", Title = isEn ? "Security Events" : "安全事件", Icon = "bi-shield-lock", Path = $"/{prefix}/security", Conditional = false },
+                        new { Key = "policies", Title = isEn ? "Policies" : "策略管理", Icon = "bi-shield", Path = $"/{prefix}/policies", Conditional = false },
+                        new { Key = "plugins", Title = isEn ? "Plugins" : "插件管理", Icon = "bi-puzzle", Path = $"/{prefix}/plugins", Conditional = false }
+                    }
+                },
+                new {
+                    Key = "system",
+                    Title = isEn ? "System" : "系统管理",
+                    Icon = "bi-gear",
+                    Items = new[] {
+                        new { Key = "history", Title = isEn ? "History" : "配置历史", Icon = "bi-clock-history", Path = $"/{prefix}/history", Conditional = false },
+                        new { Key = "audit", Title = isEn ? "Audit Log" : "审计日志", Icon = "bi-shield-check", Path = $"/{prefix}/audit", Conditional = false },
+                        new { Key = "settings", Title = isEn ? "Settings" : "设置", Icon = "bi-gear", Path = $"/{prefix}/settings", Conditional = false }
+                    }
+                }
+            };
         }
         <div class="sidebar-nav">
-            <a class="nav-link @(currentPage == "overview" ? "active" : "")" href="/@prefix/">
-                <i class="bi bi-speedometer2"></i>
-                <span data-i18n="layout.tab.overview">总览</span>
-            </a>
-            <a class="nav-link @(currentPage == "clusters" ? "active" : "")" href="/@prefix/clusters">
-                <i class="bi bi-diagram-3"></i>
-                <span data-i18n="layout.tab.clusters">服务集群</span>
-            </a>
-            <a class="nav-link @(currentPage == "routes" ? "active" : "")" href="/@prefix/routes">
-                <i class="bi bi-signpost-split"></i>
-                <span data-i18n="layout.tab.routes">路由配置</span>
-            </a>
-            <a class="nav-link @(currentPage == "stats" ? "active" : "")" href="/@prefix/stats">
-                <i class="bi bi-bar-chart-line"></i>
-                <span data-i18n="layout.tab.stats">访问统计</span>
-            </a>
-            @if (ViewBag.EnableProxyLogging != false)
+            @foreach (var group in menuGroups)
             {
-            <a class="nav-link @(currentPage == "logs" ? "active" : "")" href="/@prefix/logs">
-                <i class="bi bi-journal-text"></i>
-                <span data-i18n="layout.tab.logs">日志</span>
-            </a>
+                // Check if any item in this group is the current page
+                var isActiveGroup = false;
+                var hasVisibleItems = false;
+                foreach (var item in group.Items)
+                {
+                    if (item.Conditional && ViewBag.EnableProxyLogging == false) continue;
+                    hasVisibleItems = true;
+                    if (currentPage == item.Key) { isActiveGroup = true; break; }
+                }
+                if (!hasVisibleItems) continue;
+
+                <div class="nav-section">
+                    <a class="nav-link has-submenu @(isActiveGroup ? "active expanded" : "")"
+                       href="#" data-toggle="submenu"
+                       data-group="@(group.Key)">
+                        <i class="bi @(group.Icon)"></i>
+                        <span>@(group.Title)</span>
+                    </a>
+                    <div class="nav-submenu @(isActiveGroup ? "expanded" : "")">
+                        @foreach (var item in group.Items)
+                        {
+                            if (item.Conditional && ViewBag.EnableProxyLogging == false) continue;
+
+                            <a class="nav-link @(currentPage == item.Key ? "active" : "")"
+                               href="@(item.Path)"
+                               data-page="@(item.Key)"
+                               data-title="@(item.Title)"
+                               data-icon="@(item.Icon)">
+                                <i class="bi @(item.Icon)"></i>
+                                <span>@(item.Title)</span>
+                            </a>
+                        }
+                    </div>
+                </div>
             }
-            <a class="nav-link @(currentPage == "circuits" ? "active" : "")" href="/@prefix/circuits">
-                <i class="bi bi-lightning-charge"></i>
-                <span data-i18n="layout.tab.circuits">熔断状态</span>
-            </a>
-            <a class="nav-link @(currentPage == "alerts" ? "active" : "")" href="/@prefix/alerts">
-                <i class="bi bi-bell"></i>
-                <span data-i18n="layout.tab.alerts">告警中心</span>
-            </a>
-            <a class="nav-link @(currentPage == "security" ? "active" : "")" href="/@prefix/security">
-                <i class="bi bi-shield-lock"></i>
-                <span data-i18n="layout.tab.security">安全事件</span>
-            </a>
-            <a class="nav-link @(currentPage == "healthcheck" ? "active" : "")" href="/@prefix/healthcheck">
-                <i class="bi bi-heart-pulse"></i>
-                <span data-i18n="layout.tab.healthcheck">健康检查</span>
-            </a>
-            <a class="nav-link @(currentPage == "history" ? "active" : "")" href="/@prefix/history">
-                <i class="bi bi-clock-history"></i>
-                <span data-i18n="layout.tab.history">配置历史</span>
-            </a>
-            <a class="nav-link @(currentPage == "policies" ? "active" : "")" href="/@prefix/policies">
-                <i class="bi bi-shield"></i>
-                <span data-i18n="layout.tab.policies">策略管理</span>
-            </a>
-            <a class="nav-link @(currentPage == "plugins" ? "active" : "")" href="/@prefix/plugins">
-                <i class="bi bi-puzzle"></i>
-                <span data-i18n="layout.tab.plugins">插件管理</span>
-            </a>
-            <a class="nav-link @(currentPage == "audit" ? "active" : "")" href="/@prefix/audit">
-                <i class="bi bi-shield-check"></i>
-                <span data-i18n="layout.tab.audit">审计日志</span>
-            </a>
-            <a class="nav-link @(currentPage == "settings" ? "active" : "")" href="/@prefix/settings">
-                <i class="bi bi-gear"></i>
-                <span data-i18n="layout.tab.settings">设置</span>
-            </a>
         </div>
 
         <div class="sidebar-footer">
@@ -1704,103 +1809,26 @@
     </nav>
 
     <div class="main-content">
-        <!-- Top tab bar -->
-        <div class="top-tab-bar" id="topTabBar">
-            <button class="top-tab-btn" data-tab="overview" onclick="window.location.href='/@prefix/'">
-                <i class="bi bi-speedometer2"></i><span>总览</span>
-            </button>
-            <button class="top-tab-btn" data-tab="clusters" onclick="window.location.href='/@prefix/clusters'">
-                <i class="bi bi-diagram-3"></i><span>集群</span>
-            </button>
-            <button class="top-tab-btn" data-tab="routes" onclick="window.location.href='/@prefix/routes'">
-                <i class="bi bi-signpost-split"></i><span>路由</span>
-            </button>
-            <button class="top-tab-btn" data-tab="stats" onclick="window.location.href='/@prefix/stats'">
-                <i class="bi bi-bar-chart-line"></i><span>统计</span>
-            </button>
-            <button class="top-tab-btn" data-tab="logs" onclick="window.location.href='/@prefix/logs'">
-                <i class="bi bi-journal-text"></i><span>日志</span>
-            </button>
-            <button class="top-tab-btn" data-tab="circuits" onclick="window.location.href='/@prefix/circuits'">
-                <i class="bi bi-lightning-charge"></i><span>熔断</span>
-            </button>
-            <button class="top-tab-btn" data-tab="alerts" onclick="window.location.href='/@prefix/alerts'">
-                <i class="bi bi-bell"></i><span>告警</span>
-            </button>
-            <button class="top-tab-btn" data-tab="security" onclick="window.location.href='/@prefix/security'">
-                <i class="bi bi-shield-lock"></i><span>安全</span>
-            </button>
-            <button class="top-tab-btn" data-tab="healthcheck" onclick="window.location.href='/@prefix/healthcheck'">
-                <i class="bi bi-heart-pulse"></i><span>健康</span>
-            </button>
-            <button class="top-tab-btn" data-tab="history" onclick="window.location.href='/@prefix/history'">
-                <i class="bi bi-clock-history"></i><span>历史</span>
-            </button>
-            <button class="top-tab-btn" data-tab="policies" onclick="window.location.href='/@prefix/policies'">
-                <i class="bi bi-shield"></i><span>策略</span>
-            </button>
-            <button class="top-tab-btn" data-tab="plugins" onclick="window.location.href='/@prefix/plugins'">
-                <i class="bi bi-puzzle"></i><span>插件</span>
-            </button>
-            <button class="top-tab-btn" data-tab="audit" onclick="window.location.href='/@prefix/audit'">
-                <i class="bi bi-shield-check"></i><span>审计</span>
-            </button>
-            <button class="top-tab-btn" data-tab="settings" onclick="window.location.href='/@prefix/settings'">
-                <i class="bi bi-gear"></i><span>设置</span>
-            </button>
-        </div>
-
-        <!-- Tab content panels -->
-        <div id="tab-overview" class="page-tab-content">
-            <!-- Overview.cshtml content via RenderBody below -->
-        </div>
-        <!-- Other tab content panels are intentionally empty.
-             After switching to direct page navigation (each page is a full MVC view),
-             RenderBody() renders the correct page content based on the controller route. -->
-
-
-        <!-- Standalone page content -->
-        <div id="standalone-page-content" style="display:none;"></div>
         @RenderBody()
     </div>
-
-    <!-- Top page loading bar -->
-    <div id="page-loading-bar" style="display:none;position:fixed;top:0;left:240px;right:0;height:2px;background:var(--primary-color);z-index:9999;animation:loadingBar 1s ease-in-out infinite;"></div>
-    <style>@@keyframes loadingBar{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}@@media(max-width:768px){#page-loading-bar{left:0;}}</style>
 
     <script>
         var I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
         var CURRENT_LOCALE = '@ViewBag.Locale';
         function __(key) { return I18N[key] || key; }
 
-        // Dashboard configuration for SPA router
+        // Dashboard page config
         window.__dashboard = {
             routePrefix: '@ViewBag.DashboardRoutePrefix',
             currentPage: '@ViewBag.CurrentPage',
-            locale: '@ViewBag.Locale'
+            locale: '@ViewBag.Locale',
+            I18N: I18N,
+            CURRENT_LOCALE: CURRENT_LOCALE
         };
 
-        // DashboardApp - must exist before any module script loads
-        window.DashboardApp = window.DashboardApp || { version: '2.3.0', initialized: false, modules: {} };
+        // DashboardApp - module namespace for backward compatibility
+        window.DashboardApp = window.DashboardApp || { version: '2.3.0', modules: {} };
         window.DashboardApp.registerModule = function(name, module) { this.modules[name] = module; };
-        window.DashboardApp.cleanup = function() {
-            Object.keys(this.modules).forEach(function(name) {
-                var module = this.modules[name];
-                if (module && typeof module.destroy === 'function') {
-                    module.destroy();
-                }
-            }.bind(this));
-            this.modules = {};
-            if (window.DashboardState && typeof window.DashboardState.cleanup === 'function') {
-                window.DashboardState.cleanup();
-            }
-            if (window.DashboardPerformance && typeof window.DashboardPerformance.cleanupAll === 'function') {
-                window.DashboardPerformance.cleanupAll();
-            }
-            if (window.DashboardEvents && typeof window.DashboardEvents.cleanup === 'function') {
-                window.DashboardEvents.cleanup();
-            }
-        };
         function switchLocale() {
             var next = CURRENT_LOCALE === 'en-US' ? 'zh-CN' : 'en-US';
             document.cookie = 'dashboard_locale=' + next + ';path=/;max-age=' + (365*86400);
@@ -1881,9 +1909,6 @@
     </script>
     <script src="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap/js/bootstrap.bundle.min.js"></script>
     
-    <!-- SPA Router for page navigation without full reload -->
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-spa-router.js"></script>
-
     @{
         var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString();
     }
@@ -1901,7 +1926,6 @@
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-performance.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-indexeddb.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-worker.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-sw-register.js?v=@v"></script>
     <!-- 3. Schema Service -->
     <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-service.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-validator.js?v=@v"></script>
@@ -1913,8 +1937,7 @@
     <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-form-builder.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-diff-panel.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-validation-panel.js?v=@v"></script>
-    <!-- 6. App Bootstrap & Events -->
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-bootstrap.js?v=@v"></script>
+    <!-- 6. Events -->
     <script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
     <!-- 7. Shared Modules (all pages may need them) -->
     <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js?v=@v"></script>

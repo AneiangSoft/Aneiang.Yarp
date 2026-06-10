@@ -31,16 +31,25 @@
                 // Use cached data if already loaded and not forcing reload
                 if (!forceReload && Array.isArray(cached) && cached.length > 0) {
                     window.DashboardState.set('data.routes', cached);
+                    // Ensure clusters are also loaded for Add Route modal
+                    if (!window.DashboardState.get('data.clusters')?.length) {
+                        await this.ensureClustersLoaded();
+                    }
                     this.renderRoutes();
                     return;
                 }
 
                 window.DashboardDOM.showLoading(container, __('index.route.loading'));
 
-                const routes = await window.DashboardApi.endpoints.getRoutes();
+                // Load both routes and clusters in parallel (clusters needed for Add Route modal)
+                const [routes, clusters] = await Promise.all([
+                    window.DashboardApi.endpoints.getRoutes(),
+                    window.DashboardApi.endpoints.getClusters()
+                ]);
 
                 // Update state
                 window.DashboardState.set('data.routes', routes || []);
+                window.DashboardState.set('data.clusters', clusters || []);
 
                 // Render routes
                 this.renderRoutes();
@@ -54,6 +63,16 @@
             }
         },
 
+        // ===== Ensure clusters are loaded (for Add Route modal) =====
+        ensureClustersLoaded: async function() {
+            try {
+                const clusters = await window.DashboardApi.endpoints.getClusters();
+                window.DashboardState.set('data.clusters', clusters || []);
+            } catch (e) {
+                console.warn('[Routes] Failed to load clusters:', e);
+            }
+        },
+
         // ===== Render Routes =====
         renderRoutes: function() {
             const state = window.DashboardState;
@@ -61,9 +80,6 @@
                     
             // Render filter toolbar (only once, then update counts)
             this.renderFilterToolbar();
-
-            // Render cards view
-            this.renderRouteCards(routes);
 
             // Render table view
             const tbody = window.DashboardDOM.safe('#route-tbody');
@@ -151,7 +167,7 @@
                                 <button class="btn btn-sm btn-outline-danger" id="route-clear-btn" title="${__('index.search.clear')}" style="display:none;">
                                     <i class="bi bi-x-circle"></i>
                                 </button>
-                                <button class="btn btn-sm btn-success" id="route-add-btn" title="${__('index.route.add')}">
+                                <button class="btn btn-sm btn-outline-secondary" id="route-add-btn" title="${__('modal.addRoute') || 'Add Route'}">
                                     <i class="bi bi-plus-circle"></i>
                                 </button>
                             </div>
@@ -324,7 +340,10 @@
             // Add button
             const addBtn = document.getElementById('route-add-btn');
             if (addBtn) {
-                addBtn.addEventListener('click', function() {
+                addBtn.disabled = false;
+                addBtn.removeAttribute('aria-disabled');
+                addBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
                     self.showAddModal();
                 });
             }
@@ -464,7 +483,7 @@
                 html += '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;">';
                 html += '<span>' + (window.DashboardUtils ? DashboardUtils.createSourceBadge(route.source) : route.source || '-') + '</span>';
                 if (isDisabled) {
-                    html += '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:#e2e8f0;color:#64748b;border:1px solid #cbd5e1;" title="' + (window.__ && __("index.route.disabled") || "已禁用") + '"><i class="bi bi-ban me-1"></i>' + (window.__ && __("index.route.disabledShort") || "禁用") + '</span>';
+                    html += '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:#e2e8f0;color:#64748b;border:1px solid #cbd5e1;" title="' + (window.__ && __("index.route.disabled")) + '"><i class="bi bi-ban me-1"></i>' + (window.__ && __("index.route.disabledShort")) + '</span>';
                 }
                 if (hostText) {
                     html += '<span style="color:#cbd5e1;">|</span><span style="font-size:11px;color:#64748b;"><i class="bi bi-globe me-1"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(hostText) : hostText) + '</span>';
@@ -482,10 +501,10 @@
                 // Enable/Disable button
                 var toggleBtnClass = isDisabled ? 'background:#f0fdf4;color:#22c55e;border-color:#bbf7d0;' : 'background:#fffbeb;color:#f59e0b;border-color:#fde68a;';
                 var toggleBtnIcon = isDisabled ? 'bi bi-play-fill' : 'bi bi-pause-fill';
-                var toggleTitle = isDisabled ? ((window.__ && __("index.route.enable")) || "启用") : ((window.__ && __("index.route.disable")) || "禁用");
-                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--primary-color);transition:background 0.15s;' + toggleBtnClass + '" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.toggleRouteEnabled(\'' + (route.routeId || '').replace(/'/g, "\\'") + ', ' + !isDisabled + ')" title="' + toggleTitle + '"><i class="bi ' + toggleBtnIcon + '"></i></button>';
-                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--primary-color);transition:background 0.15s;" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.showEditModal(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + ((window.__ && __("index.route.edit")) || "编辑") + '"><i class="bi bi-pencil"></i></button>';
-                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:#ef4444;transition:background 0.15s;" onmouseover="this.style.background=\'#fef2f2\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.deleteRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + ((window.__ && __("index.route.delete")) || "删除") + '"><i class="bi bi-trash"></i></button>';
+                var toggleTitle = isDisabled ? (window.__ && __("index.route.enable")) : (window.__ && __("index.route.disable"));
+                html += '<button data-action="toggle" class="btn-toggle" style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--primary-color);transition:background 0.15s;' + toggleBtnClass + '" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'var(--card-bg)\'" title="' + toggleTitle + '"><i class="bi ' + toggleBtnIcon + '"></i></button>';
+                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--primary-color);transition:background 0.15s;" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.showEditModal(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.edit")) + '"><i class="bi bi-pencil"></i></button>';
+                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:#ef4444;transition:background 0.15s;" onmouseover="this.style.background=\'#fef2f2\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.deleteRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.delete")) + '"><i class="bi bi-trash"></i></button>';
                 html += '</div></div>';
 
                 // Card body
@@ -655,8 +674,8 @@
                         const disabledBadge = document.createElement('span');
                         disabledBadge.className = 'badge bg-secondary ms-1';
                         disabledBadge.style.cssText = 'font-size:10px;padding:2px 5px;';
-                        disabledBadge.title = __('index.route.disabled') || '已禁用';
-                        disabledBadge.innerHTML = '<i class="bi bi-ban me-1"></i>' + (__('index.route.disabledShort') || '禁用');
+                        disabledBadge.title = __('index.route.disabled');
+                        disabledBadge.innerHTML = '<i class="bi bi-ban me-1"></i>' + __('index.route.disabledShort');
                         const nameStrong = nameDiv.querySelector('strong');
                         if (nameStrong) nameStrong.after(disabledBadge);
                     } else if (!isDisabled && existingBadge) {
@@ -737,8 +756,8 @@
                 var disabledBadge = document.createElement('span');
                 disabledBadge.className = 'badge bg-secondary ms-1';
                 disabledBadge.style.cssText = 'font-size:10px;padding:2px 5px;';
-                disabledBadge.title = __('index.route.disabled') || '已禁用';
-                disabledBadge.innerHTML = '<i class="bi bi-ban me-1"></i>' + (__('index.route.disabledShort') || '禁用');
+                disabledBadge.title = __('index.route.disabled');
+                disabledBadge.innerHTML = '<i class="bi bi-ban me-1"></i>' + __('index.route.disabledShort');
                 nameDiv.appendChild(disabledBadge);
             }
 
@@ -965,27 +984,32 @@
 
         // ===== Toggle Route Enabled/Disabled =====
         toggleRouteEnabled: async function(routeId, enable) {
+            const self = this;
             const action = enable ? 'enable' : 'disable';
-            const confirmed = confirm(
-                (enable ? __('index.route.confirmEnable') || '确认启用路由' : __('index.route.confirmDisable') || '确认禁用路由') +
-                ' ' + routeId + '?'
+            const confirmMsg = (enable ? __('index.route.confirmEnable') : __('index.route.confirmDisable')).replace('{id}', routeId);
+
+            window.DashboardModals.showConfirm(
+                confirmMsg,
+                async function() {
+                    try {
+                        window.DashboardModals.showInfo(__('index.route.toggling'));
+                        const endpoint = enable ? '/api/operations/emergency-enable-route' : '/api/operations/emergency-disable-route';
+                        const result = await window.DashboardApi.post(endpoint + '/' + encodeURIComponent(routeId), {});
+                        // API layer already unwraps {code:200, data:...} → result is data directly
+                        window.DashboardModals.showSuccess(
+                            (enable ? __('index.route.enabledSuccess') : __('index.route.disabledSuccess')).replace('{id}', routeId)
+                        );
+                        await self.loadRoutes(true);
+                    } catch (e) {
+                        console.error('[Routes] Toggle route failed:', e);
+                        window.DashboardModals.showError(
+                            enable ? __('index.route.enabledFailed') : __('index.route.disabledFailed')
+                        );
+                    }
+                },
+                null,
+                { danger: !enable }
             );
-            if (!confirmed) return;
-
-            try {
-                const endpoint = enable ? '/api/operations/emergency-enable-route' : '/api/operations/emergency-disable-route';
-                const result = await window.DashboardApi.post(endpoint + '/' + encodeURIComponent(routeId), {});
-
-                if (result.code === 200) {
-                    alert((enable ? __('index.route.enabledSuccess') || '路由已启用' : __('index.route.disabledSuccess') || '路由已禁用') + ': ' + routeId);
-                    await this.loadRoutes();
-                } else {
-                    alert((enable ? __('index.route.enabledFailed') || '启用失败' : __('index.route.disabledFailed') || '禁用失败') + ': ' + (result.message || ''));
-                }
-            } catch (e) {
-                console.error('[Routes] Toggle route failed:', e);
-                alert(enable ? __('index.route.enabledFailed') || '启用失败' : __('index.route.disabledFailed') || '禁用失败');
-            }
         },
 
         // ===== Create Route Detail Row =====
@@ -1112,18 +1136,18 @@
             const retryConfig = this.extractRetryConfig(route.metadata);
             if (retryConfig && retryConfig.enabled) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-arrow-repeat"></i>${__('index.route.retry') || '重试配置'}</div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-arrow-repeat"></i>${__('index.route.retry')}</div>`);
                 detailHtml.push('<div class="detail-structured-config">');
-                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-toggle-on"></i> ${__('index.route.retry.enabled') || '启用重试'}</span><span class="detail-kv-value"><span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span></span></div>`);
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-toggle-on"></i> ${__('index.route.retry.enabled')}</span><span class="detail-kv-value"><span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span></span></div>`);
                 if (retryConfig.maxRetries !== undefined) {
-                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-123"></i> ${__('index.route.retry.maxRetries') || '最大重试次数'}</span><span class="detail-kv-value"><code>${retryConfig.maxRetries}</code></span></div>`);
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-123"></i> ${__('index.route.retry.maxRetries')}</span><span class="detail-kv-value"><code>${retryConfig.maxRetries}</code></span></div>`);
                 }
                 if (retryConfig.retryOnStatusCodes) {
                     const codes = retryConfig.retryOnStatusCodes.split(',').map(c => `<code>${c.trim()}</code>`).join(' ');
-                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-exclamation-triangle"></i> ${__('index.route.retry.statusCodes') || '重试状态码'}</span><span class="detail-kv-value">${codes}</span></div>`);
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-exclamation-triangle"></i> ${__('index.route.retry.statusCodes')}</span><span class="detail-kv-value">${codes}</span></div>`);
                 }
                 if (retryConfig.retryNonIdempotent) {
-                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield-exclamation"></i> ${__('index.route.retry.nonIdempotent') || '重试非幂等请求'}</span><span class="detail-kv-value"><span class="badge bg-warning text-dark"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span></span></div>`);
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield-exclamation"></i> ${__('index.route.retry.nonIdempotent')}</span><span class="detail-kv-value"><span class="badge bg-warning text-dark"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span></span></div>`);
                 }
                 detailHtml.push('</div>');
                 detailHtml.push('</div>');
@@ -1465,20 +1489,92 @@
             }
         },
 
-        // ===== Show Add Modal (JSON Mode) =====
+        // ===== Show Add Modal (Form Mode with JSON toggle) =====
         showAddModal: function() {
+            this.showAddFormModal();
+        },
+
+        // ===== Show Add Form Modal =====
+        showAddFormModal: async function() {
             const self = this;
-                    
-            // Get available clusters
-            const clusters = window.DashboardState.get('data.clusters') || [];
+
+            // Get available clusters (lazy-load if not yet fetched)
+            let clusters = window.DashboardState.get('data.clusters') || [];
+            if (clusters.length === 0) {
+                await self.ensureClustersLoaded();
+                clusters = window.DashboardState.get('data.clusters') || [];
+            }
             const clusterIds = clusters.map(c => c.clusterId);
-                    
+
             // If no clusters, show warning
             if (clusterIds.length === 0) {
                 window.DashboardModals.showWarning(__('index.route.noClusters'));
                 return;
             }
-        
+
+            const clusterOptions = clusterIds.map(id => ({ value: id, label: id }));
+
+            window.DashboardModals.showFormModal({
+                title: __('modal.addRoute'),
+                icon: 'bi-plus-circle',
+                size: 'lg',
+                fields: [
+                    { name: 'routeId', label: 'Route ID', type: 'text', required: true, placeholder: 'my-route' },
+                    { name: 'clusterId', label: __('index.route.clusterId') || 'Cluster ID', type: 'select', required: true, options: clusterOptions, value: clusterIds[0] },
+                    { name: 'matchPath', label: __('index.route.matchPath') || 'Match Path', type: 'text', required: true, placeholder: '/api/service/{**catchAll}', value: '/api/service/{**catchAll}' },
+                    { name: 'order', label: __('index.route.order') || 'Order', type: 'number', value: '50', min: '0', max: '1000' },
+                    { name: 'disabled', label: __('index.route.disabled') || 'Disabled', type: 'checkbox' }
+                ],
+                data: { clusterId: clusterIds[0], matchPath: '/api/service/{**catchAll}', order: '50' },
+                jsonModeCallback: function() {
+                    self._showAddJsonModal();
+                },
+                onSave: function(formData) {
+                    const routeConfig = {
+                        ClusterId: formData.clusterId,
+                        Order: parseInt(formData.order) || 50,
+                        Match: {
+                            Path: formData.matchPath || '/api/{**catchAll}'
+                        },
+                        Metadata: {}
+                    };
+                    if (formData.disabled) {
+                        routeConfig.Metadata['Disabled'] = 'true';
+                    }
+
+                    if (!routeConfig.ClusterId || !routeConfig.ClusterId.trim()) {
+                        window.DashboardModals.showError(__('index.route.invalidCluster'));
+                        return false;
+                    }
+                    if (!routeConfig.Match.Path) {
+                        window.DashboardModals.showError(__('index.route.invalidMatch'));
+                        return false;
+                    }
+
+                    self.saveRouteFromJson(routeConfig, formData.routeId);
+                    return true;
+                }
+            });
+        },
+
+        // ===== Show Add Modal (JSON Mode) =====
+        _showAddJsonModal: async function() {
+            const self = this;
+
+            // Get available clusters (lazy-load if not yet fetched)
+            let clusters = window.DashboardState.get('data.clusters') || [];
+            if (clusters.length === 0) {
+                await self.ensureClustersLoaded();
+                clusters = window.DashboardState.get('data.clusters') || [];
+            }
+            const clusterIds = clusters.map(c => c.clusterId);
+
+            // If no clusters, show warning
+            if (clusterIds.length === 0) {
+                window.DashboardModals.showWarning(__('index.route.noClusters'));
+                return;
+            }
+
             // Default route template for new route (includes retry config example)
             const defaultRoute = {
                 "ClusterId": clusterIds[0] || "",
@@ -1492,8 +1588,8 @@
                     "Retry:RetryOnStatusCodes": "502,503,504",
                     "Retry:RetryNonIdempotent": "false"
                 }
-            }; 
-        
+            };
+
             window.DashboardModals.showJsonModal({
                 title: __('modal.addRoute'),
                 data: defaultRoute,
@@ -1514,7 +1610,7 @@
                         window.DashboardModals.showWarning(__('index.route.clusterNotFound') + parsedData.ClusterId);
                         // Still allow save for flexibility
                     }
-        
+
                     // Save route
                     self.saveRouteFromJson(parsedData);
                     return true;
@@ -1538,7 +1634,7 @@
                 const response = await window.DashboardApi.endpoints.saveRoute(routeId, routeConfig);
         
                 window.DashboardModals.showSuccess(__('index.route.saved'));
-                await this.loadRoutes();
+                await this.loadRoutes(true);
         
                 document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
                     detail: { type: 'route', id: routeId, action: 'save' }
@@ -1760,7 +1856,7 @@
                 }
 
                 window.DashboardModals.showSuccess(__('index.route.renamed'));
-                await self.loadRoutes();
+                await self.loadRoutes(true);
 
                 document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
                     detail: { type: 'route', id: newId, oldId: oldId, action: 'rename' }
@@ -1776,13 +1872,13 @@
             const self = this;
             
             window.DashboardModals.showConfirm(
-                __('index.route.deleteConfirm').replace('{id}', routeId) || `确认删除路由 '${routeId}'？此操作不可撤销。`,
+                __('index.route.deleteConfirm').replace('{id}', routeId),
                 async function() {
                     try {
                         window.DashboardModals.showInfo(__('index.route.deleting'));
                         
                         await window.DashboardApi.endpoints.deleteRouteConfig(routeId);
-                        await self.loadRoutes();
+                        await self.loadRoutes(true);
                         
                         window.DashboardModals.showSuccess(__('index.route.deleted'));
 
@@ -1818,69 +1914,8 @@
 
         // ===== Event Delegation Setup =====
         _setupEventDelegation: function() {
-            const self = this;
-
-            // Card view delegation
-            const cardsContainer = document.getElementById('route-cards-view');
-            if (cardsContainer) {
-                cardsContainer.addEventListener('click', function(e) {
-                    const card = e.target.closest('.route-card');
-                    if (!card) return;
-
-                    const routeId = card.dataset.routeId;
-                    if (!routeId) return;
-
-                    // Check button clicks
-                    if (e.target.closest('.btn-edit') || e.target.closest('[data-action="edit"]')) {
-                        e.stopPropagation();
-                        self.showEditModal(routeId);
-                    } else if (e.target.closest('.btn-delete') || e.target.closest('[data-action="delete"]')) {
-                        e.stopPropagation();
-                        self.deleteRoute(routeId);
-                    } else if (e.target.closest('.btn-toggle') || e.target.closest('[data-action="toggle"]')) {
-                        e.stopPropagation();
-                        const route = self._findRouteById(routeId);
-                        if (route) {
-                            const isDisabled = route.metadata && route.metadata.Disabled === 'true';
-                            self.toggleRouteEnabled(routeId, !isDisabled);
-                        }
-                    } else {
-                        // Card click - toggle expand
-                        self.toggleRoute(routeId);
-                    }
-                });
-            }
-
-            // Table view delegation
-            const tableContainer = document.getElementById('route-table-view');
-            if (tableContainer) {
-                tableContainer.addEventListener('click', function(e) {
-                    const row = e.target.closest('tr[data-route-id]');
-                    if (!row) return;
-
-                    const routeId = row.dataset.routeId;
-                    if (!routeId) return;
-
-                    // Check button clicks
-                    if (e.target.closest('.btn-edit')) {
-                        e.stopPropagation();
-                        self.showEditModal(routeId);
-                    } else if (e.target.closest('.btn-delete')) {
-                        e.stopPropagation();
-                        self.deleteRoute(routeId);
-                    } else if (e.target.closest('.btn-toggle')) {
-                        e.stopPropagation();
-                        const route = self._findRouteById(routeId);
-                        if (route) {
-                            const isDisabled = route.metadata && route.metadata.Disabled === 'true';
-                            self.toggleRouteEnabled(routeId, !isDisabled);
-                        }
-                    } else if (!e.target.closest('.copy-btn') && !e.target.closest('.btn-group')) {
-                        // Row click - toggle expand
-                        self.toggleRoute(routeId);
-                    }
-                });
-            }
+            // Table view: individual row click handlers are set in createRouteMainRow (line ~855),
+            // createActionButtons buttons have stopPropagation, so no delegation needed.
         },
 
         // ===== Helper: Find Route by ID =====
@@ -2025,12 +2060,10 @@
     // Expose to window
     window.RoutesModule = RoutesModule;
     
-    // Global functions for onclick handlers
+    // Global function for external route creation triggers.
     window.showAddRouteModal = function() {
-        if (RoutesModule.showAddModal) {
+        if (RoutesModule && typeof RoutesModule.showAddModal === 'function') {
             RoutesModule.showAddModal();
-        } else {
-            console.warn('[Routes] showAddModal not implemented yet');
         }
     };
 

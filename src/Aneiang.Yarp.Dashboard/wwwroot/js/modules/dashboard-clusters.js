@@ -70,9 +70,6 @@
             // Render filter toolbar (only once, then update counts)
             this.renderFilterToolbar();
             
-            // Render cards view
-            this.renderClusterCards(clusters);
-
             // Render table view
             const tbody = window.DashboardDOM.safe('#cluster-tbody');
             if (tbody) {
@@ -158,7 +155,7 @@
                                 <button class="btn btn-sm btn-outline-danger" id="cluster-clear-btn" title="${__('index.search.clear')}" style="display:none;">
                                     <i class="bi bi-x-circle"></i>
                                 </button>
-                                <button class="btn btn-sm btn-success" id="cluster-add-btn" title="${__('index.cluster.add')}">
+                                <button class="btn btn-sm btn-outline-secondary" id="cluster-add-btn" title="${__('modal.addCluster') || 'Add Cluster'}">
                                     <i class="bi bi-plus-circle"></i>
                                 </button>
                             </div>
@@ -290,7 +287,10 @@
             // Add button
             const addBtn = document.getElementById('cluster-add-btn');
             if (addBtn) {
-                addBtn.addEventListener('click', function() {
+                addBtn.disabled = false;
+                addBtn.removeAttribute('aria-disabled');
+                addBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
                     self.showAddModal();
                 });
             }
@@ -379,7 +379,7 @@
 
                 // Footer
                 html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-color);">';
-                html += '<span style="font-size:11px;color:#64748b;"><i class="bi bi-nodes me-1"></i>' + destinations.length + ' ' + (__('index.cluster.destCount') || '节点') + '</span>';
+                html += '<span style="font-size:11px;color:#64748b;"><i class="bi bi-nodes me-1"></i>' + destinations.length + ' ' + __('index.cluster.destCount') + '</span>';
                 html += '<span style="font-size:11px;color:#64748b;"><i class="bi bi-sliders me-1"></i>' + (cluster.loadBalancingPolicy || 'RoundRobin') + '</span>';
                 html += '</div>';
 
@@ -898,10 +898,57 @@
             }
         },
 
-        // ===== Show Add Modal (JSON Mode) =====
+        // ===== Show Add Modal (Form Mode with JSON toggle) =====
         showAddModal: function() {
+            this.showAddFormModal();
+        },
+
+        // ===== Show Add Form Modal =====
+        showAddFormModal: function() {
             const self = this;
-                    
+
+            window.DashboardModals.showFormModal({
+                title: __('modal.addCluster'),
+                icon: 'bi-plus-circle',
+                size: 'lg',
+                fields: [
+                    { name: 'clusterId', label: 'Cluster ID', type: 'text', required: true, placeholder: 'my-cluster' },
+                    { name: 'destAddress', label: __('index.cluster.destAddress') || 'Destination Address', type: 'text', required: true, placeholder: 'http://localhost:5000', value: 'http://localhost:5000' },
+                    { name: 'loadBalancingPolicy', label: __('index.cluster.lbPolicy') || 'Load Balancing', type: 'select', options: [
+                        { value: 'RoundRobin', label: 'RoundRobin' },
+                        { value: 'LeastRequests', label: 'LeastRequests' },
+                        { value: 'Random', label: 'Random' },
+                        { value: 'PowerOfTwoChoices', label: 'PowerOfTwoChoices' },
+                        { value: 'FirstAlphabetical', label: 'FirstAlphabetical' }
+                    ], value: 'RoundRobin' }
+                ],
+                data: { destAddress: 'http://localhost:5000', loadBalancingPolicy: 'RoundRobin' },
+                jsonModeCallback: function() {
+                    self._showAddJsonModal();
+                },
+                onSave: function(formData) {
+                    const clusterConfig = {
+                        Destinations: {
+                            "destination1": { "Address": formData.destAddress }
+                        },
+                        LoadBalancingPolicy: formData.loadBalancingPolicy || 'RoundRobin'
+                    };
+
+                    if (!formData.destAddress || !(formData.destAddress.startsWith('http://') || formData.destAddress.startsWith('https://'))) {
+                        window.DashboardModals.showError(__('index.cluster.invalidAddress'));
+                        return false;
+                    }
+
+                    self.saveClusterFromJson(clusterConfig, formData.clusterId);
+                    return true;
+                }
+            });
+        },
+
+        // ===== Show Add Modal (JSON Mode) =====
+        _showAddJsonModal: function() {
+            const self = this;
+
             // Default cluster template for new cluster
             const defaultCluster = {
                 "Destinations": {
@@ -910,8 +957,8 @@
                     }
                 },
                 "LoadBalancingPolicy": "RoundRobin"
-            }; 
-        
+            };
+
             window.DashboardModals.showJsonModal({
                 title: __('modal.addCluster'),
                 data: defaultCluster,
@@ -923,7 +970,7 @@
                         window.DashboardModals.showError(__('index.cluster.invalidDestinations'));
                         return false;
                     }
-        
+
                     // Check for valid addresses
                     let hasValidAddress = false;
                     for (const destName in parsedData.Destinations) {
@@ -937,7 +984,7 @@
                         window.DashboardModals.showError(__('index.cluster.invalidAddress'));
                         return false;
                     }
-        
+
                     // Save cluster
                     self.saveClusterFromJson(parsedData);
                     return true;
@@ -973,7 +1020,7 @@
                 const response = await window.DashboardApi.endpoints.saveCluster(clusterId, apiConfig);
         
                 window.DashboardModals.showSuccess(__('index.cluster.saved'));
-                await this.loadClusters();
+                await this.loadClusters(true);
         
                 document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
                     detail: { type: 'cluster', id: clusterId, action: 'save' }
@@ -1069,7 +1116,7 @@
                 window.DashboardModals.showSuccess(__('index.cluster.saved'));
 
                 // Reload clusters
-                await this.loadClusters();
+                await this.loadClusters(true);
 
                 // Trigger config saved event
                 document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
@@ -1200,7 +1247,7 @@
                 }
 
                 window.DashboardModals.showSuccess(__('index.cluster.renamed'));
-                await self.loadClusters();
+                await self.loadClusters(true);
 
                 document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
                     detail: { type: 'cluster', id: newId, oldId: oldId, action: 'rename' }
@@ -1215,13 +1262,13 @@
             const self = this;
             
             window.DashboardModals.showConfirm(
-                __('index.cluster.deleteConfirm').replace('{id}', clusterId) || `确认删除集群 '${clusterId}'？此操作不可撤销。`,
+                __('index.cluster.deleteConfirm').replace('{id}', clusterId),
                 async function() {
                     try {
                         window.DashboardModals.showInfo(__('index.cluster.deleting'));
                         
                         await window.DashboardApi.endpoints.deleteClusterConfig(clusterId);
-                        await self.loadClusters();
+                        await self.loadClusters(true);
                         
                         window.DashboardModals.showSuccess(__('index.cluster.deleted'));
 
@@ -1279,10 +1326,8 @@
     };
     
     window.showAddClusterModal = function() {
-        if (ClustersModule.showAddModal) {
+        if (ClustersModule && typeof ClustersModule.showAddModal === 'function') {
             ClustersModule.showAddModal();
-        } else {
-            console.warn('[Clusters] showAddModal not implemented yet');
         }
     };
 

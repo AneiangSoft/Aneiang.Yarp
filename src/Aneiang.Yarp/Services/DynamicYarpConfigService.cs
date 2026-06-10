@@ -10,7 +10,7 @@ namespace Aneiang.Yarp.Services;
 /// Thread-safe with reader-writer lock protection.
 /// Supports persistence to gateway-dynamic.json.
 /// </summary>
-public class DynamicYarpConfigService
+public class DynamicYarpConfigService : IDynamicYarpConfigService
 {
     private readonly InMemoryConfigProvider _configProvider;
     private readonly IDynamicConfigPersistenceService _persistence;
@@ -323,19 +323,33 @@ public class DynamicYarpConfigService
     /// Save dynamic configuration to persistence file asynchronously (runtime operations).
     /// Uses async I/O to avoid blocking threads during file writes.
     /// </summary>
-    private async Task SaveDynamicConfigAsync()
+    private async Task SaveDynamicConfigAsync(string operationName = "dynamic-config-update", string? targetName = null)
     {
         if (_dynamicConfig == null)
             _dynamicConfig = new GatewayDynamicConfig();
 
-        await _persistence.SaveConfigAsync(_dynamicConfig);
+        try
+        {
+            await _persistence.SaveConfigAsync(_dynamicConfig);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to persist dynamic config for {OperationName}. Target: {TargetName}, RouteCount: {RouteCount}, ClusterCount: {ClusterCount}",
+                operationName,
+                targetName ?? "n/a",
+                _dynamicConfig.Routes.Count,
+                _dynamicConfig.Clusters.Count);
+            throw;
+        }
     }
 
     /// <summary>
     /// Sanitize cluster list by removing destinations with empty/null addresses.
     /// YARP rejects the entire config update if any destination has an invalid address.
     /// </summary>
-    private static IReadOnlyList<ClusterConfig> SanitizeClusters(IReadOnlyList<ClusterConfig> clusters)
+    private IReadOnlyList<ClusterConfig> SanitizeClusters(IReadOnlyList<ClusterConfig> clusters)
     {
         var sanitized = new List<ClusterConfig>();
         foreach (var cluster in clusters)
@@ -353,7 +367,12 @@ public class DynamicYarpConfigService
 
             if (validDests.Count < cluster.Destinations.Count)
             {
-                _ = cluster; // Log if needed
+                _logger.LogWarning(
+                    "Dropped {InvalidDestinationCount} invalid destinations from cluster {ClusterId} during config sanitization. OriginalCount: {OriginalCount}, ValidCount: {ValidCount}",
+                    cluster.Destinations.Count - validDests.Count,
+                    cluster.ClusterId ?? "unknown",
+                    cluster.Destinations.Count,
+                    validDests.Count);
             }
 
             sanitized.Add(new ClusterConfig
@@ -626,7 +645,7 @@ public class DynamicYarpConfigService
                 // Increment version and persist inside the lock to prevent YARP/file drift on crash
                 Interlocked.Increment(ref _configVersion);
                 _dynamicConfig!.Version = _configVersion;
-                await SaveDynamicConfigAsync();
+                await SaveDynamicConfigAsync("AddOrUpdateRoute", request.RouteName);
             }
             _rwLock.ExitWriteLock();
         }
@@ -775,7 +794,7 @@ public class DynamicYarpConfigService
             {
                 Interlocked.Increment(ref _configVersion);
                 _dynamicConfig!.Version = _configVersion;
-                await SaveDynamicConfigAsync();
+                await SaveDynamicConfigAsync("RemoveRoute", routeName);
             }
             _rwLock.ExitWriteLock();
         }
@@ -810,6 +829,7 @@ public class DynamicYarpConfigService
         }
 
         bool saveNeeded = false;
+        bool isNew = false;
         _rwLock.EnterWriteLock();
         try
         {
@@ -831,7 +851,6 @@ public class DynamicYarpConfigService
             var existingClusterIdx = newClusters.FindIndex(c =>
                 string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
 
-            bool isNew;
             if (existingClusterIdx >= 0)
             {
                 newClusters[existingClusterIdx] = clusterConfig;
@@ -897,7 +916,7 @@ public class DynamicYarpConfigService
             {
                 Interlocked.Increment(ref _configVersion);
                 _dynamicConfig!.Version = _configVersion;
-                await SaveDynamicConfigAsync();
+                await SaveDynamicConfigAsync(isNew ? "AddCluster" : "UpdateCluster", clusterId);
             }
             _rwLock.ExitWriteLock();
         }
@@ -979,7 +998,7 @@ public class DynamicYarpConfigService
             {
                 Interlocked.Increment(ref _configVersion);
                 _dynamicConfig!.Version = _configVersion;
-                await SaveDynamicConfigAsync();
+                await SaveDynamicConfigAsync("RemoveCluster", clusterId);
             }
             _rwLock.ExitWriteLock();
         }
@@ -1125,7 +1144,7 @@ public class DynamicYarpConfigService
             {
                 Interlocked.Increment(ref _configVersion);
                 _dynamicConfig!.Version = _configVersion;
-                await SaveDynamicConfigAsync();
+                await SaveDynamicConfigAsync("RenameCluster", oldClusterId);
             }
             _rwLock.ExitWriteLock();
         }
@@ -1246,6 +1265,89 @@ public class DynamicYarpConfigService
     }
 
     /// <summary>
+    /// Enable or disable a cluster by setting/removing "Disabled" metadata.
+    /// When disabled, all routes referencing this cluster will fail to match.
+    /// </summary>
+    /// <param name="clusterId">Cluster ID to toggle.</param>
+    /// <param name="disable">True to disable, false to enable.</param>
+    /// <param name="source">Configuration source for auditing.</param>
+    /// <param name="createdBy">Who initiated the change.</param>
+    /// <returns>Route operation result.</returns>
+    public async Task<RouteOperationResult> TrySetClusterDisabled(string clusterId, bool disable, string? source = null, string? createdBy = null)
+    {
+        if (string.IsNullOrWhiteSpace(clusterId))
+            return new RouteOperationResult(false, "Cluster ID cannot be empty");
+
+        _rwLock.EnterWriteLock();
+        try
+        {
+            var config = _configProvider.GetConfig();
+            var clusters = config.Clusters?.ToList() ?? new List<ClusterConfig>();
+            var clusterIdx = clusters.FindIndex(c => string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+
+            if (clusterIdx < 0)
+            {
+                _auditLog.RecordFailure("DisableCluster", clusterId, $"Cluster '{clusterId}' not found", createdBy);
+                return new RouteOperationResult(false, $"Cluster '{clusterId}' not found");
+            }
+
+            var cluster = clusters[clusterIdx];
+            var metadata = cluster.Metadata as Dictionary<string, string> ?? new Dictionary<string, string>();
+
+            if (disable)
+            {
+                metadata["Disabled"] = "true";
+                _logger.LogWarning("Cluster '{ClusterId}' has been DISABLED by {Source}", clusterId, source ?? "unknown");
+                _auditLog.RecordSuccess("DisableCluster", clusterId, createdBy, null,
+                    $"Cluster '{clusterId}' was disabled", null);
+            }
+            else
+            {
+                metadata.Remove("Disabled");
+                _logger.LogInformation("Cluster '{ClusterId}' has been ENABLED by {Source}", clusterId, source ?? "unknown");
+                _auditLog.RecordSuccess("EnableCluster", clusterId, createdBy, null,
+                    $"Cluster '{clusterId}' was enabled", null);
+            }
+
+            clusters[clusterIdx] = new ClusterConfig
+            {
+                ClusterId = cluster.ClusterId,
+                Destinations = cluster.Destinations,
+                LoadBalancingPolicy = cluster.LoadBalancingPolicy,
+                HealthCheck = cluster.HealthCheck,
+                Metadata = metadata.Count > 0 ? metadata : null
+            };
+
+            _configProvider.Update(config.Routes ?? Array.Empty<RouteConfig>(), clusters);
+            _persistence.SaveConfig(new GatewayDynamicConfig
+            {
+                Routes = (config.Routes ?? Array.Empty<RouteConfig>()).Select(r => new DynamicRouteConfig
+                {
+                    RouteId = r.RouteId,
+                    ClusterId = r.ClusterId,
+                    MatchPath = r.Match?.Path ?? string.Empty,
+                    Order = r.Order ?? 0,
+                    Metadata = r.Metadata as Dictionary<string, string>
+                }).ToList(),
+                Clusters = clusters.Select(c => new DynamicClusterConfig
+                {
+                    ClusterId = c.ClusterId,
+                    Destinations = c.Destinations?.ToDictionary(d => d.Key, d => d.Value.Address ?? string.Empty)
+                        ?? new Dictionary<string, string>()
+                }).ToList()
+            });
+
+            Interlocked.Increment(ref _configVersion);
+            return new RouteOperationResult(true,
+                disable ? $"Cluster '{clusterId}' has been disabled" : $"Cluster '{clusterId}' has been enabled");
+        }
+        finally
+        {
+            _rwLock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>
     /// Add a new cluster independently.
     /// </summary>
     /// <param name="request">Cluster creation request.</param>
@@ -1328,7 +1430,7 @@ public class DynamicYarpConfigService
             {
                 Interlocked.Increment(ref _configVersion);
                 _dynamicConfig!.Version = _configVersion;
-                await SaveDynamicConfigAsync();
+                await SaveDynamicConfigAsync("CreateCluster", request.ClusterId);
             }
             _rwLock.ExitWriteLock();
         }
@@ -1424,7 +1526,7 @@ public class DynamicYarpConfigService
             {
                 Interlocked.Increment(ref _configVersion);
                 _dynamicConfig!.Version = _configVersion;
-                await SaveDynamicConfigAsync();
+                await SaveDynamicConfigAsync("UpdateCluster", clusterId);
             }
             _rwLock.ExitWriteLock();
         }
@@ -1499,7 +1601,7 @@ public class DynamicYarpConfigService
         _rwLock.EnterWriteLock();
         try
         {
-            await SaveDynamicConfigAsync();
+            await SaveDynamicConfigAsync("SaveDynamicConfig");
         }
         finally
         {
@@ -1613,7 +1715,7 @@ public class DynamicYarpConfigService
         {
             Interlocked.Increment(ref _configVersion);
             _dynamicConfig!.Version = _configVersion;
-            await SaveDynamicConfigAsync();
+            await SaveDynamicConfigAsync("ReplaceAllConfig", "full config");
             _rwLock.ExitWriteLock();
         }
     }
@@ -1706,7 +1808,7 @@ public class DynamicYarpConfigService
             {
                 Interlocked.Increment(ref _configVersion);
                 _dynamicConfig!.Version = _configVersion;
-                await SaveDynamicConfigAsync();
+                await SaveDynamicConfigAsync("UpdateRouteMetadata", routeId);
             }
             _rwLock.ExitWriteLock();
         }

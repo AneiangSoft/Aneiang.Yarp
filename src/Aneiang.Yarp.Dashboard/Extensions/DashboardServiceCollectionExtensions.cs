@@ -1,5 +1,4 @@
 using System.IO.Compression;
-using System.Security.Cryptography;
 using Aneiang.Yarp.Dashboard.Controllers;
 using Aneiang.Yarp.Dashboard.Extensions;
 using Aneiang.Yarp.Dashboard.Middleware;
@@ -86,7 +85,7 @@ public static class DashboardServiceCollectionExtensions
             options.Providers.Add<GzipCompressionProvider>();
             options.MimeTypes = new[]
             {
-                "text/plain", "text/css", "text/javascript", "text/html", "text/xml",
+                "text/plain", "text/css", "text/javascript", "text/xml",
                 "application/javascript", "application/json", "application/xml",
                 "application/xml-dtd", "application/atom+xml", "application/octet-stream",
                 "image/svg+xml",
@@ -115,6 +114,7 @@ public static class DashboardServiceCollectionExtensions
 
         // Webhook settings persistence (also needs preload)
         services.AddSingleton<WebhookSettingsPersistenceService>();
+        services.AddSingleton<IWebhookSettingsPersistenceService>(sp => sp.GetRequiredService<WebhookSettingsPersistenceService>());
         services.AddHostedService(sp => new WebhookSettingsPreloadService(
             sp.GetRequiredService<WebhookSettingsPersistenceService>()));
 
@@ -163,6 +163,7 @@ public static class DashboardServiceCollectionExtensions
 
         // Policy persistence
         services.AddSingleton<GatewayPolicyPersistenceService>();
+        services.AddSingleton<IGatewayPolicyPersistenceService>(sp => sp.GetRequiredService<GatewayPolicyPersistenceService>());
 
         // Config snapshot service
         services.AddSingleton<IConfigSnapshotService, ConfigSnapshotService>();
@@ -180,7 +181,6 @@ public static class DashboardServiceCollectionExtensions
         services.AddHttpClient("webhook");
         services.AddSingleton<IWebhookProvider, DingTalkWebhookProvider>();
         services.AddSingleton<IWebhookProvider, GenericWebhookProvider>();
-        services.AddSingleton<WebhookSettingsPersistenceService>();
         services.AddSingleton<WebhookNotificationService>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<DashboardOptions>>();
@@ -208,6 +208,7 @@ public static class DashboardServiceCollectionExtensions
 
         // Dashboard configuration persistence service
         services.AddSingleton<ConfigPersistenceService>();
+        services.AddSingleton<IConfigPersistenceService>(sp => sp.GetRequiredService<ConfigPersistenceService>());
 
         // Default health check service
         services.AddHostedService<DefaultHealthCheckService>();
@@ -253,7 +254,9 @@ public static class DashboardServiceCollectionExtensions
             return null;
 
         return new DashboardAuthFilter(
-            new DashboardAuthorizationService(Microsoft.Extensions.Options.Options.Create(opts)),
+            new DashboardAuthorizationService(
+                Microsoft.Extensions.Options.Options.Create(opts),
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<DashboardAuthorizationService>.Instance),
             routePrefix);
     }
 }

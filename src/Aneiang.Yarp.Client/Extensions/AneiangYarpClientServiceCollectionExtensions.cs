@@ -1,5 +1,8 @@
+using Aneiang.Yarp.GatewayRegistry;
+using GatewayGrpc = Aneiang.Yarp.GatewayRegistry.GatewayRegistry;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
+using Grpc.Net.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -35,15 +38,11 @@ public static class AneiangYarpClientServiceCollectionExtensions
         this IServiceCollection services,
         Action<GatewayRegistrationOptions>? configureOptions = null)
     {
-        services.AddHttpClient();
-        services.AddSingleton<KestrelAutoConfigService>();
-        ConfigureRegistrationOptions(services, configureOptions);
+        ConfigureClientInfrastructure(services, configureOptions);
         services.AddSingleton<GatewayAutoRegistrationClient>();
         services.AddHostedService<GatewayRegistrationHostedService>();
         return services;
     }
-
-    // Internal helpers
 
     /// <summary>
     /// Register client services without the hosted service (used by gateway to support upstream registration).
@@ -51,11 +50,29 @@ public static class AneiangYarpClientServiceCollectionExtensions
     public static IServiceCollection AddAneiangYarpClientInternal(
         this IServiceCollection services)
     {
-        services.AddHttpClient();
-        services.AddSingleton<KestrelAutoConfigService>();
-        ConfigureRegistrationOptions(services, null);
+        ConfigureClientInfrastructure(services, null);
         services.AddSingleton<GatewayAutoRegistrationClient>();
         return services;
+    }
+
+    private static void ConfigureClientInfrastructure(
+        IServiceCollection services,
+        Action<GatewayRegistrationOptions>? configureOptions)
+    {
+        services.AddHttpClient();
+        ConfigureRegistrationOptions(services, configureOptions);
+        services.AddSingleton(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<GatewayRegistrationOptions>>().Value;
+            var gatewayUrl = options.GatewayUrl ?? "http://localhost:5000";
+            return GrpcChannel.ForAddress(gatewayUrl);
+        });
+        services.AddSingleton(sp =>
+        {
+            var channel = sp.GetRequiredService<GrpcChannel>();
+            return new GatewayGrpc.GatewayRegistryClient(channel);
+        });
+        services.AddSingleton<KestrelAutoConfigService>();
     }
 
     internal static void ConfigureRegistrationOptions(
@@ -69,7 +86,6 @@ public static class AneiangYarpClientServiceCollectionExtensions
         if (configureOptions != null)
             services.Configure(configureOptions);
 
-        // Suppress validation - options are optional
         services.AddSingleton<IValidateOptions<GatewayRegistrationOptions>, SkipValidation>();
     }
 

@@ -1,8 +1,8 @@
 using Aneiang.Yarp.Dashboard.Models;
 using Aneiang.Yarp.Dashboard.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using System.Buffers;
 using System.Text.Json;
 
@@ -16,8 +16,7 @@ namespace Aneiang.Yarp.Dashboard.Controllers;
 public class WebSocketLogController : Controller
 {
     private readonly IProxyLogStore _logStore;
-    private readonly string? _jwtSecret;
-    private readonly bool _hasAuth;
+    private readonly IDashboardAuthorizationService _authorizationService;
     private readonly ILogger<WebSocketLogController> _logger;
 
     // Use source generator context for optimized serialization (replaces JsonSerializerOptions)
@@ -42,17 +41,19 @@ public class WebSocketLogController : Controller
     };
 
     /// <summary>Initializes a new instance of WebSocketLogController.</summary>
-    public WebSocketLogController(IProxyLogStore logStore, IOptions<DashboardOptions> options, ILogger<WebSocketLogController> logger)
+    public WebSocketLogController(
+        IProxyLogStore logStore,
+        IDashboardAuthorizationService authorizationService,
+        ILogger<WebSocketLogController> logger)
     {
         _logStore = logStore;
-        _jwtSecret = options.Value.JwtSecret;
-        _hasAuth = !string.IsNullOrEmpty(_jwtSecret);
+        _authorizationService = authorizationService;
         _logger = logger;
     }
 
     /// <summary>
     /// WebSocket endpoint for real-time log streaming.
-    /// Query params: ?token=xxx (auth), &amp;routeId=xxx (filter), &amp;minLevel=Warning
+    /// Query params: &amp;routeId=xxx (filter), &amp;minLevel=Warning
     /// Message format: JSON { type: "log"|"ping", entry?: LogEntry }
     /// </summary>
     [HttpGet("ws/logs")]
@@ -64,12 +65,10 @@ public class WebSocketLogController : Controller
             return;
         }
 
-        // Optional auth via query token (only check if auth is configured)
-        if (_hasAuth)
+        if (!await _authorizationService.IsAuthorizedAsync(HttpContext))
         {
-            var token = HttpContext.Request.Query["token"].ToString();
-            // Basic token validation placeholder
-            // In production, use proper JWT validation
+            HttpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return;
         }
 
         // Optional filters - read once and cache locally

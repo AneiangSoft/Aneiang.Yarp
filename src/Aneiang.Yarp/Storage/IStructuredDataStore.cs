@@ -2,8 +2,22 @@ namespace Aneiang.Yarp.Storage;
 
 /// <summary>
 /// Structured data store interface for relational table operations.
-/// Provides CRUD operations for gateway entities with proper table schema.
+/// Provides typed CRUD operations for gateway entities with defined table schemas.
 /// </summary>
+/// <remarks>
+/// <para><b>Purpose:</b> Schema-aware storage for Dashboard entities: routes, clusters, destinations,
+/// config history, policies, audit logs, and webhook settings.</para>
+/// <para><b>When to use:</b> For Dashboard and config management features that require typed entity access.
+/// Used by <see cref="Aneiang.Yarp.Dashboard.Services.ConfigPersistenceService"/>,
+/// <see cref="Aneiang.Yarp.Dashboard.Services.WebhookSettingsPersistenceService"/>,
+/// and the audit log implementation.</para>
+/// <para><b>Relationship with <see cref="IDataStore"/>:</b>
+/// <c>IStructuredDataStore</c> is the preferred abstraction for new Dashboard features.
+/// <c>IDataStore</c> is the lower-level, schema-agnostic abstraction used by the core config persistence layer.
+/// New features should depend on <c>IStructuredDataStore</c> for typed entity access;
+/// <c>IDataStore</c> should only be used for generic document storage scenarios.</para>
+/// <para><b>Backends:</b> SqliteDataStore currently; RedisDataStore planned.</para>
+/// </remarks>
 public interface IStructuredDataStore : IAsyncDisposable, IDisposable
 {
     /// <summary>Initialize database schema (create tables if not exists).</summary>

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Models;
+using Aneiang.Yarp.Dashboard.Plugins;
 using Aneiang.Yarp.Dashboard.Services;
 
 namespace Aneiang.Yarp.Dashboard.Middleware;
@@ -23,6 +24,7 @@ public sealed class WafMiddleware
     private readonly string _dashPrefix;
     private readonly WafEventStore _eventStore;
     private readonly IGatewayAlertService _alertService;
+    private readonly IGatewayPluginManager _pluginManager;
 
     /// <summary>Ultra-tight timeout (5ms) prevents catastrophic backtracking while allowing benign input.</summary>
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(5);
@@ -73,7 +75,8 @@ public sealed class WafMiddleware
         IOptions<WafOptions> wafOptions,
         IOptions<DashboardOptions> dashOptions,
         WafEventStore eventStore,
-        IGatewayAlertService alertService)
+        IGatewayAlertService alertService,
+        IGatewayPluginManager pluginManager)
     {
         _next = next;
         _logger = logger;
@@ -84,11 +87,12 @@ public sealed class WafMiddleware
         _dashPrefix = "/" + prefix.Trim('/');
         _eventStore = eventStore;
         _alertService = alertService;
+        _pluginManager = pluginManager;
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (!_wafOptions.Enabled)
+        if (!_wafOptions.Enabled || !_pluginManager.IsPluginEnabled("waf"))
         {
             await _next(context);
             return;

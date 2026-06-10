@@ -8,7 +8,7 @@ namespace Aneiang.Yarp.Dashboard.Services;
 /// <summary>
 /// Persists gateway policies to a JSON file.
 /// </summary>
-public class GatewayPolicyPersistenceService
+public class GatewayPolicyPersistenceService : IGatewayPolicyPersistenceService
 {
     private readonly string _filePath;
     private static readonly JsonSerializerOptions _jsonOptions = new()

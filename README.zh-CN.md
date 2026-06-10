@@ -220,9 +220,8 @@ builder.Services.AddAneiangYarpDashboard();
 
 var app = builder.Build();
 app.UseRouting();
-app.UseAneiangYarpDashboard();
+app.UseAneiangYarpDashboard();  // 内部已包含 MapReverseProxy
 app.MapControllers();
-app.MapReverseProxy();
 app.Run();
 ```
 
@@ -396,9 +395,8 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 app.UseRouting();
-app.UseAneiangYarpDashboard();  // ← 在 UseRouting 之后
+app.UseAneiangYarpDashboard();  // ← 在 UseRouting 之后（内部已包含 MapReverseProxy）
 app.MapControllers();
-app.MapReverseProxy();           // ← 必须最后
 ```
 
 中间件职责：捕获 YARP 代理的请求/响应数据，自动跳过 Dashboard 自身请求。

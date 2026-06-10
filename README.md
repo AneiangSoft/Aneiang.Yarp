@@ -220,9 +220,8 @@ builder.Services.AddAneiangYarpDashboard();
 
 var app = builder.Build();
 app.UseRouting();
-app.UseAneiangYarpDashboard();
+app.UseAneiangYarpDashboard();  // includes MapReverseProxy internally
 app.MapControllers();
-app.MapReverseProxy();
 app.Run();
 ```
 
@@ -395,9 +394,8 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 app.UseRouting();
-app.UseAneiangYarpDashboard();  // ← after UseRouting
+app.UseAneiangYarpDashboard();  // ← after UseRouting (includes MapReverseProxy internally)
 app.MapControllers();
-app.MapReverseProxy();           // ← must be last
 ```
 
 The middleware captures YARP proxy request/response data and automatically skips the dashboard's own requests.

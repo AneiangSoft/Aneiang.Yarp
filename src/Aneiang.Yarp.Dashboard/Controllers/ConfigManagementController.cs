@@ -5,6 +5,7 @@ using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Services.Webhook;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -17,22 +18,24 @@ namespace Aneiang.Yarp.Dashboard.Controllers;
 [ApiController]
 public class ConfigManagementController : ControllerBase
 {
-    private readonly ConfigPersistenceService _persistenceService;
-    private readonly DynamicYarpConfigService _dynamicConfig;
+    private readonly IConfigPersistenceService _persistenceService;
+    private readonly IDynamicYarpConfigService _dynamicConfig;
     private readonly ILogger<ConfigManagementController> _logger;
     private readonly DashboardOptions _dashboardOptions;
-    private readonly WebhookSettingsPersistenceService _webhookPersistence;
+    private readonly IWebhookSettingsPersistenceService _webhookPersistence;
     private readonly WebhookNotificationService _webhookService;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IMemoryCache _memoryCache;
 
     public ConfigManagementController(
-        ConfigPersistenceService persistenceService,
-        DynamicYarpConfigService dynamicConfig,
+        IConfigPersistenceService persistenceService,
+        IDynamicYarpConfigService dynamicConfig,
         ILogger<ConfigManagementController> logger,
         IOptions<DashboardOptions> dashboardOptions,
-        WebhookSettingsPersistenceService webhookPersistence,
+        IWebhookSettingsPersistenceService webhookPersistence,
         WebhookNotificationService webhookService,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        IMemoryCache memoryCache)
     {
         _persistenceService = persistenceService;
         _dynamicConfig = dynamicConfig;
@@ -41,6 +44,17 @@ public class ConfigManagementController : ControllerBase
         _webhookPersistence = webhookPersistence;
         _webhookService = webhookService;
         _httpClientFactory = httpClientFactory;
+        _memoryCache = memoryCache;
+    }
+
+    /// <summary>
+    /// Invalidates the dashboard query caches so the UI immediately reflects
+    /// the latest configuration after any mutation (save/delete/rename/rollback/import).
+    /// </summary>
+    private void InvalidateQueryCaches()
+    {
+        _memoryCache.Remove("dashboard:routes:query");
+        _memoryCache.Remove("dashboard:clusters:query");
     }
 
     /// <summary>
@@ -108,6 +122,7 @@ public class ConfigManagementController : ControllerBase
 
             var success = await _persistenceService.ImportFullConfigAsync(config, GetClientIp());
             
+            if (success) InvalidateQueryCaches();
             return success
                 ? Ok(new { code = 200, message = "Configuration imported successfully" })
                 : BadRequest(new { code = 400, message = "Failed to import configuration" });
@@ -210,6 +225,7 @@ public class ConfigManagementController : ControllerBase
             
             var result = await _dynamicConfig.TryAddCluster(clusterId, destinations, loadBalancingPolicy, healthCheck, "dashboard", "dashboard-user");
 
+            if (result.Success) InvalidateQueryCaches();
             return result.Success
                 ? Ok(new { code = 200, message = result.Message, clusterId = clusterId })
                 : BadRequest(new { code = 400, message = result.Message });
@@ -236,6 +252,7 @@ public class ConfigManagementController : ControllerBase
             
             var result = await _dynamicConfig.TryRemoveCluster(clusterId);
             
+            if (result.Success) InvalidateQueryCaches();
             return result.Success
                 ? Ok(new { code = 200, message = result.Message, clusterId = clusterId })
                 : BadRequest(new { code = 400, message = result.Message });
@@ -305,6 +322,7 @@ public class ConfigManagementController : ControllerBase
                 clusterId, newClusterId, destinations, loadBalancingPolicy,
                 source: "dashboard", createdBy: "dashboard-user");
 
+            if (result.Success) InvalidateQueryCaches();
             return result.Success
                 ? Ok(new { code = 200, message = result.Message, oldClusterId = clusterId, newClusterId = newClusterId })
                 : BadRequest(new { code = 400, message = result.Message });
@@ -430,6 +448,7 @@ public class ConfigManagementController : ControllerBase
             
             var result = await _dynamicConfig.TryAddRoute(request, "dashboard", "dashboard-user");
 
+            if (result.Success) InvalidateQueryCaches();
             return result.Success
                 ? Ok(new { code = 200, message = result.Message, routeId = routeId })
                 : BadRequest(new { code = 400, message = result.Message });
@@ -456,6 +475,7 @@ public class ConfigManagementController : ControllerBase
             
             var result = await _dynamicConfig.TryRemoveRoute(routeId, null, removeOrphanedCluster);
             
+            if (result.Success) InvalidateQueryCaches();
             return result.Success
                 ? Ok(new { code = 200, message = result.Message, routeId = routeId })
                 : BadRequest(new { code = 400, message = result.Message });
@@ -509,6 +529,7 @@ public class ConfigManagementController : ControllerBase
         {
             var success = await _persistenceService.RollbackAsync(versionId, GetClientIp());
             
+            if (success) InvalidateQueryCaches();
             return success
                 ? Ok(new { code = 200, message = $"Rolled back to version: {versionId}" })
                 : BadRequest(new { code = 400, message = $"Version not found: {versionId}" });
@@ -536,6 +557,106 @@ public class ConfigManagementController : ControllerBase
         {
             _logger.LogError(ex, "Failed to create snapshot");
             return StatusCode(500, new { code = 500, message = $"Snapshot failed: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Diff a historical version against the current live configuration.
+    /// Returns structured diff data for the diff panel.
+    /// </summary>
+    [HttpGet("diff/{versionId}")]
+    public IActionResult ConfigDiff(string versionId)
+    {
+        try
+        {
+            var historySnapshot = _persistenceService.GetHistory()
+                .FirstOrDefault(s => string.Equals(s.VersionId, versionId, StringComparison.OrdinalIgnoreCase));
+
+            if (historySnapshot == null)
+                return NotFound(new { code = 404, message = $"Version '{versionId}' not found" });
+
+            // Parse snapshot routes and clusters from the stored JSON
+            var snapshotRoutes = ParseSnapshotRoutes(historySnapshot.Config);
+            var snapshotClusters = ParseSnapshotClusters(historySnapshot.Config);
+
+            // Get current live config
+            var currentRoutes = _dynamicConfig.GetRoutes();
+            var currentClusters = _dynamicConfig.GetClusters();
+
+            // Build diff
+            var routeDiffs = BuildRouteDiffs(snapshotRoutes, currentRoutes);
+            var clusterDiffs = BuildClusterDiffs(snapshotClusters, currentClusters);
+
+            var summary = new
+            {
+                versionId,
+                description = historySnapshot.Description,
+                timestamp = historySnapshot.Timestamp,
+                routesChanged = routeDiffs.Count,
+                clustersChanged = clusterDiffs.Count,
+                totalChanges = routeDiffs.Count + clusterDiffs.Count
+            };
+
+            return Ok(new
+            {
+                code = 200,
+                data = new
+                {
+                    summary,
+                    routes = routeDiffs,
+                    clusters = clusterDiffs
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to diff config for version: {VersionId}", versionId);
+            return StatusCode(500, new { code = 500, message = $"Diff failed: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Toggle cluster enabled/disabled state.
+    /// </summary>
+    [HttpPost("clusters/{clusterId}/toggle")]
+    public async Task<IActionResult> ToggleCluster(string clusterId)
+    {
+        try
+        {
+            _logger.LogInformation("Toggle cluster requested: {ClusterId}", clusterId);
+
+            var cluster = _dynamicConfig.GetCluster(clusterId);
+            if (cluster == null)
+                return NotFound(new { code = 404, message = $"Cluster '{clusterId}' not found" });
+
+            // Determine current enabled state from metadata
+            var metadata = cluster.Metadata as IDictionary<string, string>;
+            var isCurrentlyDisabled = metadata != null && metadata.TryGetValue("Disabled", out var disabledVal)
+                && string.Equals(disabledVal, "true", StringComparison.OrdinalIgnoreCase);
+
+            var shouldDisable = !isCurrentlyDisabled;
+
+            await _persistenceService.SaveSnapshotAsync(
+                $"Before cluster '{clusterId}' {(shouldDisable ? "disabled" : "enabled")} via dashboard",
+                GetClientIp());
+
+            var result = await _dynamicConfig.TrySetClusterDisabled(
+                clusterId, shouldDisable, "dashboard", GetClientIp());
+
+            if (result.Success) InvalidateQueryCaches();
+            return result.Success
+                ? Ok(new
+                {
+                    code = 200,
+                    message = result.Message,
+                    data = new { clusterId, enabled = !shouldDisable, action = shouldDisable ? "disabled" : "enabled" }
+                })
+                : BadRequest(new { code = 400, message = result.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to toggle cluster: {ClusterId}", clusterId);
+            return StatusCode(500, new { code = 500, message = $"Toggle failed: {ex.Message}" });
         }
     }
 
@@ -666,6 +787,10 @@ public class ConfigManagementController : ControllerBase
                 data.EnabledEvents = validEvents.Count == allValidEvents.Count ? null : validEvents;
             }
 
+            // Update timeout and retry settings
+            data.TimeoutSeconds = request.TimeoutSeconds > 0 ? request.TimeoutSeconds : 10;
+            data.RetryCount = request.RetryCount >= 0 ? request.RetryCount : 1;
+
             // Persist to file
             _webhookPersistence.Save(data);
 
@@ -764,6 +889,10 @@ public class ConfigManagementController : ControllerBase
 
         // Sync enabled events
         _dashboardOptions.WebhookEnabledEvents = data.EnabledEvents;
+
+        // Sync timeout and retry settings
+        _dashboardOptions.WebhookTimeoutSeconds = data.TimeoutSeconds > 0 ? data.TimeoutSeconds : 10;
+        _dashboardOptions.WebhookRetryCount = data.RetryCount >= 0 ? data.RetryCount : 1;
     }
 
     private async Task<bool> SendTestWebhookAsync(string url, WebhookPayload payload, string? secret, string platform)
@@ -786,6 +915,228 @@ public class ConfigManagementController : ControllerBase
 
         var response = await http.SendAsync(httpRequest);
         return response.IsSuccessStatusCode;
+    }
+
+    // ── Diff Helpers ──
+
+    private static List<SnapshotRoute> ParseSnapshotRoutes(JsonElement config)
+    {
+        var routes = new List<SnapshotRoute>();
+
+        // Try to find routes in the YARP-standard nested structure
+        JsonElement routesArray = default;
+        if (config.TryGetProperty("reverseProxy", out var rp) || config.TryGetProperty("ReverseProxy", out rp))
+        {
+            if (rp.TryGetProperty("routes", out var r) || rp.TryGetProperty("Routes", out r))
+            {
+                routesArray = r;
+            }
+        }
+
+        if (routesArray.ValueKind != JsonValueKind.Array) return routes;
+
+        foreach (var route in routesArray.EnumerateArray())
+        {
+            var routeId = route.TryGetProperty("routeId", out var rid) ? rid.GetString() ?? string.Empty :
+                route.TryGetProperty("RouteId", out var ridp) ? ridp.GetString() ?? string.Empty : string.Empty;
+
+            var clusterId = route.TryGetProperty("clusterId", out var cid) ? cid.GetString() ?? string.Empty :
+                route.TryGetProperty("ClusterId", out var cidp) ? cidp.GetString() ?? string.Empty : string.Empty;
+
+            string matchPath = string.Empty;
+            if (route.TryGetProperty("match", out var match) || route.TryGetProperty("Match", out match))
+            {
+                if (match.TryGetProperty("path", out var path) || match.TryGetProperty("Path", out path))
+                {
+                    matchPath = path.GetString() ?? string.Empty;
+                }
+            }
+
+            var order = route.TryGetProperty("order", out var ord) ? ord.GetInt32() :
+                route.TryGetProperty("Order", out var ordp) ? ordp.GetInt32() : 0;
+
+            routes.Add(new SnapshotRoute
+            {
+                RouteId = routeId,
+                ClusterId = clusterId,
+                MatchPath = matchPath,
+                Order = order
+            });
+        }
+
+        return routes;
+    }
+
+    private static List<SnapshotCluster> ParseSnapshotClusters(JsonElement config)
+    {
+        var clusters = new List<SnapshotCluster>();
+
+        JsonElement clustersObj = default;
+        if (config.TryGetProperty("reverseProxy", out var rp) || config.TryGetProperty("ReverseProxy", out rp))
+        {
+            if (rp.TryGetProperty("clusters", out var c) || rp.TryGetProperty("Clusters", out c))
+            {
+                clustersObj = c;
+            }
+        }
+
+        if (clustersObj.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var kvp in clustersObj.EnumerateObject())
+            {
+                var clusterId = kvp.Name;
+                var cluster = kvp.Value;
+
+                var lbPolicy = (cluster.TryGetProperty("loadBalancingPolicy", out var lbp)
+                    ? lbp.GetString() : null)
+                    ?? (cluster.TryGetProperty("LoadBalancingPolicy", out var lbpp)
+                    ? lbpp.GetString() : null);
+
+                var dests = new Dictionary<string, string>();
+                if (cluster.TryGetProperty("destinations", out var d) || cluster.TryGetProperty("Destinations", out d))
+                {
+                    if (d.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var dest in d.EnumerateObject())
+                        {
+                            var addr = dest.Value.ValueKind == JsonValueKind.String
+                                ? dest.Value.GetString() ?? string.Empty
+                                : dest.Value.TryGetProperty("address", out var a) ? a.GetString() ?? string.Empty :
+                                  dest.Value.TryGetProperty("Address", out var ap) ? ap.GetString() ?? string.Empty : string.Empty;
+                            dests[dest.Name] = addr;
+                        }
+                    }
+                }
+
+                clusters.Add(new SnapshotCluster
+                {
+                    ClusterId = clusterId,
+                    LoadBalancingPolicy = lbPolicy,
+                    Destinations = dests
+                });
+            }
+        }
+
+        return clusters;
+    }
+
+    private static List<object> BuildRouteDiffs(
+        List<SnapshotRoute> snapshotRoutes,
+        IReadOnlyList<global::Yarp.ReverseProxy.Configuration.RouteConfig> currentRoutes)
+    {
+        var diffs = new List<object>();
+        var currentSet = currentRoutes.ToDictionary(r => r.RouteId ?? string.Empty, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var sr in snapshotRoutes)
+        {
+            if (currentSet.TryGetValue(sr.RouteId, out var live))
+            {
+                // Check for changes
+                if (sr.ClusterId != (live.ClusterId ?? string.Empty) ||
+                    sr.MatchPath != (live.Match?.Path ?? string.Empty) ||
+                    sr.Order != (live.Order ?? 0))
+                {
+                    diffs.Add(GetDiffItem("route",
+                        $"{sr.RouteId} ({sr.MatchPath} → {sr.ClusterId})",
+                        "modified",
+                        $"ClusterId: {sr.ClusterId}, Path: {sr.MatchPath}, Order: {sr.Order}",
+                        $"ClusterId: {live.ClusterId}, Path: {live.Match?.Path}, Order: {live.Order}"));
+                }
+            }
+            else
+            {
+                // Route exists in snapshot but not in current → was removed
+                diffs.Add(GetDiffItem("route",
+                    $"{sr.RouteId} ({sr.MatchPath} → {sr.ClusterId})",
+                    "removed", null, null));
+            }
+        }
+
+        // Routes in current but not in snapshot → were added
+        var snapshotSet = snapshotRoutes.Select(s => s.RouteId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var live in currentRoutes)
+        {
+            if (!snapshotSet.Contains(live.RouteId ?? string.Empty))
+            {
+                diffs.Add(GetDiffItem("route",
+                    $"{live.RouteId} ({live.Match?.Path} → {live.ClusterId})",
+                    "added", null, null));
+            }
+        }
+
+        return diffs;
+    }
+
+    private static List<object> BuildClusterDiffs(
+        List<SnapshotCluster> snapshotClusters,
+        IReadOnlyList<global::Yarp.ReverseProxy.Configuration.ClusterConfig> currentClusters)
+    {
+        var diffs = new List<object>();
+        var currentSet = currentClusters.ToDictionary(c => c.ClusterId ?? string.Empty, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var sc in snapshotClusters)
+        {
+            if (currentSet.TryGetValue(sc.ClusterId, out var live))
+            {
+                // Build destination string for comparison
+                var snapshotDest = string.Join(", ", sc.Destinations.Select(d => $"{d.Key}={d.Value}"));
+                var currentDest = string.Join(", ", live.Destinations?.Select(d => $"{d.Key}={d.Value.Address}") ?? Enumerable.Empty<string>());
+
+                if (snapshotDest != currentDest ||
+                    sc.LoadBalancingPolicy != live.LoadBalancingPolicy)
+                {
+                    diffs.Add(GetDiffItem("cluster",
+                        sc.ClusterId,
+                        "modified",
+                        $"Destinations: [{snapshotDest}], Policy: {sc.LoadBalancingPolicy ?? "none"}",
+                        $"Destinations: [{currentDest}], Policy: {live.LoadBalancingPolicy ?? "none"}"));
+                }
+            }
+            else
+            {
+                diffs.Add(GetDiffItem("cluster", sc.ClusterId, "removed", null, null));
+            }
+        }
+
+        var snapshotSet = snapshotClusters.Select(s => s.ClusterId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var live in currentClusters)
+        {
+            if (!snapshotSet.Contains(live.ClusterId ?? string.Empty))
+            {
+                var dest = string.Join(", ", live.Destinations?.Select(d => $"{d.Key}={d.Value.Address}") ?? Enumerable.Empty<string>());
+                diffs.Add(GetDiffItem("cluster", $"{live.ClusterId} ({dest})", "added", null, null));
+            }
+        }
+
+        return diffs;
+    }
+
+    private static object GetDiffItem(string entityType, string path, string diffType, string? oldValue, string? newValue)
+    {
+        return new
+        {
+            type = diffType,
+            path = $"[{entityType}] {path}",
+            oldValue,
+            newValue
+        };
+    }
+
+    /// <summary>Snapshot route entry extracted from snapshot config.</summary>
+    private class SnapshotRoute
+    {
+        public string RouteId { get; set; } = string.Empty;
+        public string ClusterId { get; set; } = string.Empty;
+        public string MatchPath { get; set; } = string.Empty;
+        public int Order { get; set; }
+    }
+
+    /// <summary>Snapshot cluster entry extracted from snapshot config.</summary>
+    private class SnapshotCluster
+    {
+        public string ClusterId { get; set; } = string.Empty;
+        public string? LoadBalancingPolicy { get; set; }
+        public Dictionary<string, string> Destinations { get; set; } = new();
     }
 }
 

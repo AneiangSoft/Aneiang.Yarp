@@ -37,6 +37,7 @@ try
     app.UseAneiangYarpDashboard();
 
     app.MapControllers();
+    app.MapAneiangYarpGrpc();
 
     Console.WriteLine("╔══════════════════════════════════════════════════╗");
     Console.WriteLine("║  Internal gateway is running                     ║");

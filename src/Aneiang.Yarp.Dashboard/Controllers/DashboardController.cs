@@ -79,16 +79,95 @@ public class DashboardController : Controller
         return View();
     }
 
-    /// <summary>
-    /// All other pages are handled as SPA tabs from the overview page.
-    /// Redirects to overview so the SPA router reads the hash and shows the correct tab.
-    /// </summary>
-    [HttpGet("{page}")]
-    public IActionResult Page(string page)
+    [HttpGet("clusters")]
+    public IActionResult Clusters()
     {
-        // Serve the overview page; the SPA router will switch to the requested tab.
-        SetCommonViewBag(page);
-        return View("Overview");
+        SetCommonViewBag("clusters");
+        return View();
+    }
+
+    [HttpGet("routes")]
+    public IActionResult Routes()
+    {
+        SetCommonViewBag("routes");
+        return View();
+    }
+
+    [HttpGet("stats")]
+    public IActionResult Stats()
+    {
+        SetCommonViewBag("stats");
+        return View();
+    }
+
+    [HttpGet("logs")]
+    public IActionResult Logs()
+    {
+        SetCommonViewBag("logs");
+        return View();
+    }
+
+    [HttpGet("circuits")]
+    public IActionResult Circuits()
+    {
+        SetCommonViewBag("circuits");
+        return View();
+    }
+
+    [HttpGet("alerts")]
+    public IActionResult Alerts()
+    {
+        SetCommonViewBag("alerts");
+        return View();
+    }
+
+    [HttpGet("security")]
+    public IActionResult Security()
+    {
+        SetCommonViewBag("security");
+        return View();
+    }
+
+    [HttpGet("healthcheck")]
+    public IActionResult HealthCheck()
+    {
+        SetCommonViewBag("healthcheck");
+        return View();
+    }
+
+    [HttpGet("history")]
+    public IActionResult History()
+    {
+        SetCommonViewBag("history");
+        return View();
+    }
+
+    [HttpGet("policies")]
+    public IActionResult Policies()
+    {
+        SetCommonViewBag("policies");
+        return View();
+    }
+
+    [HttpGet("plugins")]
+    public IActionResult Plugins()
+    {
+        SetCommonViewBag("plugins");
+        return View();
+    }
+
+    [HttpGet("audit")]
+    public IActionResult Audit()
+    {
+        SetCommonViewBag("audit");
+        return View();
+    }
+
+    [HttpGet("settings")]
+    public IActionResult Settings()
+    {
+        SetCommonViewBag("settings");
+        return View();
     }
 
     /// <summary>Dashboard login page.</summary>

@@ -37,6 +37,14 @@ public static class AneiangYarpServiceCollectionExtensions
         Action<IReverseProxyBuilder>? configureReverseProxy = null,
         bool enableRegistration = true)
     {
+        // Guard: prevent double registration. AddReverseProxy() is idempotent (TryAdd* internally),
+        // but repeated calls to this method would re-register InMemoryConfigProvider / IProxyConfigProvider
+        // unnecessarily and trigger confusing double behavior.
+        if (services.Any(sd => sd.ServiceType == typeof(InMemoryConfigProvider)))
+        {
+            return services;
+        }
+
         var proxyBuilder = services.AddReverseProxy();
 
         // Register custom load balancing policies
@@ -60,6 +68,7 @@ public static class AneiangYarpServiceCollectionExtensions
         // Dynamic config service (depends on IDynamicConfigPersistenceService and IConfigChangeAuditLog
         // which are registered by Dashboard when AddAneiangYarpDashboard is called)
         services.AddSingleton<DynamicYarpConfigService>();
+        services.AddSingleton<IDynamicYarpConfigService>(sp => sp.GetRequiredService<DynamicYarpConfigService>());
 
         // Built-in transform options
         services.AddOptions<BuiltinTransformOptions>()
@@ -68,6 +77,8 @@ public static class AneiangYarpServiceCollectionExtensions
         // Register controllers + views so this library's controllers/MVC are discoverable
         services.AddControllersWithViews()
             .AddApplicationPart(typeof(GatewayConfigController).Assembly);
+
+        services.AddGrpc();
 
         // Remove registration API endpoints when disabled (security: no route = 404, not 401/403)
         if (!enableRegistration)
