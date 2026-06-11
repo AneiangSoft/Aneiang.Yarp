@@ -1,7 +1,4 @@
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Configuration;
-
-namespace Aneiang.Yarp.Middleware;
+namespace Aneiang.Yarp.Models;
 
 /// <summary>
 /// Options for built-in request/response transforms.

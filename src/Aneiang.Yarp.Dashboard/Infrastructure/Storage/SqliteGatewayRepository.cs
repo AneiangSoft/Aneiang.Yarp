@@ -6,12 +6,10 @@ using Microsoft.Extensions.Logging;
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Storage;
 
 /// <summary>
-/// SQLite-based structured data store implementation.
-/// Each entity type has its own table with proper schema.
-/// Connection pooling is enabled via <c>Pooling=true</c> in the connection string,
-/// which reuses connections across all operations for ~90% lower latency.
+/// Unified SQLite gateway repository implementing <see cref="IGatewayRepository"/>.
+/// Contains all tables in one schema initialization and delegates to internal helper methods.
 /// </summary>
-public class StructuredSqliteStore : IStructuredDataStore
+public sealed class SqliteGatewayRepository : IGatewayRepository
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -20,11 +18,12 @@ public class StructuredSqliteStore : IStructuredDataStore
     };
 
     private readonly string _connectionString;
-    private readonly ILogger<StructuredSqliteStore> _logger;
+    private readonly ILogger<SqliteGatewayRepository> _logger;
     private bool _initialized;
     private static bool _providerSet;
+    private readonly SemaphoreSlim _initLock = new(1, 1);
 
-    public StructuredSqliteStore(StorageOptions options, ILogger<StructuredSqliteStore> logger)
+    public SqliteGatewayRepository(StorageOptions options, ILogger<SqliteGatewayRepository> logger)
     {
         _connectionString = EnsurePoolingEnabled(options.Sqlite.ConnectionString);
         _logger = logger;
@@ -38,27 +37,28 @@ public class StructuredSqliteStore : IStructuredDataStore
         _providerSet = true;
     }
 
-    /// <summary>
-    /// Appends <c>Pooling=true</c> to the connection string if not already present.
-    /// This enables Microsoft.Data.Sqlite's built-in connection pool.
-    /// Note: Min/Max Pool Size keywords are not supported by Microsoft.Data.Sqlite.
-    /// </summary>
-    private static string EnsurePoolingEnabled(string baseConnectionString)
+    private static string EnsurePoolingEnabled(string cs)
     {
-        if (string.IsNullOrWhiteSpace(baseConnectionString))
-            return "Data Source=gateway-store.db;Pooling=true";
-
-        if (baseConnectionString.Contains("Pooling=", StringComparison.OrdinalIgnoreCase))
-            return baseConnectionString;
-
-        return baseConnectionString.TrimEnd(';') + ";Pooling=true";
+        if (string.IsNullOrWhiteSpace(cs)) return "Data Source=gateway-store.db;Pooling=true";
+        return cs.Contains("Pooling=", StringComparison.OrdinalIgnoreCase) ? cs : cs.TrimEnd(';') + ";Pooling=true";
     }
 
-    /// <summary>
-    /// Creates a new connection from the pooled connection string.
-    /// Connections obtained from the pool are returned automatically when disposed.
-    /// </summary>
     private SqliteConnection CreateConnection() => new(_connectionString);
+
+    private async Task EnsureInitializedAsync(CancellationToken ct)
+    {
+        if (_initialized) return;
+        await _initLock.WaitAsync(ct);
+        try
+        {
+            if (_initialized) return;
+            await InitializeAsync(ct);
+        }
+        finally
+        {
+            _initLock.Release();
+        }
+    }
 
     public async Task InitializeAsync(CancellationToken ct = default)
     {
@@ -67,7 +67,6 @@ public class StructuredSqliteStore : IStructuredDataStore
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
-
         cmd.CommandText = """
             -- Routes table
             CREATE TABLE IF NOT EXISTS yarp_routes (
@@ -80,11 +79,9 @@ public class StructuredSqliteStore : IStructuredDataStore
                 created_by TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
-                metadata TEXT,
-                enabled INTEGER DEFAULT 1
+                metadata TEXT
             );
             CREATE INDEX IF NOT EXISTS ix_routes_cluster ON yarp_routes(cluster_id);
-            CREATE INDEX IF NOT EXISTS ix_routes_enabled ON yarp_routes(enabled);
 
             -- Clusters table
             CREATE TABLE IF NOT EXISTS yarp_clusters (
@@ -95,10 +92,8 @@ public class StructuredSqliteStore : IStructuredDataStore
                 created_by TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
-                last_heartbeat TEXT,
-                enabled INTEGER DEFAULT 1
+                last_heartbeat TEXT
             );
-            CREATE INDEX IF NOT EXISTS ix_clusters_enabled ON yarp_clusters(enabled);
 
             -- Destinations table
             CREATE TABLE IF NOT EXISTS yarp_destinations (
@@ -171,33 +166,42 @@ public class StructuredSqliteStore : IStructuredDataStore
                 secret TEXT,
                 updated_at TEXT NOT NULL
             );
-            """;
 
+            -- Proxy logs table
+            CREATE TABLE IF NOT EXISTS proxy_logs (
+                id TEXT PRIMARY KEY,
+                method TEXT,
+                path TEXT,
+                route_id TEXT,
+                cluster_id TEXT,
+                destination_id TEXT,
+                status_code INTEGER DEFAULT 0,
+                duration_ms INTEGER DEFAULT 0,
+                request_body_size INTEGER,
+                response_body_size INTEGER,
+                client_ip TEXT,
+                error_message TEXT,
+                timestamp TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS ix_proxy_logs_timestamp ON proxy_logs(timestamp DESC);
+            """;
         await cmd.ExecuteNonQueryAsync(ct);
         _initialized = true;
-        _logger.LogInformation("StructuredSqliteStore initialized (pooled)");
+        _logger.LogInformation("SqliteGatewayRepository initialized");
     }
 
-    private async Task EnsureInitializedAsync(CancellationToken ct)
-    {
-        if (!_initialized) await InitializeAsync(ct);
-    }
-
-    // ========== Routes ==========
+    // ========== IRouteRepository ==========
 
     public async Task<RouteEntity?> GetRouteAsync(string routeId, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT * FROM yarp_routes WHERE route_id = @id";
         cmd.Parameters.AddWithValue("@id", routeId);
-
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
-        return MapRoute(reader);
+        return await reader.ReadAsync(ct) ? MapRoute(reader) : null;
     }
 
     public async Task<IReadOnlyList<RouteEntity>> GetAllRoutesAsync(CancellationToken ct = default)
@@ -205,15 +209,12 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT * FROM yarp_routes ORDER BY \"order\", route_id";
-
-        var routes = new List<RouteEntity>();
+        cmd.CommandText = """SELECT * FROM yarp_routes ORDER BY "order", route_id""";
+        var list = new List<RouteEntity>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            routes.Add(MapRoute(reader));
-        return routes.AsReadOnly();
+        while (await reader.ReadAsync(ct)) list.Add(MapRoute(reader));
+        return list.AsReadOnly();
     }
 
     public async Task<IReadOnlyList<RouteEntity>> GetRoutesByClusterAsync(string clusterId, CancellationToken ct = default)
@@ -221,37 +222,31 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT * FROM yarp_routes WHERE cluster_id = @cid ORDER BY \"order\"";
+        cmd.CommandText = """SELECT * FROM yarp_routes WHERE cluster_id = @cid ORDER BY "order" """;
         cmd.Parameters.AddWithValue("@cid", clusterId);
-
-        var routes = new List<RouteEntity>();
+        var list = new List<RouteEntity>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            routes.Add(MapRoute(reader));
-        return routes.AsReadOnly();
+        while (await reader.ReadAsync(ct)) list.Add(MapRoute(reader));
+        return list.AsReadOnly();
     }
 
     public async Task SaveRouteAsync(RouteEntity route, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
         route.UpdatedAt = DateTime.UtcNow;
-
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO yarp_routes (route_id, cluster_id, match_path, "order", transforms, source, created_by, created_at, updated_at, metadata, enabled)
-            VALUES (@id, @cid, @path, @order, @trans, @src, @cb, @ca, @ua, @meta, @en)
+            INSERT INTO yarp_routes (route_id, cluster_id, match_path, "order", transforms, source, created_by, created_at, updated_at, metadata)
+            VALUES (@id, @cid, @path, @order, @trans, @src, @cb, @ca, @ua, @meta)
             ON CONFLICT(route_id) DO UPDATE SET
                 cluster_id = @cid, match_path = @path, "order" = @order, transforms = @trans,
-                source = @src, updated_at = @ua, metadata = @meta, enabled = @en
+                source = @src, updated_at = @ua, metadata = @meta
             """;
         AddRouteParams(cmd, route);
         await cmd.ExecuteNonQueryAsync(ct);
-        _logger.LogDebug("Route {RouteId} saved", route.RouteId);
     }
 
     public async Task SaveRoutesAsync(IEnumerable<RouteEntity> routes, CancellationToken ct = default)
@@ -260,47 +255,26 @@ public class StructuredSqliteStore : IStructuredDataStore
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
         await using var tx = conn.BeginTransaction();
-
         try
         {
-            foreach (var route in routes)
+            foreach (var r in routes)
             {
-                route.UpdatedAt = DateTime.UtcNow;
+                r.UpdatedAt = DateTime.UtcNow;
                 await using var cmd = conn.CreateCommand();
                 cmd.Transaction = tx;
                 cmd.CommandText = """
-                    INSERT INTO yarp_routes (route_id, cluster_id, match_path, "order", transforms, source, created_by, created_at, updated_at, metadata, enabled)
-                    VALUES (@id, @cid, @path, @order, @trans, @src, @cb, @ca, @ua, @meta, @en)
+                    INSERT INTO yarp_routes (route_id, cluster_id, match_path, "order", transforms, source, created_by, created_at, updated_at, metadata)
+                    VALUES (@id, @cid, @path, @order, @trans, @src, @cb, @ca, @ua, @meta)
                     ON CONFLICT(route_id) DO UPDATE SET
                         cluster_id = @cid, match_path = @path, "order" = @order, transforms = @trans,
-                        source = @src, updated_at = @ua, metadata = @meta, enabled = @en
+                        source = @src, updated_at = @ua, metadata = @meta
                     """;
-                AddRouteParams(cmd, route);
+                AddRouteParams(cmd, r);
                 await cmd.ExecuteNonQueryAsync(ct);
             }
             await tx.CommitAsync(ct);
-            _logger.LogDebug("Batch saved {Count} routes", routes.Count());
         }
-        catch
-        {
-            await tx.RollbackAsync(ct);
-            throw;
-        }
-    }
-
-    private static void AddRouteParams(SqliteCommand cmd, RouteEntity route)
-    {
-        cmd.Parameters.AddWithValue("@id", route.RouteId);
-        cmd.Parameters.AddWithValue("@cid", route.ClusterId);
-        cmd.Parameters.AddWithValue("@path", route.MatchPath);
-        cmd.Parameters.AddWithValue("@order", route.Order);
-        cmd.Parameters.AddWithValue("@trans", route.Transforms ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@src", route.Source);
-        cmd.Parameters.AddWithValue("@cb", route.CreatedBy ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@ca", route.CreatedAt.ToString("O"));
-        cmd.Parameters.AddWithValue("@ua", route.UpdatedAt.ToString("O"));
-        cmd.Parameters.AddWithValue("@meta", route.Metadata ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@en", route.Enabled ? 1 : 0);
+        catch { await tx.RollbackAsync(ct); throw; }
     }
 
     public async Task DeleteRouteAsync(string routeId, CancellationToken ct = default)
@@ -308,12 +282,10 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "DELETE FROM yarp_routes WHERE route_id = @id";
         cmd.Parameters.AddWithValue("@id", routeId);
         await cmd.ExecuteNonQueryAsync(ct);
-        _logger.LogDebug("Route {RouteId} deleted", routeId);
     }
 
     public async Task DeleteRoutesByClusterAsync(string clusterId, CancellationToken ct = default)
@@ -321,44 +293,24 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "DELETE FROM yarp_routes WHERE cluster_id = @cid";
         cmd.Parameters.AddWithValue("@cid", clusterId);
         await cmd.ExecuteNonQueryAsync(ct);
-        _logger.LogDebug("Routes for cluster {ClusterId} deleted", clusterId);
     }
 
-    private static RouteEntity MapRoute(SqliteDataReader reader) => new()
-    {
-        RouteId = reader.GetString(0),
-        ClusterId = reader.GetString(1),
-        MatchPath = reader.GetString(2),
-        Order = reader.GetInt32(3),
-        Transforms = reader.IsDBNull(4) ? null : reader.GetString(4),
-        Source = reader.IsDBNull(5) ? "dynamic" : reader.GetString(5),
-        CreatedBy = reader.IsDBNull(6) ? null : reader.GetString(6),
-        CreatedAt = reader.IsDBNull(7) ? DateTime.MinValue : DateTime.Parse(reader.GetString(7)),
-        UpdatedAt = reader.IsDBNull(8) ? DateTime.MinValue : DateTime.Parse(reader.GetString(8)),
-        Metadata = reader.IsDBNull(9) ? null : reader.GetString(9),
-        Enabled = reader.IsDBNull(10) || reader.GetInt32(10) == 1
-    };
-
-    // ========== Clusters ==========
+    // ========== IClusterRepository ==========
 
     public async Task<ClusterEntity?> GetClusterAsync(string clusterId, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT * FROM yarp_clusters WHERE cluster_id = @id";
         cmd.Parameters.AddWithValue("@id", clusterId);
-
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
-        return MapCluster(reader);
+        return await reader.ReadAsync(ct) ? MapCluster(reader) : null;
     }
 
     public async Task<IReadOnlyList<ClusterEntity>> GetAllClustersAsync(CancellationToken ct = default)
@@ -366,26 +318,21 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT * FROM yarp_clusters ORDER BY cluster_id";
-
-        var clusters = new List<ClusterEntity>();
+        var list = new List<ClusterEntity>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            clusters.Add(MapCluster(reader));
-        return clusters.AsReadOnly();
+        while (await reader.ReadAsync(ct)) list.Add(MapCluster(reader));
+        return list.AsReadOnly();
     }
 
     public async Task SaveClusterAsync(ClusterEntity cluster, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
         cluster.UpdatedAt = DateTime.UtcNow;
-
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
         await SaveClusterInternalAsync(conn, null, cluster, ct);
-        _logger.LogDebug("Cluster {ClusterId} saved", cluster.ClusterId);
     }
 
     public async Task SaveClustersAsync(IEnumerable<ClusterEntity> clusters, CancellationToken ct = default)
@@ -394,46 +341,16 @@ public class StructuredSqliteStore : IStructuredDataStore
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
         await using var tx = conn.BeginTransaction();
-
         try
         {
-            foreach (var cluster in clusters)
+            foreach (var c in clusters)
             {
-                cluster.UpdatedAt = DateTime.UtcNow;
-                await SaveClusterInternalAsync(conn, tx, cluster, ct);
+                c.UpdatedAt = DateTime.UtcNow;
+                await SaveClusterInternalAsync(conn, tx, c, ct);
             }
             await tx.CommitAsync(ct);
-            _logger.LogDebug("Batch saved {Count} clusters", clusters.Count());
         }
-        catch
-        {
-            await tx.RollbackAsync(ct);
-            throw;
-        }
-    }
-
-    private static async Task SaveClusterInternalAsync(SqliteConnection conn, SqliteTransaction? tx, ClusterEntity cluster, CancellationToken ct)
-    {
-        await using var cmd = conn.CreateCommand();
-        cmd.Transaction = tx;
-
-        cmd.CommandText = """
-            INSERT INTO yarp_clusters (cluster_id, load_balancing_policy, health_check_config, source, created_by, created_at, updated_at, last_heartbeat, enabled)
-            VALUES (@id, @lb, @hc, @src, @cb, @ca, @ua, @lh, @en)
-            ON CONFLICT(cluster_id) DO UPDATE SET
-                load_balancing_policy = @lb, health_check_config = @hc, source = @src,
-                updated_at = @ua, last_heartbeat = @lh, enabled = @en
-            """;
-        cmd.Parameters.AddWithValue("@id", cluster.ClusterId);
-        cmd.Parameters.AddWithValue("@lb", cluster.LoadBalancingPolicy ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@hc", cluster.HealthCheckConfig ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@src", cluster.Source);
-        cmd.Parameters.AddWithValue("@cb", cluster.CreatedBy ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@ca", cluster.CreatedAt.ToString("O"));
-        cmd.Parameters.AddWithValue("@ua", cluster.UpdatedAt.ToString("O"));
-        cmd.Parameters.AddWithValue("@lh", cluster.LastHeartbeat?.ToString("O") ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@en", cluster.Enabled ? 1 : 0);
-        await cmd.ExecuteNonQueryAsync(ct);
+        catch { await tx.RollbackAsync(ct); throw; }
     }
 
     public async Task DeleteClusterAsync(string clusterId, CancellationToken ct = default)
@@ -441,44 +358,24 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "DELETE FROM yarp_clusters WHERE cluster_id = @id";
         cmd.Parameters.AddWithValue("@id", clusterId);
         await cmd.ExecuteNonQueryAsync(ct);
-        _logger.LogDebug("Cluster {ClusterId} deleted", clusterId);
     }
-
-    private static ClusterEntity MapCluster(SqliteDataReader reader) => new()
-    {
-        ClusterId = reader.GetString(0),
-        LoadBalancingPolicy = reader.IsDBNull(1) ? null : reader.GetString(1),
-        HealthCheckConfig = reader.IsDBNull(2) ? null : reader.GetString(2),
-        Source = reader.IsDBNull(3) ? "dynamic" : reader.GetString(3),
-        CreatedBy = reader.IsDBNull(4) ? null : reader.GetString(4),
-        CreatedAt = reader.IsDBNull(5) ? DateTime.MinValue : DateTime.Parse(reader.GetString(5)),
-        UpdatedAt = reader.IsDBNull(6) ? DateTime.MinValue : DateTime.Parse(reader.GetString(6)),
-        LastHeartbeat = reader.IsDBNull(7) ? null : DateTime.Parse(reader.GetString(7)),
-        Enabled = reader.IsDBNull(8) || reader.GetInt32(8) == 1
-    };
-
-    // ========== Destinations ==========
 
     public async Task<IReadOnlyList<DestinationEntity>> GetDestinationsAsync(string clusterId, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT * FROM yarp_destinations WHERE cluster_id = @cid";
         cmd.Parameters.AddWithValue("@cid", clusterId);
-
-        var destinations = new List<DestinationEntity>();
+        var list = new List<DestinationEntity>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            destinations.Add(MapDestination(reader));
-        return destinations.AsReadOnly();
+        while (await reader.ReadAsync(ct)) list.Add(MapDestination(reader));
+        return list.AsReadOnly();
     }
 
     public async Task SaveDestinationsAsync(string clusterId, IEnumerable<DestinationEntity> destinations, CancellationToken ct = default)
@@ -487,10 +384,8 @@ public class StructuredSqliteStore : IStructuredDataStore
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
         await using var tx = conn.BeginTransaction();
-
         try
         {
-            // Delete existing destinations for this cluster
             await using (var delCmd = conn.CreateCommand())
             {
                 delCmd.Transaction = tx;
@@ -498,9 +393,7 @@ public class StructuredSqliteStore : IStructuredDataStore
                 delCmd.Parameters.AddWithValue("@cid", clusterId);
                 await delCmd.ExecuteNonQueryAsync(ct);
             }
-
-            // Insert new destinations
-            foreach (var dest in destinations)
+            foreach (var d in destinations)
             {
                 await using var cmd = conn.CreateCommand();
                 cmd.Transaction = tx;
@@ -510,23 +403,17 @@ public class StructuredSqliteStore : IStructuredDataStore
                     ON CONFLICT(destination_id) DO UPDATE SET
                         address = @addr, host = @host, healthy = @health, metadata = @meta
                     """;
-                cmd.Parameters.AddWithValue("@id", dest.DestinationId);
+                cmd.Parameters.AddWithValue("@id", d.DestinationId);
                 cmd.Parameters.AddWithValue("@cid", clusterId);
-                cmd.Parameters.AddWithValue("@addr", dest.Address);
-                cmd.Parameters.AddWithValue("@host", dest.Host ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@health", dest.Healthy ? 1 : 0);
-                cmd.Parameters.AddWithValue("@meta", dest.Metadata ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@addr", d.Address);
+                cmd.Parameters.AddWithValue("@host", d.Host ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@health", d.Healthy ? 1 : 0);
+                cmd.Parameters.AddWithValue("@meta", d.Metadata ?? (object)DBNull.Value);
                 await cmd.ExecuteNonQueryAsync(ct);
             }
-
             await tx.CommitAsync(ct);
-            _logger.LogDebug("Saved {Count} destinations for cluster {ClusterId}", destinations.Count(), clusterId);
         }
-        catch
-        {
-            await tx.RollbackAsync(ct);
-            throw;
-        }
+        catch { await tx.RollbackAsync(ct); throw; }
     }
 
     public async Task DeleteDestinationsAsync(string clusterId, CancellationToken ct = default)
@@ -534,39 +421,24 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "DELETE FROM yarp_destinations WHERE cluster_id = @cid";
         cmd.Parameters.AddWithValue("@cid", clusterId);
         await cmd.ExecuteNonQueryAsync(ct);
-        _logger.LogDebug("Destinations for cluster {ClusterId} deleted", clusterId);
     }
 
-    private static DestinationEntity MapDestination(SqliteDataReader reader) => new()
-    {
-        DestinationId = reader.GetString(0),
-        ClusterId = reader.GetString(1),
-        Address = reader.GetString(2),
-        Host = reader.IsDBNull(3) ? null : reader.GetString(3),
-        Healthy = reader.IsDBNull(4) || reader.GetInt32(4) == 1,
-        Metadata = reader.IsDBNull(5) ? null : reader.GetString(5)
-    };
-
-    // ========== Config History ==========
+    // ========== IConfigHistoryRepository ==========
 
     public async Task<ConfigHistoryEntity?> GetConfigHistoryAsync(string versionId, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT * FROM yarp_config_history WHERE version_id = @id";
         cmd.Parameters.AddWithValue("@id", versionId);
-
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
-        return MapConfigHistory(reader);
+        return await reader.ReadAsync(ct) ? MapConfigHistory(reader) : null;
     }
 
     public async Task<IReadOnlyList<ConfigHistoryEntity>> GetConfigHistoryListAsync(int limit = 50, CancellationToken ct = default)
@@ -574,15 +446,12 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT * FROM yarp_config_history ORDER BY created_at DESC LIMIT @limit";
         cmd.Parameters.AddWithValue("@limit", limit);
-
         var list = new List<ConfigHistoryEntity>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            list.Add(MapConfigHistory(reader));
+        while (await reader.ReadAsync(ct)) list.Add(MapConfigHistory(reader));
         return list.AsReadOnly();
     }
 
@@ -591,7 +460,6 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             INSERT INTO yarp_config_history (version_id, description, client_ip, config_data, diff_data, created_by, created_at)
@@ -607,8 +475,6 @@ public class StructuredSqliteStore : IStructuredDataStore
         cmd.Parameters.AddWithValue("@cb", history.CreatedBy);
         cmd.Parameters.AddWithValue("@ca", history.CreatedAt.ToString("O"));
         await cmd.ExecuteNonQueryAsync(ct);
-
-        _logger.LogDebug("Config history {VersionId} saved", history.VersionId);
     }
 
     public async Task DeleteConfigHistoryAsync(string versionId, CancellationToken ct = default)
@@ -616,7 +482,6 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "DELETE FROM yarp_config_history WHERE version_id = @id";
         cmd.Parameters.AddWithValue("@id", versionId);
@@ -628,44 +493,27 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             DELETE FROM yarp_config_history
-            WHERE version_id NOT IN (
-                SELECT version_id FROM yarp_config_history ORDER BY created_at DESC LIMIT @keep
-            )
+            WHERE version_id NOT IN (SELECT version_id FROM yarp_config_history ORDER BY created_at DESC LIMIT @keep)
             """;
         cmd.Parameters.AddWithValue("@keep", keepCount);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    private static ConfigHistoryEntity MapConfigHistory(SqliteDataReader reader) => new()
-    {
-        VersionId = reader.GetString(0),
-        Description = reader.IsDBNull(1) ? null : reader.GetString(1),
-        ClientIp = reader.IsDBNull(2) ? null : reader.GetString(2),
-        ConfigData = reader.GetString(3),
-        DiffData = reader.IsDBNull(4) ? null : reader.GetString(4),
-        CreatedBy = reader.GetString(5),
-        CreatedAt = DateTime.Parse(reader.GetString(6))
-    };
-
-    // ========== Policies ==========
+    // ========== IPolicyRepository ==========
 
     public async Task<PolicyEntity?> GetPolicyAsync(string policyId, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT * FROM gateway_policies WHERE policy_id = @id";
         cmd.Parameters.AddWithValue("@id", policyId);
-
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
-        return MapPolicy(reader);
+        return await reader.ReadAsync(ct) ? MapPolicy(reader) : null;
     }
 
     public async Task<IReadOnlyList<PolicyEntity>> GetAllPoliciesAsync(CancellationToken ct = default)
@@ -673,25 +521,20 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT * FROM gateway_policies ORDER BY priority DESC, display_name";
-
-        var policies = new List<PolicyEntity>();
+        var list = new List<PolicyEntity>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            policies.Add(MapPolicy(reader));
-        return policies.AsReadOnly();
+        while (await reader.ReadAsync(ct)) list.Add(MapPolicy(reader));
+        return list.AsReadOnly();
     }
 
     public async Task SavePolicyAsync(PolicyEntity policy, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
         policy.UpdatedAt = DateTime.UtcNow;
-
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             INSERT INTO gateway_policies (policy_id, display_name, description, priority, enabled, circuit_breaker_config, retry_config, rate_limit_config, waf_config, custom_plugins, tags, created_by, created_at, updated_at)
@@ -716,8 +559,6 @@ public class StructuredSqliteStore : IStructuredDataStore
         cmd.Parameters.AddWithValue("@ca", policy.CreatedAt.ToString("O"));
         cmd.Parameters.AddWithValue("@ua", policy.UpdatedAt.ToString("O"));
         await cmd.ExecuteNonQueryAsync(ct);
-
-        _logger.LogDebug("Policy {PolicyId} saved", policy.PolicyId);
     }
 
     public async Task DeletePolicyAsync(string policyId, CancellationToken ct = default)
@@ -725,50 +566,26 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "DELETE FROM gateway_policies WHERE policy_id = @id";
         cmd.Parameters.AddWithValue("@id", policyId);
         await cmd.ExecuteNonQueryAsync(ct);
-
-        _logger.LogDebug("Policy {PolicyId} deleted", policyId);
     }
 
-    private static PolicyEntity MapPolicy(SqliteDataReader reader) => new()
-    {
-        PolicyId = reader.GetString(0),
-        DisplayName = reader.GetString(1),
-        Description = reader.IsDBNull(2) ? null : reader.GetString(2),
-        Priority = reader.GetInt32(3),
-        Enabled = reader.GetInt32(4) == 1,
-        CircuitBreakerConfig = reader.IsDBNull(5) ? null : reader.GetString(5),
-        RetryConfig = reader.IsDBNull(6) ? null : reader.GetString(6),
-        RateLimitConfig = reader.IsDBNull(7) ? null : reader.GetString(7),
-        WafConfig = reader.IsDBNull(8) ? null : reader.GetString(8),
-        CustomPlugins = reader.IsDBNull(9) ? null : reader.GetString(9),
-        Tags = reader.IsDBNull(10) ? null : reader.GetString(10),
-        CreatedBy = reader.IsDBNull(11) ? null : reader.GetString(11),
-        CreatedAt = reader.IsDBNull(12) ? DateTime.MinValue : DateTime.Parse(reader.GetString(12)),
-        UpdatedAt = reader.IsDBNull(13) ? DateTime.MinValue : DateTime.Parse(reader.GetString(13))
-    };
-
-    // ========== Audit Logs ==========
+    // ========== IAuditLogRepository ==========
 
     public async Task<IReadOnlyList<AuditLogEntity>> GetAuditLogsAsync(int limit = 200, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT * FROM config_audit_logs ORDER BY timestamp DESC LIMIT @limit";
         cmd.Parameters.AddWithValue("@limit", limit);
-
-        var logs = new List<AuditLogEntity>();
+        var list = new List<AuditLogEntity>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            logs.Add(MapAuditLog(reader));
-        return logs.AsReadOnly();
+        while (await reader.ReadAsync(ct)) list.Add(MapAuditLog(reader));
+        return list.AsReadOnly();
     }
 
     public async Task<IReadOnlyList<AuditLogEntity>> GetAuditLogsByTargetAsync(string target, int limit = 50, CancellationToken ct = default)
@@ -776,17 +593,14 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT * FROM config_audit_logs WHERE target = @target ORDER BY timestamp DESC LIMIT @limit";
         cmd.Parameters.AddWithValue("@target", target);
         cmd.Parameters.AddWithValue("@limit", limit);
-
-        var logs = new List<AuditLogEntity>();
+        var list = new List<AuditLogEntity>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            logs.Add(MapAuditLog(reader));
-        return logs.AsReadOnly();
+        while (await reader.ReadAsync(ct)) list.Add(MapAuditLog(reader));
+        return list.AsReadOnly();
     }
 
     public async Task SaveAuditLogAsync(AuditLogEntity audit, CancellationToken ct = default)
@@ -794,7 +608,6 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             INSERT INTO config_audit_logs (id, action, target, target_type, operator, client_ip, before_data, after_data, success, error_message, timestamp)
@@ -812,8 +625,6 @@ public class StructuredSqliteStore : IStructuredDataStore
         cmd.Parameters.AddWithValue("@err", audit.ErrorMessage ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@ts", audit.Timestamp.ToString("O"));
         await cmd.ExecuteNonQueryAsync(ct);
-
-        _logger.LogDebug("Audit log {Id} saved", audit.Id);
     }
 
     public async Task DeleteOldAuditLogsAsync(int keepCount, CancellationToken ct = default)
@@ -821,47 +632,25 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            DELETE FROM config_audit_logs
-            WHERE id NOT IN (
-                SELECT id FROM config_audit_logs ORDER BY timestamp DESC LIMIT @keep
-            )
+            DELETE FROM config_audit_logs WHERE id NOT IN (SELECT id FROM config_audit_logs ORDER BY timestamp DESC LIMIT @keep)
             """;
         cmd.Parameters.AddWithValue("@keep", keepCount);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    private static AuditLogEntity MapAuditLog(SqliteDataReader reader) => new()
-    {
-        Id = reader.GetString(0),
-        Action = reader.GetString(1),
-        Target = reader.GetString(2),
-        TargetType = reader.IsDBNull(3) ? null : reader.GetString(3),
-        Operator = reader.IsDBNull(4) ? null : reader.GetString(4),
-        ClientIp = reader.IsDBNull(5) ? null : reader.GetString(5),
-        BeforeData = reader.IsDBNull(6) ? null : reader.GetString(6),
-        AfterData = reader.IsDBNull(7) ? null : reader.GetString(7),
-        Success = reader.GetInt32(8) == 1,
-        ErrorMessage = reader.IsDBNull(9) ? null : reader.GetString(9),
-        Timestamp = DateTime.Parse(reader.GetString(10))
-    };
-
-    // ========== Webhook Settings ==========
+    // ========== IWebhookSettingsRepository ==========
 
     public async Task<WebhookSettingsEntity?> GetWebhookSettingsAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT * FROM webhook_settings WHERE id = 1";
-
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return null;
-
         return new WebhookSettingsEntity
         {
             Enabled = reader.GetInt32(1) == 1,
@@ -879,7 +668,6 @@ public class StructuredSqliteStore : IStructuredDataStore
         await EnsureInitializedAsync(ct);
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             INSERT INTO webhook_settings (id, enabled, endpoints, events, timeout_seconds, retry_count, secret, updated_at)
@@ -895,18 +683,198 @@ public class StructuredSqliteStore : IStructuredDataStore
         cmd.Parameters.AddWithValue("@secret", settings.Secret ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@ua", DateTime.UtcNow.ToString("O"));
         await cmd.ExecuteNonQueryAsync(ct);
-
-        _logger.LogDebug("Webhook settings saved");
     }
 
-    public void Dispose()
+    // ========== IProxyLogRepository ==========
+
+    public async Task SaveProxyLogAsync(ProxyLogEntity log, CancellationToken ct = default)
     {
-        GC.SuppressFinalize(this);
+        await EnsureInitializedAsync(ct);
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO proxy_logs (id, method, path, route_id, cluster_id, destination_id, status_code, duration_ms, request_body_size, response_body_size, client_ip, error_message, timestamp)
+            VALUES (@id, @method, @path, @rid, @cid, @did, @status, @dur, @reqsz, @respsz, @ip, @err, @ts)
+            """;
+        cmd.Parameters.AddWithValue("@id", log.Id);
+        cmd.Parameters.AddWithValue("@method", log.Method ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@path", log.Path ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@rid", log.RouteId ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@cid", log.ClusterId ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@did", log.DestinationId ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@status", log.StatusCode);
+        cmd.Parameters.AddWithValue("@dur", log.DurationMs);
+        cmd.Parameters.AddWithValue("@reqsz", log.RequestBodySize ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@respsz", log.ResponseBodySize ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@ip", log.ClientIp ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@err", log.ErrorMessage ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@ts", log.Timestamp.ToString("O"));
+        await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public ValueTask DisposeAsync()
+    public async Task<IReadOnlyList<ProxyLogEntity>> GetRecentProxyLogsAsync(int limit = 200, CancellationToken ct = default)
     {
-        Dispose();
-        return ValueTask.CompletedTask;
+        await EnsureInitializedAsync(ct);
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT * FROM proxy_logs ORDER BY timestamp DESC LIMIT @limit";
+        cmd.Parameters.AddWithValue("@limit", limit);
+        var list = new List<ProxyLogEntity>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct)) list.Add(MapProxyLog(reader));
+        return list.AsReadOnly();
     }
+
+    public async Task DeleteOldProxyLogsAsync(int keepCount, CancellationToken ct = default)
+    {
+        await EnsureInitializedAsync(ct);
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM proxy_logs WHERE id NOT IN (SELECT id FROM proxy_logs ORDER BY timestamp DESC LIMIT @keep)";
+        cmd.Parameters.AddWithValue("@keep", keepCount);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    // ========== IAsyncDisposable / IDisposable ==========
+
+    public void Dispose() => GC.SuppressFinalize(this);
+    public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
+
+    // ========== Private Mapping Helpers ==========
+
+    private static void AddRouteParams(SqliteCommand cmd, RouteEntity r)
+    {
+        cmd.Parameters.AddWithValue("@id", r.RouteId);
+        cmd.Parameters.AddWithValue("@cid", r.ClusterId);
+        cmd.Parameters.AddWithValue("@path", r.MatchPath);
+        cmd.Parameters.AddWithValue("@order", r.Order);
+        cmd.Parameters.AddWithValue("@trans", r.Transforms ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@src", r.Source);
+        cmd.Parameters.AddWithValue("@cb", r.CreatedBy ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@ca", r.CreatedAt.ToString("O"));
+        cmd.Parameters.AddWithValue("@ua", r.UpdatedAt.ToString("O"));
+        cmd.Parameters.AddWithValue("@meta", r.Metadata ?? (object)DBNull.Value);
+    }
+
+    private static RouteEntity MapRoute(SqliteDataReader r) => new()
+    {
+        RouteId = r.GetString(0),
+        ClusterId = r.GetString(1),
+        MatchPath = r.GetString(2),
+        Order = r.GetInt32(3),
+        Transforms = r.IsDBNull(4) ? null : r.GetString(4),
+        Source = r.IsDBNull(5) ? "dynamic" : r.GetString(5),
+        CreatedBy = r.IsDBNull(6) ? null : r.GetString(6),
+        CreatedAt = r.IsDBNull(7) ? DateTime.MinValue : DateTime.Parse(r.GetString(7)),
+        UpdatedAt = r.IsDBNull(8) ? DateTime.MinValue : DateTime.Parse(r.GetString(8)),
+        Metadata = r.IsDBNull(9) ? null : r.GetString(9)
+    };
+
+    private static async Task SaveClusterInternalAsync(SqliteConnection conn, SqliteTransaction? tx, ClusterEntity c, CancellationToken ct)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = """
+            INSERT INTO yarp_clusters (cluster_id, load_balancing_policy, health_check_config, source, created_by, created_at, updated_at, last_heartbeat)
+            VALUES (@id, @lb, @hc, @src, @cb, @ca, @ua, @lh)
+            ON CONFLICT(cluster_id) DO UPDATE SET
+                load_balancing_policy = @lb, health_check_config = @hc, source = @src,
+                updated_at = @ua, last_heartbeat = @lh
+            """;
+        cmd.Parameters.AddWithValue("@id", c.ClusterId);
+        cmd.Parameters.AddWithValue("@lb", c.LoadBalancingPolicy ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@hc", c.HealthCheckConfig ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@src", c.Source);
+        cmd.Parameters.AddWithValue("@cb", c.CreatedBy ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@ca", c.CreatedAt.ToString("O"));
+        cmd.Parameters.AddWithValue("@ua", c.UpdatedAt.ToString("O"));
+        cmd.Parameters.AddWithValue("@lh", c.LastHeartbeat?.ToString("O") ?? (object)DBNull.Value);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    private static ClusterEntity MapCluster(SqliteDataReader r) => new()
+    {
+        ClusterId = r.GetString(0),
+        LoadBalancingPolicy = r.IsDBNull(1) ? null : r.GetString(1),
+        HealthCheckConfig = r.IsDBNull(2) ? null : r.GetString(2),
+        Source = r.IsDBNull(3) ? "dynamic" : r.GetString(3),
+        CreatedBy = r.IsDBNull(4) ? null : r.GetString(4),
+        CreatedAt = r.IsDBNull(5) ? DateTime.MinValue : DateTime.Parse(r.GetString(5)),
+        UpdatedAt = r.IsDBNull(6) ? DateTime.MinValue : DateTime.Parse(r.GetString(6)),
+        LastHeartbeat = r.IsDBNull(7) ? null : DateTime.Parse(r.GetString(7))
+    };
+
+    private static DestinationEntity MapDestination(SqliteDataReader r) => new()
+    {
+        DestinationId = r.GetString(0),
+        ClusterId = r.GetString(1),
+        Address = r.GetString(2),
+        Host = r.IsDBNull(3) ? null : r.GetString(3),
+        Healthy = r.IsDBNull(4) || r.GetInt32(4) == 1,
+        Metadata = r.IsDBNull(5) ? null : r.GetString(5)
+    };
+
+    private static ConfigHistoryEntity MapConfigHistory(SqliteDataReader r) => new()
+    {
+        VersionId = r.GetString(0),
+        Description = r.IsDBNull(1) ? null : r.GetString(1),
+        ClientIp = r.IsDBNull(2) ? null : r.GetString(2),
+        ConfigData = r.GetString(3),
+        DiffData = r.IsDBNull(4) ? null : r.GetString(4),
+        CreatedBy = r.GetString(5),
+        CreatedAt = DateTime.Parse(r.GetString(6))
+    };
+
+    private static PolicyEntity MapPolicy(SqliteDataReader r) => new()
+    {
+        PolicyId = r.GetString(0),
+        DisplayName = r.GetString(1),
+        Description = r.IsDBNull(2) ? null : r.GetString(2),
+        Priority = r.GetInt32(3),
+        Enabled = r.GetInt32(4) == 1,
+        CircuitBreakerConfig = r.IsDBNull(5) ? null : r.GetString(5),
+        RetryConfig = r.IsDBNull(6) ? null : r.GetString(6),
+        RateLimitConfig = r.IsDBNull(7) ? null : r.GetString(7),
+        WafConfig = r.IsDBNull(8) ? null : r.GetString(8),
+        CustomPlugins = r.IsDBNull(9) ? null : r.GetString(9),
+        Tags = r.IsDBNull(10) ? null : r.GetString(10),
+        CreatedBy = r.IsDBNull(11) ? null : r.GetString(11),
+        CreatedAt = r.IsDBNull(12) ? DateTime.MinValue : DateTime.Parse(r.GetString(12)),
+        UpdatedAt = r.IsDBNull(13) ? DateTime.MinValue : DateTime.Parse(r.GetString(13))
+    };
+
+    private static AuditLogEntity MapAuditLog(SqliteDataReader r) => new()
+    {
+        Id = r.GetString(0),
+        Action = r.GetString(1),
+        Target = r.GetString(2),
+        TargetType = r.IsDBNull(3) ? null : r.GetString(3),
+        Operator = r.IsDBNull(4) ? null : r.GetString(4),
+        ClientIp = r.IsDBNull(5) ? null : r.GetString(5),
+        BeforeData = r.IsDBNull(6) ? null : r.GetString(6),
+        AfterData = r.IsDBNull(7) ? null : r.GetString(7),
+        Success = r.GetInt32(8) == 1,
+        ErrorMessage = r.IsDBNull(9) ? null : r.GetString(9),
+        Timestamp = DateTime.Parse(r.GetString(10))
+    };
+
+    private static ProxyLogEntity MapProxyLog(SqliteDataReader r) => new()
+    {
+        Id = r.GetString(0),
+        Method = r.IsDBNull(1) ? null : r.GetString(1),
+        Path = r.IsDBNull(2) ? null : r.GetString(2),
+        RouteId = r.IsDBNull(3) ? null : r.GetString(3),
+        ClusterId = r.IsDBNull(4) ? null : r.GetString(4),
+        DestinationId = r.IsDBNull(5) ? null : r.GetString(5),
+        StatusCode = r.GetInt32(6),
+        DurationMs = r.GetInt64(7),
+        RequestBodySize = r.IsDBNull(8) ? null : r.GetInt64(8),
+        ResponseBodySize = r.IsDBNull(9) ? null : r.GetInt64(9),
+        ClientIp = r.IsDBNull(10) ? null : r.GetString(10),
+        ErrorMessage = r.IsDBNull(11) ? null : r.GetString(11),
+        Timestamp = DateTime.Parse(r.GetString(12))
+    };
 }

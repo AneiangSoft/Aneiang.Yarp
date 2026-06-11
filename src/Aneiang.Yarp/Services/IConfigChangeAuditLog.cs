@@ -4,12 +4,10 @@ namespace Aneiang.Yarp.Services;
 
 /// <summary>
 /// Interface for recording gateway configuration change audit entries.
+/// Inherits <see cref="IConfigChangeNotifier"/> for event-based notification.
 /// </summary>
-public interface IConfigChangeAuditLog
+public interface IConfigChangeAuditLog : IConfigChangeNotifier
 {
-    /// <summary>Raised when a config change audit entry is recorded (success only).</summary>
-    event Action<string, string, string?, object?>? OnConfigChanged;
-
     /// <summary>Record a configuration change audit entry.</summary>
     void Record(ConfigChangeAudit entry);
 

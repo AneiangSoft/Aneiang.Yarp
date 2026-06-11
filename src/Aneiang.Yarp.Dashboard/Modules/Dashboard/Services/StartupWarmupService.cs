@@ -1,7 +1,7 @@
 using System.Diagnostics;
-using Aneiang.Yarp.Storage;
-using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
+using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
+using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -10,7 +10,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 
 /// <summary>
 /// Warmup service that runs during application startup to eliminate cold-start latency.
-/// Initializes: SQLite connection pool, MemoryCache entries, route/cluster query results,
+/// Initializes: IGatewayRepository (SQLite tables), MemoryCache entries, route/cluster query results,
 /// and any other lazily-initialized resources.
 /// </summary>
 public sealed class StartupWarmupService : IHostedService
@@ -27,21 +27,14 @@ public sealed class StartupWarmupService : IHostedService
     public async Task StartAsync(CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
-        var tasks = new List<Task>(6);
+        var tasks = new List<Task>(4);
 
-        // Pre-warm all data stores concurrently
-        tasks.Add(WarmupStorageAsync(ct));
+        tasks.Add(WarmupRepositoryAsync(ct));
         tasks.Add(WarmupQueryCacheAsync(ct));
         tasks.Add(WarmupProxyLogStoreAsync(ct));
 
-        try
-        {
-            await Task.WhenAll(tasks);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Some warmup tasks failed — application will continue");
-        }
+        try { await Task.WhenAll(tasks); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Some warmup tasks failed — application will continue"); }
 
         sw.Stop();
         _logger.LogInformation("Application warmup completed in {ElapsedMs}ms", sw.ElapsedMilliseconds);
@@ -49,40 +42,25 @@ public sealed class StartupWarmupService : IHostedService
 
     public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
 
-    /// <summary>
-    /// Pre-initializes all storage backends, which triggers SQLite connection pool
-    /// creation and Redis connection establishment during startup instead of on first request.
-    /// </summary>
-    private async Task WarmupStorageAsync(CancellationToken ct)
+    private async Task WarmupRepositoryAsync(CancellationToken ct)
     {
         try
         {
             using var scope = _serviceProvider.CreateScope();
 
-            // Trigger StructuredSqliteStore initialization
-            if (scope.ServiceProvider.GetService<IStructuredDataStore>() is IStructuredDataStore store)
+            // Initialize IGatewayRepository (creates SQLite tables)
+            if (scope.ServiceProvider.GetService<IGatewayRepository>() is IGatewayRepository repo)
             {
-                await store.InitializeAsync(ct);
-                _logger.LogDebug("StructuredSqliteStore warmup done");
-            }
-
-            // Trigger IDataStore initialization
-            if (scope.ServiceProvider.GetService<IDataStore>() is IDataStore dataStore)
-            {
-                await dataStore.InitializeAsync(ct);
-                _logger.LogDebug("IDataStore warmup done");
+                await repo.InitializeAsync(ct);
+                _logger.LogDebug("IGatewayRepository warmup done");
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Storage warmup failed");
+            _logger.LogWarning(ex, "Repository warmup failed");
         }
     }
 
-    /// <summary>
-    /// Triggers the route and cluster query services to populate their in-memory cache
-    /// during startup, so the first dashboard request is served from cache instantly.
-    /// </summary>
     private async Task WarmupQueryCacheAsync(CancellationToken ct)
     {
         try
@@ -91,7 +69,6 @@ public sealed class StartupWarmupService : IHostedService
             var routeQuery = scope.ServiceProvider.GetService<IDashboardRouteQueryService>();
             var clusterQuery = scope.ServiceProvider.GetService<IDashboardClusterQueryService>();
 
-            // Warmup in parallel
             await Task.WhenAll(
                 Task.Run(() => _ = routeQuery?.GetRoutes(), ct),
                 Task.Run(() => _ = clusterQuery?.GetClusters(), ct)
@@ -105,9 +82,6 @@ public sealed class StartupWarmupService : IHostedService
         }
     }
 
-    /// <summary>
-    /// Pre-touches the proxy log store to ensure the ring buffer is ready.
-    /// </summary>
     private async Task WarmupProxyLogStoreAsync(CancellationToken ct)
     {
         try
@@ -117,7 +91,6 @@ public sealed class StartupWarmupService : IHostedService
 
             if (logStore != null)
             {
-                // Access recent entries to trigger ring buffer readiness
                 var snapshot = logStore.GetRecent(10);
                 _logger.LogDebug("ProxyLogStore warmup done ({Count} entries)", snapshot.Entries.Count);
             }

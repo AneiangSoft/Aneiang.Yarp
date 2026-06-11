@@ -493,11 +493,11 @@ public class ConfigManagementController : ControllerBase
     /// Get configuration history snapshots.
     /// </summary>
     [HttpGet("history")]
-    public IActionResult GetConfigHistory()
+    public async Task<IActionResult> GetConfigHistory()
     {
         try
         {
-            var history = _persistenceService.GetHistory();
+            var history = await _persistenceService.GetHistoryAsync();
             
             var result = history.Select(s => new
             {
@@ -567,11 +567,12 @@ public class ConfigManagementController : ControllerBase
     /// Returns structured diff data for the diff panel.
     /// </summary>
     [HttpGet("diff/{versionId}")]
-    public IActionResult ConfigDiff(string versionId)
+    public async Task<IActionResult> ConfigDiff(string versionId)
     {
         try
         {
-            var historySnapshot = _persistenceService.GetHistory()
+            var history = await _persistenceService.GetHistoryAsync();
+            var historySnapshot = history
                 .FirstOrDefault(s => string.Equals(s.VersionId, versionId, StringComparison.OrdinalIgnoreCase));
 
             if (historySnapshot == null)
@@ -617,50 +618,6 @@ public class ConfigManagementController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Toggle cluster enabled/disabled state.
-    /// </summary>
-    [HttpPost("clusters/{clusterId}/toggle")]
-    public async Task<IActionResult> ToggleCluster(string clusterId)
-    {
-        try
-        {
-            _logger.LogInformation("Toggle cluster requested: {ClusterId}", clusterId);
-
-            var cluster = _dynamicConfig.GetCluster(clusterId);
-            if (cluster == null)
-                return NotFound(new { code = 404, message = $"Cluster '{clusterId}' not found" });
-
-            // Determine current enabled state from metadata
-            var metadata = cluster.Metadata as IDictionary<string, string>;
-            var isCurrentlyDisabled = metadata != null && metadata.TryGetValue("Disabled", out var disabledVal)
-                && string.Equals(disabledVal, "true", StringComparison.OrdinalIgnoreCase);
-
-            var shouldDisable = !isCurrentlyDisabled;
-
-            await _persistenceService.SaveSnapshotAsync(
-                $"Before cluster '{clusterId}' {(shouldDisable ? "disabled" : "enabled")} via dashboard",
-                GetClientIp());
-
-            var result = await _dynamicConfig.TrySetClusterDisabled(
-                clusterId, shouldDisable, "dashboard", GetClientIp());
-
-            if (result.Success) InvalidateQueryCaches();
-            return result.Success
-                ? Ok(new
-                {
-                    code = 200,
-                    message = result.Message,
-                    data = new { clusterId, enabled = !shouldDisable, action = shouldDisable ? "disabled" : "enabled" }
-                })
-                : BadRequest(new { code = 400, message = result.Message });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to toggle cluster: {ClusterId}", clusterId);
-            return StatusCode(500, new { code = 500, message = $"Toggle failed: {ex.Message}" });
-        }
-    }
 
     /// <summary>
     /// Validate configuration format.

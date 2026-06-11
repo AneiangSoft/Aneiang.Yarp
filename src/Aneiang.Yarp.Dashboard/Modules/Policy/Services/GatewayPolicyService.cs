@@ -1,5 +1,5 @@
-using Aneiang.Yarp.Dashboard.Modules.Policy.Models;
 using Aneiang.Yarp.Dashboard.Infrastructure.Storage;
+using Aneiang.Yarp.Dashboard.Modules.Policy.Models;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.Logging;
@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace Aneiang.Yarp.Dashboard.Modules.Policy.Services;
 
 /// <summary>
-/// Service for managing gateway policies using structured storage.
+/// Service for managing gateway policies using gateway repository.
 /// </summary>
 public interface IGatewayPolicyService
 {
@@ -21,21 +21,21 @@ public interface IGatewayPolicyService
 }
 
 /// <summary>
-/// Implementation of gateway policy service with structured storage.
+/// Implementation of gateway policy service with gateway repository.
 /// Integrates with DynamicYarpConfigService to apply policy metadata to routes.
 /// </summary>
 public class GatewayPolicyService : IGatewayPolicyService
 {
-    private readonly IStructuredDataStore _store;
+    private readonly IGatewayRepository _repository;
     private readonly DynamicYarpConfigService _yarpConfig;
     private readonly ILogger<GatewayPolicyService> _logger;
 
     public GatewayPolicyService(
-        IStructuredDataStore store,
+        IGatewayRepository repository,
         DynamicYarpConfigService yarpConfig,
         ILogger<GatewayPolicyService> logger)
     {
-        _store = store;
+        _repository = repository;
         _yarpConfig = yarpConfig;
         _logger = logger;
     }
@@ -43,14 +43,14 @@ public class GatewayPolicyService : IGatewayPolicyService
     /// <inheritdoc />
     public async Task<IReadOnlyList<GatewayPolicy>> GetAllPoliciesAsync()
     {
-        var entities = await _store.GetAllPoliciesAsync();
+        var entities = await _repository.GetAllPoliciesAsync();
         return entities.ToGatewayPolicies().AsReadOnly();
     }
 
     /// <inheritdoc />
     public async Task<GatewayPolicy?> GetPolicyAsync(string policyId)
     {
-        var entity = await _store.GetPolicyAsync(policyId);
+        var entity = await _repository.GetPolicyAsync(policyId);
         return entity?.ToGatewayPolicy();
     }
 
@@ -58,18 +58,14 @@ public class GatewayPolicyService : IGatewayPolicyService
     public async Task<GatewayPolicy> CreatePolicyAsync(GatewayPolicy policy)
     {
         if (string.IsNullOrWhiteSpace(policy.PolicyId))
-        {
             policy.PolicyId = Guid.NewGuid().ToString("N")[..12];
-        }
 
-        var existing = await _store.GetPolicyAsync(policy.PolicyId);
+        var existing = await _repository.GetPolicyAsync(policy.PolicyId);
         if (existing != null)
-        {
             throw new InvalidOperationException($"Policy with ID '{policy.PolicyId}' already exists");
-        }
 
         policy.CreatedAt = DateTime.UtcNow;
-        await _store.SavePolicyAsync(policy.ToEntity());
+        await _repository.SavePolicyAsync(policy.ToEntity());
 
         _logger.LogInformation("Created policy '{PolicyId}' ({Name})", policy.PolicyId, policy.DisplayName);
         return policy;
@@ -78,15 +74,14 @@ public class GatewayPolicyService : IGatewayPolicyService
     /// <inheritdoc />
     public async Task<GatewayPolicy?> UpdatePolicyAsync(string policyId, GatewayPolicy policy)
     {
-        var existing = await _store.GetPolicyAsync(policyId);
-        if (existing == null)
-            return null;
+        var existing = await _repository.GetPolicyAsync(policyId);
+        if (existing == null) return null;
 
         policy.PolicyId = policyId;
         policy.CreatedAt = existing.CreatedAt;
         policy.CreatedBy = existing.CreatedBy;
 
-        await _store.SavePolicyAsync(policy.ToEntity());
+        await _repository.SavePolicyAsync(policy.ToEntity());
         _logger.LogInformation("Updated policy '{PolicyId}'", policyId);
 
         return policy;
@@ -95,11 +90,10 @@ public class GatewayPolicyService : IGatewayPolicyService
     /// <inheritdoc />
     public async Task<bool> DeletePolicyAsync(string policyId)
     {
-        var existing = await _store.GetPolicyAsync(policyId);
-        if (existing == null)
-            return false;
+        var existing = await _repository.GetPolicyAsync(policyId);
+        if (existing == null) return false;
 
-        await _store.DeletePolicyAsync(policyId);
+        await _repository.DeletePolicyAsync(policyId);
         _logger.LogInformation("Deleted policy '{PolicyId}'", policyId);
         return true;
     }
@@ -120,7 +114,6 @@ public class GatewayPolicyService : IGatewayPolicyService
             return false;
         }
 
-        // Merge all enabled feature metadata into a flat dictionary
         var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         if (policy.CircuitBreaker?.Enabled == true)
@@ -153,7 +146,6 @@ public class GatewayPolicyService : IGatewayPolicyService
             return false;
         }
 
-        // Tag the route with the applied policy ID so we know which policy is in effect
         metadata["Policy:Id"] = policy.PolicyId;
         metadata["Policy:Name"] = policy.DisplayName;
 

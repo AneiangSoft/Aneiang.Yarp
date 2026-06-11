@@ -1,4 +1,4 @@
-using Aneiang.Yarp.Middleware;
+using Aneiang.Yarp.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 

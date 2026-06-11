@@ -1,6 +1,40 @@
 # 更新日志
 
 
+## [2.3.0.11] - 2026-06-11
+
+### 新增
+
+- 添加 `IGatewayRepository` 统一仓储抽象及子接口（`IRouteRepository`、`IClusterRepository`、`IConfigHistoryRepository`、`IPolicyRepository`、`IAuditLogRepository`、`IWebhookSettingsRepository`、`IProxyLogRepository`）
+- 添加 `SqliteGatewayRepository` 作为默认 SQLite 仓储实现
+- 添加 `RedisGatewayRepositoryPlaceholder` 骨架作 Redis 扩展预留
+- 添加 `IConfigChangeNotifier` 接口，从 `IConfigChangeAuditLog` 中拆出事件通知职责
+- 添加 `ConfigEntityMapper` 核心映射器（供 `DynamicYarpConfigService` 使用）
+- 将实体类拆分为独立文件（`RouteEntity`、`ClusterEntity`、`DestinationEntity`、`ConfigHistoryEntity`、`PolicyEntity`、`AuditLogEntity`、`WebhookSettingsEntity`、`ProxyLogEntity`）
+- 新增 `ActiveHealthCheckConfig.cs`、`PassiveHealthCheckConfig.cs` 独立模型文件
+
+### 变更
+
+- `DynamicYarpConfigService`：依赖从 `IDynamicConfigPersistenceService` 改为 `IGatewayRepository`；修复 `ReaderWriterLockSlim` → `SemaphoreSlim(1,1)` 解决 await 线程亲和性问题；修复 `TrySetRouteDisabled`/`TrySetClusterDisabled` 使用 `_dynamicConfig` 保持元数据同步
+- `ConfigPersistenceService`：依赖从 `IStructuredDataStore` + `IDynamicConfigPersistenceService` 改为 `IGatewayRepository`
+- `ConfigChangeAuditLog`：依赖从 `IStructuredDataStore` 改为 `IGatewayRepository`
+- `GatewayPolicyService`、`GatewayPolicyPersistenceService`：依赖从 `IStructuredDataStore` 改为 `IGatewayRepository`
+- `WebhookSettingsPersistenceService`：依赖从 `IStructuredDataStore` 改为 `IGatewayRepository`
+- `ConfigSnapshotService`：依赖从 `IStructuredDataStore` 改为 `IGatewayRepository`
+- `StorageServiceCollectionExtensions`：移除 `IStructuredDataStore` 遗留注册
+- `DashboardServiceCollectionExtensions`：移除 `IDynamicConfigPersistenceService`、`DynamicConfigPreloadService`、`WebhookSettingsPreloadService` 的注册
+
+### 移除
+
+- 删除 `IDataStore.cs`（无实际使用者）
+- 删除 `IStructuredDataStore.cs` 遗留接口
+- 删除 `IDynamicConfigPersistenceService.cs` 及其实现 `DynamicConfigPersistenceService.cs`
+- 删除 `DynamicConfigPreloadService.cs` 和 `WebhookSettingsPreloadService.cs`（预加载逻辑合并入仓储初始化）
+- 删除 `SqliteDataStore.cs`、`RedisDataStore.cs`、`StructuredSqliteStore.cs` 旧实现
+- 删除 `GatewayRepositoryAdapter.cs` 适配器
+
+---
+
 ## [2.3.0.10] - 2026-05-24
 
 ### 新增
