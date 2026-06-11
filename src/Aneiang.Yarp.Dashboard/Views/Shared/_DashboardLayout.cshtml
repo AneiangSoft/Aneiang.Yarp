@@ -23,7 +23,7 @@
     <link href="/_content/Aneiang.Yarp.Dashboard/styles/inter-font.css" rel="stylesheet">
     <style>
         :root {
-            --sidebar-width: 240px;
+            --sidebar-width: 256px;
             --primary-color: #6366f1;
             --primary-dark: #4f46e5;
             --primary-light: #818cf8;
@@ -43,6 +43,18 @@
             --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
             --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            --table-stripe: #f8fafc;
+        }
+
+        /* Button hover glow effect */
+        .btn-primary:hover {
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+        }
+
+        /* Stat card number highlight hover */
+        .stat-card:hover .stat-value {
+            color: var(--primary-color);
+            transition: color 0.2s ease;
         }
         
         * {
@@ -76,34 +88,42 @@
         }
         
         .sidebar .brand {
-            padding: 16px 20px; 
+            padding: 20px 20px; 
             font-size: 16px; 
             font-weight: 700;
             border-bottom: 1px solid rgba(255,255,255,0.06);
             display: flex; 
             align-items: center; 
             gap: 10px;
-            background: rgba(255,255,255,0.02);
+            background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(14,165,233,0.04));
             letter-spacing: -0.3px;
+            position: relative;
+        }
+
+        .sidebar .brand::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 20px; right: 20px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(99,102,241,0.3), transparent);
         }
         
         .sidebar .brand i { 
             font-size: 22px; 
             color: var(--primary-light);
-            filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.25));
+            filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.35));
         }
         
-        /* Sidebar Navigation Container with Scroll */
+        /* Sidebar Navigation */
         .sidebar-nav {
             flex: 1;
             overflow-y: auto;
             overflow-x: hidden;
-            padding-bottom: 12px;
+            padding: 8px 0;
         }
         
-        /* Custom Scrollbar for Sidebar */
         .sidebar-nav::-webkit-scrollbar {
-            width: 4px;
+            width: 3px;
         }
         
         .sidebar-nav::-webkit-scrollbar-track {
@@ -111,16 +131,20 @@
         }
         
         .sidebar-nav::-webkit-scrollbar-thumb {
-            background: rgba(255,255,255,0.15);
+            background: rgba(255,255,255,0.12);
             border-radius: 2px;
         }
         
         .sidebar-nav::-webkit-scrollbar-thumb:hover {
-            background: rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.22);
         }
         
         .sidebar .nav-section {
-            padding: 4px 0;
+            padding: 2px 0;
+        }
+        
+        .sidebar .nav-section + .nav-section {
+            margin-top: 4px;
         }
         
         .sidebar .section-title { 
@@ -129,13 +153,13 @@
             color: rgba(148, 163, 184, 0.7); 
             text-transform: uppercase; 
             letter-spacing: 1.5px; 
-            padding: 10px 20px 4px;
+            padding: 12px 20px 4px;
             margin: 0;
         }
         
         .sidebar .nav-link {
             color: rgba(255,255,255,0.55); 
-            padding: 8px 20px;
+            padding: 9px 20px;
             font-size: 13px; 
             font-weight: 500;
             display: flex; 
@@ -169,8 +193,8 @@
         }
         
         .sidebar .nav-link.active {
-            color: var(--primary-light); 
-            background: rgba(99, 102, 241, 0.1);
+            color: #fff; 
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.18), rgba(99, 102, 241, 0.06));
             border-left-color: var(--primary-color);
             font-weight: 600;
         }
@@ -185,18 +209,15 @@
             width: 18px;
             text-align: center;
             flex-shrink: 0;
-            transition: transform 0.2s ease;
+            transition: transform 0.2s ease, color 0.2s ease;
         }
 
         .sidebar .nav-link:hover i {
             transform: scale(1.1);
         }
         
-        .sidebar-footer {
-            padding: 12px;
-            border-top: 1px solid rgba(255,255,255,0.06);
-            background: linear-gradient(180deg, transparent 0%, var(--sidebar-bg) 20%);
-            flex-shrink: 0;
+        .sidebar .nav-link.active i {
+            color: var(--primary-light);
         }
 
         /* Submenu Styles */
@@ -212,7 +233,7 @@
         }
 
         .nav-submenu .nav-link {
-            padding: 6px 20px 6px 48px;
+            padding: 7px 20px 7px 48px;
             font-size: 13px;
             border-left: none;
         }
@@ -249,7 +270,21 @@
         }
 
         .nav-submenu .nav-link.active {
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.14), rgba(99, 102, 241, 0.04));
+        }
+
+        /* Nav group header active state */
+        .nav-link.has-submenu.active {
+            color: var(--primary-light);
             background: rgba(99, 102, 241, 0.08);
+            border-left-color: rgba(99, 102, 241, 0.3);
+        }
+        .nav-link.has-submenu.active::before {
+            width: 100%;
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.12), transparent);
+        }
+        .nav-link.has-submenu.active i {
+            color: var(--primary-light);
         }
 
         /* Menu Toggle Indicator */
@@ -268,6 +303,14 @@
 
         .nav-link.has-submenu.expanded::after {
             transform: rotate(90deg);
+            opacity: 0.8;
+        }
+        
+        .sidebar-footer {
+            padding: 12px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            background: linear-gradient(180deg, transparent 0%, var(--sidebar-bg) 20%);
+            flex-shrink: 0;
         }
         
         .sidebar-user {
@@ -298,72 +341,181 @@
         /* Main Content */
         .main-content {
             margin-left: var(--sidebar-width); 
-            padding: 24px;
+            padding: 0;
             min-height: 100vh;
             background: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-content-inner {
+            padding: 24px;
+            flex: 1;
+        }
+
+        /* Page Header */
+        .page-header {
+            padding: 20px 24px 16px;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+        .page-header-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .page-header-left {
+            flex: 1;
+            min-width: 0;
+        }
+        .page-breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        .page-breadcrumb a {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.15s;
+        }
+        .page-breadcrumb a:hover {
+            color: var(--primary-color);
+        }
+        .page-breadcrumb .separator {
+            font-size: 10px;
+            opacity: 0.5;
+        }
+        .page-breadcrumb .current {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .page-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.3px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            line-height: 1.3;
+        }
+        .page-title i {
+            font-size: 20px;
+            color: var(--primary-color);
+            opacity: 0.8;
+        }
+        .page-subtitle {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+        .page-header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+            padding-top: 18px;
         }
         
         /* Stat Cards */
         .stat-card {
             background: var(--card-bg); 
             border-radius: 16px; 
-            padding: 20px;
+            padding: 20px 20px 16px;
             box-shadow: var(--shadow-sm);
             border: 1px solid var(--border-color);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
             overflow: hidden;
         }
-        
+
         .stat-card::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
+            top: 0; left: 0; right: 0;
             height: 3px;
             background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
             opacity: 0;
             transition: opacity 0.3s ease;
         }
-        
+
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            bottom: -40px; right: -20px;
+            width: 100px; height: 100px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 70%);
+            pointer-events: none;
+            transition: transform 0.4s ease;
+        }
+
         .stat-card:hover { 
             transform: translateY(-4px); 
             box-shadow: var(--shadow-lg);
+            border-color: rgba(99,102,241,0.15);
         }
-        
-        .stat-card:hover::before {
-            opacity: 1;
-        }
+
+        .stat-card:hover::before { opacity: 1; }
+        .stat-card:hover::after { transform: scale(1.3); }
         
         .stat-card .stat-icon {
-            width: 48px; 
-            height: 48px; 
+            width: 48px; height: 48px; 
             border-radius: 12px;
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
+            display: flex; align-items: center; justify-content: center; 
             font-size: 22px;
             transition: transform 0.3s ease;
         }
-        
+
         .stat-card:hover .stat-icon {
             transform: scale(1.1) rotate(5deg);
         }
         
         .stat-card .stat-value { 
-            font-size: 32px; 
-            font-weight: 700; 
+            font-size: 32px; font-weight: 700; 
             color: var(--text-primary);
             letter-spacing: -0.5px;
             line-height: 1.2;
         }
-        
+
         .stat-card .stat-label { 
             font-size: 13px; 
             color: var(--text-secondary);
             font-weight: 500;
-            margin-top: 4px;
+            margin-top: 2px;
+        }
+
+        .stat-card .stat-trend {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 6px;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .stat-trend.up {
+            color: #059669;
+            background: #ecfdf5;
+        }
+
+        .stat-trend.down {
+            color: #dc2626;
+            background: #fef2f2;
+        }
+
+        .stat-trend.neutral {
+            color: #64748b;
+            background: #f1f5f9;
         }
         
         /* Card Panels */
@@ -374,11 +526,12 @@
             border: 1px solid var(--border-color);
             overflow: hidden;
             margin-bottom: 20px;
-            transition: box-shadow 0.3s ease;
+            transition: box-shadow 0.3s ease, border-color 0.3s ease;
         }
-        
+
         .card-panel:hover {
             box-shadow: var(--shadow-md);
+            border-color: rgba(99,102,241,0.08);
         }
         
         .card-panel .card-header {
@@ -386,13 +539,13 @@
             font-weight: 600; 
             font-size: 16px;
             border-bottom: 1px solid var(--border-color); 
-            background: var(--card-bg);
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
             display: flex; 
             align-items: center; 
             justify-content: space-between;
             gap: 16px;
         }
-        
+
         .card-panel .card-header span:first-child {
             display: flex;
             align-items: center;
@@ -418,6 +571,58 @@
         
         .card-panel .card-body {
             padding: 16px 20px;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px 24px;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 64px; height: 64px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+            color: var(--text-muted);
+            font-size: 28px;
+            margin-bottom: 16px;
+        }
+
+        .empty-state-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .empty-state-desc {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* Loading State */
+        .loading-state {
+            text-align: center;
+            padding: 48px 24px;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 36px; height: 36px;
+            border: 3px solid #e2e8f0;
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .loading-text {
+            margin-top: 12px;
+            font-size: 13px;
+            color: var(--text-muted);
         }
         
         /* Health Indicators */
@@ -1420,9 +1625,9 @@
         
         /* Info Bar - Server Status */
         .info-bar {
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: 12px 16px;
+            background: linear-gradient(135deg, var(--card-bg) 0%, #f8fafc 100%);
+            border-radius: 14px;
+            padding: 14px 20px;
             box-shadow: var(--shadow-sm);
             border: 1px solid var(--border-color);
             display: flex;
@@ -1431,12 +1636,23 @@
             gap: 12px;
             font-size: 13px;
             color: var(--text-secondary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .info-bar::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color), var(--success-color));
+            opacity: 0.6;
         }
         
         .info-bar-content {
             display: flex;
             flex-wrap: wrap;
-            gap: 12px 16px;
+            gap: 12px 20px;
             align-items: center;
             flex: 1;
             min-width: 0;
@@ -1445,14 +1661,23 @@
         .info-bar-actions {
             display: flex;
             align-items: center;
+            gap: 8px;
             flex-shrink: 0;
         }
         
         .info-bar-content span {
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 6px;
             white-space: nowrap;
+            padding: 4px 10px;
+            border-radius: 6px;
+            background: rgba(99,102,241,0.03);
+            transition: background 0.15s;
+        }
+
+        .info-bar-content span:hover {
+            background: rgba(99,102,241,0.06);
         }
         
         .info-bar-content i {
@@ -1496,9 +1721,26 @@
             .info-bar-content {
                 gap: 8px 12px;
             }
+
+            .page-title {
+                font-size: 18px;
+            }
         }
         
         @@media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                z-index: 1001;
+            }
+            .sidebar.open { transform: translateX(0); }
+
+            .mobile-topbar { display: flex !important; }
+
+            .main-content {
+                margin-left: 0;
+            }
+
             .info-bar {
                 flex-direction: column;
                 align-items: stretch;
@@ -1512,16 +1754,60 @@
             .info-bar-actions {
                 justify-content: center;
             }
+
+            .page-header {
+                padding: 16px 20px 12px;
+            }
+
+            .page-header-row {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .page-header-right {
+                padding-top: 0;
+            }
+
+            .page-title {
+                font-size: 18px;
+            }
+
+            .main-content-inner {
+                padding: 16px;
+            }
         }
         
         @@media (max-width: 576px) {
             .info-bar-content span {
                 font-size: 12px;
                 gap: 4px;
+                padding: 3px 6px;
             }
             
             .info-bar-content i {
                 font-size: 12px;
+            }
+
+            .page-breadcrumb {
+                font-size: 11px;
+            }
+
+            .page-title {
+                font-size: 16px;
+            }
+
+            .main-content-inner {
+                padding: 12px;
+            }
+
+            .dashboard-footer {
+                padding: 12px 16px;
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .stat-card .stat-value {
+                font-size: 24px;
             }
         }
         
@@ -1536,10 +1822,72 @@
                 transform: translateY(0);
             }
         }
-        
+
+        @@keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @@keyframes slideInRight {
+            from { opacity: 0; transform: translateX(24px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @@keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
         .card-panel,
         .stat-card {
-            animation: fadeIn 0.4s ease-out;
+            animation: fadeInUp 0.4s ease-out both;
+        }
+
+        .card-panel:nth-child(2) { animation-delay: 0.05s; }
+        .card-panel:nth-child(3) { animation-delay: 0.10s; }
+        .card-panel:nth-child(4) { animation-delay: 0.15s; }
+
+        .page-header {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .main-content-inner > .row > [class*="col-"] > .stat-card,
+        .main-content-inner > .row > [class*="col-"] > .card-panel {
+            animation: fadeInUp 0.4s ease-out both;
+        }
+
+        /* Dashboard Footer */
+        .dashboard-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border-color);
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            font-size: 12px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .dashboard-footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .dashboard-footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Pulse for live indicators */
+        .pulse-dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--success-color);
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            box-shadow: 0 0 8px rgba(16,185,129,0.4);
         }
         
         /* Scrollbar */
@@ -1787,14 +2135,166 @@
             border-color: #cbd5e1;
         }
 
-        /* Compact Sidebar Nav */
-        .sidebar-nav { flex: 1; overflow-y: auto; padding: 4px 0; }
-        .sidebar-nav::-webkit-scrollbar { width: 3px; }
-        .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
-        .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
-        .sidebar-nav::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+        /* Mobile Sidebar Overlay */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            z-index: 999;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .sidebar-overlay.active { display: block; opacity: 1; }
 
-        .sidebar .nav-section { padding: 0; }
+        /* Mobile Top Bar */
+        .mobile-topbar {
+            display: none;
+            height: 56px;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 16px;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 60;
+            box-shadow: var(--shadow-sm);
+        }
+        .mobile-topbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-size: 15px;
+            color: var(--text-primary);
+        }
+        .mobile-topbar-brand i { color: var(--primary-light); font-size: 20px; }
+        .hamburger-btn {
+            width: 40px; height: 40px;
+            border: none;
+            background: transparent;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background 0.15s;
+        }
+        .hamburger-btn:hover { background: var(--bg-color); }
+        .hamburger-btn span {
+            display: block;
+            width: 20px;
+            height: 2px;
+            background: var(--text-secondary);
+            border-radius: 1px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .hamburger-btn.active span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
+        .hamburger-btn.active span:nth-child(2) { opacity: 0; }
+        .hamburger-btn.active span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+
+        /* Skeleton Loading */
+        .skeleton {
+            position: relative;
+            overflow: hidden;
+            background: var(--table-stripe);
+            border-radius: 6px;
+        }
+        .skeleton::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
+            animation: skeletonShimmer 1.5s ease infinite;
+        }
+        @@keyframes skeletonShimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        .skeleton-line { height: 14px; margin-bottom: 10px; border-radius: 4px; background: var(--table-stripe); }
+        .skeleton-line.short { width: 40%; }
+        .skeleton-line.medium { width: 65%; }
+        .skeleton-line.long { width: 90%; }
+        .skeleton-card { height: 100px; border-radius: 12px; margin-bottom: 12px; }
+        .skeleton-circle { width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; }
+
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+        }
+        .toast-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 18px;
+            border-radius: 12px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-lg);
+            font-size: 13px;
+            color: var(--text-primary);
+            pointer-events: auto;
+            animation: toastIn 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            max-width: 380px;
+            min-width: 260px;
+            backdrop-filter: blur(12px);
+        }
+        .toast-item.hiding {
+            animation: toastOut 0.3s ease forwards;
+        }
+        .toast-item i { font-size: 18px; flex-shrink: 0; }
+        .toast-item.success i { color: var(--success-color); }
+        .toast-item.error i { color: var(--danger-color); }
+        .toast-item.warning i { color: var(--warning-color); }
+        .toast-item.info i { color: var(--secondary-color); }
+        .toast-msg { flex: 1; min-width: 0; }
+        .toast-close {
+            border: none; background: transparent; color: var(--text-muted);
+            cursor: pointer; font-size: 14px; padding: 2px; flex-shrink: 0;
+            transition: color 0.15s;
+        }
+        .toast-close:hover { color: var(--text-primary); }
+        @@keyframes toastIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @@keyframes toastOut {
+            to { transform: translateX(120%); opacity: 0; }
+        }
+
+        /* Table Alternating Rows */
+        .table-striped-custom tbody tr:nth-child(even) {
+            background-color: var(--table-stripe);
+        }
+
+        /* Animated Counter */
+        .stat-value-animated {
+            transition: color 0.3s ease;
+        }
+
+        /* Focus Indicators for Accessibility */
+        .btn:focus-visible,
+        .nav-link:focus-visible,
+        .form-control:focus-visible,
+        .form-select:focus-visible {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+
+        /* Smooth Scrolling */
+        html { scroll-behavior: smooth; }
+
 
         /* ── Modal / Dialog Styles ─────────────────────────────────────── */
         .modal-content {
@@ -1933,7 +2433,24 @@
     </style>
 </head>
 <body>
-    <nav class="sidebar">
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Mobile Top Bar -->
+    <div class="mobile-topbar" id="mobile-topbar">
+        <div class="mobile-topbar-brand">
+            <i class="bi bi-hdd-rack"></i>
+            <span data-i18n="layout.brand">@((ViewBag.Locale as string) == "en-US" ? "Gateway Dashboard" : "网关维护仪表盘")</span>
+        </div>
+        <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileSidebar()">
+            <span></span><span></span><span></span>
+        </button>
+    </div>
+
+    <!-- Sidebar Overlay (Mobile) -->
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar(false)"></div>
+
+    <nav class="sidebar" id="sidebar">
         <div class="brand">
             <i class="bi bi-hdd-rack"></i>
             <span data-i18n="layout.brand">网关维护仪表盘</span>
@@ -1945,6 +2462,7 @@
             var isEn = (ViewBag.Locale as string) == "en-US";
 
             // Build grouped menu structure
+            var overviewItem = new { Key = "overview", Title = isEn ? "Overview" : "总览", Icon = "bi-speedometer2", Path = $"/{prefix}/" };
             var menuGroups = new[]
             {
                 new {
@@ -1952,7 +2470,6 @@
                     Title = isEn ? "Gateway" : "网关管理",
                     Icon = "bi-hdd-rack",
                     Items = new[] {
-                        new { Key = "overview", Title = isEn ? "Overview" : "总览", Icon = "bi-speedometer2", Path = $"/{prefix}/", Conditional = false },
                         new { Key = "clusters", Title = isEn ? "Clusters" : "服务集群", Icon = "bi-diagram-3", Path = $"/{prefix}/clusters", Conditional = false },
                         new { Key = "routes", Title = isEn ? "Routes" : "路由配置", Icon = "bi-signpost-split", Path = $"/{prefix}/routes", Conditional = false }
                     }
@@ -1992,6 +2509,18 @@
             };
         }
         <div class="sidebar-nav">
+            <!-- Overview as first-level item -->
+            <div class="nav-section" style="padding-bottom:4px;">
+                <a class="nav-link @(currentPage == "overview" ? "active" : "")"
+                   href="@overviewItem.Path"
+                   data-page="@overviewItem.Key"
+                   data-title="@overviewItem.Title"
+                   data-icon="@overviewItem.Icon">
+                    <i class="bi @overviewItem.Icon"></i>
+                    <span>@overviewItem.Title</span>
+                </a>
+            </div>
+
             @foreach (var group in menuGroups)
             {
                 // Check if any item in this group is the current page
@@ -2048,7 +2577,92 @@
     </nav>
 
     <div class="main-content">
-        @RenderBody()
+        @if (ViewBag.CurrentPage as string != "login")
+        {
+            var pgName = ViewBag.CurrentPage as string ?? "overview";
+            var pgPrefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
+            var pgIsEn = (ViewBag.Locale as string) == "en-US";
+            var pageTitles = new System.Collections.Generic.Dictionary<string, string>
+            {
+                {"overview", pgIsEn ? "Overview" : "总览"},
+                {"clusters", pgIsEn ? "Clusters" : "服务集群"},
+                {"routes", pgIsEn ? "Routes" : "路由配置"},
+                {"stats", pgIsEn ? "Statistics" : "访问统计"},
+                {"logs", pgIsEn ? "Logs" : "日志"},
+                {"circuits", pgIsEn ? "Circuit Breaker" : "熔断状态"},
+                {"alerts", pgIsEn ? "Alert Center" : "告警中心"},
+                {"healthcheck", pgIsEn ? "Health Check" : "健康检查"},
+                {"security", pgIsEn ? "Security Events" : "安全事件"},
+                {"policies", pgIsEn ? "Policy Management" : "策略管理"},
+                {"plugins", pgIsEn ? "Plugin Management" : "插件管理"},
+                {"history", pgIsEn ? "Configuration History" : "配置历史"},
+                {"audit", pgIsEn ? "Audit Log" : "审计日志"},
+                {"settings", pgIsEn ? "Settings" : "设置"}
+            };
+            var pageIcons = new System.Collections.Generic.Dictionary<string, string>
+            {
+                {"overview", "bi-speedometer2"},
+                {"clusters", "bi-diagram-3"},
+                {"routes", "bi-signpost-split"},
+                {"stats", "bi-bar-chart-line"},
+                {"logs", "bi-journal-text"},
+                {"circuits", "bi-lightning-charge"},
+                {"alerts", "bi-bell"},
+                {"healthcheck", "bi-heart-pulse"},
+                {"security", "bi-shield-lock"},
+                {"policies", "bi-sliders"},
+                {"plugins", "bi-puzzle"},
+                {"history", "bi-clock-history"},
+                {"audit", "bi-shield-check"},
+                {"settings", "bi-gear"}
+            };
+            var pageTitle = pageTitles.ContainsKey(pgName) ? pageTitles[pgName] : pgName;
+            var pageIcon = pageIcons.ContainsKey(pgName) ? pageIcons[pgName] : "bi-app-indicator";
+            var parentGroup = "";
+            if (new[] { "clusters", "routes" }.Contains(pgName)) parentGroup = pgIsEn ? "Gateway" : "网关管理";
+            if (pgName == "overview") parentGroup = "";
+            if (new[] { "stats", "logs", "circuits", "alerts", "healthcheck" }.Contains(pgName)) parentGroup = pgIsEn ? "Monitoring" : "监控运维";
+            if (new[] { "security", "policies", "plugins" }.Contains(pgName)) parentGroup = pgIsEn ? "Security" : "安全策略";
+            if (new[] { "history", "audit", "settings" }.Contains(pgName)) parentGroup = pgIsEn ? "System" : "系统管理";
+
+            <div class="page-header">
+                <div class="page-header-row">
+                    <div class="page-header-left">
+                        <div class="page-breadcrumb">
+                            <a href="/@pgPrefix/">@((ViewBag.Locale as string) == "en-US" ? "Dashboard" : "仪表盘")</a>
+                            @if (!string.IsNullOrEmpty(parentGroup))
+                            {
+                                <span class="separator"><i class="bi bi-chevron-right"></i></span>
+                                <span>@parentGroup</span>
+                            }
+                            <span class="separator"><i class="bi bi-chevron-right"></i></span>
+                            <span class="current">@pageTitle</span>
+                        </div>
+                        <h1 class="page-title">
+                            <i class="bi @pageIcon"></i>
+                            @pageTitle
+                        </h1>
+                    </div>
+                    <div class="page-header-right">
+                        <span class="pulse-dot" title="@((ViewBag.Locale as string) == "en-US" ? "Live" : "在线")"></span>
+                        <span class="refresh-badge" style="font-size:12px;">@((ViewBag.Locale as string) == "en-US" ? "Live" : "实时")</span>
+                    </div>
+                </div>
+            </div>
+        }
+        <div class="main-content-inner">
+            @RenderBody()
+        </div>
+        @if (ViewBag.CurrentPage as string != "login")
+        {
+            <div class="dashboard-footer">
+                <span>Aneiang.Yarp v@typeof(LogEntry).Assembly.GetName().Version · &copy; 2024-2026</span>
+                <span>
+                    <span class="pulse-dot me-1"></span>
+                    @((ViewBag.Locale as string) == "en-US" ? "System Running" : "系统运行中")
+                </span>
+            </div>
+        }
     </div>
 
     <script>
@@ -2088,7 +2702,6 @@
                 }
             }).catch(function(err) {
                 console.error('Logout failed:', err);
-                // Still redirect to login page
                 localStorage.removeItem('dashboard_token');
                 window.location.href = '/' + '@ViewBag.DashboardRoutePrefix' + '/login';
             });
@@ -2103,7 +2716,70 @@
                 return null;
             }
         }
+
+
+        // ========== Mobile Sidebar ==========
+        function toggleMobileSidebar(forceState) {
+            var sidebar = document.getElementById('sidebar');
+            var overlay = document.getElementById('sidebar-overlay');
+            var btn = document.getElementById('hamburger-btn');
+            if (!sidebar) return;
+            var isOpen = sidebar.classList.contains('open');
+            var newState = typeof forceState === 'boolean' ? forceState : !isOpen;
+            if (newState) {
+                sidebar.classList.add('open');
+                overlay.classList.add('active');
+                btn && btn.classList.add('active');
+            } else {
+                sidebar.classList.remove('open');
+                overlay.classList.remove('active');
+                btn && btn.classList.remove('active');
+            }
+        }
+
+        // ========== Toast Notifications ==========
+        window.showToast = function(message, type, duration) {
+            type = type || 'info';
+            duration = duration || 4000;
+            var icons = { success: 'bi-check-circle-fill', error: 'bi-x-circle-fill', warning: 'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' };
+            var container = document.getElementById('toast-container');
+            if (!container) return;
+            var el = document.createElement('div');
+            el.className = 'toast-item ' + type;
+            el.innerHTML = '<i class="bi ' + (icons[type] || icons.info) + '"></i>' +
+                '<span class="toast-msg">' + message + '</span>' +
+                '<button class="toast-close" onclick="hideToast(this)"><i class="bi bi-x"></i></button>';
+            container.appendChild(el);
+            setTimeout(function() { hideToast(el.querySelector('.toast-close')); }, duration);
+        };
+        window.hideToast = function(closeBtn) {
+            if (!closeBtn) return;
+            var item = closeBtn.closest('.toast-item');
+            if (!item || item.classList.contains('hiding')) return;
+            item.classList.add('hiding');
+            setTimeout(function() { item.remove(); }, 300);
+        };
+
+        // ========== Animated Counter ==========
+        window.animateValue = function(el, start, end, duration, suffix) {
+            suffix = suffix || '';
+            if (start === end) { el.textContent = end + suffix; return; }
+            var range = end - start;
+            var startTime = null;
+            function step(timestamp) {
+                if (!startTime) startTime = timestamp;
+                var progress = Math.min((timestamp - startTime) / duration, 1);
+                var eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+                var current = Math.round(start + range * eased);
+                el.textContent = current + suffix;
+                if (progress < 1) requestAnimationFrame(step);
+            }
+            requestAnimationFrame(step);
+        };
+
+        // ========== Init ==========
         document.addEventListener('DOMContentLoaded', function() {
+            // i18n
             document.querySelectorAll('[data-i18n]').forEach(function(el) {
                 var key = el.getAttribute('data-i18n');
                 if (key && I18N[key]) el.textContent = I18N[key];
@@ -2141,6 +2817,15 @@
                         if (submenu && submenu.classList.contains('nav-submenu')) {
                             submenu.classList.add('expanded');
                         }
+                    }
+                });
+            });
+
+            // Close mobile sidebar on nav link click
+            document.querySelectorAll('#sidebar .nav-link[data-page]').forEach(function(link) {
+                link.addEventListener('click', function() {
+                    if (window.innerWidth <= 768) {
+                        toggleMobileSidebar(false);
                     }
                 });
             });

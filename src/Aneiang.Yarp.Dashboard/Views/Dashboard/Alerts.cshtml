@@ -5,9 +5,9 @@
 }
 
 <div id="alerts-app">
-    <div class="card-panel mb-3">
+    <div class="card-panel mb-4">
         <div class="card-header">
-            <span><i class="bi bi-bell me-2"></i><span data-i18n="alert.title">告警中心</span></span>
+            <span><i class="bi bi-bell me-2" style="color:#ef4444;"></i><span data-i18n="alert.title">告警中心</span></span>
             <div>
                 <span id="alert-refresh-time" class="refresh-badge"></span>
                 <button class="btn btn-sm btn-outline-secondary" onclick="AlertModule.sendTest()" title="测试告警">
@@ -22,9 +22,9 @@
             </div>
         </div>
         <div id="alert-content" class="card-body">
-            <div class="text-center py-5">
-                <div class="spinner-border text-primary" role="status"></div>
-                <p class="mt-2 text-muted" data-i18n="alert.loading">加载中...</p>
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <div class="loading-text" data-i18n="alert.loading">加载中...</div>
             </div>
         </div>
     </div>

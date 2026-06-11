@@ -5,9 +5,9 @@
 }
 
 <!-- Health Score Summary -->
-<div class="row g-3 mb-3">
+<div class="row g-3 mb-4">
     <div class="col-md-4">
-        <div class="card-panel" id="health-score-card">
+        <div class="card-panel" id="health-score-card" style="border-left: 3px solid #22c55e;">
             <div class="card-body text-center py-4">
                 <div style="position:relative;display:inline-block;">
                     <canvas id="health-gauge" width="140" height="140"></canvas>
@@ -23,9 +23,9 @@
         </div>
     </div>
     <div class="col-md-8">
-        <div class="card-panel">
+        <div class="card-panel h-100">
             <div class="card-header">
-                <span><i class="bi bi-hdd-stack me-2"></i><span data-i18n="health.summary">健康摘要</span></span>
+                <span><i class="bi bi-hdd-stack me-2" style="color:#3b82f6;"></i><span data-i18n="health.summary">健康摘要</span></span>
             </div>
             <div class="card-body">
                 <div class="row g-3">
@@ -58,10 +58,10 @@
 </div>
 
 <!-- Critical Alerts Section -->
-<div id="critical-alerts-section" class="card-panel mb-3" style="display:none;">
-    <div class="card-header bg-danger text-white">
-        <span><i class="bi bi-exclamation-triangle-fill me-2"></i><span data-i18n="health.critical.title">需立即关注的异常</span></span>
-        <span class="badge bg-white text-danger" id="critical-count">0</span>
+<div id="critical-alerts-section" class="card-panel mb-4" style="display:none;">
+    <div class="card-header" style="background:linear-gradient(135deg, #fef2f2, #fee2e2);border-bottom-color:#fca5a5;">
+        <span><i class="bi bi-exclamation-triangle-fill me-2" style="color:#ef4444;"></i><span data-i18n="health.critical.title">需立即关注的异常</span></span>
+        <span class="badge bg-danger" id="critical-count">0</span>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -83,9 +83,9 @@
 </div>
 
 <!-- Health Check panel -->
-<div id="health-panel" class="card-panel mb-3">
+<div id="health-panel" class="card-panel mb-4">
     <div class="card-header">
-        <span><i class="bi bi-heart-pulse me-2"></i><span data-i18n="health.title">健康检查详情</span></span>
+        <span><i class="bi bi-heart-pulse me-2" style="color:#22c55e;"></i><span data-i18n="health.title">健康检查详情</span></span>
         <div class="d-flex align-items-center" style="gap:12px;white-space:nowrap;">
             <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" id="show-unhealthy-only" onchange="HealthCheckModule.toggleFilter()">

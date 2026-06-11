@@ -4,9 +4,9 @@
 }
 
 <!-- Cluster panel -->
-<div id="cluster-panel" class="card-panel mb-3">
+<div id="cluster-panel" class="card-panel mb-4">
     <div class="card-header">
-        <span><i class="bi bi-hdd-stack me-2"></i><span data-i18n="index.cluster.title">集群 &amp; 目标节点状态</span></span>
+        <span><i class="bi bi-hdd-stack me-2" style="color:#3b82f6;"></i><span data-i18n="index.cluster.title">集群 &amp; 目标节点状态</span></span>
         <div class="info-bar-actions">
         </div>
         <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
@@ -21,7 +21,7 @@
     <!-- Table view -->
     <div id="cluster-table-view">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover table-striped-custom align-middle mb-0">
                 <thead>
                     <tr>
                         <th style="width:38px"></th>
@@ -34,7 +34,13 @@
                     </tr>
                 </thead>
                 <tbody id="cluster-tbody">
-                    <tr><td colspan="7" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
+                    <tr><td colspan="7" class="text-center py-4">
+                        <div style="padding:4px 0;">
+                            <div class="skeleton skeleton-line long"></div>
+                            <div class="skeleton skeleton-line medium"></div>
+                            <div class="skeleton skeleton-line short"></div>
+                        </div>
+                    </td></tr>
                 </tbody>
             </table>
         </div>

@@ -6,9 +6,9 @@
 }
 
 <!-- Summary Stats Cards -->
-<div class="row g-3 mb-3">
+<div class="row g-3 mb-4">
     <div class="col-6 col-md-3">
-        <div class="stat-card stat-card--blue">
+        <div class="stat-card stat-card--blue" style="border-left: 3px solid #3b82f6;">
             <div class="stat-card__icon"><i class="bi bi-arrow-down-up"></i></div>
             <div class="stat-card__body">
                 <div class="stat-card__value" id="stat-total-requests">-</div>
@@ -17,7 +17,7 @@
         </div>
     </div>
     <div class="col-6 col-md-3">
-        <div class="stat-card stat-card--green">
+        <div class="stat-card stat-card--green" style="border-left: 3px solid #22c55e;">
             <div class="stat-card__icon"><i class="bi bi-check-circle"></i></div>
             <div class="stat-card__body">
                 <div class="stat-card__value" id="stat-success-rate">-</div>
@@ -26,7 +26,7 @@
         </div>
     </div>
     <div class="col-6 col-md-3">
-        <div class="stat-card stat-card--amber">
+        <div class="stat-card stat-card--amber" style="border-left: 3px solid #f59e0b;">
             <div class="stat-card__icon"><i class="bi bi-stopwatch"></i></div>
             <div class="stat-card__body">
                 <div class="stat-card__value" id="stat-avg-latency">-</div>
@@ -35,7 +35,7 @@
         </div>
     </div>
     <div class="col-6 col-md-3">
-        <div class="stat-card stat-card--purple">
+        <div class="stat-card stat-card--purple" style="border-left: 3px solid #8b5cf6;">
             <div class="stat-card__icon"><i class="bi bi-lightning"></i></div>
             <div class="stat-card__body">
                 <div class="stat-card__value" id="stat-rpm">-</div>
@@ -179,33 +179,39 @@
 .stat-card {
     background: var(--panel-bg, #fff);
     border: 1px solid var(--border-color, #e5e7eb);
-    border-radius: 0.5rem;
-    padding: 1rem;
+    border-radius: 16px;
+    padding: 1.125rem 1.25rem;
     display: flex;
     align-items: center;
     gap: 0.875rem;
-    transition: box-shadow 0.15s ease, transform 0.15s ease;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    position: relative;
+    overflow: hidden;
 }
 .stat-card:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+.stat-card::after {
+    content: '';
+    position: absolute; bottom: -30px; right: -15px;
+    width: 80px; height: 80px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 70%);
+    pointer-events: none;
 }
 .stat-card__icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
     font-size: 18px;
     flex-shrink: 0;
 }
-.stat-card--blue .stat-card__icon { background: #eff6ff; color: #3b82f6; }
-.stat-card--green .stat-card__icon { background: #f0fdf4; color: #22c55e; }
-.stat-card--amber .stat-card__icon { background: #fefce8; color: #eab308; }
-.stat-card--purple .stat-card__icon { background: #f5f3ff; color: #7c3aed; }
+.stat-card--blue .stat-card__icon { background: linear-gradient(135deg, #eff6ff, #dbeafe); color: #3b82f6; }
+.stat-card--green .stat-card__icon { background: linear-gradient(135deg, #f0fdf4, #dcfce7); color: #22c55e; }
+.stat-card--amber .stat-card__icon { background: linear-gradient(135deg, #fefce8, #fef9c3); color: #eab308; }
+.stat-card--purple .stat-card__icon { background: linear-gradient(135deg, #f5f3ff, #ede9fe); color: #7c3aed; }
 .stat-card__value {
-    font-size: 1.35rem;
+    font-size: 1.4rem;
     font-weight: 700;
     line-height: 1.2;
     color: var(--text-color, #111827);
@@ -221,56 +227,42 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 8px;
-    border-radius: 6px;
+    padding: 8px 10px;
+    border-radius: 8px;
     background: var(--hover-bg, #f9fafb);
     transition: background 0.15s;
 }
 .stats-list-row:hover { background: var(--hover-bg-active, #f3f4f6); }
 .stats-list-rank {
-    width: 20px;
-    height: 20px;
+    width: 22px; height: 22px;
     border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700;
     flex-shrink: 0;
-    background: #e5e7eb;
-    color: #6b7280;
+    background: #e5e7eb; color: #6b7280;
 }
 .stats-list-rank.top-1 { background: #fef3c7; color: #d97706; }
 .stats-list-rank.top-2 { background: #e5e7eb; color: #6b7280; }
 .stats-list-rank.top-3 { background: #fef3c7; color: #92400e; opacity: 0.7; }
 .stats-list-name {
-    flex: 1;
-    min-width: 0;
-    font-size: 12px;
-    font-weight: 500;
+    flex: 1; min-width: 0;
+    font-size: 12px; font-weight: 500;
     color: var(--text-color, #374151);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .stats-list-value {
-    font-size: 11px;
-    color: #9ca3af;
+    font-size: 11px; color: #9ca3af;
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
 }
 .stats-list-bar-wrap {
-    width: 80px;
-    height: 4px;
-    background: #f3f4f6;
-    border-radius: 2px;
-    overflow: hidden;
-    flex-shrink: 0;
+    width: 80px; height: 4px;
+    background: #f3f4f6; border-radius: 2px;
+    overflow: hidden; flex-shrink: 0;
 }
 .stats-list-bar {
-    height: 100%;
-    border-radius: 2px;
-    background: #6366f1;
+    height: 100%; border-radius: 2px;
+    background: linear-gradient(90deg, #6366f1, #818cf8);
     transition: width 0.5s ease;
 }
 </style>
