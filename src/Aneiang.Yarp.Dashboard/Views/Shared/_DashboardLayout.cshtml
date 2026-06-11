@@ -1,3 +1,4 @@
+@using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
 <!DOCTYPE html>
 <html lang="@ViewBag.Locale">
 <head>
@@ -1910,7 +1911,7 @@
     <script src="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap/js/bootstrap.bundle.min.js"></script>
     
     @{
-        var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString();
+        var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString();
     }
     <!-- Shared scripts — loaded once, cached by browser, reused across all pages -->
     <!-- 1. Core Infrastructure -->

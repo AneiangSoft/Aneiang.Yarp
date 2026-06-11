@@ -22,7 +22,7 @@
                 window.DashboardDOM.showLoading(container, __('audit.loading'));
 
                 var actionFilter = window.DashboardState.get('filters.audit.action') || '';
-                var data = await window.DashboardApi.get('/audit-logs', { count: 100, action: actionFilter });
+                var data = await window.DashboardApi.get('/api/audit-logs', { count: 100, action: actionFilter });
 
                 this.renderAuditLogs(data, container);
             } catch (error) {
