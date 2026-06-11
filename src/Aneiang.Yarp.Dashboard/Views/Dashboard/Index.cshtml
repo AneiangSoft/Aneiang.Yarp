@@ -23,36 +23,52 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4 col-sm-6">
-        <div class="stat-card">
-            <div class="d-flex align-items-center justify-content-between">
+    <div class="col-lg-3 col-md-4 col-sm-6">
+        <div class="stat-card" style="border-left: 3px solid #3b82f6;">
+            <div class="d-flex align-items-start justify-content-between">
                 <div>
                     <div class="stat-value" id="stat-clusters">-</div>
                     <div class="stat-label" data-i18n="index.stat.clusters">服务集群</div>
                 </div>
-                <div class="stat-icon" style="background:#eff6ff;color:#3b82f6;"><i class="bi bi-diagram-3"></i></div>
+                <div class="stat-icon" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);color:#3b82f6;"><i class="bi bi-diagram-3"></i></div>
             </div>
         </div>
     </div>
-    <div class="col-md-4 col-sm-6">
-        <div class="stat-card">
-            <div class="d-flex align-items-center justify-content-between">
+    <div class="col-lg-3 col-md-4 col-sm-6">
+        <div class="stat-card" style="border-left: 3px solid #22c55e;">
+            <div class="d-flex align-items-start justify-content-between">
                 <div>
                     <div class="stat-value" id="stat-healthy" style="color:#22c55e;">-</div>
-                    <div class="stat-label" data-i18n="index.stat.health">健康 / 未知 / 异常</div>
+                    <div class="stat-label" data-i18n="index.stat.health">健康状态</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                        <span style="color:#22c55e;">●</span> 健康
+                        <span style="color:#f59e0b;margin-left:6px;">●</span> 未知
+                        <span style="color:#ef4444;margin-left:6px;">●</span> 异常
+                    </div>
                 </div>
-                <div class="stat-icon" style="background:#f0fdf4;color:#22c55e;"><i class="bi bi-heart-pulse"></i></div>
+                <div class="stat-icon" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);color:#22c55e;"><i class="bi bi-heart-pulse"></i></div>
             </div>
         </div>
     </div>
-    <div class="col-md-4 col-sm-6">
-        <div class="stat-card">
-            <div class="d-flex align-items-center justify-content-between">
+    <div class="col-lg-3 col-md-4 col-sm-6">
+        <div class="stat-card" style="border-left: 3px solid #f59e0b;">
+            <div class="d-flex align-items-start justify-content-between">
                 <div>
                     <div class="stat-value" id="stat-routes">-</div>
                     <div class="stat-label" data-i18n="index.stat.routes">路由规则</div>
                 </div>
-                <div class="stat-icon" style="background:#fefce8;color:#eab308;"><i class="bi bi-signpost-split"></i></div>
+                <div class="stat-icon" style="background:linear-gradient(135deg,#fefce8,#fef9c3);color:#eab308;"><i class="bi bi-signpost-split"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-4 col-sm-6">
+        <div class="stat-card" style="border-left: 3px solid #8b5cf6;">
+            <div class="d-flex align-items-start justify-content-between">
+                <div>
+                    <div class="stat-value" style="color:#8b5cf6;" id="stat-qps">-</div>
+                    <div class="stat-label" data-i18n="index.stat.qps">当前 QPS</div>
+                </div>
+                <div class="stat-icon" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);color:#8b5cf6;"><i class="bi bi-lightning-charge"></i></div>
             </div>
         </div>
     </div>
@@ -91,7 +107,7 @@
         <!-- Table view -->
         <div id="cluster-table-view">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover table-striped-custom align-middle mb-0">
                     <thead>
                         <tr>
                             <th style="width:38px"></th>
@@ -104,7 +120,13 @@
                         </tr>
                     </thead>
                     <tbody id="cluster-tbody">
-                        <tr><td colspan="7" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
+                        <tr><td colspan="7" class="text-center py-4">
+                            <div style="padding:4px 0;">
+                                <div class="skeleton skeleton-line long"></div>
+                                <div class="skeleton skeleton-line medium"></div>
+                                <div class="skeleton skeleton-line short"></div>
+                            </div>
+                        </td></tr>
                     </tbody>
                 </table>
             </div>
@@ -119,7 +141,7 @@
         <!-- Table view -->
         <div id="route-table-view">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover table-striped-custom align-middle mb-0">
                     <thead>
                         <tr>
                             <th style="width:36px"></th>
@@ -132,7 +154,13 @@
                         </tr>
                     </thead>
                     <tbody id="route-tbody">
-                        <tr><td colspan="7" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
+                        <tr><td colspan="7" class="text-center py-4">
+                            <div style="padding:4px 0;">
+                                <div class="skeleton skeleton-line long"></div>
+                                <div class="skeleton skeleton-line medium"></div>
+                                <div class="skeleton skeleton-line short"></div>
+                            </div>
+                        </td></tr>
                     </tbody>
                 </table>
             </div>
@@ -301,31 +329,44 @@
     gap: 4px;
     padding: 0 16px;
     border-bottom: 1px solid var(--border-color);
-    background: #f8fafc;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
     flex-wrap: wrap;
 }
 .service-tab {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 10px 16px;
+    gap: 8px;
+    padding: 12px 18px;
     border: none;
     background: transparent;
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     cursor: pointer;
     border-bottom: 2px solid transparent;
     margin-bottom: -1px;
-    transition: color 0.15s, border-color 0.15s;
+    transition: all 0.2s ease;
+    position: relative;
 }
-.service-tab:hover { color: var(--text-primary); }
+.service-tab:hover {
+    color: var(--text-primary);
+    background: rgba(99,102,241,0.04);
+}
 .service-tab.active {
     color: var(--primary-color);
     border-bottom-color: var(--primary-color);
     font-weight: 600;
 }
-.service-tab i { font-size: 14px; }
+.service-tab.active::before {
+    content: '';
+    position: absolute;
+    inset: 4px -2px auto -2px;
+    bottom: -2px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    border-radius: 1px;
+}
+.service-tab i { font-size: 15px; }
 .service-tab-actions {
     display: flex;
     align-items: center;

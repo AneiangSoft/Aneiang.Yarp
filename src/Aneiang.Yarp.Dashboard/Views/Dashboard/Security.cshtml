@@ -5,9 +5,9 @@
 }
 
 <div id="security-app">
-    <div class="card-panel mb-3">
+    <div class="card-panel mb-4">
         <div class="card-header">
-            <span><i class="bi bi-shield-lock me-2"></i><span data-i18n="security.title">WAF 安全事件</span></span>
+            <span><i class="bi bi-shield-lock me-2" style="color:#ef4444;"></i><span data-i18n="security.title">WAF 安全事件</span></span>
             <div>
                 <span id="security-refresh-time" class="refresh-badge"></span>
                 <button class="btn btn-sm btn-outline-danger" onclick="SecurityModule.clearAll()" title="清空">
@@ -19,9 +19,9 @@
             </div>
         </div>
         <div id="security-content" class="card-body">
-            <div class="text-center py-5">
-                <div class="spinner-border text-primary" role="status"></div>
-                <p class="mt-2 text-muted" data-i18n="security.loading">加载中...</p>
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <div class="loading-text" data-i18n="security.loading">加载中...</div>
             </div>
         </div>
     </div>

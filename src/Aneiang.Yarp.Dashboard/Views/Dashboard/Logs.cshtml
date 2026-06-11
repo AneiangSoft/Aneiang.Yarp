@@ -5,10 +5,11 @@
 }
 
 <!-- Log panel -->
-<div id="log-panel" class="card-panel mb-3">
+<div id="log-panel" class="card-panel mb-4">
     <div class="card-header">
-        <span><i class="bi bi-journal-text me-2"></i><span data-i18n="index.log.title">YARP 实时日志</span></span>
+        <span><i class="bi bi-journal-text me-2" style="color:#8b5cf6;"></i><span data-i18n="index.log.title">YARP 实时日志</span></span>
         <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
+            <span class="pulse-dot me-1"></span>
             <span class="refresh-badge" id="log-refresh-time"></span>
             <span class="refresh-badge"><span data-i18n="index.log.showing">显示 </span><strong id="log-display-count">0</strong><span data-i18n="index.log.of"> / </span><span id="log-total-count">0</span><span data-i18n="index.log.entries"> 条</span></span>
         </div>
@@ -19,7 +20,11 @@
     
     <div style="max-height:600px;overflow-y:auto;" id="log-scroll-container">
         <div id="log-entries" class="log-entries-container">
-            <div class="text-center text-muted py-4" data-i18n="index.log.empty">暂无日志</div>
+            <div class="empty-state">
+                <div class="empty-state-icon"><i class="bi bi-journal-text"></i></div>
+                <div class="empty-state-title" data-i18n="index.log.empty">暂无日志</div>
+                <div class="empty-state-desc">等待请求流量进入网关后，日志将实时显示此处</div>
+            </div>
         </div>
     </div>
 </div>

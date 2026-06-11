@@ -4,9 +4,9 @@
 }
 
 <!-- Route panel -->
-<div id="route-panel" class="card-panel mb-3">
+<div id="route-panel" class="card-panel mb-4">
     <div class="card-header">
-        <span><i class="bi bi-signpost-split me-2"></i><span data-i18n="index.route.title">路由规则列表</span></span>
+        <span><i class="bi bi-signpost-split me-2" style="color:#f59e0b;"></i><span data-i18n="index.route.title">路由规则列表</span></span>
         <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
             <span class="refresh-badge" id="route-refresh-time"></span>
             <span class="refresh-badge"><span data-i18n="index.route.showing">显示 </span><strong id="route-display-count">0</strong><span data-i18n="index.route.of"> / </span><span id="route-total-count">0</span><span data-i18n="index.route.entries"> 个</span></span>
@@ -19,7 +19,7 @@
     <!-- Table view -->
     <div id="route-table-view">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover table-striped-custom align-middle mb-0">
                 <thead>
                     <tr>
                         <th style="width:36px"></th>
@@ -32,7 +32,13 @@
                     </tr>
                 </thead>
                 <tbody id="route-tbody">
-                    <tr><td colspan="7" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
+                    <tr><td colspan="7" class="text-center py-4">
+                        <div style="padding:4px 0;">
+                            <div class="skeleton skeleton-line long"></div>
+                            <div class="skeleton skeleton-line medium"></div>
+                            <div class="skeleton skeleton-line short"></div>
+                        </div>
+                    </td></tr>
                 </tbody>
             </table>
         </div>

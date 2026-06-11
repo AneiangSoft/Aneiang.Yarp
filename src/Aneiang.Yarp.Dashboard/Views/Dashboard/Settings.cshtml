@@ -7,9 +7,9 @@
 <!-- Settings page with unified sections -->
 
 <!-- Webhook notification section -->
-<div class="card-panel mb-3">
+<div class="card-panel mb-4">
     <div class="card-header">
-        <span><i class="bi bi-bell me-2"></i><span data-i18n="webhook.title">Webhook 通知设置</span></span>
+        <span><i class="bi bi-bell me-2" style="color:#f59e0b;"></i><span data-i18n="webhook.title">Webhook 通知设置</span></span>
         <div style="display:flex;gap:8px;">
             <button class="btn btn-sm btn-outline-secondary" onclick="DashboardConfig._testAllWebhooks()">
                 <i class="bi bi-send"></i> <span data-i18n="webhook.test">测试推送</span>
@@ -20,33 +20,33 @@
         </div>
     </div>
     <div class="card-body" id="webhook-summary">
-        <div class="text-center py-3">
-            <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
-            <span class="ms-2 text-muted small" data-i18n="webhook.summaryLoading">加载中...</span>
+        <div class="loading-state">
+            <div class="loading-spinner"></div>
+            <div class="loading-text" data-i18n="webhook.summaryLoading">加载中...</div>
         </div>
     </div>
 </div>
 
 <!-- Configuration management section -->
-<div class="card-panel mb-3">
+<div class="card-panel mb-4">
     <div class="card-header">
-        <span><i class="bi bi-box-seam me-2"></i><span data-i18n="config.management">配置管理</span></span>
+        <span><i class="bi bi-box-seam me-2" style="color:#6366f1;"></i><span data-i18n="config.management">配置管理</span></span>
     </div>
     <div class="card-body">
         <div class="row g-3">
             <div class="col-md-6">
-                <div class="border rounded-3 p-3 h-100">
-                    <h6 class="mb-2"><i class="bi bi-download me-1"></i> <span data-i18n="config.export">导出配置</span></h6>
-                    <p class="text-muted small mb-2" data-i18n="config.exportDesc">将当前网关配置导出为 JSON 文件</p>
+                <div class="border rounded-3 p-4 h-100" style="background: linear-gradient(135deg, #f8fafc, #f1f5f9);">
+                    <h6 class="mb-2"><i class="bi bi-download me-1" style="color:#3b82f6;"></i> <span data-i18n="config.export">导出配置</span></h6>
+                    <p class="text-muted small mb-3" data-i18n="config.exportDesc">将当前网关配置导出为 JSON 文件</p>
                     <button class="btn btn-sm btn-outline-primary" onclick="DashboardConfig.exportConfig()">
                         <i class="bi bi-download"></i> <span data-i18n="config.exportBtn">导出</span>
                     </button>
                 </div>
             </div>
             <div class="col-md-6">
-                <div class="border rounded-3 p-3 h-100">
-                    <h6 class="mb-2"><i class="bi bi-upload me-1"></i> <span data-i18n="config.import">导入配置</span></h6>
-                    <p class="text-muted small mb-2" data-i18n="config.importDesc">从 JSON 文件导入网关配置</p>
+                <div class="border rounded-3 p-4 h-100" style="background: linear-gradient(135deg, #f8fafc, #f1f5f9);">
+                    <h6 class="mb-2"><i class="bi bi-upload me-1" style="color:#22c55e;"></i> <span data-i18n="config.import">导入配置</span></h6>
+                    <p class="text-muted small mb-3" data-i18n="config.importDesc">从 JSON 文件导入网关配置</p>
                     <button class="btn btn-sm btn-outline-primary" onclick="DashboardConfig.showImportModal()">
                         <i class="bi bi-upload"></i> <span data-i18n="config.importBtn">导入</span>
                     </button>
@@ -57,25 +57,31 @@
 </div>
 
 <!-- Rate limiting section -->
-<div class="card-panel mb-3">
+<div class="card-panel mb-4">
     <div class="card-header">
-        <span><i class="bi bi-speedometer me-2"></i><span data-i18n="settings.rateLimit">限流设置</span></span>
+        <span><i class="bi bi-speedometer me-2" style="color:#0ea5e9;"></i><span data-i18n="settings.rateLimit">限流设置</span></span>
     </div>
     <div class="card-body" id="rate-limit-summary">
-        <p class="text-muted" data-i18n="settings.loading">加载中...</p>
+        <div class="loading-state">
+            <div class="loading-spinner"></div>
+            <div class="loading-text" data-i18n="settings.loading">加载中...</div>
+        </div>
     </div>
 </div>
 
 <!-- Circuit breaker section -->
-<div class="card-panel mb-3">
+<div class="card-panel mb-4">
     <div class="card-header">
-        <span><i class="bi bi-lightning me-2"></i><span data-i18n="settings.circuitBreaker">熔断器状态</span></span>
+        <span><i class="bi bi-lightning me-2" style="color:#f59e0b;"></i><span data-i18n="settings.circuitBreaker">熔断器状态</span></span>
         <button class="btn btn-sm btn-outline-warning" onclick="DashboardApi.endpoints.resetCircuitBreakers().then(()=>location.reload())">
             <i class="bi bi-arrow-counterclockwise"></i> <span data-i18n="settings.resetBreaker">重置</span>
         </button>
     </div>
     <div class="card-body" id="circuit-breaker-summary">
-        <p class="text-muted" data-i18n="settings.loading">加载中...</p>
+        <div class="loading-state">
+            <div class="loading-spinner"></div>
+            <div class="loading-text" data-i18n="settings.loading">加载中...</div>
+        </div>
     </div>
 </div>
 
