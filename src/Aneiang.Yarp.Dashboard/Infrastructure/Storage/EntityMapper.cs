@@ -32,8 +32,7 @@ public static class EntityMapper
             CreatedBy = route.CreatedBy,
             CreatedAt = route.CreatedAt,
             UpdatedAt = DateTime.UtcNow,
-            Metadata = route.Metadata is { Count: > 0 } ? JsonSerializer.Serialize(route.Metadata, _jsonOptions) : null,
-            Enabled = true
+            Metadata = route.Metadata is { Count: > 0 } ? JsonSerializer.Serialize(route.Metadata, _jsonOptions) : null
         };
     }
 
@@ -71,8 +70,7 @@ public static class EntityMapper
             CreatedBy = cluster.CreatedBy,
             CreatedAt = cluster.CreatedAt,
             UpdatedAt = DateTime.UtcNow,
-            LastHeartbeat = cluster.LastHeartbeat,
-            Enabled = true
+            LastHeartbeat = cluster.LastHeartbeat
         };
     }
 

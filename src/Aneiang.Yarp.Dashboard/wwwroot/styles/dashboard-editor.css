@@ -10,16 +10,19 @@
 
 .monaco-editor-container {
     height: 400px;
-    border: 1px solid #404040;
-    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
     overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 
 /* Validation Panel */
 .validation-panel {
     margin-top: 1rem;
     padding: 1rem;
-    border-radius: 4px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
 }
 
 .validation-errors {
@@ -28,16 +31,19 @@
 }
 
 .validation-error {
-    padding: 8px 12px;
-    border-left: 3px solid #dc3545;
+    padding: 10px 14px;
+    border-left: 3px solid #ef4444;
     margin-bottom: 4px;
-    background: #fff5f5;
+    background: #fef2f2;
+    border-radius: 0 8px 8px 0;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: all 0.2s;
+    font-size: 13px;
 }
 
 .validation-error:hover {
-    background: #fee;
+    background: #fee2e2;
+    transform: translateX(2px);
 }
 
 /* Diff Panel */
@@ -67,9 +73,10 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1rem;
-    padding: 0.5rem;
-    background: #f8f9fa;
-    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
 }
 
 .editor-actions {
@@ -98,11 +105,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 13px;
 }
 
 .table td.code-cell:hover {
     white-space: normal;
     word-break: break-all;
+    background: #f8fafc;
 }
 
 /* Log Body Truncation */
@@ -267,17 +276,23 @@
 }
 
 .route-card-actions .btn {
-    padding: 4px 8px;
+    padding: 5px 10px;
     font-size: 12px;
     border: 1px solid var(--border-color, #e2e8f0);
     background: var(--card-bg, #ffffff);
     border-radius: 6px;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: all 0.15s ease;
 }
 
 .route-card-actions .btn:hover {
     background: #eff6ff;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+
+.route-card-actions .btn:active {
+    transform: translateY(0);
 }
 
 .route-card-actions .btn-delete {
@@ -286,6 +301,7 @@
 
 .route-card-actions .btn-delete:hover {
     background: #fef2f2;
+    border-color: rgba(239,68,68,0.3);
 }
 
 .route-card-body {

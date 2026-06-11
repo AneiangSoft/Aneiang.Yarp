@@ -1,49 +1,50 @@
-using System.Text.Json;
+using Aneiang.Yarp.Dashboard.Infrastructure.Storage;
 using Aneiang.Yarp.Dashboard.Modules.Policy.Models;
-using Microsoft.AspNetCore.Hosting;
+using Aneiang.Yarp.Storage;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Policy.Services;
 
 /// <summary>
-/// Persists gateway policies to a JSON file.
+/// Persists gateway policies via <see cref="IGatewayRepository"/>.
 /// </summary>
 public class GatewayPolicyPersistenceService : IGatewayPolicyPersistenceService
 {
-    private readonly string _filePath;
-    private static readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    private readonly IGatewayRepository _repository;
 
-    public GatewayPolicyPersistenceService(IWebHostEnvironment env)
+    public GatewayPolicyPersistenceService(IGatewayRepository repository)
     {
-        var dir = Path.Combine(env.ContentRootPath, "Data");
-        Directory.CreateDirectory(dir);
-        _filePath = Path.Combine(dir, "gateway-policies.json");
+        _repository = repository;
     }
 
+    /// <inheritdoc />
     public GatewayPolicyCollection Load()
     {
-        if (!File.Exists(_filePath))
-            return new GatewayPolicyCollection();
-
-        try
+        var entities = _repository.GetAllPoliciesAsync().GetAwaiter().GetResult();
+        return new GatewayPolicyCollection
         {
-            var json = File.ReadAllText(_filePath);
-            return System.Text.Json.JsonSerializer.Deserialize<GatewayPolicyCollection>(json, _jsonOptions)
-                   ?? new GatewayPolicyCollection();
-        }
-        catch
-        {
-            return new GatewayPolicyCollection();
-        }
+            Policies = entities.ToGatewayPolicies(),
+            LastModified = DateTime.UtcNow
+        };
     }
 
+    /// <inheritdoc />
     public void Save(GatewayPolicyCollection collection)
     {
         collection.LastModified = DateTime.UtcNow;
-        var json = System.Text.Json.JsonSerializer.Serialize(collection, _jsonOptions);
-        File.WriteAllText(_filePath, json);
+        foreach (var policy in collection.Policies)
+        {
+            _repository.SavePolicyAsync(policy.ToEntity()).GetAwaiter().GetResult();
+        }
+
+        // Clean up policies that are no longer in the collection
+        var existingEntities = _repository.GetAllPoliciesAsync().GetAwaiter().GetResult();
+        var targetIds = new HashSet<string>(collection.Policies.Select(p => p.PolicyId), StringComparer.OrdinalIgnoreCase);
+        foreach (var existing in existingEntities)
+        {
+            if (!targetIds.Contains(existing.PolicyId))
+            {
+                _repository.DeletePolicyAsync(existing.PolicyId).GetAwaiter().GetResult();
+            }
+        }
     }
 }

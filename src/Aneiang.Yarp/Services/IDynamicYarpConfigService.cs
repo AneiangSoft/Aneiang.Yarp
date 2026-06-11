@@ -34,12 +34,6 @@ public interface IDynamicYarpConfigService
         Dictionary<string, string> destinations, string? loadBalancingPolicy = null,
         Models.HealthCheckConfig? healthCheck = null, string source = "dashboard", string? createdBy = "dashboard-user");
 
-    /// <summary>Enable or disable a route via metadata.</summary>
-    Task<RouteOperationResult> TrySetRouteDisabled(string routeId, bool disable, string? source = null, string? createdBy = null);
-
-    /// <summary>Enable or disable a cluster via metadata.</summary>
-    Task<RouteOperationResult> TrySetClusterDisabled(string clusterId, bool disable, string? source = null, string? createdBy = null);
-
     /// <summary>Update or merge metadata entries on a route. Used by the policy engine.</summary>
     Task<bool> UpdateRouteMetadataAsync(string routeId, Dictionary<string, string> metadata);
 

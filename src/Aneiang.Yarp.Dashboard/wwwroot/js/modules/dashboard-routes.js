@@ -452,13 +452,12 @@
                 var hostText = route.match && route.match.hosts && route.match.hosts.length > 0 ? route.match.hosts[0] : '';
                 var hasTransforms = route.transforms && route.transforms.length > 0;
                 var hasAuthorization = route.authorizationPolicy || route.authorizationPolicy === '';
-                var isDisabled = route.metadata && route.metadata.Disabled === 'true';
 
                 // Determine card accent color by cluster
-                var accentColor = isDisabled ? '#94a3b8' : (route.clusterId ? '#3b82f6' : '#94a3b8');
+                var accentColor = route.clusterId ? '#3b82f6' : '#94a3b8';
 
                 html += '<div style="border:1px solid var(--border-color);border-left:4px solid ' + accentColor +
-                    ';border-radius:12px;background:var(--card-bg);overflow:hidden;transition:box-shadow 0.2s,transform 0.15s;cursor:pointer;' + (isDisabled ? 'opacity:0.7;' : '') + '"' +
+                    ';border-radius:12px;background:var(--card-bg);overflow:hidden;transition:box-shadow 0.2s,transform 0.15s;cursor:pointer;"' +
                     ' onmouseover="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.08)\';this.style.transform=\'translateY(-1px)\'"' +
                     ' onmouseout="this.style.boxShadow=\'none\';this.style.transform=\'none\'"' +
                     ' onclick="window.DashboardApp.modules.routes.toggleRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')"' +
@@ -482,9 +481,6 @@
                 html += '<div style="font-weight:600;font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '</div>';
                 html += '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;">';
                 html += '<span>' + (window.DashboardUtils ? DashboardUtils.createSourceBadge(route.source) : route.source || '-') + '</span>';
-                if (isDisabled) {
-                    html += '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:#e2e8f0;color:#64748b;border:1px solid #cbd5e1;" title="' + (window.__ && __("index.route.disabled")) + '"><i class="bi bi-ban me-1"></i>' + (window.__ && __("index.route.disabledShort")) + '</span>';
-                }
                 if (hostText) {
                     html += '<span style="color:#cbd5e1;">|</span><span style="font-size:11px;color:#64748b;"><i class="bi bi-globe me-1"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(hostText) : hostText) + '</span>';
                 }
@@ -498,11 +494,6 @@
 
                 // Action buttons
                 html += '<div style="display:flex;gap:4px;flex-shrink:0;" onclick="event.stopPropagation()">';
-                // Enable/Disable button
-                var toggleBtnClass = isDisabled ? 'background:#f0fdf4;color:#22c55e;border-color:#bbf7d0;' : 'background:#fffbeb;color:#f59e0b;border-color:#fde68a;';
-                var toggleBtnIcon = isDisabled ? 'bi bi-play-fill' : 'bi bi-pause-fill';
-                var toggleTitle = isDisabled ? (window.__ && __("index.route.enable")) : (window.__ && __("index.route.disable"));
-                html += '<button data-action="toggle" class="btn-toggle" style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--primary-color);transition:background 0.15s;' + toggleBtnClass + '" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'var(--card-bg)\'" title="' + toggleTitle + '"><i class="bi ' + toggleBtnIcon + '"></i></button>';
                 html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--primary-color);transition:background 0.15s;" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.showEditModal(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.edit")) + '"><i class="bi bi-pencil"></i></button>';
                 html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:#ef4444;transition:background 0.15s;" onmouseover="this.style.background=\'#fef2f2\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.deleteRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.delete")) + '"><i class="bi bi-trash"></i></button>';
                 html += '</div></div>';
@@ -660,29 +651,6 @@
             if (expandIcon) {
                 expandIcon.classList.toggle('expanded', isExpanded);
             }
-
-            // Update disabled state
-            const wasDisabled = row.classList.contains('route-disabled');
-            const isDisabled = route.metadata && route.metadata.Disabled === 'true';
-            if (wasDisabled !== isDisabled) {
-                row.classList.toggle('route-disabled', isDisabled);
-                // Update disabled badge in name cell
-                const nameDiv = row.querySelector('td:nth-child(3) div');
-                if (nameDiv) {
-                    const existingBadge = nameDiv.querySelector('.badge.bg-secondary');
-                    if (isDisabled && !existingBadge) {
-                        const disabledBadge = document.createElement('span');
-                        disabledBadge.className = 'badge bg-secondary ms-1';
-                        disabledBadge.style.cssText = 'font-size:10px;padding:2px 5px;';
-                        disabledBadge.title = __('index.route.disabled');
-                        disabledBadge.innerHTML = '<i class="bi bi-ban me-1"></i>' + __('index.route.disabledShort');
-                        const nameStrong = nameDiv.querySelector('strong');
-                        if (nameStrong) nameStrong.after(disabledBadge);
-                    } else if (!isDisabled && existingBadge) {
-                        existingBadge.remove();
-                    }
-                }
-            }
         },
 
         // ===== Create Route Rows =====
@@ -704,9 +672,8 @@
 
         // ===== Create Route Main Row =====
         createRouteMainRow: function(route, isExpanded) {
-            var isDisabled = route.metadata && route.metadata.Disabled === 'true';
             var tr = window.DashboardDOM.create('tr', {
-                className: 'route-row' + (isDisabled ? ' route-disabled' : ''),
+                className: 'route-row',
                 attributes: { 'data-route-id': route.routeId },
                 style: { cursor: 'pointer' }
             });
@@ -749,17 +716,6 @@
             nameStrong.textContent = route.routeId;
             nameStrong.title = route.routeId;
             nameDiv.appendChild(nameStrong);
-
-            // Disabled indicator
-            var isDisabled = route.metadata && route.metadata.Disabled === 'true';
-            if (isDisabled) {
-                var disabledBadge = document.createElement('span');
-                disabledBadge.className = 'badge bg-secondary ms-1';
-                disabledBadge.style.cssText = 'font-size:10px;padding:2px 5px;';
-                disabledBadge.title = __('index.route.disabled');
-                disabledBadge.innerHTML = '<i class="bi bi-ban me-1"></i>' + __('index.route.disabledShort');
-                nameDiv.appendChild(disabledBadge);
-            }
 
             var sourceSpan = document.createElement('span');
             sourceSpan.innerHTML = this.createSourceBadge(route.source);
@@ -925,26 +881,6 @@
                 className: 'btn-group btn-group-sm'
             });
 
-            // Check if route is disabled
-            const isDisabled = route.metadata && route.metadata.Disabled === 'true';
-
-            // Disable/Enable button
-            const toggleBtn = window.DashboardDOM.create('button', {
-                className: isDisabled ? 'btn btn-outline-success' : 'btn btn-outline-warning',
-                attributes: { title: isDisabled ? __('index.route.enable') : __('index.route.disable') },
-                events: {
-                    click: (e) => {
-                        e.stopPropagation();
-                        this.toggleRouteEnabled(route.routeId, !isDisabled);
-                    }
-                }
-            });
-            const toggleIcon = window.DashboardDOM.create('i', {
-                className: isDisabled ? 'bi bi-play-fill' : 'bi bi-pause-fill'
-            });
-            toggleBtn.appendChild(toggleIcon);
-            container.appendChild(toggleBtn);
-
             // Edit button
             const editBtn = window.DashboardDOM.create('button', {
                 className: 'btn btn-outline-primary',
@@ -982,35 +918,6 @@
             return container;
         },
 
-        // ===== Toggle Route Enabled/Disabled =====
-        toggleRouteEnabled: async function(routeId, enable) {
-            const self = this;
-            const action = enable ? 'enable' : 'disable';
-            const confirmMsg = (enable ? __('index.route.confirmEnable') : __('index.route.confirmDisable')).replace('{id}', routeId);
-
-            window.DashboardModals.showConfirm(
-                confirmMsg,
-                async function() {
-                    try {
-                        window.DashboardModals.showInfo(__('index.route.toggling'));
-                        const endpoint = enable ? '/api/operations/emergency-enable-route' : '/api/operations/emergency-disable-route';
-                        const result = await window.DashboardApi.post(endpoint + '/' + encodeURIComponent(routeId), {});
-                        // API layer already unwraps {code:200, data:...} → result is data directly
-                        window.DashboardModals.showSuccess(
-                            (enable ? __('index.route.enabledSuccess') : __('index.route.disabledSuccess')).replace('{id}', routeId)
-                        );
-                        await self.loadRoutes(true);
-                    } catch (e) {
-                        console.error('[Routes] Toggle route failed:', e);
-                        window.DashboardModals.showError(
-                            enable ? __('index.route.enabledFailed') : __('index.route.disabledFailed')
-                        );
-                    }
-                },
-                null,
-                { danger: !enable }
-            );
-        },
 
         // ===== Create Route Detail Row =====
         createRouteDetailRow: function(route) {
@@ -1522,8 +1429,7 @@
                     { name: 'routeId', label: 'Route ID', type: 'text', required: true, placeholder: 'my-route' },
                     { name: 'clusterId', label: __('index.route.clusterId') || 'Cluster ID', type: 'select', required: true, options: clusterOptions, value: clusterIds[0] },
                     { name: 'matchPath', label: __('index.route.matchPath') || 'Match Path', type: 'text', required: true, placeholder: '/api/service/{**catchAll}', value: '/api/service/{**catchAll}' },
-                    { name: 'order', label: __('index.route.order') || 'Order', type: 'number', value: '50', min: '0', max: '1000' },
-                    { name: 'disabled', label: __('index.route.disabled') || 'Disabled', type: 'checkbox' }
+                    { name: 'order', label: __('index.route.order') || 'Order', type: 'number', value: '50', min: '0', max: '1000' }
                 ],
                 data: { clusterId: clusterIds[0], matchPath: '/api/service/{**catchAll}', order: '50' },
                 jsonModeCallback: function() {
@@ -1538,9 +1444,6 @@
                         },
                         Metadata: {}
                     };
-                    if (formData.disabled) {
-                        routeConfig.Metadata['Disabled'] = 'true';
-                    }
 
                     if (!routeConfig.ClusterId || !routeConfig.ClusterId.trim()) {
                         window.DashboardModals.showError(__('index.route.invalidCluster'));
@@ -1933,8 +1836,7 @@
             const hostText = route.match && route.match.hosts && route.match.hosts.length > 0 ? route.match.hosts[0] : '';
             const hasTransforms = route.transforms && route.transforms.length > 0;
             const hasAuthorization = route.authorizationPolicy || route.authorizationPolicy === '';
-            const isDisabled = route.metadata && route.metadata.Disabled === 'true';
-            const accentColor = isDisabled ? '#94a3b8' : (route.clusterId ? '#3b82f6' : '#94a3b8');
+            const accentColor = route.clusterId ? '#3b82f6' : '#94a3b8';
 
             // Create card element
             const card = document.createElement('div');
@@ -1942,8 +1844,7 @@
             card.dataset.routeId = route.routeId;
             card.dataset.key = route.routeId; // For diff tracking
             card.style.cssText = 'border:1px solid var(--border-color);border-left:4px solid ' + accentColor + 
-                ';border-radius:12px;background:var(--card-bg);overflow:hidden;transition:box-shadow 0.2s,transform 0.15s;cursor:pointer;' + 
-                (isDisabled ? 'opacity:0.7;' : '');
+                ';border-radius:12px;background:var(--card-bg);overflow:hidden;transition:box-shadow 0.2s,transform 0.15s;cursor:pointer;';
             
             // Hover effects
             card.addEventListener('mouseenter', function() {
@@ -1956,20 +1857,16 @@
             });
 
             // Card content HTML
-            card.innerHTML = this._buildCardHTML(route, pathText, methods, hostText, hasTransforms, hasAuthorization, isDisabled);
+            card.innerHTML = this._buildCardHTML(route, pathText, methods, hostText, hasTransforms, hasAuthorization);
 
             return card;
         },
 
         // ===== Build Card HTML (separate for easier maintenance) =====
-        _buildCardHTML: function(route, pathText, methods, hostText, hasTransforms, hasAuthorization, isDisabled) {
+        _buildCardHTML: function(route, pathText, methods, hostText, hasTransforms, hasAuthorization) {
             const orderBadge = route.order !== null && route.order !== undefined 
                 ? '<span class="route-order-badge" style="background:' + (route.order < 100 ? '#fef3c7' : route.order < 1000 ? '#e0e7ff' : '#f1f5f9') + ';color:' + (route.order < 100 ? '#92400e' : route.order < 1000 ? '#3730a3' : '#64748b') + '">' + route.order + '</span>'
                 : '<span class="route-order-badge" style="background:#f1f5f9;color:#94a3b8">-</span>';
-
-            const disabledBadge = isDisabled 
-                ? '<span class="route-badge disabled" title="' + (window.__ ? __("index.route.disabled") : "已禁用") + '"><i class="bi bi-ban"></i>' + (window.__ ? __("index.route.disabledShort") : "禁用") + '</span>' 
-                : '';
 
             const hostBadge = hostText 
                 ? '<span class="route-host"><i class="bi bi-globe"></i>' + window.DashboardUtils.escapeHtml(hostText) + '</span>' 
@@ -1979,10 +1876,6 @@
             if (hasTransforms) indicators.push('<i class="bi bi-arrow-left-right" style="color:#8b5cf6;" title="Transforms"></i>');
             if (hasAuthorization) indicators.push('<i class="bi bi-shield-lock" style="color:#f59e0b;" title="Authorization"></i>');
             const indicatorHtml = indicators.length > 0 ? '<span class="route-indicators">' + indicators.join('') + '</span>' : '';
-
-            const toggleBtnClass = isDisabled ? 'btn-success' : 'btn-warning';
-            const toggleBtnIcon = isDisabled ? 'bi-play-fill' : 'bi-pause-fill';
-            const toggleTitle = isDisabled ? (window.__ ? __("index.route.enable") : "启用") : (window.__ ? __("index.route.disable") : "禁用");
 
             let methodsHtml = '';
             if (methods.length > 0) {
@@ -2008,14 +1901,12 @@
                 '<div class="route-name" title="' + window.DashboardUtils.escapeHtml(route.routeId) + '">' + window.DashboardUtils.escapeHtml(route.routeId) + '</div>' +
                 '<div class="route-meta">' +
                 window.DashboardUtils.createSourceBadge(route.source) +
-                disabledBadge +
                 hostBadge +
                 indicatorHtml +
                 '</div>' +
                 '</div>' +
                 '</div>' +
                 '<div class="route-card-actions">' +
-                '<button class="btn-toggle btn btn-sm" title="' + toggleTitle + '" data-action="toggle"><i class="bi ' + toggleBtnIcon + '"></i></button>' +
                 '<button class="btn-edit btn btn-sm" title="' + (window.__ ? __("index.route.edit") : "编辑") + '" data-action="edit"><i class="bi bi-pencil"></i></button>' +
                 '<button class="btn-delete btn btn-sm" title="' + (window.__ ? __("index.route.delete") : "删除") + '" data-action="delete"><i class="bi bi-trash"></i></button>' +
                 '</div>' +

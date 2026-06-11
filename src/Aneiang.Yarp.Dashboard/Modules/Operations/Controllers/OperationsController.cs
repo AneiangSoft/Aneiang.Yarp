@@ -2,7 +2,6 @@ using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
-using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -18,29 +17,16 @@ public class OperationsController : ControllerBase
 {
     private readonly IDashboardLogQueryService _logQuery;
     private readonly IDashboardClusterQueryService _clusterQuery;
-    private readonly IDashboardRouteQueryService _routeQuery;
-    private readonly DynamicYarpConfigService _dynamicConfig;
     private readonly IMemoryCache _memoryCache;
 
     public OperationsController(
         IDashboardLogQueryService logQuery,
         IDashboardClusterQueryService clusterQuery,
-        IDashboardRouteQueryService routeQuery,
-        DynamicYarpConfigService dynamicConfig,
         IMemoryCache memoryCache)
     {
         _logQuery = logQuery;
         _clusterQuery = clusterQuery;
-        _routeQuery = routeQuery;
-        _dynamicConfig = dynamicConfig;
         _memoryCache = memoryCache;
-    }
-
-    /// <summary>Invalidates the dashboard query caches after a config mutation.</summary>
-    private void InvalidateQueryCaches()
-    {
-        _memoryCache.Remove("dashboard:routes:query");
-        _memoryCache.Remove("dashboard:clusters:query");
     }
 
     /// <summary>
@@ -261,75 +247,6 @@ public class OperationsController : ControllerBase
         };
 
         return Ok(new { code = 200, data });
-    }
-
-    /// <summary>
-    /// Emergency disable a route.
-    /// 紧急禁用路由
-    /// </summary>
-    [HttpPost("emergency-disable-route/{routeId}")]
-    public async Task<IActionResult> EmergencyDisableRoute(string routeId)
-    {
-        if (string.IsNullOrWhiteSpace(routeId))
-            return BadRequest(new { code = 400, message = "Route ID is required" });
-
-        var clientIp = GetClientIp();
-        var result = await _dynamicConfig.TrySetRouteDisabled(routeId, true, "emergency", clientIp);
-
-        if (result.Success) InvalidateQueryCaches();
-        return result.Success
-            ? Ok(new { code = 200, message = result.Message, data = new { routeId, action = "disabled", timestamp = DateTime.Now } })
-            : BadRequest(new { code = 400, message = result.Message });
-    }
-
-    /// <summary>
-    /// Re-enable a disabled route.
-    /// 重新启用路由
-    /// </summary>
-    [HttpPost("emergency-enable-route/{routeId}")]
-    public async Task<IActionResult> EmergencyEnableRoute(string routeId)
-    {
-        if (string.IsNullOrWhiteSpace(routeId))
-            return BadRequest(new { code = 400, message = "Route ID is required" });
-
-        var clientIp = GetClientIp();
-        var result = await _dynamicConfig.TrySetRouteDisabled(routeId, false, "emergency", clientIp);
-
-        if (result.Success) InvalidateQueryCaches();
-        return result.Success
-            ? Ok(new { code = 200, message = result.Message, data = new { routeId, action = "enabled", timestamp = DateTime.Now } })
-            : BadRequest(new { code = 400, message = result.Message });
-    }
-
-    /// <summary>
-    /// Get list of all routes with their enabled/disabled status.
-    /// 获取所有路由及其启用/禁用状态
-    /// </summary>
-    [HttpGet("routes")]
-    public IActionResult GetAllRoutesWithStatus()
-    {
-        var routes = _routeQuery.GetRoutes();
-        var routeList = routes.Select(r => new
-        {
-            routeId = r.RouteId,
-            clusterId = r.ClusterId,
-            matchPath = r.Match?.Path,
-            disabled = r.Metadata?.ContainsKey("Disabled") == true && r.Metadata["Disabled"] == "true"
-        }).ToList();
-
-        return Ok(new { code = 200, data = routeList });
-    }
-
-    private string? GetClientIp()
-    {
-        var ip = HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(ip))
-            return ip.Split(',', StringSplitOptions.TrimEntries)[0];
-
-        ip = HttpContext.Request.Headers["X-Real-IP"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(ip)) return ip;
-
-        return HttpContext.Connection.RemoteIpAddress?.ToString();
     }
 
     /// <summary>

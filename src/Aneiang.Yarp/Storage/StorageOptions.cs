@@ -13,20 +13,6 @@ public enum StorageProvider
 /// <summary>
 /// Storage configuration options. Binds from <c>Gateway:Storage</c> config section.
 /// </summary>
-/// <example>
-/// <code>
-/// {
-///   "Gateway": {
-///     "Storage": {
-///       "Provider": "Sqlite",
-///       "Sqlite": {
-///         "ConnectionString": "Data Source=gateway-store.db;Password=secret"
-///       }
-///     }
-///   }
-/// }
-/// </code>
-/// </example>
 public class StorageOptions
 {
     /// <summary>Config section name.</summary>

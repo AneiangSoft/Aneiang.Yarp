@@ -25,29 +25,18 @@ public static class StorageServiceCollectionExtensions
         var storageOptions = new StorageOptions();
         configuration.GetSection(StorageOptions.SectionName).Bind(storageOptions);
 
-        // Register legacy IDataStore for backward compatibility
-        services.AddSingleton<IDataStore>(sp =>
+        // Register IGatewayRepository — the primary storage abstraction
+        services.AddSingleton<IGatewayRepository>(sp =>
         {
             var loggerBase = sp.GetRequiredService<ILoggerFactory>();
 
             return storageOptions.Provider switch
             {
-                StorageProvider.Redis => new RedisDataStore(storageOptions,
-                    loggerBase.CreateLogger<RedisDataStore>()),
-                _ => new SqliteDataStore(storageOptions,
-                    loggerBase.CreateLogger<SqliteDataStore>())
+                StorageProvider.Redis => new RedisGatewayRepositoryPlaceholder(storageOptions,
+                    loggerBase.CreateLogger<RedisGatewayRepositoryPlaceholder>()),
+                _ => new SqliteGatewayRepository(storageOptions,
+                    loggerBase.CreateLogger<SqliteGatewayRepository>())
             };
-        });
-
-        // Register structured data store (new recommended approach)
-        services.AddSingleton<IStructuredDataStore>(sp =>
-        {
-            var loggerBase = sp.GetRequiredService<ILoggerFactory>();
-            var store = new StructuredSqliteStore(storageOptions,
-                loggerBase.CreateLogger<StructuredSqliteStore>());
-            // Initialize on startup
-            store.InitializeAsync().GetAwaiter().GetResult();
-            return store;
         });
 
         return services;

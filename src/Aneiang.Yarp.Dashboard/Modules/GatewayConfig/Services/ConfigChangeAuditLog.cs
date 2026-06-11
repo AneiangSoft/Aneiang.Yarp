@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using Aneiang.Yarp.Dashboard.Infrastructure.Storage;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
@@ -9,9 +8,9 @@ using Microsoft.Extensions.Logging;
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 
 /// <summary>
-/// Audit log store for gateway configuration changes using structured storage.
+/// Audit log store for gateway configuration changes using <see cref="IGatewayRepository"/>.
 /// Uses in-memory <see cref="ConcurrentQueue{T}"/> for fast writes,
-/// and persists to <see cref="IStructuredDataStore"/> for structured query capability.
+/// and persists to repository for structured query capability.
 /// Thread-safe, bounded by max capacity (ring-buffer style).
 /// </summary>
 public class ConfigChangeAuditLog : IConfigChangeAuditLog
@@ -29,21 +28,19 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
     private long _evictedCount;
     private bool _loaded;
 
-    private readonly IStructuredDataStore _store;
+    private readonly IGatewayRepository _repository;
     private readonly ILogger<ConfigChangeAuditLog> _logger;
 
-    /// <summary>
-    /// Raised when a config change audit entry is recorded (success only).
-    /// </summary>
+    /// <inheritdoc />
     public event Action<string, string, string?, object?>? OnConfigChanged;
 
-    public ConfigChangeAuditLog(IStructuredDataStore store, ILogger<ConfigChangeAuditLog> logger)
+    public ConfigChangeAuditLog(IGatewayRepository repository, ILogger<ConfigChangeAuditLog> logger)
     {
-        _store = store;
+        _repository = repository;
         _logger = logger;
     }
 
-    /// <summary>Load persisted entries from store on first access.</summary>
+    /// <summary>Load persisted entries from repository on first access.</summary>
     private async Task EnsureLoadedAsync()
     {
         if (_loaded) return;
@@ -56,13 +53,13 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
 
         try
         {
-            var persisted = await _store.GetAuditLogsAsync(MaxCapacity);
+            var persisted = await _repository.GetAuditLogsAsync(MaxCapacity);
             foreach (var entity in persisted)
             {
                 _entries.Enqueue(entity.ToConfigChangeAudit());
                 Interlocked.Increment(ref _totalCount);
             }
-            _logger.LogDebug("Loaded {Count} audit entries from structured store", persisted.Count);
+            _logger.LogDebug("Loaded {Count} audit entries from repository", persisted.Count);
         }
         catch (Exception ex)
         {
@@ -77,14 +74,8 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
 
         _ = Task.Run(async () =>
         {
-            try
-            {
-                await EnsureLoadedAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Background audit log initialization failed");
-            }
+            try { await EnsureLoadedAsync(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Background audit log initialization failed"); }
         });
     }
 
@@ -111,17 +102,11 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
             entry.Action, entry.Target, entry.Operator ?? "unknown",
             entry.Success ? "OK" : $"FAIL: {entry.ErrorMessage}");
 
-        // Persist to structured store
+        // Persist to repository (fire-and-forget)
         _ = Task.Run(async () =>
         {
-            try
-            {
-                await _store.SaveAuditLogAsync(entry.ToEntity());
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to persist audit entry");
-            }
+            try { await _repository.SaveAuditLogAsync(entry.ToEntity()); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Failed to persist audit entry"); }
         });
 
         if (entry.Success)
@@ -178,10 +163,10 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
     /// <inheritdoc />
     public long EvictedCount => Volatile.Read(ref _evictedCount);
 
-    /// <summary>Query audit logs by target from structured store.</summary>
+    /// <summary>Query audit logs by target from repository.</summary>
     public async Task<IReadOnlyList<ConfigChangeAudit>> GetByTargetAsync(string target, int count = 50)
     {
-        var entities = await _store.GetAuditLogsByTargetAsync(target, count);
+        var entities = await _repository.GetAuditLogsByTargetAsync(target, count);
         return entities.ToConfigChangeAudits();
     }
 }

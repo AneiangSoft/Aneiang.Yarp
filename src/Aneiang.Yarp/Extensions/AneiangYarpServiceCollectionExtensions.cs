@@ -1,5 +1,4 @@
 using Aneiang.Yarp.Controllers;
-using Aneiang.Yarp.Middleware;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Builder;
@@ -37,9 +36,7 @@ public static class AneiangYarpServiceCollectionExtensions
         Action<IReverseProxyBuilder>? configureReverseProxy = null,
         bool enableRegistration = true)
     {
-        // Guard: prevent double registration. AddReverseProxy() is idempotent (TryAdd* internally),
-        // but repeated calls to this method would re-register InMemoryConfigProvider / IProxyConfigProvider
-        // unnecessarily and trigger confusing double behavior.
+        // Guard: prevent double registration
         if (services.Any(sd => sd.ServiceType == typeof(InMemoryConfigProvider)))
         {
             return services;
@@ -65,7 +62,7 @@ public static class AneiangYarpServiceCollectionExtensions
         // Sole config provider - both static + dynamic
         services.AddSingleton<IProxyConfigProvider>(sp => sp.GetRequiredService<InMemoryConfigProvider>());
 
-        // Dynamic config service (depends on IDynamicConfigPersistenceService and IConfigChangeAuditLog
+        // Dynamic config service (depends on IGatewayRepository and IConfigChangeAuditLog
         // which are registered by Dashboard when AddAneiangYarpDashboard is called)
         services.AddSingleton<DynamicYarpConfigService>();
         services.AddSingleton<IDynamicYarpConfigService>(sp => sp.GetRequiredService<DynamicYarpConfigService>());
@@ -99,16 +96,6 @@ public static class AneiangYarpServiceCollectionExtensions
     /// <summary>
     /// Enable authorization for the gateway config API (register-route, delete-route, etc.).
     /// Supports BasicAuth and ApiKey modes.
-    /// Credentials are resolved in this order (later overrides earlier):
-    /// 1. <c>Gateway:ApiAuth</c> config section
-    /// 2. Auto-detect from <c>Gateway:Dashboard</c> (if Dashboard JWT password is configured)
-    /// 3. <paramref name="configureOptions"/> callback (highest precedence)
-    /// <para>
-    /// <b>Note:</b> The actual <c>GatewayApiAuthFilter</c> and <c>GatewayApiAuthConvention</c>
-    /// are registered by <c>AddAneiangYarpDashboard</c> when the Dashboard package is used.
-    /// When using only the core package, call this method to bind options and then manually
-    /// register the filter/convention in your own composition root.
-    /// </para>
     /// </summary>
     public static IServiceCollection AddGatewayApiAuth(
         this IServiceCollection services,
@@ -135,7 +122,6 @@ public static class AneiangYarpServiceCollectionExtensions
                     }
                 }
             })
-            // 3. User callback overrides all config sources (highest precedence)
             .Configure(configureOptions ?? (_ => { }));
 
         return services;
