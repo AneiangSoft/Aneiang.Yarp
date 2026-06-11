@@ -1,4 +1,4 @@
-using Aneiang.Yarp.Dashboard.Storage;
+using Aneiang.Yarp.Dashboard.Infrastructure.Storage;
 using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

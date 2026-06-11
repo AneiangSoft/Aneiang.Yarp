@@ -1,3 +1,4 @@
+@using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
 @{
     ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Policy Management" : "策略管理";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
@@ -183,7 +184,7 @@
 </div>
 
 @section Scripts {
-@{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+@{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
 <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
