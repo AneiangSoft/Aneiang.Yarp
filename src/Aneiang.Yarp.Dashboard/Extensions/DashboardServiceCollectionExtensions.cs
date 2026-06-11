@@ -1,6 +1,3 @@
-using System.IO.Compression;
-
-using Aneiang.Yarp.Dashboard.Extensions;
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Auth;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
@@ -14,13 +11,10 @@ using Aneiang.Yarp.Dashboard.Modules.Alert.Services;
 using Aneiang.Yarp.Dashboard.Modules.Alert.Models;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 using Aneiang.Yarp.Dashboard.Modules.Webhook.Services;
-using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
-using Aneiang.Yarp.Storage;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.ResponseCompression;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -261,8 +255,7 @@ public static class DashboardServiceCollectionExtensions
             return null;
 
         return new DashboardAuthFilter(
-            new DashboardAuthorizationService(
-                Microsoft.Extensions.Options.Options.Create(opts),
+            new DashboardAuthorizationService(Options.Create(opts),
                 Microsoft.Extensions.Logging.Abstractions.NullLogger<DashboardAuthorizationService>.Instance),
             routePrefix);
     }

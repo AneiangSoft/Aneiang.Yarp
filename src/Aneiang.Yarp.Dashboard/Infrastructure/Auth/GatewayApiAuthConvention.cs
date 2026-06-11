@@ -1,7 +1,6 @@
 using Aneiang.Yarp.Controllers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
-using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Auth;
 
