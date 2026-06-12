@@ -3,6 +3,7 @@ using Aneiang.Yarp.Dashboard.Infrastructure.Yarp;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
 using Aneiang.Yarp.Dashboard.Modules.Retry.Middleware;
+using Aneiang.Yarp.Dashboard.Modules.RateLimit.Middleware;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -89,6 +90,7 @@ public static class DashboardApplicationBuilderExtensions
             endpoints.MapReverseProxy(proxyPipeline =>
             {
                 proxyPipeline.UseMiddleware<BuiltinTransformMiddleware>();
+                proxyPipeline.UseMiddleware<RateLimitMiddleware>();
                 proxyPipeline.UseMiddleware<CircuitBreakerMiddleware>();
                 proxyPipeline.UseMiddleware<RequestRetryMiddleware>();
                 configureProxyPipeline?.Invoke(proxyPipeline);

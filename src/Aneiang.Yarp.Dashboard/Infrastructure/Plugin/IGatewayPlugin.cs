@@ -1,6 +1,7 @@
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
 using Aneiang.Yarp.Dashboard.Modules.Retry.Middleware;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
+using Aneiang.Yarp.Dashboard.Modules.RateLimit.Middleware;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -115,6 +116,29 @@ public class WafPlugin : IGatewayPlugin
 
     public void ConfigureProxyPipeline(IReverseProxyApplicationBuilder proxyPipeline)
     {
-        // WAF runs on main pipeline
+        // WAF runs on main pipeline, not inside MapReverseProxy
+    }
+}
+
+/// <summary>
+/// Built-in plugin that wraps existing RateLimitMiddleware.
+/// </summary>
+public class RateLimitPlugin : IGatewayPlugin
+{
+    public string PluginId => "rate-limit";
+    public string DisplayName => "Rate Limiting";
+    public string Version => "1.0";
+
+    public void ConfigureServices(IServiceCollection services, object? pluginOptions = null)
+    {
+    }
+
+    public void ConfigureMiddleware(IApplicationBuilder app)
+    {
+    }
+
+    public void ConfigureProxyPipeline(IReverseProxyApplicationBuilder proxyPipeline)
+    {
+        proxyPipeline.UseMiddleware<RateLimitMiddleware>();
     }
 }

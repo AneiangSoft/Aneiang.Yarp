@@ -45,6 +45,10 @@ public static class DashboardServiceCollectionExtensions
         services.AddOptions<RetryOptions>()
             .BindConfiguration("Gateway:Dashboard:Retry");
 
+        // Register RateLimit options (nested in DashboardOptions)
+        services.AddOptions<RateLimitOptions>()
+            .BindConfiguration("Gateway:Dashboard:RateLimit");
+
         // Register WAF options (nested in DashboardOptions)
         services.AddOptions<WafOptions>()
             .BindConfiguration("Gateway:Dashboard:Waf");
@@ -152,6 +156,7 @@ public static class DashboardServiceCollectionExtensions
         // ── Plugin system ─────────────────────────────────────────────────────────
         services.AddSingleton<IGatewayPlugin, CircuitBreakerPlugin>();
         services.AddSingleton<IGatewayPlugin, RequestRetryPlugin>();
+        services.AddSingleton<IGatewayPlugin, RateLimitPlugin>();
         services.AddSingleton<IGatewayPlugin, WafPlugin>();
         services.AddSingleton<IGatewayPluginManager, GatewayPluginManager>();
 
