@@ -48,7 +48,8 @@ internal static class DashboardClusterMapper
             UnhealthyCount = 0,
             TotalCount = destinations.Count,
             Source = source,
-            IsEditable = isEditable
+            IsEditable = isEditable,
+            CircuitBreaker = MapCircuitBreaker(cluster.ClusterId, dynamicConfig)
         };
     }
 
@@ -150,5 +151,28 @@ internal static class DashboardClusterMapper
         }
 
         return (true, "config"); // Not in dynamic config means it's from static config
+    }
+
+    /// <summary>
+    /// Maps circuit breaker configuration from dynamic config.
+    /// </summary>
+    private static CircuitBreakerInfo? MapCircuitBreaker(string clusterId, DynamicYarpConfigService dynamicConfig)
+    {
+        var dynConfig = dynamicConfig.GetDynamicConfig();
+        var dynCluster = dynConfig?.Clusters.FirstOrDefault(dc =>
+            string.Equals(dc.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+
+        var cb = dynCluster?.CircuitBreaker;
+        if (cb == null)
+            return null;
+
+        return new CircuitBreakerInfo
+        {
+            Enabled = cb.Enabled,
+            FailureThreshold = cb.FailureThreshold,
+            RecoveryTimeoutSeconds = cb.RecoveryTimeoutSeconds,
+            HalfOpenMaxAttempts = cb.HalfOpenMaxAttempts,
+            FailureStatusCodes = cb.FailureStatusCodes
+        };
     }
 }

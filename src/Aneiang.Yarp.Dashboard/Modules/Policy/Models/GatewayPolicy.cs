@@ -1,11 +1,10 @@
-
 namespace Aneiang.Yarp.Dashboard.Modules.Policy.Models;
 
 /// <summary>
-/// Represents a reusable traffic policy that combines multiple gateway features.
-/// Policies can be applied to routes via route metadata.
+/// Route policy template: contains retry, rate-limit, WAF toggle.
+/// Can be applied to one or more routes via route metadata.
 /// </summary>
-public class GatewayPolicy
+public class RoutePolicy
 {
     /// <summary>Unique identifier for this policy.</summary>
     public string PolicyId { get; set; } = string.Empty;
@@ -16,22 +15,14 @@ public class GatewayPolicy
     /// <summary>Description of what this policy does.</summary>
     public string? Description { get; set; }
 
-    /// <summary>When this policy was created.</summary>
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-    /// <summary>Who created this policy.</summary>
-    public string? CreatedBy { get; set; }
-
-    /// <summary>Policy priority (higher = evaluated first). Default: 50.</summary>
-    public int Priority { get; set; } = 50;
-
     /// <summary>Is this policy enabled. Default: true.</summary>
     public bool Enabled { get; set; } = true;
 
-    // ─── Feature Settings ──────────────────────────────────────
+    /// <summary>When this policy was created.</summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    /// <summary>Circuit breaker settings for this policy.</summary>
-    public PolicyCircuitBreaker? CircuitBreaker { get; set; }
+    /// <summary>Route IDs this policy is applied to (read-only, maintained by system).</summary>
+    public List<string> AppliedRoutes { get; set; } = new();
 
     /// <summary>Retry settings for this policy.</summary>
     public PolicyRetry? Retry { get; set; }
@@ -39,18 +30,86 @@ public class GatewayPolicy
     /// <summary>Rate limit settings for this policy.</summary>
     public PolicyRateLimit? RateLimit { get; set; }
 
-    /// <summary>WAF settings for this policy.</summary>
-    public PolicyWaf? Waf { get; set; }
+    /// <summary>WAF route-level toggle: true=force on, false=force off, null=follow global default.</summary>
+    public bool? WafEnabled { get; set; }
 
-    /// <summary>Custom plugin settings (key = plugin ID, value = plugin-specific JSON).</summary>
-    public Dictionary<string, object>? CustomPlugins { get; set; }
+    /// <summary>Generate metadata entries for route configuration.</summary>
+    public Dictionary<string, string> ToMetadata()
+    {
+        var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Tags for categorization.</summary>
-    public List<string> Tags { get; set; } = new();
+        if (Retry?.Enabled == true)
+        {
+            foreach (var kvp in Retry.ToMetadata())
+                metadata[kvp.Key] = kvp.Value;
+        }
+
+        if (RateLimit?.Enabled == true)
+        {
+            foreach (var kvp in RateLimit.ToMetadata())
+                metadata[kvp.Key] = kvp.Value;
+        }
+
+        if (WafEnabled.HasValue)
+        {
+            metadata["Waf:Enabled"] = WafEnabled.Value.ToString().ToLowerInvariant();
+        }
+
+        metadata["Policy:Id"] = PolicyId;
+        metadata["Policy:Name"] = DisplayName;
+
+        return metadata;
+    }
 }
 
 /// <summary>
-/// Circuit breaker settings for a policy.
+/// Cluster policy template: contains circuit breaker configuration.
+/// Can be applied to one or more clusters.
+/// </summary>
+public class ClusterPolicy
+{
+    /// <summary>Unique identifier for this policy.</summary>
+    public string PolicyId { get; set; } = string.Empty;
+
+    /// <summary>Display name of this policy.</summary>
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Description of what this policy does.</summary>
+    public string? Description { get; set; }
+
+    /// <summary>Is this policy enabled. Default: true.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>When this policy was created.</summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Cluster IDs this policy is applied to (read-only, maintained by system).</summary>
+    public List<string> AppliedClusters { get; set; } = new();
+
+    /// <summary>Circuit breaker settings for this policy.</summary>
+    public PolicyCircuitBreaker? CircuitBreaker { get; set; }
+
+    /// <summary>Convert to CircuitBreakerConfig for cluster configuration.</summary>
+    public Aneiang.Yarp.Models.CircuitBreakerConfig? ToCircuitBreakerConfig()
+    {
+        if (CircuitBreaker == null || !CircuitBreaker.Enabled)
+            return null;
+
+        return new Aneiang.Yarp.Models.CircuitBreakerConfig
+        {
+            Enabled = CircuitBreaker.Enabled,
+            FailureThreshold = CircuitBreaker.FailureThreshold,
+            RecoveryTimeoutSeconds = CircuitBreaker.RecoveryTimeoutSeconds,
+            HalfOpenMaxAttempts = CircuitBreaker.HalfOpenMaxAttempts,
+            FailureStatusCodes = CircuitBreaker.FailureStatusCodes
+        };
+    }
+}
+
+// ─── Shared Sub-Models ─────────────────────────────────────────────
+
+/// <summary>
+/// Circuit breaker settings for a cluster policy.
 /// </summary>
 public class PolicyCircuitBreaker
 {
@@ -66,24 +125,12 @@ public class PolicyCircuitBreaker
     /// <summary>Max requests in half-open state. Default: 1.</summary>
     public int HalfOpenMaxAttempts { get; set; } = 1;
 
-    /// <summary>List of status codes that count as failures.</summary>
+    /// <summary>HTTP status codes that count as failures.</summary>
     public List<int> FailureStatusCodes { get; set; } = new() { 500, 502, 503, 504 };
-
-    /// <summary>Get metadata entries for route configuration.</summary>
-    public Dictionary<string, string> ToMetadata()
-    {
-        return new Dictionary<string, string>
-        {
-            ["CircuitBreaker:Enabled"] = Enabled.ToString().ToLowerInvariant(),
-            ["CircuitBreaker:FailureThreshold"] = FailureThreshold.ToString(),
-            ["CircuitBreaker:RecoveryTimeoutSeconds"] = RecoveryTimeoutSeconds.ToString(),
-            ["CircuitBreaker:HalfOpenMaxAttempts"] = HalfOpenMaxAttempts.ToString()
-        };
-    }
 }
 
 /// <summary>
-/// Retry settings for a policy.
+/// Retry settings for a route policy.
 /// </summary>
 public class PolicyRetry
 {
@@ -129,14 +176,14 @@ public class PolicyRetry
 }
 
 /// <summary>
-/// Rate limit settings for a policy.
+/// Rate limit settings for a route policy.
 /// </summary>
 public class PolicyRateLimit
 {
     /// <summary>Enable rate limiting. Default: false.</summary>
     public bool Enabled { get; set; } = false;
 
-    /// <summary>Algorithm: FixedWindow, SlidingWindow, TokenBucket, Concurrency.</summary>
+    /// <summary>Algorithm: FixedWindow, SlidingWindow, TokenBucket.</summary>
     public string Algorithm { get; set; } = "FixedWindow";
 
     /// <summary>Requests per window. Default: 100.</summary>
@@ -164,50 +211,4 @@ public class PolicyRateLimit
             ["RateLimit:PartitionKey"] = PartitionKey
         };
     }
-}
-
-/// <summary>
-/// WAF settings for a policy.
-/// </summary>
-public class PolicyWaf
-{
-    /// <summary>Enable WAF for this policy. Default: false.</summary>
-    public bool Enabled { get; set; } = false;
-
-    /// <summary>Block SQL injection attempts. Default: true.</summary>
-    public bool BlockSqlInjection { get; set; } = true;
-
-    /// <summary>Block XSS attempts. Default: true.</summary>
-    public bool BlockXss { get; set; } = true;
-
-    /// <summary>Block path traversal attempts. Default: true.</summary>
-    public bool BlockPathTraversal { get; set; } = true;
-
-    /// <summary>Max request body size. Default: 10MB.</summary>
-    public long MaxRequestBodySize { get; set; } = 10 * 1024 * 1024;
-
-    /// <summary>Get metadata entries for route configuration.</summary>
-    public Dictionary<string, string> ToMetadata()
-    {
-        return new Dictionary<string, string>
-        {
-            ["Waf:Enabled"] = Enabled.ToString().ToLowerInvariant(),
-            ["Waf:BlockSqlInjection"] = BlockSqlInjection.ToString().ToLowerInvariant(),
-            ["Waf:BlockXss"] = BlockXss.ToString().ToLowerInvariant(),
-            ["Waf:BlockPathTraversal"] = BlockPathTraversal.ToString().ToLowerInvariant(),
-            ["Waf:MaxRequestBodySize"] = MaxRequestBodySize.ToString()
-        };
-    }
-}
-
-/// <summary>
-/// Container for all gateway policies.
-/// </summary>
-public class GatewayPolicyCollection
-{
-    /// <summary>List of all policies.</summary>
-    public List<GatewayPolicy> Policies { get; set; } = new();
-
-    /// <summary>Last modified timestamp.</summary>
-    public DateTime LastModified { get; set; } = DateTime.UtcNow;
 }

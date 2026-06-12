@@ -1510,6 +1510,51 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
         return true;
     }
 
+    // ── UpdateClusterCircuitBreakerAsync ─────────────────────────────────
+
+    public async Task<bool> UpdateClusterCircuitBreakerAsync(string clusterId, CircuitBreakerConfig? config)
+    {
+        if (string.IsNullOrWhiteSpace(clusterId))
+            return false;
+
+        bool saveNeeded = false;
+        await _semaphore.WaitAsync();
+        try
+        {
+            EnsureDynamicConfigInitialized();
+
+            var dynCluster = _dynamicConfig!.Clusters.FirstOrDefault(c =>
+                string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+
+            if (dynCluster == null)
+            {
+                _logger.LogWarning("UpdateClusterCircuitBreaker: cluster '{ClusterId}' not found", clusterId);
+                return false;
+            }
+
+            dynCluster.CircuitBreaker = config;
+            saveNeeded = true;
+
+            ApplyDynamicConfigToYarp();
+
+            _logger.LogInformation(
+                "Updated circuit breaker config for cluster '{ClusterId}': Enabled={Enabled}",
+                clusterId, config?.Enabled ?? false);
+        }
+        finally
+        {
+            if (saveNeeded)
+            {
+                Interlocked.Increment(ref _configVersion);
+                _dynamicConfig!.Version = _configVersion;
+                await PersistConfigToRepositoryAsync("UpdateClusterCircuitBreaker", clusterId);
+            }
+            _semaphore.Release();
+        }
+
+        return true;
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────
 
     private void EnsureDynamicConfigInitialized()

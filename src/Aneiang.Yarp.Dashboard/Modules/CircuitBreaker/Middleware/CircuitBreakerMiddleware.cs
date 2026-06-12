@@ -6,11 +6,14 @@ using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.Alert.Services;
 using System.Collections.Concurrent;
 using Yarp.ReverseProxy.Model;
+using Aneiang.Yarp.Services;
+using Aneiang.Yarp.Models;
 
 namespace Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
 
 /// <summary>
 /// Per-destination circuit breaker middleware.
+/// Reads configuration from cluster-level CircuitBreakerConfig.
 /// Tracks consecutive failures and opens the circuit when threshold is reached.
 /// States: Closed → Open → HalfOpen → Closed.
 /// </summary>
@@ -21,16 +24,14 @@ public sealed class CircuitBreakerMiddleware
     private readonly CircuitBreakerOptions _options;
     private readonly IGatewayAlertService _alertService;
     private readonly IGatewayPluginManager _pluginManager;
+    private readonly IDynamicYarpConfigService _yarpConfig;
     private readonly string _dashPrefix;
-    /// <summary>
-    /// Content root path for the Dashboard static files. Used to skip logging for frontend resources.
-    /// </summary>
+
     private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
 
     private static readonly ConcurrentDictionary<string, CircuitState> _circuits = new();
     private static readonly object _stateLock = new();
 
-    // Cleanup circuits that have been closed and not accessed for this duration
     private static readonly TimeSpan _cleanupThreshold = TimeSpan.FromHours(1);
     private static DateTime _lastCleanupTime = DateTime.Now;
 
@@ -40,19 +41,20 @@ public sealed class CircuitBreakerMiddleware
         IOptions<CircuitBreakerOptions> options,
         IOptions<DashboardOptions> dashOptions,
         IGatewayAlertService alertService,
-        IGatewayPluginManager pluginManager)
+        IGatewayPluginManager pluginManager,
+        IDynamicYarpConfigService yarpConfig)
     {
         _next = next;
         _logger = logger;
         _options = options.Value;
         _alertService = alertService;
         _pluginManager = pluginManager;
+        _yarpConfig = yarpConfig;
         _dashPrefix = "/" + dashOptions.Value.RoutePrefix.Trim('/');
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Skip Dashboard UI and API requests - they should not go through circuit breaker
         var path = context.Request.Path.Value ?? "";
         if (path.StartsWith(_dashPrefix, StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith(ContentRoot, StringComparison.OrdinalIgnoreCase))
@@ -61,7 +63,6 @@ public sealed class CircuitBreakerMiddleware
             return;
         }
 
-        // Respect plugin toggle state
         if (!_pluginManager.IsPluginEnabled("circuit-breaker"))
         {
             await _next(context);
@@ -80,15 +81,15 @@ public sealed class CircuitBreakerMiddleware
 
         var circuitKey = $"{clusterId}:{destinationId ?? "any"}";
 
-        if (!IsCircuitBreakerEnabled(proxyFeature))
+        var cbConfig = GetClusterCircuitBreakerConfig(clusterId);
+        if (cbConfig == null || !cbConfig.Enabled)
         {
             await _next(context);
             return;
         }
 
-        var options = GetEffectiveOptions(proxyFeature);
+        var effectiveOptions = GetEffectiveOptions(cbConfig);
 
-        // Enforce max circuit count to prevent memory exhaustion
         if (_circuits.Count >= _options.MaxCircuitCount && !_circuits.ContainsKey(circuitKey))
         {
             _logger.LogWarning("Circuit count limit reached ({Max}), skipping new circuit for {CircuitKey}",
@@ -97,10 +98,9 @@ public sealed class CircuitBreakerMiddleware
             return;
         }
 
-        var state = _circuits.GetOrAdd(circuitKey, _ => new CircuitState(options));
+        var state = _circuits.GetOrAdd(circuitKey, _ => new CircuitState(effectiveOptions));
         state.LastAccessedAt = DateTime.Now;
 
-        // Periodic cleanup of stale closed circuits
         TryCleanupStaleCircuits();
 
         CircuitStatus currentStatus;
@@ -170,17 +170,39 @@ public sealed class CircuitBreakerMiddleware
         }
         finally
         {
-            UpdateCircuitState(state, circuitKey, context.Response.StatusCode);
+            UpdateCircuitState(state, circuitKey, context.Response.StatusCode, cbConfig);
         }
     }
 
-    private void UpdateCircuitState(CircuitState state, string circuitKey, int statusCode)
+    private CircuitBreakerConfig? GetClusterCircuitBreakerConfig(string clusterId)
     {
+        var dynConfig = _yarpConfig.GetDynamicConfig();
+        return dynConfig?.Clusters.FirstOrDefault(c =>
+            string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase))
+            ?.CircuitBreaker;
+    }
+
+    private CircuitBreakerOptions GetEffectiveOptions(CircuitBreakerConfig cbConfig)
+    {
+        return new CircuitBreakerOptions
+        {
+            Enabled = cbConfig.Enabled,
+            DefaultFailureThreshold = cbConfig.FailureThreshold,
+            DefaultRecoveryTimeoutSeconds = cbConfig.RecoveryTimeoutSeconds,
+            HalfOpenMaxAttempts = cbConfig.HalfOpenMaxAttempts,
+            MaxCircuitCount = _options.MaxCircuitCount
+        };
+    }
+
+    private void UpdateCircuitState(CircuitState state, string circuitKey, int statusCode, CircuitBreakerConfig cbConfig)
+    {
+        var isFailure = cbConfig.FailureStatusCodes.Contains(statusCode) || statusCode >= 500;
+
         lock (_stateLock)
         {
             state.LastAccessedAt = DateTime.Now;
 
-            if (statusCode >= 500)
+            if (isFailure)
             {
                 state.ConsecutiveFailures++;
 
@@ -189,7 +211,6 @@ public sealed class CircuitBreakerMiddleware
                     state.Status = CircuitStatus.Open;
                     state.OpenedAt = DateTime.Now;
                     _logger.LogWarning("Circuit HALF-OPEN probe FAILED for {CircuitKey}, back to OPEN", circuitKey);
-                    // Fire alert on HalfOpen probe failure
                     var (cbCluster, cbDest) = ParseCircuitKey(circuitKey);
                     _alertService.AlertCircuitBreakerOpen(cbCluster, cbDest);
                 }
@@ -198,7 +219,6 @@ public sealed class CircuitBreakerMiddleware
                     state.Status = CircuitStatus.Open;
                     state.OpenedAt = DateTime.Now;
                     _logger.LogWarning("Circuit OPENED for {CircuitKey} after {Failures} failures", circuitKey, state.ConsecutiveFailures);
-                    // Fire alert when circuit first opens due to failure threshold
                     var (cbCluster, cbDest) = ParseCircuitKey(circuitKey);
                     _alertService.AlertCircuitBreakerOpen(cbCluster, cbDest);
                 }
@@ -217,56 +237,6 @@ public sealed class CircuitBreakerMiddleware
                 }
             }
         }
-    }
-
-    private static bool IsCircuitBreakerEnabled(IReverseProxyFeature? proxyFeature)
-    {
-        if (proxyFeature?.Route?.Config?.Metadata != null &&
-            proxyFeature.Route.Config.Metadata.TryGetValue("CircuitBreaker:Enabled", out var enabled) &&
-            bool.TryParse(enabled, out var isEnabled))
-        {
-            return isEnabled;
-        }
-        return true;
-    }
-
-    private CircuitBreakerOptions GetEffectiveOptions(IReverseProxyFeature? proxyFeature)
-    {
-        var meta = proxyFeature?.Route?.Config?.Metadata;
-        
-        // Start with global defaults
-        var options = new CircuitBreakerOptions
-        {
-            Enabled = _options.Enabled,
-            DefaultFailureThreshold = _options.DefaultFailureThreshold,
-            DefaultRecoveryTimeoutSeconds = _options.DefaultRecoveryTimeoutSeconds,
-            HalfOpenMaxAttempts = _options.HalfOpenMaxAttempts,
-            MaxCircuitCount = _options.MaxCircuitCount
-        };
-
-        if (meta == null)
-            return options;
-
-        // Override from route metadata
-        if (meta.TryGetValue("CircuitBreaker:FailureThreshold", out var threshold) &&
-            int.TryParse(threshold, out var t))
-        {
-            options.DefaultFailureThreshold = t;
-        }
-
-        if (meta.TryGetValue("CircuitBreaker:RecoveryTimeoutSeconds", out var timeout) &&
-            int.TryParse(timeout, out var to))
-        {
-            options.DefaultRecoveryTimeoutSeconds = to;
-        }
-
-        if (meta.TryGetValue("CircuitBreaker:HalfOpenMaxAttempts", out var halfOpen) &&
-            int.TryParse(halfOpen, out var ho))
-        {
-            options.HalfOpenMaxAttempts = ho;
-        }
-
-        return options;
     }
 
     /// <summary>Get circuit breaker state for all circuits (for dashboard).</summary>
@@ -329,10 +299,6 @@ public sealed class CircuitBreakerMiddleware
         return dest == "any" ? (cluster, null) : (cluster, dest);
     }
 
-    /// <summary>
-    /// Removes stale closed circuits that haven't been accessed for a while.
-    /// Runs infrequently to avoid performance impact.
-    /// </summary>
     private void TryCleanupStaleCircuits()
     {
         var now = DateTime.Now;
@@ -344,7 +310,6 @@ public sealed class CircuitBreakerMiddleware
         var keysToRemove = new List<string>();
         foreach (var kv in _circuits)
         {
-            // Only remove closed circuits that haven't been accessed recently
             if (kv.Value.Status == CircuitStatus.Closed &&
                 now - kv.Value.LastAccessedAt > _cleanupThreshold)
             {

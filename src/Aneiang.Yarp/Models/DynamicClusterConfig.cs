@@ -28,4 +28,7 @@ public class DynamicClusterConfig
 
     /// <summary>Last heartbeat time from registered services. Used for stale detection.</summary>
     public DateTime? LastHeartbeat { get; set; }
+
+    /// <summary>Circuit breaker configuration at cluster level.</summary>
+    public CircuitBreakerConfig? CircuitBreaker { get; set; }
 }

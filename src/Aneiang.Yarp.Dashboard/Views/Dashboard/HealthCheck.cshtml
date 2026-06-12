@@ -305,10 +305,10 @@
         if (window.DashboardEvents) DashboardEvents.setup();
 
         if (window.DashboardApp?.modules?.healthcheck?.init) await DashboardApp.modules.healthcheck.init();
-        if (window.HealthCheckModule?.loadHealthStatus) await HealthCheckModule.loadHealthStatus();
+        if (window.HealthCheckModule?.loadHealthStatus) HealthCheckModule.loadHealthStatus();
 
         // Load health summary (enhanced data)
-        if (window.HealthCheckModule?.loadHealthSummary) await HealthCheckModule.loadHealthSummary();
+        if (window.HealthCheckModule?.loadHealthSummary) HealthCheckModule.loadHealthSummary();
 
         document.dispatchEvent(new CustomEvent('dashboard:ready'));
     })();
