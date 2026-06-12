@@ -34,7 +34,7 @@ internal sealed class RateLimitConfigProvider : IConfigureOptions<RateLimiterOpt
             
             var limit = int.TryParse(_config["Gateway:Dashboard:RateLimitPermitLimit"], out var pl) ? pl : 100;
             var window = _config["Gateway:Dashboard:RateLimitWindow"];
-            var ql = int.TryParse(_config["Gateway:Dashboard:RateLimitQueueLimit"], out var q) ? q : 10;
+            var ql = int.TryParse(_config["Gateway:Dashboard:RateLimitQueueLimit"], out var q) ? q : 0;
 
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(_ =>
                 RateLimitPartition.GetFixedWindowLimiter("gateway-fixed", _ => new FixedWindowRateLimiterOptions
@@ -57,7 +57,7 @@ internal sealed class RateLimitConfigProvider : IConfigureOptions<RateLimiterOpt
             : RateLimitAlgorithm.FixedWindow;
         var permitLimit = int.TryParse(section["PermitLimit"], out var pl2) ? pl2 : 100;
         var windowStr = section["Window"] ?? "1m";
-        var queueLimit = int.TryParse(section["QueueLimit"], out var ql2) ? ql2 : 10;
+        var queueLimit = int.TryParse(section["QueueLimit"], out var ql2) ? ql2 : 0;
         var tokenCapacity = int.TryParse(section["TokenBucketCapacity"], out var tc) ? tc : 100;
         var tokenRefillRate = int.TryParse(section["TokenBucketRefillRate"], out var trr) ? trr : 10;
         var concurrencyLimit = int.TryParse(section["ConcurrencyLimit"], out var cl) ? cl : 50;

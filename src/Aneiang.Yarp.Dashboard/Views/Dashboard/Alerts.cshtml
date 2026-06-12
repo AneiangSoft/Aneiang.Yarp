@@ -5,6 +5,19 @@
 }
 
 <div id="alerts-app">
+    <!-- Notification Channel Status Banner -->
+    <div class="card-panel mb-4" id="alert-channel-banner" style="display:none;">
+        <div class="card-header">
+            <span><i class="bi bi-megaphone me-2" style="color:#6366f1;"></i><span data-i18n="alert.channelStatus">通知渠道状态</span></span>
+            <a class="btn btn-sm btn-outline-primary" id="alert-goto-notif" href="#">
+                <i class="bi bi-gear"></i> <span data-i18n="alert.gotoNotif">通知设置</span>
+            </a>
+        </div>
+        <div class="card-body py-2" id="alert-channel-body">
+            <div class="loading-state"><div class="loading-spinner"></div></div>
+        </div>
+    </div>
+
     <div class="card-panel mb-4">
         <div class="card-header">
             <span><i class="bi bi-bell me-2" style="color:#ef4444;"></i><span data-i18n="alert.title">告警中心</span></span>

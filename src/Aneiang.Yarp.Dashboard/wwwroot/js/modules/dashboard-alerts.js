@@ -23,8 +23,12 @@
                 self.autoRefreshInterval = setInterval(function() {
                     self.load();
                 }, 20000);
+                self.loadChannelStatus();
             });
-            document.addEventListener('dashboard:localeChange', function() { self.load(); });
+            document.addEventListener('dashboard:localeChange', function() {
+                self.load();
+                self.loadChannelStatus();
+            });
         },
 
         destroy: function() {
@@ -33,6 +37,64 @@
                 this.autoRefreshInterval = null;
             }
             this.initialized = false;
+        },
+
+        loadChannelStatus: async function() {
+            try {
+                var prefix = window.__dashboard ? window.__dashboard.basePath : '';
+                var linkEl = document.getElementById('alert-goto-notif');
+                if (linkEl) linkEl.href = prefix + '/notifications';
+
+                var whSettings = await window.DashboardApi.endpoints.getWebhookSettings();
+                var alertSettings = await window.DashboardApi.get('/api/config/alert-settings');
+                var banner = document.getElementById('alert-channel-banner');
+                var body = document.getElementById('alert-channel-body');
+                if (!banner || !body) return;
+
+                var dingCount = (whSettings && whSettings.dingtalk) ? whSettings.dingtalk.length : 0;
+                var genCount = (whSettings && whSettings.generic) ? whSettings.generic.length : 0;
+                var totalEndpoints = dingCount + genCount;
+                var alertOn = alertSettings ? alertSettings.alertEnabled !== false : false;
+
+                var html = '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">';
+
+                // Alert switch status
+                html += '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:500;' +
+                    'background:' + (alertOn ? '#fef3c7' : '#f1f5f9') + ';color:' + (alertOn ? '#92400e' : '#64748b') + ';border:1px solid ' + (alertOn ? '#fcd34d' : '#e2e8f0') + ';">' +
+                    '<i class="bi ' + (alertOn ? 'bi-bell-fill' : 'bi-bell-slash') + '"></i> ' +
+                    (alertOn ? (typeof __ === 'function' ? __('alert.alertOn') : '告警已开启') : (typeof __ === 'function' ? __('alert.alertOff') : '告警已关闭')) + '</span>';
+
+                // Webhook status
+                html += '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:500;' +
+                    'background:' + (totalEndpoints > 0 ? '#eef2ff' : '#f1f5f9') + ';color:' + (totalEndpoints > 0 ? '#4338ca' : '#64748b') + ';border:1px solid ' + (totalEndpoints > 0 ? '#c7d2fe' : '#e2e8f0') + ';">' +
+                    '<i class="bi ' + (totalEndpoints > 0 ? 'bi-megaphone-fill' : 'bi-megaphone') + '"></i> ' +
+                    (totalEndpoints > 0
+                        ? (typeof __ === 'function' ? __('notif.channelsActive') : '通知渠道已启用') + ' (' + totalEndpoints + ')'
+                        : (typeof __ === 'function' ? __('notif.channelsInactive') : '通知渠道未配置')) + '</span>';
+
+                // Per-alert-type indicators
+                if (alertOn && alertSettings) {
+                    var types = [
+                        { key: 'alertCircuitBreakerOpen', label: 'CircuitBreaker', color: '#ef4444' },
+                        { key: 'alertRetryExhausted', label: 'RetryExhausted', color: '#f97316' },
+                        { key: 'alertWafBlocks', label: 'WafBlock', color: '#8b5cf6' },
+                        { key: 'alertProxyErrors', label: 'ProxyError', color: '#ef4444' },
+                        { key: 'alertRateLimitExceeded', label: 'RateLimit', color: '#06b6d4' }
+                    ];
+                    types.forEach(function(t) {
+                        var isOn = alertSettings[t.key] !== false;
+                        html += '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:500;' +
+                            'background:' + (isOn ? t.color + '10' : '#f8fafc') + ';color:' + (isOn ? t.color : '#94a3b8') + ';border:1px solid ' + (isOn ? t.color + '30' : '#e2e8f0') + ';">' +
+                            '<i class="bi ' + (isOn ? 'bi-check-circle-fill' : 'bi-x-circle') + '" style="font-size:10px;"></i> ' + t.label + '</span>';
+                    });
+                }
+
+                html += '</div>';
+                body.innerHTML = html;
+                banner.style.display = '';
+            } catch (e) {
+                console.error('[Alert] Channel status load failed:', e);
+            }
         },
 
         load: async function() {

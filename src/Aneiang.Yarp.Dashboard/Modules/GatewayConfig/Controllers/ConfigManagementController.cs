@@ -5,6 +5,7 @@ using Aneiang.Yarp.Dashboard.Modules.Webhook.Models;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Dashboard.Modules.Webhook.Services;
+using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
@@ -28,6 +29,7 @@ public class ConfigManagementController : ControllerBase
     private readonly WebhookNotificationService _webhookService;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IMemoryCache _memoryCache;
+    private readonly IWafSettingsPersistenceService? _wafPersistence;
 
     public ConfigManagementController(
         IConfigPersistenceService persistenceService,
@@ -37,7 +39,8 @@ public class ConfigManagementController : ControllerBase
         IWebhookSettingsPersistenceService webhookPersistence,
         WebhookNotificationService webhookService,
         IHttpClientFactory httpClientFactory,
-        IMemoryCache memoryCache)
+        IMemoryCache memoryCache,
+        IWafSettingsPersistenceService? wafPersistence = null)
     {
         _persistenceService = persistenceService;
         _dynamicConfig = dynamicConfig;
@@ -47,6 +50,7 @@ public class ConfigManagementController : ControllerBase
         _webhookService = webhookService;
         _httpClientFactory = httpClientFactory;
         _memoryCache = memoryCache;
+        _wafPersistence = wafPersistence;
     }
 
     /// <summary>
@@ -746,15 +750,18 @@ public class ConfigManagementController : ControllerBase
                 data.EnabledEvents = validEvents.Count == allValidEvents.Count ? null : validEvents;
             }
 
-            // Update timeout and retry settings
-            data.TimeoutSeconds = request.TimeoutSeconds > 0 ? request.TimeoutSeconds : 10;
-            data.RetryCount = request.RetryCount >= 0 ? request.RetryCount : 1;
+            // Update timeout and retry settings – preserve stored values when not explicitly provided
+            data.TimeoutSeconds = request.TimeoutSeconds > 0 ? request.TimeoutSeconds : data.TimeoutSeconds;
+            data.RetryCount = request.RetryCount > 0 ? request.RetryCount : data.RetryCount;
 
-            // Persist to file
+            // Persist to repository (preserves AlertConfig from existing data)
             _webhookPersistence.Save(data);
 
             // Sync to DashboardOptions for notification service
             SyncToDashboardOptions(data);
+            // Also ensure timeout/retry are on DashboardOptions
+            _dashboardOptions.WebhookTimeoutSeconds = data.TimeoutSeconds;
+            _dashboardOptions.WebhookRetryCount = data.RetryCount;
 
             _logger.LogInformation("Webhook settings updated: DingTalk={DingTalkCount}, Generic={GenericCount}",
                 data.DingTalkEndpoints.Count, data.GenericEndpoints.Count);
@@ -831,6 +838,110 @@ public class ConfigManagementController : ControllerBase
         }
     }
 
+    /// <summary>Represents the persisted alert/notification config subset.</summary>
+    internal class AlertConfigData
+    {
+        public bool AlertEnabled { get; set; }
+        public bool AlertCircuitBreakerOpen { get; set; } = true;
+        public bool AlertRetryExhausted { get; set; } = true;
+        public bool AlertWafBlocks { get; set; }
+        public bool AlertProxyErrors { get; set; } = true;
+        public bool AlertRateLimitExceeded { get; set; }
+        public int AlertMaxRecords { get; set; } = 500;
+        public int WafMaxEvents { get; set; } = 1000;
+        public int WebhookTimeoutSeconds { get; set; } = 10;
+        public int WebhookRetryCount { get; set; } = 1;
+    }
+
+    private AlertConfigData LoadAlertConfig()
+    {
+        try
+        {
+            var data = _webhookPersistence.Load();
+            if (data?.AlertConfig != null)
+            {
+                var alertConfig = JsonSerializer.Deserialize<AlertConfigData>(data.AlertConfig);
+                if (alertConfig != null)
+                {
+                    // Sync timeout/retry from webhook data to DashboardOptions
+                    _dashboardOptions.WebhookTimeoutSeconds = data.TimeoutSeconds > 0 ? data.TimeoutSeconds : 10;
+                    _dashboardOptions.WebhookRetryCount = data.RetryCount >= 0 ? data.RetryCount : 1;
+                    // Apply alert config to DashboardOptions
+                    ApplyAlertConfigToOptions(alertConfig);
+                    return alertConfig;
+                }
+            }
+
+            // Sync timeout/retry even if no alert config
+            if (data != null)
+            {
+                _dashboardOptions.WebhookTimeoutSeconds = data.TimeoutSeconds > 0 ? data.TimeoutSeconds : 10;
+                _dashboardOptions.WebhookRetryCount = data.RetryCount >= 0 ? data.RetryCount : 1;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load alert config from persistence, using DashboardOptions defaults");
+        }
+
+        return new AlertConfigData
+        {
+            AlertEnabled = _dashboardOptions.AlertEnabled,
+            AlertCircuitBreakerOpen = _dashboardOptions.AlertCircuitBreakerOpen,
+            AlertRetryExhausted = _dashboardOptions.AlertRetryExhausted,
+            AlertWafBlocks = _dashboardOptions.AlertWafBlocks,
+            AlertProxyErrors = _dashboardOptions.AlertProxyErrors,
+            AlertRateLimitExceeded = _dashboardOptions.AlertRateLimitExceeded,
+            AlertMaxRecords = _dashboardOptions.AlertMaxRecords,
+            WafMaxEvents = _dashboardOptions.WafMaxEvents,
+            WebhookTimeoutSeconds = _dashboardOptions.WebhookTimeoutSeconds,
+            WebhookRetryCount = _dashboardOptions.WebhookRetryCount
+        };
+    }
+
+    private void ApplyAlertConfigToOptions(AlertConfigData config)
+    {
+        _dashboardOptions.AlertEnabled = config.AlertEnabled;
+        _dashboardOptions.AlertCircuitBreakerOpen = config.AlertCircuitBreakerOpen;
+        _dashboardOptions.AlertRetryExhausted = config.AlertRetryExhausted;
+        _dashboardOptions.AlertWafBlocks = config.AlertWafBlocks;
+        _dashboardOptions.AlertProxyErrors = config.AlertProxyErrors;
+        _dashboardOptions.AlertRateLimitExceeded = config.AlertRateLimitExceeded;
+        _dashboardOptions.AlertMaxRecords = config.AlertMaxRecords > 0 ? config.AlertMaxRecords : 500;
+        _dashboardOptions.WafMaxEvents = config.WafMaxEvents > 0 ? config.WafMaxEvents : 1000;
+        _dashboardOptions.WebhookTimeoutSeconds = config.WebhookTimeoutSeconds > 0 ? config.WebhookTimeoutSeconds : 10;
+        _dashboardOptions.WebhookRetryCount = config.WebhookRetryCount >= 0 ? config.WebhookRetryCount : 1;
+    }
+
+    private void SaveAlertConfig()
+    {
+        try
+        {
+            var data = _webhookPersistence.Load() ?? new WebhookSettingsData();
+            var alertConfig = new AlertConfigData
+            {
+                AlertEnabled = _dashboardOptions.AlertEnabled,
+                AlertCircuitBreakerOpen = _dashboardOptions.AlertCircuitBreakerOpen,
+                AlertRetryExhausted = _dashboardOptions.AlertRetryExhausted,
+                AlertWafBlocks = _dashboardOptions.AlertWafBlocks,
+                AlertProxyErrors = _dashboardOptions.AlertProxyErrors,
+                AlertRateLimitExceeded = _dashboardOptions.AlertRateLimitExceeded,
+                AlertMaxRecords = _dashboardOptions.AlertMaxRecords,
+                WafMaxEvents = _dashboardOptions.WafMaxEvents,
+                WebhookTimeoutSeconds = _dashboardOptions.WebhookTimeoutSeconds,
+                WebhookRetryCount = _dashboardOptions.WebhookRetryCount
+            };
+            data.AlertConfig = JsonSerializer.Serialize(alertConfig);
+            data.TimeoutSeconds = _dashboardOptions.WebhookTimeoutSeconds;
+            data.RetryCount = _dashboardOptions.WebhookRetryCount;
+            _webhookPersistence.Save(data);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save alert config to persistence");
+        }
+    }
+
     private void SyncToDashboardOptions(WebhookSettingsData data)
     {
         // Merge all URLs into flat list for notification service
@@ -877,6 +988,90 @@ public class ConfigManagementController : ControllerBase
     }
 
     // ── Diff Helpers ──
+
+    /// <summary>
+    /// Get current alert/notification settings.
+    /// </summary>
+    [HttpGet("alert-settings")]
+    public IActionResult GetAlertSettings()
+    {
+        try
+        {
+            // Load alert config from persistence, falling back to DashboardOptions defaults
+            var alertConfig = LoadAlertConfig();
+            return Ok(new
+            {
+                code = 200,
+                data = new
+                {
+                    alertEnabled = alertConfig.AlertEnabled,
+                    alertCircuitBreakerOpen = alertConfig.AlertCircuitBreakerOpen,
+                    alertRetryExhausted = alertConfig.AlertRetryExhausted,
+                    alertWafBlocks = alertConfig.AlertWafBlocks,
+                    alertProxyErrors = alertConfig.AlertProxyErrors,
+                    alertRateLimitExceeded = alertConfig.AlertRateLimitExceeded,
+                    alertMaxRecords = alertConfig.AlertMaxRecords > 0 ? alertConfig.AlertMaxRecords : 500,
+                    wafMaxEvents = alertConfig.WafMaxEvents > 0 ? alertConfig.WafMaxEvents : 1000,
+                    webhookTimeoutSeconds = _dashboardOptions.WebhookTimeoutSeconds,
+                    webhookRetryCount = _dashboardOptions.WebhookRetryCount,
+                    alertCooldownMinutes = 5
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get alert settings");
+            return StatusCode(500, new { code = 500, message = $"Failed: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Update alert/notification settings.
+    /// </summary>
+    [HttpPut("alert-settings")]
+    public IActionResult UpdateAlertSettings([FromBody] Dictionary<string, object>? request)
+    {
+        try
+        {
+            if (request == null)
+                return BadRequest(new { code = 400, message = "Request body is required" });
+
+            // Apply to in-memory DashboardOptions
+            if (request.TryGetValue("alertEnabled", out var aeObj) && aeObj is bool ae)
+                _dashboardOptions.AlertEnabled = ae;
+            if (request.TryGetValue("alertCircuitBreakerOpen", out var acbObj) && acbObj is bool acb)
+                _dashboardOptions.AlertCircuitBreakerOpen = acb;
+            if (request.TryGetValue("alertRetryExhausted", out var areObj) && areObj is bool are)
+                _dashboardOptions.AlertRetryExhausted = are;
+            if (request.TryGetValue("alertWafBlocks", out var awbObj) && awbObj is bool awb)
+                _dashboardOptions.AlertWafBlocks = awb;
+            if (request.TryGetValue("alertProxyErrors", out var apeObj) && apeObj is bool ape)
+                _dashboardOptions.AlertProxyErrors = ape;
+            if (request.TryGetValue("alertRateLimitExceeded", out var arleObj) && arleObj is bool arle)
+                _dashboardOptions.AlertRateLimitExceeded = arle;
+            if (request.TryGetValue("alertMaxRecords", out var amrObj) && amrObj is int amr)
+                _dashboardOptions.AlertMaxRecords = Math.Clamp(amr, 50, 5000);
+            if (request.TryGetValue("wafMaxEvents", out var wmeObj) && wmeObj is int wme)
+                _dashboardOptions.WafMaxEvents = Math.Clamp(wme, 100, 10000);
+            if (request.TryGetValue("webhookTimeoutSeconds", out var wtsObj) && wtsObj is int wts)
+                _dashboardOptions.WebhookTimeoutSeconds = Math.Clamp(wts, 1, 60);
+            if (request.TryGetValue("webhookRetryCount", out var wrcObj) && wrcObj is int wrc)
+                _dashboardOptions.WebhookRetryCount = Math.Clamp(wrc, 0, 5);
+
+            // Persist alert config to DB
+            SaveAlertConfig();
+
+            _logger.LogInformation("Alert settings updated and persisted: AlertEnabled={AlertEnabled}, AlertMaxRecords={AlertMaxRecords}",
+                _dashboardOptions.AlertEnabled, _dashboardOptions.AlertMaxRecords);
+
+            return Ok(new { code = 200, message = "Alert settings saved successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update alert settings");
+            return StatusCode(500, new { code = 500, message = $"Failed: {ex.Message}" });
+        }
+    }
 
     private static List<SnapshotRoute> ParseSnapshotRoutes(JsonElement config)
     {
@@ -1097,9 +1292,75 @@ public class ConfigManagementController : ControllerBase
         public string? LoadBalancingPolicy { get; set; }
         public Dictionary<string, string> Destinations { get; set; } = new();
     }
+
+    // ── WAF Settings Endpoints ──
+
+    /// <summary>
+    /// Get current WAF settings.
+    /// </summary>
+    [HttpGet("waf")]
+    public IActionResult GetWafSettings()
+    {
+        try
+        {
+            var data = _wafPersistence?.Load() ?? new WafSettingsData
+            {
+                EnableIpCheck = true,
+                EnableRequestSizeValidation = true,
+                MaxRequestBodySize = 10 * 1024 * 1024,
+                MaxHeaderCount = 64,
+                MaxHeaderSize = 8192,
+                EnableSqlInjectionDetection = true,
+                EnableXssDetection = true,
+                EnablePathTraversalDetection = true
+            };
+
+            return Ok(new
+            {
+                code = 200,
+                data = data
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get WAF settings");
+            return StatusCode(500, new { code = 500, message = $"Failed: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Update WAF settings.
+    /// </summary>
+    [HttpPut("waf")]
+    public async Task<IActionResult> UpdateWafSettings([FromBody] WafSettingsData request)
+    {
+        try
+        {
+            if (request == null)
+                return BadRequest(new { code = 400, message = "Request body is required" });
+
+            if (_wafPersistence == null)
+                return StatusCode(500, new { code = 500, message = "WAF persistence service not available" });
+
+            var success = await _wafPersistence.SaveAsync(request);
+            if (!success)
+                return StatusCode(500, new { code = 500, message = "Failed to save WAF settings" });
+
+            _logger.LogInformation("WAF settings updated: Enabled={Enabled}, IPCheck={IpCheck}, SQLi={Sqli}, XSS={Xss}, PathTraversal={Pt}",
+                request.Enabled, request.EnableIpCheck, request.EnableSqlInjectionDetection,
+                request.EnableXssDetection, request.EnablePathTraversalDetection);
+
+            return Ok(new { code = 200, message = "WAF settings saved successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update WAF settings");
+            return StatusCode(500, new { code = 500, message = $"Failed: {ex.Message}" });
+        }
+    }
 }
 
-/// <summary>Request body for webhook test.</summary>
+    /// <summary>Request body for webhook test.</summary>
 public class WebhookTestRequest
 {
     /// <summary>Platform to test: "dingtalk" or "generic".</summary>

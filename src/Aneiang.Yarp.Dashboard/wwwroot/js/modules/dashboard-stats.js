@@ -21,10 +21,7 @@
 
                 window.DashboardDOM.showLoading(container, __('stats.loading'));
 
-                const [data, rateLimit] = await Promise.all([
-                    window.DashboardApi.endpoints.getStats(),
-                    window.DashboardApi.endpoints.getRateLimitStatus().catch(() => ({ enabled: false }))
-                ]);
+                const data = await window.DashboardApi.endpoints.getStats();
 
                 // DashboardApi unwraps { code: 200, data: {...} } and converts PascalCase to camelCase
                 if (!data || !data.hasData) {
@@ -32,7 +29,7 @@
                     return;
                 }
 
-                this.renderStats(data, container, rateLimit);
+                this.renderStats(data, container);
             } catch (error) {
                 console.error('[Stats] Load failed:', error);
                 const container = window.DashboardDOM.safe('#stats-content');
@@ -50,7 +47,7 @@
                 </div>`;
         },
 
-        renderStats: function(data, container, rateLimit) {
+        renderStats: function(data, container) {
             window.DashboardDOM.clear(container);
 
             // Guard against undefined data or missing arrays
@@ -61,10 +58,6 @@
 
             const errorRateColor = data.errorRate > 5 ? '#ef4444' : data.errorRate > 1 ? '#f59e0b' : '#22c55e';
             const successRateColor = data.successRate > 99 ? '#22c55e' : data.successRate > 95 ? '#f59e0b' : '#ef4444';
-
-            const rlStatus = rateLimit && rateLimit.enabled
-                ? `<span class="badge bg-warning text-dark" style="font-size:10px">${__('rateLimit.enabled')}: ${rateLimit.permitLimit}/${rateLimit.window}</span>`
-                : `<span class="badge bg-secondary" style="font-size:10px">${__('rateLimit.disabled')}</span>`;
 
             container.innerHTML = `
                 <!-- Stat Cards Row -->
@@ -94,7 +87,7 @@
                         <div class="stat-mini-card">
                             <div class="stat-mini-value" style="color:${errorRateColor}">${data.errorRate || 0}%</div>
                             <div class="stat-mini-label">${__('stats.errorRate')}</div>
-                            <div class="stat-mini-sub">P99: ${data.p99 || 0}ms ${rlStatus}</div>
+                            <div class="stat-mini-sub">P99: ${data.p99 || 0}ms</div>
                         </div>
                     </div>
                 </div>

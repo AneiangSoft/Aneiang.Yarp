@@ -29,4 +29,7 @@ public class WebhookSettingsData
 
     /// <summary>Number of retry attempts on failure. Default 1.</summary>
     public int RetryCount { get; set; } = 1;
+
+    /// <summary>Persisted alert/notification settings as JSON. Null when not yet saved.</summary>
+    public string? AlertConfig { get; set; }
 }

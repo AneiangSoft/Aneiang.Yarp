@@ -724,6 +724,7 @@
             var indicators = [];
             if (route.transforms && route.transforms.length > 0) indicators.push('<i class="bi bi-arrow-left-right" style="color:#8b5cf6;font-size:12px;" title="Transforms"></i>');
             if (route.authorizationPolicy || route.authorizationPolicy === '') indicators.push('<i class="bi bi-shield-lock" style="color:#f59e0b;font-size:12px;" title="Authorization"></i>');
+            if (route.metadata && (route.metadata['Policy:Id'] || route.metadata['Policy:Name'])) indicators.push('<i class="bi bi-shield-check" style="color:#0ea5e9;font-size:12px;" title="' + (__('index.route.policyBadge') || 'Policy') + '"></i>');
             if (indicators.length > 0) {
                 var indSpan = document.createElement('span');
                 indSpan.style.cssText = 'display:inline-flex;gap:3px;';
@@ -898,6 +899,23 @@
             editBtn.appendChild(editIcon);
             container.appendChild(editBtn);
 
+            // Policy button
+            const policyBtn = window.DashboardDOM.create('button', {
+                className: 'btn btn-outline-info',
+                attributes: { title: __('index.route.managePolicy') || 'Manage Policy' },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        RoutesModule.showPolicyModal(route.routeId);
+                    }
+                }
+            });
+            const policyIcon = window.DashboardDOM.create('i', {
+                className: 'bi bi-shield-check'
+            });
+            policyBtn.appendChild(policyIcon);
+            container.appendChild(policyBtn);
+
             // Delete button
             const deleteBtn = window.DashboardDOM.create('button', {
                 className: 'btn btn-outline-danger',
@@ -1071,9 +1089,55 @@
                 detailHtml.push('</div>');
             }
 
-            // Metadata - structured key-value display (excluding retry/rate-limit/WAF/policy configs which are shown above)
+            // Rate Limit Configuration - dedicated section
+            const rateLimitConfig = this.extractRateLimitConfig(route.metadata);
+            if (rateLimitConfig && rateLimitConfig.enabled) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-speedometer2"></i>${__('index.route.rateLimitConfig') || 'Rate Limit'}</div>`);
+                detailHtml.push('<div class="detail-structured-config">');
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-toggle-on"></i> ${__('policy.enabled') || 'Enabled'}</span><span class="detail-kv-value"><span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span></span></div>`);
+                if (rateLimitConfig.permitLimit !== undefined) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-123"></i> ${__('index.route.rateLimit.permitLimit') || 'Permit Limit'}</span><span class="detail-kv-value"><code>${rateLimitConfig.permitLimit}</code></span></div>`);
+                }
+                if (rateLimitConfig.window) {
+                    var windowDisplay = rateLimitConfig.window;
+                    var wm = windowDisplay && windowDisplay.match(/^(\d+(?:\.\d+)?)\s*(s|m|h|ms)?$/i);
+                    if (wm) {
+                        var wNum = parseFloat(wm[1]);
+                        var wUnit = (wm[2] || 's').toLowerCase();
+                        if (wUnit === 'm') windowDisplay = Math.round(wNum * 60) + 's';
+                        else if (wUnit === 'h') windowDisplay = Math.round(wNum * 3600) + 's';
+                        else if (wUnit === 'ms') windowDisplay = (wNum / 1000) + 's';
+                    }
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-clock"></i> ${__('index.route.rateLimit.window') || 'Window'}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(windowDisplay)}</code></span></div>`);
+                }
+                if (rateLimitConfig.algorithm) {
+                    var algoDisplay = __('policy.algo.' + rateLimitConfig.algorithm) || rateLimitConfig.algorithm;
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-gear"></i> ${__('index.route.rateLimit.algorithm') || 'Algorithm'}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(algoDisplay)}</code></span></div>`);
+                }
+                if (rateLimitConfig.queueLimit !== undefined) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-list-ol"></i> ${__('index.route.rateLimit.queueLimit') || 'Queue Limit'}</span><span class="detail-kv-value"><code>${rateLimitConfig.queueLimit}</code></span></div>`);
+                }
+                detailHtml.push('</div>');
+                detailHtml.push('</div>');
+            }
+
+            // WAF Configuration - dedicated section
+            const wafConfig = this.extractWafConfig(route.metadata);
+            if (wafConfig && wafConfig.hasConfig) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield-lock"></i>${__('index.route.wafConfig') || 'WAF'}</div>`);
+                detailHtml.push('<div class="detail-structured-config">');
+                var wafStatus = wafConfig.enabled === true ? __('index.route.waf.forceOn') : wafConfig.enabled === false ? __('index.route.waf.forceOff') : __('index.route.waf.followGlobal');
+                var wafBadge = wafConfig.enabled === true ? 'bg-success' : wafConfig.enabled === false ? 'bg-danger' : 'bg-secondary';
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield-check"></i> ${__('index.route.waf.status') || 'Status'}</span><span class="detail-kv-value"><span class="badge ${wafBadge}">${window.DashboardUtils.escapeHtml(wafStatus)}</span></span></div>`);
+                detailHtml.push('</div>');
+                detailHtml.push('</div>');
+            }
+
+            // Metadata - structured key-value display (excluding retry/rate-limit/WAF/policy/circuit-breaker configs which are shown above)
             const nonRetryMetadata = route.metadata ? Object.fromEntries(
-                Object.entries(route.metadata).filter(([key]) => !key.startsWith('Retry:') && !key.startsWith('RateLimit:') && !key.startsWith('Waf:') && !key.startsWith('Policy:'))
+                Object.entries(route.metadata).filter(([key]) => !key.startsWith('Retry:') && !key.startsWith('RateLimit:') && !key.startsWith('Waf:') && !key.startsWith('Policy:') && !key.startsWith('CircuitBreaker:'))
             ) : {};
             if (Object.keys(nonRetryMetadata).length > 0) {
                 detailHtml.push('<div class="detail-section">');
@@ -1176,6 +1240,41 @@
             };
         },
 
+        // ===== Extract Rate Limit Configuration from Metadata =====
+        extractRateLimitConfig: function(metadata) {
+            if (!metadata || typeof metadata !== 'object') return null;
+            
+            const rlKeys = ['RateLimit:Enabled', 'RateLimit:PermitLimit', 'RateLimit:Window', 'RateLimit:Algorithm', 'RateLimit:QueueLimit'];
+            const hasRlConfig = rlKeys.some(key => metadata.hasOwnProperty(key));
+            
+            if (!hasRlConfig) return null;
+            
+            const enabled = metadata['RateLimit:Enabled'] === 'true' || metadata['RateLimit:Enabled'] === true;
+            
+            return {
+                enabled: enabled,
+                permitLimit: metadata['RateLimit:PermitLimit'],
+                window: metadata['RateLimit:Window'],
+                algorithm: metadata['RateLimit:Algorithm'],
+                queueLimit: metadata['RateLimit:QueueLimit']
+            };
+        },
+
+        // ===== Extract WAF Configuration from Metadata =====
+        extractWafConfig: function(metadata) {
+            if (!metadata || typeof metadata !== 'object') return null;
+            
+            if (!metadata.hasOwnProperty('Waf:Enabled')) return null;
+            
+            var wafVal = metadata['Waf:Enabled'];
+            var enabled = wafVal === 'true' ? true : wafVal === 'false' ? false : null;
+            
+            return {
+                hasConfig: true,
+                enabled: enabled
+            };
+        },
+
         // ===== Render Structured Config =====
         renderStructuredConfig: function(obj, configType) {
             if (!obj || typeof obj !== 'object') return '';
@@ -1253,7 +1352,7 @@
             if (route.metadata && Object.keys(route.metadata).length > 0) {
                 const cleanMeta = Object.fromEntries(
                     Object.entries(route.metadata).filter(([key]) =>
-                        !key.startsWith('Retry:') && !key.startsWith('RateLimit:') && !key.startsWith('CircuitBreaker:') && !key.startsWith('Waf:')
+                        !key.startsWith('Retry:') && !key.startsWith('RateLimit:') && !key.startsWith('CircuitBreaker:') && !key.startsWith('Waf:') && !key.startsWith('Policy:')
                     )
                 );
                 if (Object.keys(cleanMeta).length > 0) {
@@ -1342,6 +1441,95 @@
             return `<span class="badge ${config.css}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;margin-right:4px;"><i class="bi ${config.icon}"></i>${method}</span>`;
         },
 
+
+        // ===== Show Policy Management Modal =====
+        showPolicyModal: async function(routeId) {
+            try {
+                const policies = await window.DashboardApi.endpoints.getRoutePoliciesForRoute(routeId);
+                const allPolicies = await window.DashboardApi.endpoints.getPolicies('routes');
+                const policyList = (allPolicies && allPolicies.data) || allPolicies || [];
+                const appliedIds = [];
+                
+                if (policies) {
+                    var policyData = policies.data || policies;
+                    if (Array.isArray(policyData)) {
+                        policyData.forEach(function(p) { appliedIds.push(p.policyId); });
+                    }
+                }
+                
+                var itemsHtml = policyList.map(function(policy) {
+                    var isApplied = appliedIds.indexOf(policy.policyId) >= 0;
+                    var features = [];
+                    if (policy.retry && policy.retry.enabled) features.push(__('policy.retry') || 'Retry');
+                    if (policy.rateLimit && policy.rateLimit.enabled) features.push(__('policy.rateLimit') || 'Rate Limit');
+                    if (policy.wafEnabled === true) features.push(__('policy.wafOn') || 'WAF On');
+                    else if (policy.wafEnabled === false) features.push(__('policy.wafOff') || 'WAF Off');
+                    var featureStr = features.length > 0 ? ' <span class="text-muted small">(' + features.join(', ') + ')</span>' : '';
+                    return '<div class="form-check">' +
+                        '<input class="form-check-input route-policy-check" type="checkbox" value="' + window.DashboardUtils.escapeHtml(policy.policyId) + '" id="rpolicy-' + window.DashboardUtils.escapeHtml(policy.policyId) + '" ' + (isApplied ? 'checked' : '') + ' />' +
+                        '<label class="form-check-label" for="rpolicy-' + window.DashboardUtils.escapeHtml(policy.policyId) + '">' + window.DashboardUtils.escapeHtml(policy.displayName || policy.policyId) + featureStr + '</label>' +
+                    '</div>';
+                }).join('');
+
+                if (policyList.length === 0) {
+                    itemsHtml = '<div class="text-muted text-center py-3">' + (__('policy.empty') || 'No policies') + '</div>';
+                }
+
+                var modalId = 'routePolicyModal';
+                var existing = document.getElementById(modalId);
+                if (existing) existing.remove();
+
+                var modalHtml = '<div class="modal fade" id="' + modalId + '" tabindex="-1">' +
+                    '<div class="modal-dialog modal-dialog-centered">' +
+                        '<div class="modal-content">' +
+                            '<div class="modal-header">' +
+                                '<h5 class="modal-title"><i class="bi bi-shield-check me-2"></i>' + (__('index.route.managePolicy') || 'Manage Policy') + ' - ' + window.DashboardUtils.escapeHtml(routeId) + '</h5>' +
+                                '<button type="button" class="btn-close" data-bs-dismiss="modal"></button>' +
+                            '</div>' +
+                            '<div class="modal-body">' +
+                                '<div class="text-muted small mb-2">' + (__('policy.applyHelpRoute') || 'Select policies to apply to this route') + '</div>' +
+                                '<div style="max-height:300px;overflow-y:auto">' + itemsHtml + '</div>' +
+                            '</div>' +
+                            '<div class="modal-footer">' +
+                                '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">' + (__('policy.cancel') || 'Cancel') + '</button>' +
+                                '<button type="button" class="btn btn-primary" id="routePolicySaveBtn"><i class="bi bi-check-lg me-1"></i><span>' + (__('policy.confirm') || 'Confirm') + '</span></button>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                var modalEl = document.getElementById(modalId);
+                var bsModal = new bootstrap.Modal(modalEl);
+
+                document.getElementById('routePolicySaveBtn').addEventListener('click', async function() {
+                    var checkboxes = document.querySelectorAll('.route-policy-check');
+                    var promises = [];
+                    checkboxes.forEach(function(cb) {
+                        var policyId = cb.value;
+                        if (cb.checked && appliedIds.indexOf(policyId) < 0) {
+                            promises.push(window.DashboardApi.endpoints.applyPolicy('routes', policyId, routeId));
+                        } else if (!cb.checked && appliedIds.indexOf(policyId) >= 0) {
+                            promises.push(window.DashboardApi.endpoints.unapplyPolicy('routes', policyId, routeId).catch(function() {}));
+                        }
+                    });
+                    try {
+                        await Promise.all(promises);
+                        if (window.DashboardModals) window.DashboardModals.showToast(__('policy.applySuccess') || 'Policy applied successfully', 'success');
+                        bsModal.hide();
+                        await RoutesModule.loadRoutes(true);
+                    } catch (err) {
+                        if (window.DashboardModals) window.DashboardModals.showError(__('policy.applyFailed') || 'Failed to apply policy');
+                    }
+                });
+
+                modalEl.addEventListener('hidden.bs.modal', function() { modalEl.remove(); });
+                bsModal.show();
+            } catch (error) {
+                console.error('[Routes] Load policy modal failed:', error);
+                if (window.DashboardModals) window.DashboardModals.showError(__('policy.loadFailed') || 'Failed to load policies');
+            }
+        },
 
         // ===== Toggle Route (Direct DOM Manipulation) =====
         toggleRoute: function(routeId) {
@@ -1484,6 +1672,7 @@
                 data: defaultRoute,
                 schemaType: 'route',
                 size: 'xl',
+                hint: __('modal.policyManagedHint') || undefined,
                 onSave: function(parsedData) {
                     // Validate route config
                     if (!parsedData.ClusterId || !parsedData.ClusterId.trim()) {
@@ -1672,32 +1861,27 @@
                 yarpRoute.TimeoutPolicy = route.timeoutPolicy;
             }
         
-            // Add metadata with retry config (ensure retry defaults are present)
+            // Add metadata - strip policy-related keys (managed via "Manage Policy" button)
             yarpRoute.Metadata = {};
-            // Copy existing metadata
+            const _preservedPolicyMeta = {};
             if (route.metadata && Object.keys(route.metadata).length > 0) {
                 Object.keys(route.metadata).forEach(function(key) {
-                    yarpRoute.Metadata[key] = route.metadata[key];
+                    if (key.startsWith('RateLimit:') || key.startsWith('Policy:') || key.startsWith('Retry:') || key.startsWith('Waf:') || key.startsWith('CircuitBreaker:')) {
+                        _preservedPolicyMeta[key] = route.metadata[key];
+                    } else {
+                        yarpRoute.Metadata[key] = route.metadata[key];
+                    }
                 });
             }
-            // Ensure retry config defaults are present
-            const retryDefaults = {
-                "Retry:Enabled": "false",
-                "Retry:MaxRetries": "2",
-                "Retry:RetryOnStatusCodes": "502,503,504",
-                "Retry:RetryNonIdempotent": "false"
-            };
-            Object.keys(retryDefaults).forEach(function(key) {
-                if (!yarpRoute.Metadata.hasOwnProperty(key)) {
-                    yarpRoute.Metadata[key] = retryDefaults[key];
-                }
-            });
+            // Remove empty Metadata section
+            if (Object.keys(yarpRoute.Metadata).length === 0) delete yarpRoute.Metadata;
         
             window.DashboardModals.showJsonModal({
                 title: __('modal.editRoute'),
                 data: yarpRoute,
                 schemaType: 'route',
                 size: 'xl',
+                hint: __('modal.policyManagedHint') || undefined,
                 editableId: {
                     label: 'Route ID',
                     value: routeId,
@@ -1713,6 +1897,14 @@
                     if (!parsedData.Match || (!parsedData.Match.Path && !parsedData.Match.Hosts)) {
                         window.DashboardModals.showError(__('index.route.invalidMatch'));
                         return false;
+                    }
+
+                    // Merge back preserved policy metadata before saving
+                    if (Object.keys(_preservedPolicyMeta).length > 0) {
+                        if (!parsedData.Metadata) parsedData.Metadata = {};
+                        Object.keys(_preservedPolicyMeta).forEach(function(key) {
+                            parsedData.Metadata[key] = _preservedPolicyMeta[key];
+                        });
                     }
 
                     // Handle rename: only if ID actually changed (case-sensitive comparison)

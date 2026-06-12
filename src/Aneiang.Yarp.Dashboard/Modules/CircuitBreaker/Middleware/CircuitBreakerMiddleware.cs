@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.Alert.Services;
+using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
 using System.Collections.Concurrent;
 using Yarp.ReverseProxy.Model;
 using Aneiang.Yarp.Services;
@@ -26,14 +27,36 @@ public sealed class CircuitBreakerMiddleware
     private readonly IGatewayPluginManager _pluginManager;
     private readonly IDynamicYarpConfigService _yarpConfig;
     private readonly string _dashPrefix;
+    private readonly INotificationService? _notificationService;
 
     private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
 
     private static readonly ConcurrentDictionary<string, CircuitState> _circuits = new();
     private static readonly object _stateLock = new();
 
-    private static readonly TimeSpan _cleanupThreshold = TimeSpan.FromHours(1);
+    private static readonly TimeSpan _cleanupThreshold = TimeSpan.FromHours(3);
     private static DateTime _lastCleanupTime = DateTime.Now;
+
+    /// <summary>
+    /// Ensure a circuit entry exists for clusters that have CB enabled,
+    /// so that the dashboard can show them even before any traffic arrives.
+    /// </summary>
+    public static void EnsureCircuitExists(string clusterId, CircuitBreakerConfig cbConfig)
+    {
+        var circuitKey = $"{clusterId}:any";
+        if (_circuits.ContainsKey(circuitKey))
+            return;
+
+        var options = new CircuitBreakerOptions
+        {
+            Enabled = cbConfig.Enabled,
+            DefaultFailureThreshold = cbConfig.FailureThreshold,
+            DefaultRecoveryTimeoutSeconds = cbConfig.RecoveryTimeoutSeconds,
+            HalfOpenMaxAttempts = cbConfig.HalfOpenMaxAttempts,
+            MaxCircuitCount = 1000
+        };
+        _circuits.TryAdd(circuitKey, new CircuitState(options));
+    }
 
     public CircuitBreakerMiddleware(
         RequestDelegate next,
@@ -42,7 +65,8 @@ public sealed class CircuitBreakerMiddleware
         IOptions<DashboardOptions> dashOptions,
         IGatewayAlertService alertService,
         IGatewayPluginManager pluginManager,
-        IDynamicYarpConfigService yarpConfig)
+        IDynamicYarpConfigService yarpConfig,
+        INotificationService? notificationService = null)
     {
         _next = next;
         _logger = logger;
@@ -51,6 +75,7 @@ public sealed class CircuitBreakerMiddleware
         _pluginManager = pluginManager;
         _yarpConfig = yarpConfig;
         _dashPrefix = "/" + dashOptions.Value.RoutePrefix.Trim('/');
+        _notificationService = notificationService;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -213,6 +238,7 @@ public sealed class CircuitBreakerMiddleware
                     _logger.LogWarning("Circuit HALF-OPEN probe FAILED for {CircuitKey}, back to OPEN", circuitKey);
                     var (cbCluster, cbDest) = ParseCircuitKey(circuitKey);
                     _alertService.AlertCircuitBreakerOpen(cbCluster, cbDest);
+                    _notificationService?.NotifyCircuitBreakerOpen(cbCluster, cbDest);
                 }
                 else if (state.ConsecutiveFailures >= state.FailureThreshold)
                 {
@@ -221,6 +247,7 @@ public sealed class CircuitBreakerMiddleware
                     _logger.LogWarning("Circuit OPENED for {CircuitKey} after {Failures} failures", circuitKey, state.ConsecutiveFailures);
                     var (cbCluster, cbDest) = ParseCircuitKey(circuitKey);
                     _alertService.AlertCircuitBreakerOpen(cbCluster, cbDest);
+                    _notificationService?.NotifyCircuitBreakerOpen(cbCluster, cbDest);
                 }
             }
             else

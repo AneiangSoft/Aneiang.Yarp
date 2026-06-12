@@ -57,6 +57,7 @@
             if (pluginId && pluginId.toLowerCase().includes('circuit')) return 'bi-lightning-charge';
             if (pluginId && pluginId.toLowerCase().includes('retry')) return 'bi-arrow-repeat';
             if (pluginId && pluginId.toLowerCase().includes('waf')) return 'bi-shield-lock';
+            if (pluginId && pluginId.toLowerCase().includes('rate')) return 'bi-speedometer2';
             return 'bi-puzzle';
         },
 
@@ -64,6 +65,7 @@
             if (pluginId && pluginId.toLowerCase().includes('circuit')) return '#6366f1';
             if (pluginId && pluginId.toLowerCase().includes('retry')) return '#0ea5e9';
             if (pluginId && pluginId.toLowerCase().includes('waf')) return '#f59e0b';
+            if (pluginId && pluginId.toLowerCase().includes('rate')) return '#0ea5e9';
             return '#64748b';
         },
 
@@ -108,6 +110,8 @@
             var cards = plugins.map(function(plugin) {
                 var icon = this.getPluginIcon(plugin.pluginId);
                 var color = this.getPluginColor(plugin.pluginId);
+                var localizedName = __('plugin.name.' + plugin.pluginId) || plugin.displayName || plugin.pluginId;
+                var localizedDesc = __('plugin.desc.' + plugin.pluginId) || plugin.description || '-';
                 var enabledBadge = plugin.enabled
                     ? '<span class="badge bg-success">' + __('plugin.enabled') + '</span>'
                     : '<span class="badge bg-secondary">' + __('plugin.disabled') + '</span>';
@@ -123,11 +127,11 @@
                             '</div>' +
                             '<div class="flex-grow-1">' +
                                 '<div class="d-flex align-items-center gap-2 mb-1">' +
-                                    '<strong>' + window.DashboardUtils.escapeHtml(plugin.displayName || plugin.pluginId) + '</strong>' +
+                                    '<strong>' + window.DashboardUtils.escapeHtml(localizedName) + '</strong>' +
                                     enabledBadge +
                                 '</div>' +
                                 '<div class="text-muted small mb-1"><code>' + window.DashboardUtils.escapeHtml(plugin.pluginId) + '</code></div>' +
-                                '<div class="text-muted small">' + window.DashboardUtils.escapeHtml(plugin.description || '-') + '</div>' +
+                                '<div class="text-muted small">' + window.DashboardUtils.escapeHtml(localizedDesc) + '</div>' +
                             '</div>' +
                             '<div class="flex-shrink-0 d-flex flex-column align-items-end gap-2">' +
                                 '<span class="badge bg-light text-dark border">' +
@@ -145,8 +149,9 @@
         },
 
         togglePlugin: async function(pluginId, enable) {
-            var action = enable ? 'enable' : 'disable';
-            var msg = __('plugin.toggleConfirm').replace('{action}', action).replace('{name}', pluginId);
+            var localizedName = __('plugin.name.' + pluginId) || pluginId;
+            var action = enable ? __('plugin.toggleOn') : __('plugin.toggleOff');
+            var msg = __('plugin.toggleConfirm').replace('{action}', action).replace('{name}', localizedName);
             if (!confirm(msg)) return;
 
             try {

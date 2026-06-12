@@ -39,6 +39,7 @@ public class PluginsController : ControllerBase
             "circuit-breaker" => "Monitors backend service health and trips circuits when failures exceed threshold.",
             "request-retry" => "Automatically retries failed proxy requests with configurable backoff strategy.",
             "waf" => "Web Application Firewall: blocks SQL injection, XSS, path traversal, and other attacks.",
+            "rate-limit" => "Rate limiting to protect the gateway from being overloaded.",
             _ => string.Empty
         };
     }

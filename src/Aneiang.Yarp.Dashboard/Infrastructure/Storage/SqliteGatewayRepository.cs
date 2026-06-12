@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Aneiang.Yarp.Storage;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Storage;
@@ -19,23 +20,29 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
 
     private readonly string _connectionString;
     private readonly ILogger<SqliteGatewayRepository> _logger;
+    private readonly ILoggerFactory _loggerFactory;
     private bool _initialized;
     private static bool _providerSet;
     private readonly SemaphoreSlim _initLock = new(1, 1);
+    private readonly SqliteNotificationRepository _notificationRepo;
 
     private static readonly string[] _migrations =
     [
         "ALTER TABLE yarp_clusters ADD COLUMN circuit_breaker_config TEXT",
         "ALTER TABLE gateway_policies ADD COLUMN policy_type TEXT NOT NULL DEFAULT 'route'",
         "ALTER TABLE gateway_policies ADD COLUMN waf_enabled TEXT",
-        "ALTER TABLE gateway_policies ADD COLUMN applied_targets TEXT"
+        "ALTER TABLE gateway_policies ADD COLUMN applied_targets TEXT",
+        "ALTER TABLE webhook_settings ADD COLUMN generic_endpoints TEXT",
+        "ALTER TABLE webhook_settings ADD COLUMN alert_config TEXT"
     ];
 
-    public SqliteGatewayRepository(StorageOptions options, ILogger<SqliteGatewayRepository> logger)
+    public SqliteGatewayRepository(StorageOptions options, ILoggerFactory loggerFactory)
     {
         _connectionString = EnsurePoolingEnabled(options.Sqlite.ConnectionString);
-        _logger = logger;
+        _loggerFactory = loggerFactory;
+        _logger = _loggerFactory.CreateLogger<SqliteGatewayRepository>();
         EnsureProvider();
+        _notificationRepo = new SqliteNotificationRepository(options, _loggerFactory.CreateLogger<SqliteNotificationRepository>());
     }
 
     private static void EnsureProvider()
@@ -172,6 +179,26 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
                 timeout_seconds INTEGER DEFAULT 30,
                 retry_count INTEGER DEFAULT 3,
                 secret TEXT,
+                generic_endpoints TEXT,
+                alert_config TEXT,
+                updated_at TEXT NOT NULL
+            );
+
+            -- WAF settings table (single row)
+            CREATE TABLE IF NOT EXISTS waf_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                enabled INTEGER DEFAULT 0,
+                enable_ip_check INTEGER DEFAULT 1,
+                ip_whitelist_json TEXT,
+                ip_blacklist_json TEXT,
+                enable_request_size_validation INTEGER DEFAULT 1,
+                max_request_body_size INTEGER DEFAULT 10485760,
+                max_header_count INTEGER DEFAULT 64,
+                max_header_size INTEGER DEFAULT 8192,
+                enable_sql_injection_detection INTEGER DEFAULT 1,
+                enable_xss_detection INTEGER DEFAULT 1,
+                enable_path_traversal_detection INTEGER DEFAULT 1,
+                extra_script_sources TEXT,
                 updated_at TEXT NOT NULL
             );
 
@@ -685,7 +712,9 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
             TimeoutSeconds = reader.GetInt32(4),
             RetryCount = reader.GetInt32(5),
             Secret = reader.IsDBNull(6) ? null : reader.GetString(6),
-            UpdatedAt = DateTime.Parse(reader.GetString(7))
+            UpdatedAt = DateTime.Parse(reader.GetString(7)),
+            GenericEndpoints = reader.FieldCount > 8 && !reader.IsDBNull(8) ? reader.GetString(8) : null,
+            AlertConfig = reader.FieldCount > 9 && !reader.IsDBNull(9) ? reader.GetString(9) : null
         };
     }
 
@@ -696,10 +725,11 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO webhook_settings (id, enabled, endpoints, events, timeout_seconds, retry_count, secret, updated_at)
-            VALUES (1, @en, @ep, @ev, @to, @retry, @secret, @ua)
+            INSERT INTO webhook_settings (id, enabled, endpoints, events, timeout_seconds, retry_count, secret, generic_endpoints, alert_config, updated_at)
+            VALUES (1, @en, @ep, @ev, @to, @retry, @secret, @ge, @ac, @ua)
             ON CONFLICT(id) DO UPDATE SET
-                enabled = @en, endpoints = @ep, events = @ev, timeout_seconds = @to, retry_count = @retry, secret = @secret, updated_at = @ua
+                enabled = @en, endpoints = @ep, events = @ev, timeout_seconds = @to, retry_count = @retry, secret = @secret,
+                generic_endpoints = @ge, alert_config = @ac, updated_at = @ua
             """;
         cmd.Parameters.AddWithValue("@en", settings.Enabled ? 1 : 0);
         cmd.Parameters.AddWithValue("@ep", settings.Endpoints ?? (object)DBNull.Value);
@@ -707,6 +737,71 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
         cmd.Parameters.AddWithValue("@to", settings.TimeoutSeconds);
         cmd.Parameters.AddWithValue("@retry", settings.RetryCount);
         cmd.Parameters.AddWithValue("@secret", settings.Secret ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@ge", settings.GenericEndpoints ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@ac", settings.AlertConfig ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@ua", DateTime.UtcNow.ToString("O"));
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    // ========== IWafSettingsRepository ==========
+
+    public async Task<WafSettingsEntity?> GetWafSettingsAsync(CancellationToken ct = default)
+    {
+        await EnsureInitializedAsync(ct);
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT * FROM waf_settings WHERE id = 1";
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return null;
+        return new WafSettingsEntity
+        {
+            Enabled = reader.GetInt32(reader.GetOrdinal("enabled")) == 1,
+            EnableIpCheck = reader.GetInt32(reader.GetOrdinal("enable_ip_check")) == 1,
+            IpWhitelistJson = reader.IsDBNull(reader.GetOrdinal("ip_whitelist_json")) ? null : reader.GetString(reader.GetOrdinal("ip_whitelist_json")),
+            IpBlacklistJson = reader.IsDBNull(reader.GetOrdinal("ip_blacklist_json")) ? null : reader.GetString(reader.GetOrdinal("ip_blacklist_json")),
+            EnableRequestSizeValidation = reader.GetInt32(reader.GetOrdinal("enable_request_size_validation")) == 1,
+            MaxRequestBodySize = reader.GetInt64(reader.GetOrdinal("max_request_body_size")),
+            MaxHeaderCount = reader.GetInt32(reader.GetOrdinal("max_header_count")),
+            MaxHeaderSize = reader.GetInt32(reader.GetOrdinal("max_header_size")),
+            EnableSqlInjectionDetection = reader.GetInt32(reader.GetOrdinal("enable_sql_injection_detection")) == 1,
+            EnableXssDetection = reader.GetInt32(reader.GetOrdinal("enable_xss_detection")) == 1,
+            EnablePathTraversalDetection = reader.GetInt32(reader.GetOrdinal("enable_path_traversal_detection")) == 1,
+            ExtraScriptSources = reader.IsDBNull(reader.GetOrdinal("extra_script_sources")) ? null : reader.GetString(reader.GetOrdinal("extra_script_sources")),
+            UpdatedAt = DateTime.Parse(reader.GetString(reader.GetOrdinal("updated_at")))
+        };
+    }
+
+    public async Task SaveWafSettingsAsync(WafSettingsEntity settings, CancellationToken ct = default)
+    {
+        await EnsureInitializedAsync(ct);
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO waf_settings (id, enabled, enable_ip_check, ip_whitelist_json, ip_blacklist_json,
+                enable_request_size_validation, max_request_body_size, max_header_count, max_header_size,
+                enable_sql_injection_detection, enable_xss_detection, enable_path_traversal_detection,
+                extra_script_sources, updated_at)
+            VALUES (1, @en, @eic, @iwl, @ibl, @ersv, @mrbs, @mhc, @mhs, @esid, @exss, @eptd, @ess, @ua)
+            ON CONFLICT(id) DO UPDATE SET
+                enabled = @en, enable_ip_check = @eic, ip_whitelist_json = @iwl, ip_blacklist_json = @ibl,
+                enable_request_size_validation = @ersv, max_request_body_size = @mrbs, max_header_count = @mhc,
+                max_header_size = @mhs, enable_sql_injection_detection = @esid, enable_xss_detection = @exss,
+                enable_path_traversal_detection = @eptd, extra_script_sources = @ess, updated_at = @ua
+            """;
+        cmd.Parameters.AddWithValue("@en", settings.Enabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@eic", settings.EnableIpCheck ? 1 : 0);
+        cmd.Parameters.AddWithValue("@iwl", settings.IpWhitelistJson ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@ibl", settings.IpBlacklistJson ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@ersv", settings.EnableRequestSizeValidation ? 1 : 0);
+        cmd.Parameters.AddWithValue("@mrbs", settings.MaxRequestBodySize);
+        cmd.Parameters.AddWithValue("@mhc", settings.MaxHeaderCount);
+        cmd.Parameters.AddWithValue("@mhs", settings.MaxHeaderSize);
+        cmd.Parameters.AddWithValue("@esid", settings.EnableSqlInjectionDetection ? 1 : 0);
+        cmd.Parameters.AddWithValue("@exss", settings.EnableXssDetection ? 1 : 0);
+        cmd.Parameters.AddWithValue("@eptd", settings.EnablePathTraversalDetection ? 1 : 0);
+        cmd.Parameters.AddWithValue("@ess", settings.ExtraScriptSources ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@ua", DateTime.UtcNow.ToString("O"));
         await cmd.ExecuteNonQueryAsync(ct);
     }
@@ -903,4 +998,38 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
         ErrorMessage = r.IsDBNull(11) ? null : r.GetString(11),
         Timestamp = DateTime.Parse(r.GetString(12))
     };
+
+    // ========== INotificationRepository ==========
+
+    public Task<NotificationSettingsEntity?> LoadSettingsAsync(CancellationToken ct = default) =>
+        _notificationRepo.LoadSettingsAsync(ct);
+    public Task SaveSettingsAsync(NotificationSettingsEntity settings, CancellationToken ct = default) =>
+        _notificationRepo.SaveSettingsAsync(settings, ct);
+    public Task<List<NotificationChannel>> GetChannelsAsync(CancellationToken ct = default) =>
+        _notificationRepo.GetChannelsAsync(ct);
+    public Task<NotificationChannel?> GetChannelAsync(string channelId, CancellationToken ct = default) =>
+        _notificationRepo.GetChannelAsync(channelId, ct);
+    public Task SaveChannelAsync(NotificationChannel channel, CancellationToken ct = default) =>
+        _notificationRepo.SaveChannelAsync(channel, ct);
+    public Task DeleteChannelAsync(string channelId, CancellationToken ct = default) =>
+        _notificationRepo.DeleteChannelAsync(channelId, ct);
+    public Task<List<NotificationRule>> GetRulesAsync(CancellationToken ct = default) =>
+        _notificationRepo.GetRulesAsync(ct);
+    public Task<NotificationRule?> GetRuleAsync(string ruleId, CancellationToken ct = default) =>
+        _notificationRepo.GetRuleAsync(ruleId, ct);
+    public Task SaveRuleAsync(NotificationRule rule, CancellationToken ct = default) =>
+        _notificationRepo.SaveRuleAsync(rule, ct);
+    public Task DeleteRuleAsync(string ruleId, CancellationToken ct = default) =>
+        _notificationRepo.DeleteRuleAsync(ruleId, ct);
+    public Task<NotificationGlobalSettings> GetGlobalSettingsAsync(CancellationToken ct = default) =>
+        _notificationRepo.GetGlobalSettingsAsync(ct);
+    public Task SaveGlobalSettingsAsync(NotificationGlobalSettings settings, CancellationToken ct = default) =>
+        _notificationRepo.SaveGlobalSettingsAsync(settings, ct);
+    public Task RecordNotificationAsync(NotificationHistory record, CancellationToken ct = default) =>
+        _notificationRepo.RecordNotificationAsync(record, ct);
+    public Task<(List<NotificationHistory> Records, int Total)> GetHistoryAsync(
+        int page = 1, int pageSize = 100, string? eventType = null, string? severity = null, CancellationToken ct = default) =>
+        _notificationRepo.GetHistoryAsync(page, pageSize, eventType, severity, ct);
+    public Task ClearHistoryAsync(CancellationToken ct = default) =>
+        _notificationRepo.ClearHistoryAsync(ct);
 }

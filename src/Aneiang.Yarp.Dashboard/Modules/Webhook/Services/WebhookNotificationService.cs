@@ -1,5 +1,8 @@
+using System.Text;
+using System.Text.Json;
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
+using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
 using Aneiang.Yarp.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -19,22 +22,22 @@ public class WebhookNotificationService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IWebhookProvider[] _providers;
     private readonly GenericWebhookProvider _genericProvider;
+    private readonly INotificationService? _notificationService;
 
     public WebhookNotificationService(
         IOptions<DashboardOptions> options,
         ILogger<WebhookNotificationService> logger,
         IHttpClientFactory httpClientFactory,
-        IEnumerable<IWebhookProvider> providers)
+        IEnumerable<IWebhookProvider> providers,
+        INotificationService? notificationService = null)
     {
         _options = options.Value;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
-
-        // Separate generic provider (empty SupportedHosts = fallback) from platform-specific ones
-        var providerList = providers.ToList();
-        _genericProvider = providerList.OfType<GenericWebhookProvider>().FirstOrDefault()
+        _providers = [.. providers.Where(p => p is not GenericWebhookProvider)];
+        _genericProvider = providers.OfType<GenericWebhookProvider>().FirstOrDefault()
                          ?? new GenericWebhookProvider();
-        _providers = [.. providerList.Where(p => p is not GenericWebhookProvider)];
+        _notificationService = notificationService;
     }
 
     /// <summary>
@@ -90,6 +93,13 @@ public class WebhookNotificationService
             // Fire and forget
             _ = SendAsync(url, payload);
         }
+
+        // Also record to notification history if the notification engine is wired
+        _notificationService?.NotifyCustom(
+            "ConfigChange",
+            $"Gateway configuration changed: {eventType}",
+            $"Target: {target}. Operator: {operatorName ?? "unknown"}.",
+            "Warning");
     }
 
     private async Task SendAsync(string url, WebhookPayload payload)
@@ -122,9 +132,31 @@ public class WebhookNotificationService
                 }
 
                 var response = await http.SendAsync(httpRequest);
-                _logger.LogDebug(
-                    "Webhook sent to {Url} via {Provider}: {StatusCode}",
-                    url, provider.GetType().Name, (int)response.StatusCode);
+                var bodyText = await response.Content.ReadAsStringAsync();
+                _logger.LogInformation(
+                    "Webhook response from {Url} via {Provider}: HTTP {StatusCode} body={Body}",
+                    url, provider.GetType().Name, (int)response.StatusCode, bodyText);
+
+                // DingTalk returns HTTP 200 with errcode inside JSON — check it
+                if (provider is DingTalkWebhookProvider && response.IsSuccessStatusCode)
+                {
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(bodyText);
+                        if (doc.RootElement.TryGetProperty("errcode", out var errcode) && errcode.GetInt64() != 0)
+                        {
+                            var errmsg = doc.RootElement.TryGetProperty("errmsg", out var em) ? em.GetString() : "";
+                            _logger.LogWarning(
+                                "DingTalk webhook API error for {Url}: errcode={Errcode} errmsg={Errmsg}",
+                                url, errcode.GetInt64(), errmsg);
+                            continue; // treated as failure → retry
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // Body wasn't JSON; treat as non-DingTalk, fall through to success
+                    }
+                }
 
                 // Success — no retry needed
                 return;

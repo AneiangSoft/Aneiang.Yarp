@@ -123,10 +123,24 @@ public class DashboardController : Controller
         return View();
     }
 
+    [HttpGet("notifications")]
+    public IActionResult Notifications()
+    {
+        SetCommonViewBag("notifications");
+        return View();
+    }
+
     [HttpGet("security")]
     public IActionResult Security()
     {
         SetCommonViewBag("security");
+        return View();
+    }
+
+    [HttpGet("waf")]
+    public IActionResult Waf()
+    {
+        SetCommonViewBag("waf");
         return View();
     }
 
@@ -566,18 +580,7 @@ public class DashboardController : Controller
 
 
     /// <summary>Rate limiting configuration status.</summary>
-    [HttpGet("api/rate-limit")]
-    public IActionResult GetRateLimitStatus()
-    {
-        var data = new RateLimitStatus
-        {
-            Enabled = _enableProxyLogging,
-            PermitLimit = 100,
-            Window = 60,
-            QueueLimit = 10
-        };
-        return Json(new { code = 200, data });
-    }
+
 
     /// <summary>Get current authorization status and mode.</summary>
     [HttpGet("api/auth/status")]
@@ -597,13 +600,8 @@ public class DashboardController : Controller
     }
 
     // Simple DTOs for typed JSON responses
-    private class RateLimitStatus
-    {
-        public bool Enabled { get; set; }
-        public int PermitLimit { get; set; }
-        public int Window { get; set; }
-        public int QueueLimit { get; set; }
-    }
+
+
 
     private class AuthStatus
     {

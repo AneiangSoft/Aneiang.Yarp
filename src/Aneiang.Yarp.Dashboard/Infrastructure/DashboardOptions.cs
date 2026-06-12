@@ -121,10 +121,10 @@ public class DashboardOptions
     public string RateLimitWindow { get; set; } = "1m";
 
     /// <summary>
-    /// Maximum number of queued requests when rate limit is exceeded. Default: 10.
+    /// Maximum number of queued requests when rate limit is exceeded. Default: 0 (reject immediately).
     /// Only effective when EnableRateLimiting is true.
     /// </summary>
-    public int RateLimitQueueLimit { get; set; } = 10;
+    public int RateLimitQueueLimit { get; set; } = 0;
 
     /// <summary>
     /// Enable or disable log sampling. When enabled, only a percentage of requests are logged.
@@ -528,10 +528,10 @@ public class RateLimitOptions
     public string Window { get; set; } = "1m";
 
     /// <summary>
-    /// Number of queued requests when limit is exceeded. Default: 10.
-    /// Route metadata key: RateLimit:QueueLimit. Default: 10.
+    /// Number of queued requests when limit is exceeded. Default: 0 (reject immediately).
+    /// Route metadata key: RateLimit:QueueLimit. Default: 0.
     /// </summary>
-    public int QueueLimit { get; set; } = 10;
+    public int QueueLimit { get; set; } = 0;
 
     /// <summary>
     /// Token bucket: bucket capacity. Route metadata key: RateLimit:TokenBucketCapacity. Default: 100.

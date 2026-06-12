@@ -1,0 +1,731 @@
+@using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Notifications" : "通知中心";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<div id="notifications-app">
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="stat-card" id="notif-stat-total">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #6366f1, #818cf8);">
+                    <i class="bi bi-bell-fill"></i>
+                </div>
+                <div class="stat-info">
+                    <div class="stat-value" id="notif-total-count">-</div>
+                    <div class="stat-label" data-i18n="notif.total">总计</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card" id="notif-stat-error">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #ef4444, #f87171);">
+                    <i class="bi bi-exclamation-circle-fill"></i>
+                </div>
+                <div class="stat-info">
+                    <div class="stat-value text-danger" id="notif-error-count">-</div>
+                    <div class="stat-label" data-i18n="notif.errors">错误</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card" id="notif-stat-warning">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                </div>
+                <div class="stat-info">
+                    <div class="stat-value text-warning" id="notif-warning-count">-</div>
+                    <div class="stat-label" data-i18n="notif.warnings">警告</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card" id="notif-stat-channels">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #10b981, #34d399);">
+                    <i class="bi bi-megaphone-fill"></i>
+                </div>
+                <div class="stat-info">
+                    <div class="stat-value" id="notif-channel-count">-</div>
+                    <div class="stat-label" data-i18n="notif.channels">渠道</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="card-panel mb-4">
+        <div class="tabs-container">
+            <div class="tab-list" role="tablist">
+                <button class="tab-btn active" data-tab="history" role="tab" aria-selected="true">
+                    <i class="bi bi-clock-history"></i>
+                    <span data-i18n="notif.tab.history">通知历史</span>
+                </button>
+                <button class="tab-btn" data-tab="channels" role="tab" aria-selected="false">
+                    <i class="bi bi-megaphone"></i>
+                    <span data-i18n="notif.tab.channels">通知渠道</span>
+                </button>
+                <button class="tab-btn" data-tab="rules" role="tab" aria-selected="false">
+                    <i class="bi bi-filter-circle"></i>
+                    <span data-i18n="notif.tab.rules">通知规则</span>
+                </button>
+                <button class="tab-btn" data-tab="settings" role="tab" aria-selected="false">
+                    <i class="bi bi-gear"></i>
+                    <span data-i18n="notif.tab.settings">全局设置</span>
+                </button>
+            </div>
+
+            <!-- Tab: History -->
+            <div class="tab-content active" data-tab-content="history" role="tabpanel">
+                <div class="tab-toolbar">
+                    <div class="filter-group">
+                        <select class="form-select form-select-sm" id="notif-type-filter" style="width:150px;">
+                            <option value="" data-i18n="notif.filter.allTypes">所有类型</option>
+                            <option value="CircuitBreakerOpen">CircuitBreakerOpen</option>
+                            <option value="RetryExhausted">RetryExhausted</option>
+                            <option value="WafBlock">WafBlock</option>
+                            <option value="ProxyError">ProxyError</option>
+                            <option value="RateLimitExceeded">RateLimitExceeded</option>
+                            <option value="TestNotification">TestNotification</option>
+                        </select>
+                        <select class="form-select form-select-sm" id="notif-severity-filter" style="width:120px;">
+                            <option value="" data-i18n="notif.filter.allLevels">所有级别</option>
+                            <option value="Error">Error</option>
+                            <option value="Warning">Warning</option>
+                            <option value="Info">Info</option>
+                        </select>
+                    </div>
+                    <div class="action-group">
+                        <button class="btn btn-sm btn-outline-danger" onclick="NotificationModule.clearHistory()" title="清空">
+                            <i class="bi bi-trash"></i> <span data-i18n="notif.clear">清空</span>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="NotificationModule.loadHistory()" title="刷新">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="notif-history-list" class="notification-list">
+                    <div class="loading-state">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-text" data-i18n="notif.loading">加载中...</div>
+                    </div>
+                </div>
+                <div id="notif-history-pagination" class="pagination-container"></div>
+            </div>
+
+            <!-- Tab: Channels -->
+            <div class="tab-content" data-tab-content="channels" role="tabpanel">
+                <div class="tab-toolbar">
+                    <button class="btn btn-sm btn-primary" onclick="NotificationModule.showChannelModal()">
+                        <i class="bi bi-plus-lg"></i> <span data-i18n="notif.addChannel">添加渠道</span>
+                    </button>
+                </div>
+                <div id="notif-channels-list" class="channels-grid">
+                    <div class="loading-state">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-text" data-i18n="notif.loading">加载中...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Rules -->
+            <div class="tab-content" data-tab-content="rules" role="tabpanel">
+                <div class="tab-toolbar">
+                    <button class="btn btn-sm btn-primary" onclick="NotificationModule.showRuleModal()">
+                        <i class="bi bi-plus-lg"></i> <span data-i18n="notif.addRule">添加规则</span>
+                    </button>
+                </div>
+                <div id="notif-rules-list" class="rules-grid">
+                    <div class="loading-state">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-text" data-i18n="notif.loading">加载中...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Settings -->
+            <div class="tab-content" data-tab-content="settings" role="tabpanel">
+                <div class="settings-form" id="notif-settings-form">
+                    <div class="loading-state">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-text" data-i18n="notif.loading">加载中...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Channel Modal -->
+<div class="modal fade" id="channel-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="channel-modal-title" data-i18n="notif.channelModal.title">添加通知渠道</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="channel-id">
+                <div class="mb-3">
+                    <label class="form-label" data-i18n="notif.channelModal.name">名称</label>
+                    <input type="text" class="form-control" id="channel-name" placeholder="My DingTalk">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" data-i18n="notif.channelModal.type">类型</label>
+                    <select class="form-select" id="channel-type">
+                        <option value="Generic">Generic Webhook</option>
+                        <option value="DingTalk">DingTalk</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" data-i18n="notif.channelModal.url">Webhook URL</label>
+                    <input type="url" class="form-control" id="channel-url" placeholder="https://oapi.dingtalk.com/robot/send?access_token=...">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" data-i18n="notif.channelModal.secret">密钥 (可选)</label>
+                    <input type="text" class="form-control" id="channel-secret" placeholder="SEC...">
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="channel-enabled" checked>
+                    <label class="form-check-label" for="channel-enabled" data-i18n="notif.channelModal.enabled">启用</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="notif.cancel">取消</button>
+                <button type="button" class="btn btn-primary" onclick="NotificationModule.saveChannel()" data-i18n="notif.save">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rule Modal -->
+<div class="modal fade" id="rule-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="rule-modal-title" data-i18n="notif.ruleModal.title">添加通知规则</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="rule-id">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label" data-i18n="notif.ruleModal.name">规则名称</label>
+                            <input type="text" class="form-control" id="rule-name" placeholder="Critical Alerts">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label" data-i18n="notif.ruleModal.severity">最低严重级别</label>
+                            <select class="form-select" id="rule-severity">
+                                <option value="Info">Info</option>
+                                <option value="Warning">Warning</option>
+                                <option value="Error">Error</option>
+                                <option value="Critical">Critical</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" data-i18n="notif.ruleModal.events">事件类型 (留空表示全部)</label>
+                    <div class="event-types-grid" id="rule-event-types">
+                        <label class="event-type-item">
+                            <input type="checkbox" value="CircuitBreakerOpen"> CircuitBreakerOpen
+                        </label>
+                        <label class="event-type-item">
+                            <input type="checkbox" value="RetryExhausted"> RetryExhausted
+                        </label>
+                        <label class="event-type-item">
+                            <input type="checkbox" value="WafBlock"> WafBlock
+                        </label>
+                        <label class="event-type-item">
+                            <input type="checkbox" value="ProxyError"> ProxyError
+                        </label>
+                        <label class="event-type-item">
+                            <input type="checkbox" value="RateLimitExceeded"> RateLimitExceeded
+                        </label>
+                        <label class="event-type-item">
+                            <input type="checkbox" value="ConfigChange"> ConfigChange
+                        </label>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" data-i18n="notif.ruleModal.channels">通知渠道</label>
+                    <div id="rule-channel-select" class="channel-select-grid"></div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label" data-i18n="notif.ruleModal.cooldown">冷却时间 (秒)</label>
+                            <input type="number" class="form-control" id="rule-cooldown" value="300" min="0" max="3600">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label" data-i18n="notif.ruleModal.record">记录到历史</label>
+                            <div class="form-check form-switch">
+                                <input type="checkbox" class="form-check-input" id="rule-record" checked>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="rule-enabled" checked>
+                    <label class="form-check-label" for="rule-enabled" data-i18n="notif.ruleModal.enabled">启用规则</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="notif.cancel">取消</button>
+                <button type="button" class="btn btn-primary" onclick="NotificationModule.saveRule()" data-i18n="notif.save">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .stat-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border: 1px solid #e2e8f0;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 22px;
+    }
+    .stat-info {
+        flex: 1;
+    }
+    .stat-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: #1e293b;
+        line-height: 1.2;
+    }
+    .stat-label {
+        font-size: 13px;
+        color: #64748b;
+    }
+    .text-danger { color: #ef4444 !important; }
+    .text-warning { color: #f59e0b !important; }
+
+    .tabs-container {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .tab-list {
+        display: flex;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 0 8px;
+        gap: 4px;
+    }
+    .tab-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 20px;
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        color: #64748b;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .tab-btn:hover {
+        color: #3b82f6;
+    }
+    .tab-btn.active {
+        color: #3b82f6;
+        border-bottom-color: #3b82f6;
+    }
+    .tab-btn i {
+        font-size: 16px;
+    }
+    .tab-content {
+        display: none;
+        padding: 20px;
+    }
+    .tab-content.active {
+        display: block;
+    }
+    .tab-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .filter-group {
+        display: flex;
+        gap: 8px;
+    }
+    .action-group {
+        display: flex;
+        gap: 8px;
+    }
+
+    .notification-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .notification-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px 16px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .notification-item:hover {
+        border-color: #cbd5e1;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .notification-item.expanded {
+        background: #f8fafc;
+    }
+    .notif-time {
+        font-size: 12px;
+        color: #94a3b8;
+        min-width: 140px;
+        font-family: monospace;
+    }
+    .notif-badge {
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .notif-badge.error { background: #fef2f2; color: #dc2626; }
+    .notif-badge.warning { background: #fffbeb; color: #d97706; }
+    .notif-badge.info { background: #eff6ff; color: #2563eb; }
+    .notif-badge.success { background: #f0fdf4; color: #16a34a; }
+    .notif-message {
+        flex: 1;
+        font-size: 13px;
+        color: #334155;
+    }
+    .notif-details {
+        display: none;
+        margin-top: 12px;
+        padding: 12px;
+        background: #f8fafc;
+        border-radius: 8px;
+        font-size: 12px;
+        color: #64748b;
+    }
+    .notification-item.expanded .notif-details {
+        display: block;
+    }
+    .notif-detail-row {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 4px;
+    }
+    .notif-detail-row code {
+        background: #e2e8f0;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 11px;
+    }
+    .notif-arrow {
+        color: #cbd5e1;
+        transition: transform 0.2s;
+    }
+    .notification-item.expanded .notif-arrow {
+        transform: rotate(90deg);
+    }
+
+    .channels-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 16px;
+    }
+    .channel-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 20px;
+        transition: all 0.2s;
+    }
+    .channel-card:hover {
+        border-color: #cbd5e1;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+    .channel-card.disabled {
+        opacity: 0.6;
+    }
+    .channel-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+    .channel-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+    }
+    .channel-icon.dingtalk { background: #0089ff; color: #fff; }
+    .channel-icon.generic { background: #6366f1; color: #fff; }
+    .channel-info {
+        flex: 1;
+    }
+    .channel-name {
+        font-weight: 600;
+        color: #1e293b;
+        font-size: 15px;
+    }
+    .channel-type {
+        font-size: 12px;
+        color: #94a3b8;
+    }
+    .channel-url {
+        font-size: 12px;
+        color: #64748b;
+        font-family: monospace;
+        word-break: break-all;
+        margin-bottom: 12px;
+        padding: 8px;
+        background: #f8fafc;
+        border-radius: 6px;
+    }
+    .channel-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .rules-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .rule-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 20px;
+        transition: all 0.2s;
+    }
+    .rule-card:hover {
+        border-color: #cbd5e1;
+    }
+    .rule-card.disabled {
+        opacity: 0.6;
+    }
+    .rule-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+    }
+    .rule-name {
+        font-weight: 600;
+        color: #1e293b;
+        font-size: 15px;
+    }
+    .rule-meta {
+        display: flex;
+        gap: 12px;
+        font-size: 12px;
+        color: #64748b;
+    }
+    .rule-meta span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .rule-events {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 12px;
+    }
+    .rule-event-tag {
+        padding: 4px 10px;
+        background: #f1f5f9;
+        border-radius: 6px;
+        font-size: 11px;
+        color: #475569;
+    }
+    .rule-channels {
+        display: flex;
+        gap: 8px;
+    }
+    .rule-channel-chip {
+        padding: 4px 10px;
+        background: #e0e7ff;
+        color: #4338ca;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 500;
+    }
+
+    .settings-form {
+        max-width: 600px;
+    }
+    .settings-section {
+        margin-bottom: 24px;
+    }
+    .settings-section-title {
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .pagination-container {
+        display: flex;
+        justify-content: center;
+        gap: 4px;
+        margin-top: 20px;
+    }
+    .pagination-btn {
+        padding: 6px 12px;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .pagination-btn:hover {
+        border-color: #3b82f6;
+        color: #3b82f6;
+    }
+    .pagination-btn.active {
+        background: #3b82f6;
+        color: #fff;
+        border-color: #3b82f6;
+    }
+    .pagination-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 48px 20px;
+        color: #94a3b8;
+    }
+    .empty-state i {
+        font-size: 48px;
+        margin-bottom: 16px;
+    }
+    .empty-state p {
+        margin: 0;
+        font-size: 14px;
+    }
+
+    .event-types-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 8px;
+    }
+    .event-type-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        color: #475569;
+        transition: all 0.2s;
+    }
+    .event-type-item:hover {
+        border-color: #3b82f6;
+        background: #eff6ff;
+    }
+    .event-type-item input {
+        margin: 0;
+    }
+    .channel-select-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 8px;
+    }
+    .channel-select-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+    }
+    .channel-select-item:hover {
+        border-color: #3b82f6;
+        background: #eff6ff;
+    }
+</style>
+
+@section Scripts {
+@{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-notifications.js?v=@v"></script>
+
+<script>
+    window.__dashboard = window.__dashboard || {};
+    var dash = window.__dashboard;
+    dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
+    dash.token = localStorage.getItem('dashboard_token');
+    dash.CURRENT_LOCALE = '@ViewBag.Locale';
+    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
+    dash.currentPage = '@ViewBag.CurrentPage';
+</script>
+
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+        await NotificationModule.init();
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

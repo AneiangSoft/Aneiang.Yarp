@@ -28,14 +28,13 @@ public static class StorageServiceCollectionExtensions
         // Register IGatewayRepository — the primary storage abstraction
         services.AddSingleton<IGatewayRepository>(sp =>
         {
-            var loggerBase = sp.GetRequiredService<ILoggerFactory>();
+            var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
 
             return storageOptions.Provider switch
             {
                 StorageProvider.Redis => new RedisGatewayRepositoryPlaceholder(storageOptions,
-                    loggerBase.CreateLogger<RedisGatewayRepositoryPlaceholder>()),
-                _ => new SqliteGatewayRepository(storageOptions,
-                    loggerBase.CreateLogger<SqliteGatewayRepository>())
+                    loggerFactory.CreateLogger<RedisGatewayRepositoryPlaceholder>()),
+                _ => new SqliteGatewayRepository(storageOptions, loggerFactory)
             };
         });
 

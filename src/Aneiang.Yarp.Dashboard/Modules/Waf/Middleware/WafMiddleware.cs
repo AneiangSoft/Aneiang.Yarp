@@ -8,6 +8,8 @@ using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.Alert.Services;
+using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
+using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Yarp.ReverseProxy.Model;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
@@ -16,6 +18,8 @@ namespace Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
 /// Web Application Firewall middleware.
 /// Provides IP blocking, SQL injection detection, XSS detection, path traversal detection, and request size validation.
 /// All regex patterns use a tight timeout to prevent ReDoS attacks.
+/// Settings are loaded from <see cref="IWafSettingsPersistenceService"/> when available,
+/// falling back to <see cref="WafOptions"/> from configuration.
 /// </summary>
 public sealed class WafMiddleware
 {
@@ -26,6 +30,8 @@ public sealed class WafMiddleware
     private readonly WafEventStore _eventStore;
     private readonly IGatewayAlertService _alertService;
     private readonly IGatewayPluginManager _pluginManager;
+    private readonly IWafSettingsPersistenceService? _wafPersistence;
+    private readonly INotificationService? _notificationService;
 
     /// <summary>Ultra-tight timeout (5ms) prevents catastrophic backtracking while allowing benign input.</summary>
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(5);
@@ -77,7 +83,9 @@ public sealed class WafMiddleware
         IOptions<DashboardOptions> dashOptions,
         WafEventStore eventStore,
         IGatewayAlertService alertService,
-        IGatewayPluginManager pluginManager)
+        IGatewayPluginManager pluginManager,
+        IWafSettingsPersistenceService? wafPersistence = null,
+        INotificationService? notificationService = null)
     {
         _next = next;
         _logger = logger;
@@ -89,11 +97,40 @@ public sealed class WafMiddleware
         _eventStore = eventStore;
         _alertService = alertService;
         _pluginManager = pluginManager;
+        _wafPersistence = wafPersistence;
+        _notificationService = notificationService;
+    }
+
+    /// <summary>
+    /// Resolves the effective WAF options by merging persisted settings over configuration defaults.
+    /// </summary>
+    private WafOptions ResolveEffectiveOptions()
+    {
+        var data = _wafPersistence?.Load();
+        if (data == null) return _wafOptions;
+
+        return new WafOptions
+        {
+            Enabled = data.Enabled,
+            DashboardRoutePrefix = _wafOptions.DashboardRoutePrefix,
+            IpWhitelist = data.IpWhitelist.Count > 0 ? data.IpWhitelist : _wafOptions.IpWhitelist,
+            IpBlacklist = data.IpBlacklist.Count > 0 ? data.IpBlacklist : _wafOptions.IpBlacklist,
+            MaxRequestBodySize = data.MaxRequestBodySize,
+            MaxHeaderCount = data.MaxHeaderCount,
+            MaxHeaderSize = data.MaxHeaderSize,
+            EnableSqlInjectionDetection = data.EnableSqlInjectionDetection,
+            EnableXssDetection = data.EnableXssDetection,
+            EnablePathTraversalDetection = data.EnablePathTraversalDetection,
+            EnableIpCheck = data.EnableIpCheck,
+            EnableRequestSizeValidation = data.EnableRequestSizeValidation,
+            ExtraScriptSources = _wafOptions.ExtraScriptSources
+        };
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
-        bool globallyEnabled = _wafOptions.Enabled && _pluginManager.IsPluginEnabled("waf");
+        var opts = ResolveEffectiveOptions();
+        bool globallyEnabled = opts.Enabled && _pluginManager.IsPluginEnabled("waf");
 
         var path = context.Request.Path.Value ?? "";
 
@@ -115,30 +152,29 @@ public sealed class WafMiddleware
             await _next(context);
             return;
         }
-        var dashPrefix = "/" + (_wafOptions.DashboardRoutePrefix?.Trim('/') ?? "apigateway");
 
-        if (path.StartsWith(dashPrefix, StringComparison.OrdinalIgnoreCase) ||
+        if (path.StartsWith(_dashPrefix, StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith(ContentRoot, StringComparison.OrdinalIgnoreCase))
         {
             await _next(context);
             return;
         }
 
-        if (_wafOptions.EnableIpCheck && !CheckIp(context))
+        if (opts.EnableIpCheck && !CheckIp(context, opts))
         {
             RecordSecurityEvent(context, "IpBlocked");
             await BlockRequest(context, "Access denied");
             return;
         }
 
-        if (_wafOptions.EnableRequestSizeValidation && !CheckRequestSize(context))
+        if (opts.EnableRequestSizeValidation && !CheckRequestSize(context, opts))
         {
             RecordSecurityEvent(context, "RequestSizeBlocked");
             await BlockRequest(context, "Request entity too large");
             return;
         }
 
-        if (_wafOptions.EnableRequestSizeValidation && !CheckHeaders(context))
+        if (opts.EnableRequestSizeValidation && !CheckHeaders(context, opts))
         {
             RecordSecurityEvent(context, "MalformedHeadersBlocked");
             await BlockRequest(context, "Too many headers");
@@ -152,7 +188,7 @@ public sealed class WafMiddleware
             return;
         }
 
-        if (_wafOptions.EnablePathTraversalDetection && PathTraversalPattern.IsMatch(path))
+        if (opts.EnablePathTraversalDetection && PathTraversalPattern.IsMatch(path))
         {
             RecordSecurityEvent(context, "PathTraversalBlocked", path);
             await BlockRequest(context, "Blocked by security policy");
@@ -162,7 +198,7 @@ public sealed class WafMiddleware
         var queryString = context.Request.QueryString.Value ?? "";
         if (!string.IsNullOrEmpty(queryString))
         {
-            if (_wafOptions.EnableSqlInjectionDetection)
+            if (opts.EnableSqlInjectionDetection)
             {
                 if (SqlInjectionPattern.IsMatch(queryString))
                 {
@@ -178,7 +214,7 @@ public sealed class WafMiddleware
                 }
             }
 
-            if (_wafOptions.EnablePathTraversalDetection && PathTraversalPattern.IsMatch(queryString))
+            if (opts.EnablePathTraversalDetection && PathTraversalPattern.IsMatch(queryString))
             {
                 RecordSecurityEvent(context, "PathTraversalInQueryBlocked", queryString);
                 await BlockRequest(context, "Blocked by security policy");
@@ -186,12 +222,12 @@ public sealed class WafMiddleware
             }
         }
 
-        ApplySecurityHeaders(context);
+        ApplySecurityHeaders(context, opts);
 
         await _next(context);
     }
 
-    private void ApplySecurityHeaders(HttpContext context)
+    private void ApplySecurityHeaders(HttpContext context, WafOptions opts)
     {
         var resp = context.Response;
         if (!resp.Headers.ContainsKey("X-Content-Type-Options"))
@@ -203,12 +239,12 @@ public sealed class WafMiddleware
         if (!resp.Headers.ContainsKey("Referrer-Policy"))
             resp.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
 
-        // CSP: default restrictive + allow additional script sources from config (e.g., Monaco Editor CDN)
+        // CSP for proxied responses only — dashboard pages are skipped upstream.
         if (!resp.Headers.ContainsKey("Content-Security-Policy"))
         {
-            var csp = "default-src 'self'; script-src 'self'";
-            if (!string.IsNullOrWhiteSpace(_wafOptions.ExtraScriptSources))
-                csp += " " + _wafOptions.ExtraScriptSources;
+            var csp = "default-src 'self'";
+            if (!string.IsNullOrWhiteSpace(opts.ExtraScriptSources))
+                csp += "; script-src 'self' " + opts.ExtraScriptSources;
             resp.Headers["Content-Security-Policy"] = csp;
         }
     }
@@ -235,24 +271,25 @@ public sealed class WafMiddleware
         });
 
         _alertService.AlertWafBlock(clientIp ?? "unknown", eventType, requestUri);
+        _notificationService?.NotifyWafBlock(clientIp ?? "unknown", eventType, requestUri);
     }
 
-    private bool CheckIp(HttpContext context)
+    private bool CheckIp(HttpContext context, WafOptions opts)
     {
         var clientIp = GetClientIp(context);
         if (string.IsNullOrEmpty(clientIp))
             return true;
 
-        if (_wafOptions.IpWhitelist.Count > 0)
+        if (opts.IpWhitelist.Count > 0)
         {
-            if (!_wafOptions.IpWhitelist.Any(ip => MatchesIp(ip.Trim(), clientIp)))
+            if (!opts.IpWhitelist.Any(ip => MatchesIp(ip.Trim(), clientIp)))
                 return false;
             return true;
         }
 
-        if (_wafOptions.IpBlacklist.Count > 0)
+        if (opts.IpBlacklist.Count > 0)
         {
-            if (_wafOptions.IpBlacklist.Any(ip => MatchesIp(ip.Trim(), clientIp)))
+            if (opts.IpBlacklist.Any(ip => MatchesIp(ip.Trim(), clientIp)))
                 return false;
         }
 
@@ -332,24 +369,24 @@ public sealed class WafMiddleware
         return false;
     }
 
-    private bool CheckRequestSize(HttpContext context)
+    private bool CheckRequestSize(HttpContext context, WafOptions opts)
     {
         if (context.Request.ContentLength.HasValue &&
-            context.Request.ContentLength.Value > _wafOptions.MaxRequestBodySize)
+            context.Request.ContentLength.Value > opts.MaxRequestBodySize)
         {
             return false;
         }
         return true;
     }
 
-    private bool CheckHeaders(HttpContext context)
+    private bool CheckHeaders(HttpContext context, WafOptions opts)
     {
-        if (context.Request.Headers.Count > _wafOptions.MaxHeaderCount)
+        if (context.Request.Headers.Count > opts.MaxHeaderCount)
             return false;
 
         foreach (var header in context.Request.Headers)
         {
-            if (header.Value.Count > 1 || header.Value.ToString().Length > _wafOptions.MaxHeaderSize)
+            if (header.Value.Count > 1 || header.Value.ToString().Length > opts.MaxHeaderSize)
                 return false;
         }
 
