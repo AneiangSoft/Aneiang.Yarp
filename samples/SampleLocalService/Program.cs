@@ -7,7 +7,7 @@ builder.UseYarpKestrelAutoConfig();
 // Minimal config: just GatewayUrl in code or appsettings.json
 builder.Services.AddAneiangYarpClient(options =>
 {
-    options.UseGrpcRegistration = true;
+    options.UseGrpcRegistration = false;
 });
 
 // Or with code override (higher priority than config file):

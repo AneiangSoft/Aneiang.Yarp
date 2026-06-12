@@ -2656,7 +2656,7 @@
         @if (ViewBag.CurrentPage as string != "login")
         {
             <div class="dashboard-footer">
-                <span>Aneiang.Yarp v@typeof(LogEntry).Assembly.GetName().Version · &copy; 2024-2026</span>
+                <span>@($"Aneiang.Yarp v{typeof(LogEntry).Assembly.GetName().Version} · &copy; 2024-2026")</span>
                 <span>
                     <span class="pulse-dot me-1"></span>
                     @((ViewBag.Locale as string) == "en-US" ? "System Running" : "系统运行中")

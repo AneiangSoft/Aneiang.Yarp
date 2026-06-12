@@ -23,6 +23,14 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
     private static bool _providerSet;
     private readonly SemaphoreSlim _initLock = new(1, 1);
 
+    private static readonly string[] _migrations =
+    [
+        "ALTER TABLE yarp_clusters ADD COLUMN circuit_breaker_config TEXT",
+        "ALTER TABLE gateway_policies ADD COLUMN policy_type TEXT NOT NULL DEFAULT 'route'",
+        "ALTER TABLE gateway_policies ADD COLUMN waf_enabled TEXT",
+        "ALTER TABLE gateway_policies ADD COLUMN applied_targets TEXT"
+    ];
+
     public SqliteGatewayRepository(StorageOptions options, ILogger<SqliteGatewayRepository> logger)
     {
         _connectionString = EnsurePoolingEnabled(options.Sqlite.ConnectionString);
@@ -88,6 +96,7 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
                 cluster_id TEXT PRIMARY KEY,
                 load_balancing_policy TEXT,
                 health_check_config TEXT,
+                circuit_breaker_config TEXT,
                 source TEXT DEFAULT 'dynamic',
                 created_by TEXT,
                 created_at TEXT NOT NULL,
@@ -122,21 +131,20 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
             -- Gateway policies table
             CREATE TABLE IF NOT EXISTS gateway_policies (
                 policy_id TEXT PRIMARY KEY,
+                policy_type TEXT NOT NULL DEFAULT 'route',
                 display_name TEXT NOT NULL,
                 description TEXT,
-                priority INTEGER DEFAULT 50,
                 enabled INTEGER DEFAULT 1,
-                circuit_breaker_config TEXT,
                 retry_config TEXT,
                 rate_limit_config TEXT,
-                waf_config TEXT,
-                custom_plugins TEXT,
-                tags TEXT,
-                created_by TEXT,
+                circuit_breaker_config TEXT,
+                waf_enabled TEXT,
+                applied_targets TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS ix_policies_enabled ON gateway_policies(enabled);
+            CREATE INDEX IF NOT EXISTS ix_policies_type ON gateway_policies(policy_type);
 
             -- Config audit logs table
             CREATE TABLE IF NOT EXISTS config_audit_logs (
@@ -186,6 +194,21 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
             CREATE INDEX IF NOT EXISTS ix_proxy_logs_timestamp ON proxy_logs(timestamp DESC);
             """;
         await cmd.ExecuteNonQueryAsync(ct);
+
+        foreach (var migration in _migrations)
+        {
+            try
+            {
+                await using var mCmd = conn.CreateCommand();
+                mCmd.CommandText = migration;
+                await mCmd.ExecuteNonQueryAsync(ct);
+            }
+            catch (SqliteException ex) when (ex.SqliteErrorCode == 1)
+            {
+                _logger.LogDebug("Migration skipped (already applied): {Sql}", migration);
+            }
+        }
+
         _initialized = true;
         _logger.LogInformation("SqliteGatewayRepository initialized");
     }
@@ -522,7 +545,12 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
         await using var conn = CreateConnection();
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT * FROM gateway_policies ORDER BY priority DESC, display_name";
+        cmd.CommandText = """
+            SELECT policy_id, policy_type, display_name, description, enabled,
+                   retry_config, rate_limit_config, circuit_breaker_config,
+                   waf_enabled, applied_targets, created_at, updated_at
+            FROM gateway_policies ORDER BY policy_type, display_name
+            """;
         var list = new List<PolicyEntity>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct)) list.Add(MapPolicy(reader));
@@ -537,25 +565,23 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO gateway_policies (policy_id, display_name, description, priority, enabled, circuit_breaker_config, retry_config, rate_limit_config, waf_config, custom_plugins, tags, created_by, created_at, updated_at)
-            VALUES (@id, @name, @desc, @pri, @en, @cb, @retry, @rl, @waf, @plugins, @tags, @cby, @ca, @ua)
+            INSERT INTO gateway_policies (policy_id, policy_type, display_name, description, enabled, retry_config, rate_limit_config, circuit_breaker_config, waf_enabled, applied_targets, created_at, updated_at)
+            VALUES (@id, @type, @name, @desc, @en, @retry, @rl, @cb, @waf, @targets, @ca, @ua)
             ON CONFLICT(policy_id) DO UPDATE SET
-                display_name = @name, description = @desc, priority = @pri, enabled = @en,
-                circuit_breaker_config = @cb, retry_config = @retry, rate_limit_config = @rl,
-                waf_config = @waf, custom_plugins = @plugins, tags = @tags, updated_at = @ua
+                policy_type = @type, display_name = @name, description = @desc, enabled = @en,
+                retry_config = @retry, rate_limit_config = @rl, circuit_breaker_config = @cb,
+                waf_enabled = @waf, applied_targets = @targets, updated_at = @ua
             """;
         cmd.Parameters.AddWithValue("@id", policy.PolicyId);
+        cmd.Parameters.AddWithValue("@type", policy.PolicyType);
         cmd.Parameters.AddWithValue("@name", policy.DisplayName);
         cmd.Parameters.AddWithValue("@desc", policy.Description ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@pri", policy.Priority);
         cmd.Parameters.AddWithValue("@en", policy.Enabled ? 1 : 0);
-        cmd.Parameters.AddWithValue("@cb", policy.CircuitBreakerConfig ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@retry", policy.RetryConfig ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@rl", policy.RateLimitConfig ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@waf", policy.WafConfig ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@plugins", policy.CustomPlugins ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@tags", policy.Tags ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@cby", policy.CreatedBy ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@cb", policy.CircuitBreakerConfig ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@waf", policy.WafEnabled ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@targets", policy.AppliedTargets ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@ca", policy.CreatedAt.ToString("O"));
         cmd.Parameters.AddWithValue("@ua", policy.UpdatedAt.ToString("O"));
         await cmd.ExecuteNonQueryAsync(ct);
@@ -778,15 +804,16 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
         cmd.CommandText = """
-            INSERT INTO yarp_clusters (cluster_id, load_balancing_policy, health_check_config, source, created_by, created_at, updated_at, last_heartbeat)
-            VALUES (@id, @lb, @hc, @src, @cb, @ca, @ua, @lh)
+            INSERT INTO yarp_clusters (cluster_id, load_balancing_policy, health_check_config, circuit_breaker_config, source, created_by, created_at, updated_at, last_heartbeat)
+            VALUES (@id, @lb, @hc, @cbc, @src, @cb, @ca, @ua, @lh)
             ON CONFLICT(cluster_id) DO UPDATE SET
-                load_balancing_policy = @lb, health_check_config = @hc, source = @src,
-                updated_at = @ua, last_heartbeat = @lh
+                load_balancing_policy = @lb, health_check_config = @hc, circuit_breaker_config = @cbc,
+                source = @src, updated_at = @ua, last_heartbeat = @lh
             """;
         cmd.Parameters.AddWithValue("@id", c.ClusterId);
         cmd.Parameters.AddWithValue("@lb", c.LoadBalancingPolicy ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@hc", c.HealthCheckConfig ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@cbc", c.CircuitBreakerConfig ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@src", c.Source);
         cmd.Parameters.AddWithValue("@cb", c.CreatedBy ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@ca", c.CreatedAt.ToString("O"));
@@ -797,14 +824,15 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
 
     private static ClusterEntity MapCluster(SqliteDataReader r) => new()
     {
-        ClusterId = r.GetString(0),
-        LoadBalancingPolicy = r.IsDBNull(1) ? null : r.GetString(1),
-        HealthCheckConfig = r.IsDBNull(2) ? null : r.GetString(2),
-        Source = r.IsDBNull(3) ? "dynamic" : r.GetString(3),
-        CreatedBy = r.IsDBNull(4) ? null : r.GetString(4),
-        CreatedAt = r.IsDBNull(5) ? DateTime.MinValue : DateTime.Parse(r.GetString(5)),
-        UpdatedAt = r.IsDBNull(6) ? DateTime.MinValue : DateTime.Parse(r.GetString(6)),
-        LastHeartbeat = r.IsDBNull(7) ? null : DateTime.Parse(r.GetString(7))
+        ClusterId = r.GetString(r.GetOrdinal("cluster_id")),
+        LoadBalancingPolicy = r.IsDBNull(r.GetOrdinal("load_balancing_policy")) ? null : r.GetString(r.GetOrdinal("load_balancing_policy")),
+        HealthCheckConfig = r.IsDBNull(r.GetOrdinal("health_check_config")) ? null : r.GetString(r.GetOrdinal("health_check_config")),
+        CircuitBreakerConfig = r.IsDBNull(r.GetOrdinal("circuit_breaker_config")) ? null : r.GetString(r.GetOrdinal("circuit_breaker_config")),
+        Source = r.IsDBNull(r.GetOrdinal("source")) ? "dynamic" : r.GetString(r.GetOrdinal("source")),
+        CreatedBy = r.IsDBNull(r.GetOrdinal("created_by")) ? null : r.GetString(r.GetOrdinal("created_by")),
+        CreatedAt = r.IsDBNull(r.GetOrdinal("created_at")) ? DateTime.MinValue : DateTime.Parse(r.GetString(r.GetOrdinal("created_at"))),
+        UpdatedAt = r.IsDBNull(r.GetOrdinal("updated_at")) ? DateTime.MinValue : DateTime.Parse(r.GetString(r.GetOrdinal("updated_at"))),
+        LastHeartbeat = r.IsDBNull(r.GetOrdinal("last_heartbeat")) ? null : DateTime.Parse(r.GetString(r.GetOrdinal("last_heartbeat")))
     };
 
     private static DestinationEntity MapDestination(SqliteDataReader r) => new()
@@ -830,20 +858,18 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
 
     private static PolicyEntity MapPolicy(SqliteDataReader r) => new()
     {
-        PolicyId = r.GetString(0),
-        DisplayName = r.GetString(1),
-        Description = r.IsDBNull(2) ? null : r.GetString(2),
-        Priority = r.GetInt32(3),
-        Enabled = r.GetInt32(4) == 1,
-        CircuitBreakerConfig = r.IsDBNull(5) ? null : r.GetString(5),
-        RetryConfig = r.IsDBNull(6) ? null : r.GetString(6),
-        RateLimitConfig = r.IsDBNull(7) ? null : r.GetString(7),
-        WafConfig = r.IsDBNull(8) ? null : r.GetString(8),
-        CustomPlugins = r.IsDBNull(9) ? null : r.GetString(9),
-        Tags = r.IsDBNull(10) ? null : r.GetString(10),
-        CreatedBy = r.IsDBNull(11) ? null : r.GetString(11),
-        CreatedAt = r.IsDBNull(12) ? DateTime.MinValue : DateTime.Parse(r.GetString(12)),
-        UpdatedAt = r.IsDBNull(13) ? DateTime.MinValue : DateTime.Parse(r.GetString(13))
+        PolicyId = r.GetString(r.GetOrdinal("policy_id")),
+        PolicyType = r.IsDBNull(r.GetOrdinal("policy_type")) ? "route" : r.GetString(r.GetOrdinal("policy_type")),
+        DisplayName = r.GetString(r.GetOrdinal("display_name")),
+        Description = r.IsDBNull(r.GetOrdinal("description")) ? null : r.GetString(r.GetOrdinal("description")),
+        Enabled = r.GetInt32(r.GetOrdinal("enabled")) == 1,
+        RetryConfig = r.IsDBNull(r.GetOrdinal("retry_config")) ? null : r.GetString(r.GetOrdinal("retry_config")),
+        RateLimitConfig = r.IsDBNull(r.GetOrdinal("rate_limit_config")) ? null : r.GetString(r.GetOrdinal("rate_limit_config")),
+        CircuitBreakerConfig = r.IsDBNull(r.GetOrdinal("circuit_breaker_config")) ? null : r.GetString(r.GetOrdinal("circuit_breaker_config")),
+        WafEnabled = r.IsDBNull(r.GetOrdinal("waf_enabled")) ? null : r.GetString(r.GetOrdinal("waf_enabled")),
+        AppliedTargets = r.IsDBNull(r.GetOrdinal("applied_targets")) ? null : r.GetString(r.GetOrdinal("applied_targets")),
+        CreatedAt = r.IsDBNull(r.GetOrdinal("created_at")) ? DateTime.MinValue : DateTime.Parse(r.GetString(r.GetOrdinal("created_at"))),
+        UpdatedAt = r.IsDBNull(r.GetOrdinal("updated_at")) ? DateTime.MinValue : DateTime.Parse(r.GetString(r.GetOrdinal("updated_at")))
     };
 
     private static AuditLogEntity MapAuditLog(SqliteDataReader r) => new()

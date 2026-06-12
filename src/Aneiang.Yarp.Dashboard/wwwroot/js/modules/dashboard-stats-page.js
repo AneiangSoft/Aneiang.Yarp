@@ -18,9 +18,9 @@
         init: function() {
             if (this.initialized) return;
             this.setupEvents();
-            this.loadAll();
-            this.startAutoRefresh();
             this.initialized = true;
+            setTimeout(function() { StatsPageModule.loadAll(); }, 0);
+            this.startAutoRefresh();
         },
 
         // ===== Event Bindings =====

@@ -12,6 +12,7 @@
             if (this.initialized) return;
             this.setupEvents();
             this.initialized = true;
+            setTimeout(function() { HealthCheckModule.loadHealthStatus(); }, 0);
         },
 
         loadHealthStatus: async function() {

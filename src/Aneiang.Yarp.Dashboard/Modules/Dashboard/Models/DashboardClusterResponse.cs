@@ -62,6 +62,36 @@ public class DashboardClusterResponse
     /// <summary>Whether the cluster is editable.</summary>
     [JsonPropertyName("isEditable")]
     public bool IsEditable { get; set; }
+
+    /// <summary>Circuit breaker configuration.</summary>
+    [JsonPropertyName("circuitBreaker")]
+    public CircuitBreakerInfo? CircuitBreaker { get; set; }
+}
+
+/// <summary>
+/// Circuit breaker configuration.
+/// </summary>
+public class CircuitBreakerInfo
+{
+    /// <summary>Whether circuit breaker is enabled.</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
+    /// <summary>Failure threshold before opening circuit.</summary>
+    [JsonPropertyName("failureThreshold")]
+    public int FailureThreshold { get; set; }
+
+    /// <summary>Recovery timeout in seconds.</summary>
+    [JsonPropertyName("recoveryTimeoutSeconds")]
+    public int RecoveryTimeoutSeconds { get; set; }
+
+    /// <summary>Max attempts in half-open state.</summary>
+    [JsonPropertyName("halfOpenMaxAttempts")]
+    public int HalfOpenMaxAttempts { get; set; }
+
+    /// <summary>HTTP status codes counted as failures.</summary>
+    [JsonPropertyName("failureStatusCodes")]
+    public List<int>? FailureStatusCodes { get; set; }
 }
 
 /// <summary>

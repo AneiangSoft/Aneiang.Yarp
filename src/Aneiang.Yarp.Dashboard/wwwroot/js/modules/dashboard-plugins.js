@@ -78,7 +78,7 @@
                     '<div class="col-md-4">' +
                         '<div class="stat-mini-card">' +
                             '<div class="stat-mini-value">' + plugins.length + '</div>' +
-                            '<div class="stat-mini-label">Total</div>' +
+                            '<div class="stat-mini-label">' + (window.__dashboard?.I18N?.['plugin.totalShort'] || 'Total') + '</div>' +
                         '</div>' +
                     '</div>' +
                     '<div class="col-md-4">' +

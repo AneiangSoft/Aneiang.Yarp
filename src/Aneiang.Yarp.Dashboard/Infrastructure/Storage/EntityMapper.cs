@@ -66,6 +66,7 @@ public static class EntityMapper
             ClusterId = cluster.ClusterId,
             LoadBalancingPolicy = cluster.LoadBalancingPolicy,
             HealthCheckConfig = cluster.HealthCheck != null ? JsonSerializer.Serialize(cluster.HealthCheck, _jsonOptions) : null,
+            CircuitBreakerConfig = cluster.CircuitBreaker != null ? JsonSerializer.Serialize(cluster.CircuitBreaker, _jsonOptions) : null,
             Source = cluster.Source,
             CreatedBy = cluster.CreatedBy,
             CreatedAt = cluster.CreatedAt,
@@ -81,11 +82,12 @@ public static class EntityMapper
             ClusterId = entity.ClusterId,
             LoadBalancingPolicy = entity.LoadBalancingPolicy,
             HealthCheck = string.IsNullOrEmpty(entity.HealthCheckConfig) ? null : JsonSerializer.Deserialize<HealthCheckConfig>(entity.HealthCheckConfig, _jsonOptions),
+            CircuitBreaker = string.IsNullOrEmpty(entity.CircuitBreakerConfig) ? null : JsonSerializer.Deserialize<CircuitBreakerConfig>(entity.CircuitBreakerConfig, _jsonOptions),
             Source = entity.Source,
             CreatedBy = entity.CreatedBy,
             CreatedAt = entity.CreatedAt,
             LastHeartbeat = entity.LastHeartbeat,
-            Destinations = new Dictionary<string, string>() // Populated separately
+            Destinations = new Dictionary<string, string>()
         };
     }
 
@@ -114,50 +116,89 @@ public static class EntityMapper
 
     // ========== Policy Mapping ==========
 
-    public static PolicyEntity ToEntity(this GatewayPolicy policy)
+    public static PolicyEntity ToEntity(this RoutePolicy policy)
     {
         return new PolicyEntity
         {
             PolicyId = policy.PolicyId,
+            PolicyType = "route",
             DisplayName = policy.DisplayName,
             Description = policy.Description,
-            Priority = policy.Priority,
             Enabled = policy.Enabled,
-            CircuitBreakerConfig = policy.CircuitBreaker != null ? JsonSerializer.Serialize(policy.CircuitBreaker, _jsonOptions) : null,
             RetryConfig = policy.Retry != null ? JsonSerializer.Serialize(policy.Retry, _jsonOptions) : null,
             RateLimitConfig = policy.RateLimit != null ? JsonSerializer.Serialize(policy.RateLimit, _jsonOptions) : null,
-            WafConfig = policy.Waf != null ? JsonSerializer.Serialize(policy.Waf, _jsonOptions) : null,
-            CustomPlugins = policy.CustomPlugins != null ? JsonSerializer.Serialize(policy.CustomPlugins, _jsonOptions) : null,
-            Tags = policy.Tags is { Count: > 0 } ? JsonSerializer.Serialize(policy.Tags, _jsonOptions) : null,
-            CreatedBy = policy.CreatedBy,
+            WafEnabled = policy.WafEnabled?.ToString().ToLowerInvariant(),
+            AppliedTargets = policy.AppliedRoutes is { Count: > 0 } ? JsonSerializer.Serialize(policy.AppliedRoutes, _jsonOptions) : null,
             CreatedAt = policy.CreatedAt,
             UpdatedAt = DateTime.UtcNow
         };
     }
 
-    public static GatewayPolicy ToGatewayPolicy(this PolicyEntity entity)
+    public static PolicyEntity ToEntity(this ClusterPolicy policy)
     {
-        return new GatewayPolicy
+        return new PolicyEntity
+        {
+            PolicyId = policy.PolicyId,
+            PolicyType = "cluster",
+            DisplayName = policy.DisplayName,
+            Description = policy.Description,
+            Enabled = policy.Enabled,
+            CircuitBreakerConfig = policy.CircuitBreaker != null ? JsonSerializer.Serialize(policy.CircuitBreaker, _jsonOptions) : null,
+            AppliedTargets = policy.AppliedClusters is { Count: > 0 } ? JsonSerializer.Serialize(policy.AppliedClusters, _jsonOptions) : null,
+            CreatedAt = policy.CreatedAt,
+            UpdatedAt = DateTime.UtcNow
+        };
+    }
+
+    public static RoutePolicy ToRoutePolicy(this PolicyEntity entity)
+    {
+        return new RoutePolicy
         {
             PolicyId = entity.PolicyId,
             DisplayName = entity.DisplayName,
             Description = entity.Description,
-            Priority = entity.Priority,
             Enabled = entity.Enabled,
-            CircuitBreaker = string.IsNullOrEmpty(entity.CircuitBreakerConfig) ? null : JsonSerializer.Deserialize<PolicyCircuitBreaker>(entity.CircuitBreakerConfig, _jsonOptions),
             Retry = string.IsNullOrEmpty(entity.RetryConfig) ? null : JsonSerializer.Deserialize<PolicyRetry>(entity.RetryConfig, _jsonOptions),
             RateLimit = string.IsNullOrEmpty(entity.RateLimitConfig) ? null : JsonSerializer.Deserialize<PolicyRateLimit>(entity.RateLimitConfig, _jsonOptions),
-            Waf = string.IsNullOrEmpty(entity.WafConfig) ? null : JsonSerializer.Deserialize<PolicyWaf>(entity.WafConfig, _jsonOptions),
-            CustomPlugins = string.IsNullOrEmpty(entity.CustomPlugins) ? null : JsonSerializer.Deserialize<Dictionary<string, object>>(entity.CustomPlugins, _jsonOptions),
-            Tags = string.IsNullOrEmpty(entity.Tags) ? new() : JsonSerializer.Deserialize<List<string>>(entity.Tags, _jsonOptions) ?? new(),
-            CreatedBy = entity.CreatedBy,
+            WafEnabled = entity.WafEnabled switch
+            {
+                "true" => true,
+                "false" => false,
+                _ => null
+            },
+            AppliedRoutes = string.IsNullOrEmpty(entity.AppliedTargets)
+                ? new()
+                : JsonSerializer.Deserialize<List<string>>(entity.AppliedTargets, _jsonOptions) ?? new(),
             CreatedAt = entity.CreatedAt
         };
     }
 
-    public static List<GatewayPolicy> ToGatewayPolicies(this IEnumerable<PolicyEntity> entities)
+    public static ClusterPolicy ToClusterPolicy(this PolicyEntity entity)
     {
-        return entities.Select(e => e.ToGatewayPolicy()).ToList();
+        return new ClusterPolicy
+        {
+            PolicyId = entity.PolicyId,
+            DisplayName = entity.DisplayName,
+            Description = entity.Description,
+            Enabled = entity.Enabled,
+            CircuitBreaker = string.IsNullOrEmpty(entity.CircuitBreakerConfig)
+                ? null
+                : JsonSerializer.Deserialize<PolicyCircuitBreaker>(entity.CircuitBreakerConfig, _jsonOptions),
+            AppliedClusters = string.IsNullOrEmpty(entity.AppliedTargets)
+                ? new()
+                : JsonSerializer.Deserialize<List<string>>(entity.AppliedTargets, _jsonOptions) ?? new(),
+            CreatedAt = entity.CreatedAt
+        };
+    }
+
+    public static List<RoutePolicy> ToRoutePolicies(this IEnumerable<PolicyEntity> entities)
+    {
+        return entities.Where(e => e.PolicyType == "route").Select(e => e.ToRoutePolicy()).ToList();
+    }
+
+    public static List<ClusterPolicy> ToClusterPolicies(this IEnumerable<PolicyEntity> entities)
+    {
+        return entities.Where(e => e.PolicyType == "cluster").Select(e => e.ToClusterPolicy()).ToList();
     }
 
     // ========== Audit Log Mapping ==========

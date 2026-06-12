@@ -143,9 +143,8 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<WafEventStore>(sp =>
             new WafEventStore(sp.GetRequiredService<IOptions<DashboardOptions>>().Value.WafMaxEvents));
 
-        // ── Policy persistence (via IGatewayRepository) ──────────────────────────
-        services.AddSingleton<GatewayPolicyPersistenceService>();
-        services.AddSingleton<IGatewayPolicyPersistenceService>(sp => sp.GetRequiredService<GatewayPolicyPersistenceService>());
+        // ── Policy service (route + cluster policies via IGatewayRepository) ────
+        services.AddSingleton<IGatewayPolicyService, GatewayPolicyService>();
 
         // ── Config snapshot service ───────────────────────────────────────────────
         services.AddSingleton<IConfigSnapshotService, ConfigSnapshotService>();

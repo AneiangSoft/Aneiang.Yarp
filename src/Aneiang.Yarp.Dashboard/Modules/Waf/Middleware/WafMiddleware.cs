@@ -8,6 +8,7 @@ using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.Alert.Services;
+using Yarp.ReverseProxy.Model;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
 
@@ -92,13 +93,28 @@ public sealed class WafMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (!_wafOptions.Enabled || !_pluginManager.IsPluginEnabled("waf"))
+        bool globallyEnabled = _wafOptions.Enabled && _pluginManager.IsPluginEnabled("waf");
+
+        var path = context.Request.Path.Value ?? "";
+
+        var proxyFeature = context.Features.Get<IReverseProxyFeature>();
+        var routeMeta = proxyFeature?.Route?.Config?.Metadata;
+
+        bool wafActive;
+        if (routeMeta != null && routeMeta.TryGetValue("Waf:Enabled", out var routeWafEnabled))
+        {
+            wafActive = bool.TryParse(routeWafEnabled, out var parsed) ? parsed : globallyEnabled;
+        }
+        else
+        {
+            wafActive = globallyEnabled;
+        }
+
+        if (!wafActive)
         {
             await _next(context);
             return;
         }
-
-        var path = context.Request.Path.Value ?? "";
         var dashPrefix = "/" + (_wafOptions.DashboardRoutePrefix?.Trim('/') ?? "apigateway");
 
         if (path.StartsWith(dashPrefix, StringComparison.OrdinalIgnoreCase) ||

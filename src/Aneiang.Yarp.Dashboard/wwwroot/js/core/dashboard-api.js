@@ -139,8 +139,11 @@
         return this.request(url, { method: 'PUT', body, ...options });
     };
 
-    window.DashboardApi.delete = function(url, options = {}) {
-        return this.request(url, { method: 'DELETE', ...options });
+    window.DashboardApi.delete = function(url, bodyOrOptions, options = {}) {
+        if (bodyOrOptions && typeof bodyOrOptions === 'object' && !bodyOrOptions.method && !bodyOrOptions.headers) {
+            return this.request(url, { method: 'DELETE', body: bodyOrOptions, ...options });
+        }
+        return this.request(url, { method: 'DELETE', ...bodyOrOptions, ...options });
     };
 
     // ===== File Operations =====
@@ -262,12 +265,15 @@
         getSecurityEventSummary: () => DashboardApi.get('/api/security-events/summary'),
 
         // Policies
-        getPolicies: () => DashboardApi.get('/api/policies'),
-        getPolicy: (id) => DashboardApi.get('/api/policies/' + id),
-        createPolicy: (data) => DashboardApi.post('/api/policies', data),
-        updatePolicy: (id, data) => DashboardApi.put('/api/policies/' + id, data),
-        deletePolicy: (id) => DashboardApi.delete('/api/policies/' + id),
-        togglePolicy: (id) => DashboardApi.post('/api/policies/' + id + '/toggle'),
+        getPolicies: (type) => DashboardApi.get('/api/policies/' + type),
+        getPolicy: (type, id) => DashboardApi.get('/api/policies/' + type + '/' + id),
+        createPolicy: (type, data) => DashboardApi.post('/api/policies/' + type, data),
+        updatePolicy: (type, id, data) => DashboardApi.put('/api/policies/' + type + '/' + id, data),
+        deletePolicy: (type, id) => DashboardApi.delete('/api/policies/' + type + '/' + id),
+        applyPolicy: (type, id, targetId) => DashboardApi.post('/api/policies/' + type + '/' + id + '/apply', { targetId: targetId }),
+        unapplyPolicy: (type, id, targetId) => DashboardApi.delete('/api/policies/' + type + '/' + id + '/apply', { targetId: targetId }),
+        getRoutePoliciesForRoute: (routeId) => DashboardApi.get('/api/policies/routes/for-route/' + encodeURIComponent(routeId)),
+        getClusterPoliciesForCluster: (clusterId) => DashboardApi.get('/api/policies/clusters/for-cluster/' + encodeURIComponent(clusterId)),
 
         // Plugins
         getPlugins: () => DashboardApi.get('/api/plugins'),
@@ -303,18 +309,21 @@
     };
 
     // Aliases: expose top-level convenience methods (used by page-level JS)
+    window.DashboardApi.getRoutes = () => DashboardApi.endpoints.getRoutes();
+    window.DashboardApi.getClusters = () => DashboardApi.endpoints.getClusters();
     window.DashboardApi.getAlerts = (count) => DashboardApi.endpoints.getAlerts(count);
     window.DashboardApi.clearAlerts = () => DashboardApi.endpoints.clearAlerts();
     window.DashboardApi.getCircuitBreakerStatus = () => DashboardApi.endpoints.getCircuitBreakerStatus();
     window.DashboardApi.resetCircuitBreakers = () => DashboardApi.endpoints.resetCircuitBreakers();
     window.DashboardApi.getSecurityEvents = (count) => DashboardApi.endpoints.getSecurityEvents(count);
     window.DashboardApi.clearSecurityEvents = () => DashboardApi.endpoints.clearSecurityEvents();
-    window.DashboardApi.getPolicies = () => DashboardApi.endpoints.getPolicies();
-    window.DashboardApi.getPolicy = (id) => DashboardApi.endpoints.getPolicy(id);
-    window.DashboardApi.createPolicy = (data) => DashboardApi.endpoints.createPolicy(data);
-    window.DashboardApi.updatePolicy = (id, data) => DashboardApi.endpoints.updatePolicy(id, data);
-    window.DashboardApi.deletePolicy = (id) => DashboardApi.endpoints.deletePolicy(id);
-    window.DashboardApi.togglePolicy = (id) => DashboardApi.endpoints.togglePolicy(id);
+    window.DashboardApi.getPolicies = (type) => DashboardApi.endpoints.getPolicies(type);
+    window.DashboardApi.getPolicy = (type, id) => DashboardApi.endpoints.getPolicy(type, id);
+    window.DashboardApi.createPolicy = (type, data) => DashboardApi.endpoints.createPolicy(type, data);
+    window.DashboardApi.updatePolicy = (type, id, data) => DashboardApi.endpoints.updatePolicy(type, id, data);
+    window.DashboardApi.deletePolicy = (type, id) => DashboardApi.endpoints.deletePolicy(type, id);
+    window.DashboardApi.applyPolicy = (type, id, targetId) => DashboardApi.endpoints.applyPolicy(type, id, targetId);
+    window.DashboardApi.unapplyPolicy = (type, id, targetId) => DashboardApi.endpoints.unapplyPolicy(type, id, targetId);
     window.DashboardApi.getPlugins = () => DashboardApi.endpoints.getPlugins();
     window.DashboardApi.getPlugin = (id) => DashboardApi.endpoints.getPlugin(id);
     window.DashboardApi.togglePlugin = (id, enabled) => DashboardApi.endpoints.togglePlugin(id, enabled);

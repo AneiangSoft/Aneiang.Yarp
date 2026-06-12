@@ -953,6 +953,17 @@
             detailHtml.push('</div>');
             detailHtml.push('</div>');
 
+            // Applied Policy section
+            if (route.metadata && (route.metadata['Policy:Id'] || route.metadata['Policy:Name'])) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield-check"></i>${__('index.route.appliedPolicy')}</div>`);
+                detailHtml.push('<div class="detail-structured-config">');
+                var policyName = route.metadata['Policy:Name'] || route.metadata['Policy:Id'];
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-bookmark-check"></i> ${__('policy.routePolicy')}</span><span class="detail-kv-value"><span class="badge bg-primary"><i class="bi bi-shield-check"></i> ${window.DashboardUtils.escapeHtml(policyName)}</span></span></div>`);
+                detailHtml.push('</div>');
+                detailHtml.push('</div>');
+            }
+
             // Match Rules
             detailHtml.push('<div class="detail-section">');
             detailHtml.push(`<div class="detail-section-title"><i class="bi bi-filter"></i>${__('index.route.match')}</div>`);
@@ -1060,9 +1071,9 @@
                 detailHtml.push('</div>');
             }
 
-            // Metadata - structured key-value display (excluding retry configs which are shown above)
+            // Metadata - structured key-value display (excluding retry/rate-limit/WAF/policy configs which are shown above)
             const nonRetryMetadata = route.metadata ? Object.fromEntries(
-                Object.entries(route.metadata).filter(([key]) => !key.startsWith('Retry:'))
+                Object.entries(route.metadata).filter(([key]) => !key.startsWith('Retry:') && !key.startsWith('RateLimit:') && !key.startsWith('Waf:') && !key.startsWith('Policy:'))
             ) : {};
             if (Object.keys(nonRetryMetadata).length > 0) {
                 detailHtml.push('<div class="detail-section">');
@@ -1240,32 +1251,14 @@
             if (route.timeoutPolicy) yarpRoute.TimeoutPolicy = route.timeoutPolicy;
             if (route.rateLimiterPolicy) yarpRoute.RateLimiterPolicy = route.rateLimiterPolicy;
             if (route.metadata && Object.keys(route.metadata).length > 0) {
-                // Ensure retry config is included with proper defaults if not set
-                yarpRoute.Metadata = {};
-                const retryDefaults = {
-                    "Retry:Enabled": "false",
-                    "Retry:MaxRetries": "2",
-                    "Retry:RetryOnStatusCodes": "502,503,504",
-                    "Retry:RetryNonIdempotent": "false"
-                };
-                // Copy existing metadata
-                Object.keys(route.metadata).forEach(function(key) {
-                    yarpRoute.Metadata[key] = route.metadata[key];
-                });
-                // Add missing retry defaults
-                Object.keys(retryDefaults).forEach(function(key) {
-                    if (!yarpRoute.Metadata.hasOwnProperty(key)) {
-                        yarpRoute.Metadata[key] = retryDefaults[key];
-                    }
-                });
-            } else {
-                // Add default retry config if no metadata exists
-                yarpRoute.Metadata = {
-                    "Retry:Enabled": "false",
-                    "Retry:MaxRetries": "2",
-                    "Retry:RetryOnStatusCodes": "502,503,504",
-                    "Retry:RetryNonIdempotent": "false"
-                };
+                const cleanMeta = Object.fromEntries(
+                    Object.entries(route.metadata).filter(([key]) =>
+                        !key.startsWith('Retry:') && !key.startsWith('RateLimit:') && !key.startsWith('CircuitBreaker:') && !key.startsWith('Waf:')
+                    )
+                );
+                if (Object.keys(cleanMeta).length > 0) {
+                    yarpRoute.Metadata = cleanMeta;
+                }
             }
 
             const json = JSON.stringify(yarpRoute, null, 2);
@@ -1441,8 +1434,7 @@
                         Order: parseInt(formData.order) || 50,
                         Match: {
                             Path: formData.matchPath || '/api/{**catchAll}'
-                        },
-                        Metadata: {}
+                        }
                     };
 
                     if (!routeConfig.ClusterId || !routeConfig.ClusterId.trim()) {
@@ -1478,18 +1470,12 @@
                 return;
             }
 
-            // Default route template for new route (includes retry config example)
+            // Default route template for new route
             const defaultRoute = {
                 "ClusterId": clusterIds[0] || "",
                 "Order": 50,
                 "Match": {
                     "Path": "/api/service/{**catchAll}"
-                },
-                "Metadata": {
-                    "Retry:Enabled": "false",
-                    "Retry:MaxRetries": "2",
-                    "Retry:RetryOnStatusCodes": "502,503,504",
-                    "Retry:RetryNonIdempotent": "false"
                 }
             };
 

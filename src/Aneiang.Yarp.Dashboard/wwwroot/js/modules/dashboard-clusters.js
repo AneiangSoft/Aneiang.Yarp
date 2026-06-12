@@ -623,6 +623,13 @@
             detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">ClusterId</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(cluster.clusterId)}</code></span></div>`);
             detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Source</span><span class="detail-kv-value">${sourceBadge}</span></div>`);
             detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">${__('index.cluster.loadBalancing')}</span><span class="detail-kv-value"><span class="badge bg-light text-dark">${window.DashboardUtils.escapeHtml(cluster.loadBalancingPolicy || 'RoundRobin')}</span></span></div>`);
+            if (cluster.circuitBreaker && cluster.circuitBreaker.enabled) {
+                var cbInfo = cluster.circuitBreaker;
+                var cbSummary = (cbInfo.failureThreshold || 5) + '/' + (cbInfo.recoveryTimeoutSeconds || 30) + 's';
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-lightning-charge"></i> ${__('index.cluster.appliedPolicy')}</span><span class="detail-kv-value"><span class="badge bg-warning text-dark"><i class="bi bi-lightning-charge"></i> ${__('policy.circuitBreaker')} ${cbSummary}</span></span></div>`);
+            } else {
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-lightning-charge"></i> ${__('index.cluster.appliedPolicy')}</span><span class="detail-kv-value"><span class="text-muted">${__('index.cluster.noPolicy')}</span></span></div>`);
+            }
             detailHtml.push('</div>');
             detailHtml.push('</div>');
 
