@@ -222,9 +222,6 @@
         // Statistics
         getStats: () => DashboardApi.get('/api/stats'),
 
-        // Rate Limit Status
-        getRateLimitStatus: () => DashboardApi.get('/api/rate-limit'),
-
         // Config History
         getHistory: () => DashboardApi.get('/api/config/history'),
         rollback: (versionId) => DashboardApi.post(`/api/config/rollback/${versionId}`),
@@ -286,6 +283,14 @@
         saveWebhookSettings: (data) => DashboardApi.put('/api/config/webhook', data),
         testWebhook: (data) => DashboardApi.post('/api/config/webhook/test', data),
 
+        // WAF Settings
+        getWafSettings: () => DashboardApi.get('/api/config/waf'),
+        saveWafSettings: (data) => DashboardApi.put('/api/config/waf', data),
+
+        // Alert Settings (/api/config/alert-settings)
+        getAlertSettings: () => DashboardApi.get('/api/config/alert-settings'),
+        saveAlertSettings: (data) => DashboardApi.put('/api/config/alert-settings', data),
+
         // Health Check
         getHealthCheckStatus: () => DashboardApi.get('/api/health-check/status'),
         getClusterHealthConfigs: () => DashboardApi.get('/api/health-check/clusters'),
@@ -305,7 +310,22 @@
         configDiff: (versionId) => DashboardApi.get('/api/config/diff/' + versionId),
 
         // Cluster Toggle (Stage 2)
-        toggleCluster: (clusterId) => DashboardApi.post('/api/config/clusters/' + clusterId + '/toggle')
+        toggleCluster: (clusterId) => DashboardApi.post('/api/config/clusters/' + clusterId + '/toggle'),
+
+        // Notifications (New Unified System)
+        getNotificationSettings: () => DashboardApi.get('/api/notifications/settings'),
+        saveNotificationSettings: (data) => DashboardApi.put('/api/notifications/settings', data),
+        getNotificationHistory: (params) => DashboardApi.get('/api/notifications/history', params),
+        clearNotificationHistory: () => DashboardApi.delete('/api/notifications/history'),
+        getNotificationSummary: () => DashboardApi.get('/api/notifications/summary'),
+        testNotificationChannel: (channelId) => DashboardApi.post('/api/notifications/channels/' + channelId + '/test', {}),
+        createNotificationChannel: (data) => DashboardApi.post('/api/notifications/channels', data),
+        updateNotificationChannel: (id, data) => DashboardApi.put('/api/notifications/channels/' + id, data),
+        deleteNotificationChannel: (id) => DashboardApi.delete('/api/notifications/channels/' + id),
+        createNotificationRule: (data) => DashboardApi.post('/api/notifications/rules', data),
+        updateNotificationRule: (id, data) => DashboardApi.put('/api/notifications/rules/' + id, data),
+        deleteNotificationRule: (id) => DashboardApi.delete('/api/notifications/rules/' + id),
+        sendTestNotification: (data) => DashboardApi.post('/api/notifications/test', data || {})
     };
 
     // Aliases: expose top-level convenience methods (used by page-level JS)
@@ -331,5 +351,9 @@
     window.DashboardApi.getWebhookSettings = () => DashboardApi.endpoints.getWebhookSettings();
     window.DashboardApi.saveWebhookSettings = (data) => DashboardApi.endpoints.saveWebhookSettings(data);
     window.DashboardApi.testWebhook = (data) => DashboardApi.endpoints.testWebhook(data);
+
+    // Notifications (New Unified System)
+    window.DashboardApi.getNotificationSettings = () => DashboardApi.endpoints.getNotificationSettings();
+    window.DashboardApi.saveNotificationSettings = (data) => DashboardApi.endpoints.saveNotificationSettings(data);
 
 })();

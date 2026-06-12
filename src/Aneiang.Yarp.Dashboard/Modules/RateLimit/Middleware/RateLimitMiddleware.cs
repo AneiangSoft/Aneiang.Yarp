@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.Alert.Services;
+using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
 using System.Threading.RateLimiting;
 using Yarp.ReverseProxy.Model;
 
@@ -23,6 +24,7 @@ public sealed class RateLimitMiddleware
     private readonly IGatewayPluginManager _pluginManager;
     private readonly IGatewayAlertService _alertService;
     private readonly string _dashPrefix;
+    private readonly INotificationService? _notificationService;
 
     private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
 
@@ -37,7 +39,8 @@ public sealed class RateLimitMiddleware
         IOptions<RateLimitOptions> options,
         IOptions<DashboardOptions> dashOptions,
         IGatewayPluginManager pluginManager,
-        IGatewayAlertService alertService)
+        IGatewayAlertService alertService,
+        INotificationService? notificationService = null)
     {
         _next = next;
         _logger = logger;
@@ -45,10 +48,17 @@ public sealed class RateLimitMiddleware
         _pluginManager = pluginManager;
         _alertService = alertService;
         _dashPrefix = "/" + dashOptions.Value.RoutePrefix.Trim('/');
+        _notificationService = notificationService;
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
+        if (!_pluginManager.IsPluginEnabled("rate-limit"))
+        {
+            await _next(context);
+            return;
+        }
+
         var path = context.Request.Path.Value ?? "";
 
         if (path.StartsWith(_dashPrefix, StringComparison.OrdinalIgnoreCase) ||
@@ -87,6 +97,7 @@ public sealed class RateLimitMiddleware
                 limiterKey, config.Algorithm, config.PermitLimit, config.Window);
 
             _alertService.AlertRateLimitExceeded(clientIp, routeId);
+            _notificationService?.NotifyRateLimitExceeded(clientIp, routeId);
 
             context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
             context.Response.ContentType = "application/json";
@@ -120,9 +131,14 @@ public sealed class RateLimitMiddleware
             routeId = rid;
 
         if (!routeMeta.TryGetValue("RateLimit:Enabled", out var enabledStr) ||
-            !bool.TryParse(enabledStr, out var routeEnabled) || !routeEnabled)
+            !bool.TryParse(enabledStr, out var routeEnabled))
         {
             return FromGlobalOptions();
+        }
+
+        if (!routeEnabled)
+        {
+            return new RouteRateLimitConfig { Enabled = false };
         }
 
         var algorithm = routeMeta.TryGetValue("RateLimit:Algorithm", out var algStr)
@@ -183,6 +199,8 @@ public sealed class RateLimitMiddleware
     {
         var window = ParseTimeSpan(config.Window);
 
+        // QueueLimit is forced to 0: rate-limited requests must be rejected immediately
+        // (HTTP 429) rather than queued, which would cause the client to hang indefinitely.
         return config.Algorithm switch
         {
             RateLimitAlgorithm.SlidingWindow => new SlidingWindowRateLimiter(new SlidingWindowRateLimiterOptions
@@ -191,7 +209,7 @@ public sealed class RateLimitMiddleware
                 Window = window,
                 SegmentsPerWindow = Math.Max(2, Math.Min(20, config.PermitLimit / 2)),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = config.QueueLimit
+                QueueLimit = 0
             }),
 
             RateLimitAlgorithm.TokenBucket => new TokenBucketRateLimiter(new TokenBucketRateLimiterOptions
@@ -200,7 +218,7 @@ public sealed class RateLimitMiddleware
                 TokensPerPeriod = Math.Max(1, config.PermitLimit / Math.Max(1, (int)window.TotalSeconds)),
                 ReplenishmentPeriod = TimeSpan.FromSeconds(1),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = config.QueueLimit,
+                QueueLimit = 0,
                 AutoReplenishment = true
             }),
 
@@ -208,7 +226,7 @@ public sealed class RateLimitMiddleware
             {
                 PermitLimit = Math.Max(1, config.PermitLimit),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = config.QueueLimit
+                QueueLimit = 0
             }),
 
             _ => new FixedWindowRateLimiter(new FixedWindowRateLimiterOptions
@@ -216,7 +234,7 @@ public sealed class RateLimitMiddleware
                 PermitLimit = Math.Max(1, config.PermitLimit),
                 Window = window,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = config.QueueLimit
+                QueueLimit = 0
             })
         };
     }

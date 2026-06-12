@@ -51,8 +51,11 @@ public class WebhookSettingsPersistenceService : IWebhookSettingsPersistenceServ
             return new WebhookSettingsData
             {
                 DingTalkEndpoints = ParseEndpoints(entity.Endpoints),
-                GenericEndpoints = new List<WebhookEndpoint>(),
-                EnabledEvents = ParseEvents(entity.Events)
+                GenericEndpoints = ParseEndpoints(entity.GenericEndpoints),
+                EnabledEvents = ParseEvents(entity.Events),
+                TimeoutSeconds = entity.TimeoutSeconds > 0 ? entity.TimeoutSeconds : 10,
+                RetryCount = entity.RetryCount >= 0 ? entity.RetryCount : 1,
+                AlertConfig = entity.AlertConfig
             };
         }
         catch (Exception ex)
@@ -114,11 +117,16 @@ public class WebhookSettingsPersistenceService : IWebhookSettingsPersistenceServ
             {
                 Enabled = data.DingTalkEndpoints?.Any(e => !string.IsNullOrEmpty(e.Url)) == true ||
                          data.GenericEndpoints?.Any(e => !string.IsNullOrEmpty(e.Url)) == true,
-                Endpoints = JsonSerializer.Serialize(data.DingTalkEndpoints, _jsonOptions),
-                Events = data.EnabledEvents != null ? JsonSerializer.Serialize(data.EnabledEvents, _jsonOptions) : null,
+                Endpoints = data.DingTalkEndpoints?.Count > 0
+                    ? JsonSerializer.Serialize(data.DingTalkEndpoints, _jsonOptions) : null,
+                GenericEndpoints = data.GenericEndpoints?.Count > 0
+                    ? JsonSerializer.Serialize(data.GenericEndpoints, _jsonOptions) : null,
+                Events = data.EnabledEvents != null && data.EnabledEvents.Count > 0
+                    ? JsonSerializer.Serialize(data.EnabledEvents, _jsonOptions) : null,
                 TimeoutSeconds = data.TimeoutSeconds > 0 ? data.TimeoutSeconds : 10,
                 RetryCount = data.RetryCount >= 0 ? data.RetryCount : 1,
                 Secret = data.DingTalkEndpoints?.FirstOrDefault()?.Secret,
+                AlertConfig = data.AlertConfig,
                 UpdatedAt = DateTime.UtcNow
             };
 

@@ -38,13 +38,13 @@ public class RoutePolicy
     {
         var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        if (Retry?.Enabled == true)
+        if (Retry != null)
         {
             foreach (var kvp in Retry.ToMetadata())
                 metadata[kvp.Key] = kvp.Value;
         }
 
-        if (RateLimit?.Enabled == true)
+        if (RateLimit != null)
         {
             foreach (var kvp in RateLimit.ToMetadata())
                 metadata[kvp.Key] = kvp.Value;
@@ -192,8 +192,8 @@ public class PolicyRateLimit
     /// <summary>Window duration. Default: "1m".</summary>
     public string Window { get; set; } = "1m";
 
-    /// <summary>Queue limit. Default: 10.</summary>
-    public int QueueLimit { get; set; } = 10;
+    /// <summary>Queue limit. Default: 0 (reject immediately when limit exceeded).</summary>
+    public int QueueLimit { get; set; } = 0;
 
     /// <summary>Partition key: IpAddress, UserId, Route, Global.</summary>
     public string PartitionKey { get; set; } = "IpAddress";

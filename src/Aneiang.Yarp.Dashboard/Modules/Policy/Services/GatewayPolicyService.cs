@@ -97,6 +97,12 @@ public class GatewayPolicyService : IGatewayPolicyService
         await _repository.SavePolicyAsync(policy.ToEntity());
         _logger.LogInformation("Updated route policy '{PolicyId}'", policyId);
 
+        // Re-apply policy metadata to all bound routes
+        foreach (var routeId in policy.AppliedRoutes)
+        {
+            await ApplyRoutePolicyAsync(policyId, routeId);
+        }
+
         return policy;
     }
 
@@ -129,8 +135,12 @@ public class GatewayPolicyService : IGatewayPolicyService
 
         if (!policy.Enabled)
         {
-            _logger.LogWarning("ApplyRoutePolicy: policy '{PolicyId}' is disabled", policyId);
-            return false;
+            // When policy is disabled, remove its metadata from the route instead of skip
+            await RemoveRoutePolicyMetadata(routeId);
+            _logger.LogInformation(
+                "Route policy '{PolicyId}' is disabled, removed metadata from route '{RouteId}'",
+                policyId, routeId);
+            return true;
         }
 
         var metadata = policy.ToMetadata();
@@ -218,6 +228,12 @@ public class GatewayPolicyService : IGatewayPolicyService
         await _repository.SavePolicyAsync(policy.ToEntity());
         _logger.LogInformation("Updated cluster policy '{PolicyId}'", policyId);
 
+        // Re-apply policy to all bound clusters
+        foreach (var clusterId in policy.AppliedClusters)
+        {
+            await ApplyClusterPolicyAsync(policyId, clusterId);
+        }
+
         return policy;
     }
 
@@ -250,8 +266,12 @@ public class GatewayPolicyService : IGatewayPolicyService
 
         if (!policy.Enabled)
         {
-            _logger.LogWarning("ApplyClusterPolicy: policy '{PolicyId}' is disabled", policyId);
-            return false;
+            // When policy is disabled, clear circuit breaker config from cluster
+            await _yarpConfig.UpdateClusterCircuitBreakerAsync(clusterId, null);
+            _logger.LogInformation(
+                "Cluster policy '{PolicyId}' is disabled, cleared circuit breaker from cluster '{ClusterId}'",
+                policyId, clusterId);
+            return true;
         }
 
         var circuitBreakerConfig = policy.ToCircuitBreakerConfig();

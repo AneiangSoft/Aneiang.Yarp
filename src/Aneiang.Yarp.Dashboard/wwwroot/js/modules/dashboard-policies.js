@@ -250,6 +250,22 @@
                 var wafFalse = wafVal === false ? 'checked' : '';
                 var wafDefault = wafVal == null ? 'checked' : '';
 
+                // Parse window string to seconds number for display
+                var windowSeconds = 60;
+                if (rl.window) {
+                    var m = rl.window.match(/^(\d+(?:\.\d+)?)\s*(s|m|h|ms)?$/i);
+                    if (m) {
+                        var num = parseFloat(m[1]);
+                        var unit = (m[2] || 's').toLowerCase();
+                        if (unit === 'ms') windowSeconds = Math.round(num / 1000);
+                        else if (unit === 's') windowSeconds = Math.round(num);
+                        else if (unit === 'm') windowSeconds = Math.round(num * 60);
+                        else if (unit === 'h') windowSeconds = Math.round(num * 3600);
+                    } else {
+                        windowSeconds = parseInt(rl.window) || 60;
+                    }
+                }
+
                 body.innerHTML =
                     '<form id="policyForm">' +
                         '<input type="hidden" id="policy-type-input" value="route" />' +
@@ -257,11 +273,11 @@
                         '<div class="row g-3 mb-3">' +
                             '<div class="col-md-6">' +
                                 '<label class="form-label">' + __('policy.name') + '</label>' +
-                                '<input type="text" class="form-control" id="policy-id-input" placeholder="e.g.: high-reliability" value="' + window.DashboardUtils.escapeHtml(policy.policyId || '') + '" ' + (isEdit ? 'disabled' : '') + ' />' +
+                                '<input type="text" class="form-control" id="policy-id-input" placeholder="' + __('policy.namePlaceholder') + '" value="' + window.DashboardUtils.escapeHtml(policy.policyId || '') + '" ' + (isEdit ? 'disabled' : '') + ' />' +
                             '</div>' +
                             '<div class="col-md-6">' +
                                 '<label class="form-label">' + __('policy.displayName') + '</label>' +
-                                '<input type="text" class="form-control" id="policy-displayName" value="' + window.DashboardUtils.escapeHtml(policy.displayName || '') + '" />' +
+                                '<input type="text" class="form-control" id="policy-displayName" placeholder="' + __('policy.displayNamePlaceholder') + '" value="' + window.DashboardUtils.escapeHtml(policy.displayName || '') + '" />' +
                             '</div>' +
                         '</div>' +
                         '<div class="mb-3">' +
@@ -275,8 +291,8 @@
                                 '<div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="retry-enabled" ' + (retry.enabled ? 'checked' : '') + '></div>' +
                             '</div>' +
                             '<div class="row g-3">' +
-                                '<div class="col-md-6"><label class="form-label">' + __('policy.maxRetries') + '</label><input type="number" class="form-control" id="retry-max" value="' + (retry.maxRetries || 3) + '" /></div>' +
-                                '<div class="col-md-6"><label class="form-label">' + __('policy.backoffBase') + '</label><input type="number" class="form-control" id="retry-backoff" value="' + (retry.backoffBaseMs || 100) + '" /></div>' +
+                                '<div class="col-md-6"><label class="form-label">' + __('policy.maxRetries') + '</label><input type="number" class="form-control" id="retry-max" value="' + (retry.maxRetries || 3) + '" min="1" /></div>' +
+                                '<div class="col-md-6"><label class="form-label">' + __('policy.backoffBase') + '</label><input type="number" class="form-control" id="retry-backoff" value="' + (retry.backoffBaseMs || 100) + '" min="0" /></div>' +
                             '</div>' +
                         '</div>' +
 
@@ -286,13 +302,13 @@
                                 '<div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="rl-enabled" ' + (rl.enabled ? 'checked' : '') + '></div>' +
                             '</div>' +
                             '<div class="row g-3">' +
-                                '<div class="col-md-4"><label class="form-label">' + __('policy.limit') + '</label><input type="number" class="form-control" id="rl-limit" value="' + (rl.permitLimit || 100) + '" /></div>' +
-                                '<div class="col-md-4"><label class="form-label">' + __('policy.window') + '</label><input type="text" class="form-control" id="rl-window" value="' + (rl.window || '1m') + '" /></div>' +
+                                '<div class="col-md-4"><label class="form-label">' + __('policy.limit') + '</label><input type="number" class="form-control" id="rl-limit" value="' + (rl.permitLimit || 100) + '" min="1" /></div>' +
+                                '<div class="col-md-4"><label class="form-label">' + __('policy.window') + '</label><input type="number" class="form-control" id="rl-window" value="' + windowSeconds + '" min="1" /></div>' +
                                 '<div class="col-md-4"><label class="form-label">' + __('policy.algorithm') + '</label>' +
                                     '<select class="form-select" id="rl-algorithm">' +
-                                        '<option value="FixedWindow"' + (rl.algorithm === 'FixedWindow' ? ' selected' : '') + '>FixedWindow</option>' +
-                                        '<option value="SlidingWindow"' + (rl.algorithm === 'SlidingWindow' ? ' selected' : '') + '>SlidingWindow</option>' +
-                                        '<option value="TokenBucket"' + (rl.algorithm === 'TokenBucket' ? ' selected' : '') + '>TokenBucket</option>' +
+                                        '<option value="FixedWindow"' + (rl.algorithm === 'FixedWindow' ? ' selected' : '') + '>' + __('policy.algo.FixedWindow') + '</option>' +
+                                        '<option value="SlidingWindow"' + (rl.algorithm === 'SlidingWindow' ? ' selected' : '') + '>' + __('policy.algo.SlidingWindow') + '</option>' +
+                                        '<option value="TokenBucket"' + (rl.algorithm === 'TokenBucket' ? ' selected' : '') + '>' + __('policy.algo.TokenBucket') + '</option>' +
                                     '</select>' +
                                 '</div>' +
                             '</div>' +
@@ -305,6 +321,19 @@
                             '<div class="form-check"><input class="form-check-input" type="radio" name="waf-mode" id="waf-on" value="true" ' + wafTrue + ' /><label class="form-check-label" for="waf-on">' + __('policy.wafForceOn') + '</label></div>' +
                             '<div class="form-check"><input class="form-check-input" type="radio" name="waf-mode" id="waf-off" value="false" ' + wafFalse + ' /><label class="form-check-label" for="waf-off">' + __('policy.wafForceOff') + '</label></div>' +
                             '<div class="form-check"><input class="form-check-input" type="radio" name="waf-mode" id="waf-default" value="null" ' + wafDefault + ' /><label class="form-check-label" for="waf-default">' + __('policy.wafFollowGlobal') + '</label></div>' +
+                            '<div class="mt-3 pt-2 border-top">' +
+                                '<div class="text-muted small fw-bold mb-1"><i class="bi bi-info-circle me-1"></i>' + __('policy.wafRulesTitle') + '</div>' +
+                                '<ul class="text-muted small ps-3 mb-1">' +
+                                    '<li>' + __('policy.wafRuleIp') + '</li>' +
+                                    '<li>' + __('policy.wafRuleSize') + '</li>' +
+                                    '<li>' + __('policy.wafRuleHeaders') + '</li>' +
+                                    '<li>' + __('policy.wafRuleUri') + '</li>' +
+                                    '<li>' + __('policy.wafRuleTraversal') + '</li>' +
+                                    '<li>' + __('policy.wafRuleSqli') + '</li>' +
+                                    '<li>' + __('policy.wafRuleXss') + '</li>' +
+                                '</ul>' +
+                                '<div class="text-muted small"><i class="bi bi-arrow-right me-1"></i>' + __('policy.wafRuleHint') + ' <a href="#" onclick="window.DashboardApp && DashboardApp.navigateTo(\'waf\'); return false;" style="color:#3b82f6;">' + __('policy.wafRuleSettingsLink') + '</a></div>' +
+                            '</div>' +
                         '</div>' +
                     '</form>';
             } else {
@@ -316,11 +345,11 @@
                         '<div class="row g-3 mb-3">' +
                             '<div class="col-md-6">' +
                                 '<label class="form-label">' + __('policy.name') + '</label>' +
-                                '<input type="text" class="form-control" id="policy-id-input" placeholder="e.g.: fast-trip" value="' + window.DashboardUtils.escapeHtml(policy.policyId || '') + '" ' + (isEdit ? 'disabled' : '') + ' />' +
+                                '<input type="text" class="form-control" id="policy-id-input" placeholder="' + __('policy.namePlaceholder') + '" value="' + window.DashboardUtils.escapeHtml(policy.policyId || '') + '" ' + (isEdit ? 'disabled' : '') + ' />' +
                             '</div>' +
                             '<div class="col-md-6">' +
                                 '<label class="form-label">' + __('policy.displayName') + '</label>' +
-                                '<input type="text" class="form-control" id="policy-displayName" value="' + window.DashboardUtils.escapeHtml(policy.displayName || '') + '" />' +
+                                '<input type="text" class="form-control" id="policy-displayName" placeholder="' + __('policy.displayNamePlaceholder') + '" value="' + window.DashboardUtils.escapeHtml(policy.displayName || '') + '" />' +
                             '</div>' +
                         '</div>' +
                         '<div class="mb-3">' +
@@ -371,7 +400,7 @@
                     rateLimit: {
                         enabled: document.getElementById('rl-enabled').checked,
                         permitLimit: parseInt(document.getElementById('rl-limit').value) || 100,
-                        window: document.getElementById('rl-window').value || '1m',
+                        window: (parseInt(document.getElementById('rl-window').value) || 60) + 's',
                         algorithm: document.getElementById('rl-algorithm').value || 'FixedWindow'
                     },
                     wafEnabled: wafVal === 'true' ? true : (wafVal === 'false' ? false : null)
@@ -404,7 +433,7 @@
             } catch (error) {
                 console.error('[Policy] Save failed:', error);
                 if (window.DashboardModals) {
-                    window.DashboardModals.showError(this.editingId ? __('policy.saveFailed') : __('policy.createdFailed'));
+                    window.DashboardModals.showError(error.message || (this.editingId ? __('policy.saveFailed') : __('policy.createdFailed')));
                 }
             }
         },

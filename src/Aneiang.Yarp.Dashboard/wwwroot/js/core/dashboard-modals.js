@@ -486,7 +486,8 @@
                         </div>
                         <div class="modal-body" style="padding:0;">
                             ${idInputHtml}
-                            <div id="${modalId}-editor" style="height:${editableId ? '460' : '500'}px;border:none;"></div>
+                            ${config.hint ? `<div style="margin:10px 24px 0 24px;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;font-size:12px;color:#0369a1;display:flex;align-items:flex-start;gap:8px;"><i class="bi bi-info-circle" style="font-size:14px;margin-top:1px;flex-shrink:0;"></i><span>${config.hint}</span></div>` : ''}
+                            <div id="${modalId}-editor" style="height:${editableId ? (config.hint ? '430' : '460') : (config.hint ? '470' : '500')}px;border:none;"></div>
                         </div>
                         <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
                             <div style="flex:1;display:flex;align-items:center;gap:8px;">

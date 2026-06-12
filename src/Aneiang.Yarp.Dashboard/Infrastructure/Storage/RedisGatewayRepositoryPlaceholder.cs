@@ -87,6 +87,45 @@ public sealed class RedisGatewayRepositoryPlaceholder : IGatewayRepository
     public Task SaveWebhookSettingsAsync(WebhookSettingsEntity settings, CancellationToken ct = default) =>
         throw NotImplementedException();
 
+    public Task<WafSettingsEntity?> GetWafSettingsAsync(CancellationToken ct = default) =>
+        throw NotImplementedException();
+    public Task SaveWafSettingsAsync(WafSettingsEntity settings, CancellationToken ct = default) =>
+        throw NotImplementedException();
+
+    // ─── INotificationRepository ──────────────────────────────────────────────
+
+    public Task<NotificationSettingsEntity?> LoadSettingsAsync(CancellationToken ct = default) =>
+        throw NotImplementedException();
+    public Task SaveSettingsAsync(NotificationSettingsEntity settings, CancellationToken ct = default) =>
+        throw NotImplementedException();
+    public Task<List<NotificationChannel>> GetChannelsAsync(CancellationToken ct = default) =>
+        throw NotImplementedException();
+    public Task<NotificationChannel?> GetChannelAsync(string channelId, CancellationToken ct = default) =>
+        throw NotImplementedException();
+    public Task SaveChannelAsync(NotificationChannel channel, CancellationToken ct = default) =>
+        throw NotImplementedException();
+    public Task DeleteChannelAsync(string channelId, CancellationToken ct = default) =>
+        throw NotImplementedException();
+    public Task<List<NotificationRule>> GetRulesAsync(CancellationToken ct = default) =>
+        throw NotImplementedException();
+    public Task<NotificationRule?> GetRuleAsync(string ruleId, CancellationToken ct = default) =>
+        throw NotImplementedException();
+    public Task SaveRuleAsync(NotificationRule rule, CancellationToken ct = default) =>
+        throw NotImplementedException();
+    public Task DeleteRuleAsync(string ruleId, CancellationToken ct = default) =>
+        throw NotImplementedException();
+    public Task<NotificationGlobalSettings> GetGlobalSettingsAsync(CancellationToken ct = default) =>
+        throw NotImplementedException();
+    public Task SaveGlobalSettingsAsync(NotificationGlobalSettings settings, CancellationToken ct = default) =>
+        throw NotImplementedException();
+    public Task RecordNotificationAsync(NotificationHistory record, CancellationToken ct = default) =>
+        throw NotImplementedException();
+    public Task<(List<NotificationHistory> Records, int Total)> GetHistoryAsync(
+        int page = 1, int pageSize = 100, string? eventType = null, string? severity = null, CancellationToken ct = default) =>
+        throw NotImplementedException();
+    public Task ClearHistoryAsync(CancellationToken ct = default) =>
+        throw NotImplementedException();
+
     public Task SaveProxyLogAsync(ProxyLogEntity log, CancellationToken ct = default) =>
         throw NotImplementedException();
     public Task<IReadOnlyList<ProxyLogEntity>> GetRecentProxyLogsAsync(int limit = 200, CancellationToken ct = default) =>
