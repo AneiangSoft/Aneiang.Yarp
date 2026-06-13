@@ -75,7 +75,12 @@ public static class AneiangYarpServiceCollectionExtensions
         services.AddControllersWithViews()
             .AddApplicationPart(typeof(GatewayConfigController).Assembly);
 
-        services.AddGrpc();
+        services.AddGrpc(options =>
+        {
+            // Register gRPC auth interceptor (Phase 2: 端点鉴权)
+            options.Interceptors.Add<GrpcAuthInterceptor>();
+        });
+        services.AddSingleton<GrpcAuthInterceptor>();
 
         // Remove registration API endpoints when disabled (security: no route = 404, not 401/403)
         if (!enableRegistration)

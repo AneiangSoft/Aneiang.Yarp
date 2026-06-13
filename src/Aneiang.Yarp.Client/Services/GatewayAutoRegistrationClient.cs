@@ -5,6 +5,7 @@ using System.Text.Json;
 using GatewayGrpc = Aneiang.Yarp.GatewayRegistry.GatewayRegistry;
 using Aneiang.Yarp.GatewayRegistry;
 using Aneiang.Yarp.Models;
+using Grpc.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -182,19 +183,28 @@ public class GatewayAutoRegistrationClient
         {
             if (useGrpcRegistration)
             {
-                var grpcResponse = await _grpcClient.UnregisterServiceAsync(new UnregisterServiceRequest
+                try
                 {
-                    ServiceId = routeName
-                }, cancellationToken: ct).ConfigureAwait(false);
+                    var callOptions = BuildGrpcCallOptions(ct);
+                    var grpcResponse = await _grpcClient.UnregisterServiceAsync(new UnregisterServiceRequest
+                    {
+                        ServiceId = routeName
+                    }, callOptions).ConfigureAwait(false);
 
-                if (grpcResponse.Success)
-                {
-                    _logger.LogInformation("gRPC unregistration OK: {Message}", grpcResponse.Message);
-                    return true;
+                    if (grpcResponse.Success)
+                    {
+                        _logger.LogInformation("gRPC unregistration OK: {Message}", grpcResponse.Message);
+                        return true;
+                    }
+
+                    _logger.LogWarning("gRPC unregistration failed: {Message}", grpcResponse.Message);
+                    return false;
                 }
-
-                _logger.LogWarning("gRPC unregistration failed: {Message}", grpcResponse.Message);
-                return false;
+                catch (RpcException ex)
+                {
+                    _logger.LogWarning(ex, "gRPC unregistration RPC error: {Status}", ex.Status);
+                    return false;
+                }
             }
 
             using var http = _httpClientFactory.CreateClient();
@@ -250,30 +260,39 @@ public class GatewayAutoRegistrationClient
         string destinationAddress,
         CancellationToken ct)
     {
-        var response = await _grpcClient.RegisterServiceAsync(new RegisterServiceRequest
+        try
         {
-            ServiceId = routeName,
-            ServiceName = clusterName,
-            Paths = { matchPath },
-            Destinations =
+            var callOptions = BuildGrpcCallOptions(ct);
+            var response = await _grpcClient.RegisterServiceAsync(new RegisterServiceRequest
             {
-                new Destination
+                ServiceId = routeName,
+                ServiceName = clusterName,
+                Paths = { matchPath },
+                Destinations =
                 {
-                    DestinationId = "d1",
-                    Address = destinationAddress,
-                    Enabled = true
+                    new Destination
+                    {
+                        DestinationId = "d1",
+                        Address = destinationAddress,
+                        Enabled = true
+                    }
                 }
+            }, callOptions).ConfigureAwait(false);
+
+            if (response.Success)
+            {
+                _logger.LogInformation("gRPC registration OK: {Message}", response.Message);
+                return true;
             }
-        }, cancellationToken: ct).ConfigureAwait(false);
 
-        if (response.Success)
-        {
-            _logger.LogInformation("gRPC registration OK: {Message}", response.Message);
-            return true;
+            _logger.LogWarning("gRPC registration failed: {Message}", response.Message);
+            return false;
         }
-
-        _logger.LogWarning("gRPC registration failed: {Message}", response.Message);
-        return false;
+        catch (RpcException ex)
+        {
+            _logger.LogWarning(ex, "gRPC registration RPC error: {Status}", ex.Status);
+            return false;
+        }
     }
 
     private void ApplyAuthHeaders(HttpClient http)
@@ -296,6 +315,32 @@ public class GatewayAutoRegistrationClient
 
         if (!string.IsNullOrWhiteSpace(_options.ApiKey))
             http.DefaultRequestHeaders.TryAddWithoutValidation("X-Api-Key", _options.ApiKey);
+    }
+
+    /// <summary>
+    /// Build gRPC call options with auth metadata from <see cref="GatewayRegistrationOptions"/>.
+    /// Supports Bearer token, Basic auth, and API Key.
+    /// </summary>
+    private CallOptions BuildGrpcCallOptions(CancellationToken ct = default)
+    {
+        var metadata = new Metadata();
+
+        if (!string.IsNullOrWhiteSpace(_options.AuthToken))
+        {
+            metadata.Add("Authorization", $"Bearer {_options.AuthToken}");
+        }
+        else if (!string.IsNullOrWhiteSpace(_options.BasicAuthUsername) && !string.IsNullOrWhiteSpace(_options.BasicAuthPassword))
+        {
+            var creds = Convert.ToBase64String(
+                Encoding.UTF8.GetBytes($"{_options.BasicAuthUsername}:{_options.BasicAuthPassword}"));
+            metadata.Add("Authorization", $"Basic {creds}");
+        }
+        else if (!string.IsNullOrWhiteSpace(_options.ApiKey))
+        {
+            metadata.Add("x-api-key", _options.ApiKey);
+        }
+
+        return new CallOptions(headers: metadata, cancellationToken: ct);
     }
 
     /// <summary>Resolve localhost/127.0.0.1/0.0.0.0 in destination to LAN IPv4 with listening check.</summary>
@@ -397,12 +442,20 @@ public class GatewayAutoRegistrationClient
         {
             if (useGrpcRegistration)
             {
-                var grpcResponse = await _grpcClient.HeartbeatAsync(new HeartbeatRequest
+                try
                 {
-                    ServiceId = routeName
-                }, cancellationToken: ct).ConfigureAwait(false);
+                    var callOptions = BuildGrpcCallOptions(ct);
+                    var grpcResponse = await _grpcClient.HeartbeatAsync(new HeartbeatRequest
+                    {
+                        ServiceId = routeName
+                    }, callOptions).ConfigureAwait(false);
 
-                return grpcResponse.Success;
+                    return grpcResponse.Success;
+                }
+                catch (RpcException)
+                {
+                    return false;
+                }
             }
 
             using var http = _httpClientFactory.CreateClient();

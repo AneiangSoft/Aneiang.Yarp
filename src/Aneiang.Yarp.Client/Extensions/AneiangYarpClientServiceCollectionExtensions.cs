@@ -65,7 +65,32 @@ public static class AneiangYarpClientServiceCollectionExtensions
         {
             var options = sp.GetRequiredService<IOptions<GatewayRegistrationOptions>>().Value;
             var gatewayUrl = options.GatewayUrl ?? "http://localhost:5000";
-            return GrpcChannel.ForAddress(gatewayUrl);
+
+            // gRPC over HTTP requires HTTP/2, but .NET 9 Kestrel does not support
+            // HTTP/1.1 + HTTP/2 on the same cleartext port. Use port+1 (dedicated HTTP/2 port).
+            // See UseYarpKestrelAutoConfig / KestrelExtensions.TryParseAndConfigure.
+            if (Uri.TryCreate(gatewayUrl, UriKind.Absolute, out var gwUri) &&
+                gwUri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase))
+            {
+                gatewayUrl = $"{gwUri.Scheme}://{gwUri.Host}:{gwUri.Port + 1}{gwUri.PathAndQuery}";
+            }
+
+            // NOTE: Insecure cert validation is used here for dev/demo scenarios
+            // with self-signed or ASP.NET dev certs. In production, use proper certificate setup instead.
+            var handler = new SocketsHttpHandler
+            {
+                EnableMultipleHttp2Connections = true,
+                SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+                {
+                    RemoteCertificateValidationCallback =
+                        (sender, cert, chain, errors) => true
+                }
+            };
+
+            return GrpcChannel.ForAddress(gatewayUrl, new GrpcChannelOptions
+            {
+                HttpHandler = handler
+            });
         });
         services.AddSingleton(sp =>
         {

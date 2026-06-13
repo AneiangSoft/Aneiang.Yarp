@@ -110,6 +110,14 @@ public sealed class YarpRequestCaptureMiddleware
             return;
         }
 
+        // Skip gRPC requests — response body capture replaces IHttpResponseBodyFeature
+        // which breaks HTTP/2 trailer support required by gRPC (grpc-status, etc.).
+        if (IsGrpcRequest(context.Request))
+        {
+            await _next(context);
+            return;
+        }
+
         // Skip frontend static resource requests
         var extension = Path.GetExtension(context.Request.Path.Value);
         if (extension != null && SkippedExtensions.Contains(extension))
@@ -420,6 +428,18 @@ public sealed class YarpRequestCaptureMiddleware
 
     // Max body size to read (64KB) - prevents memory issues with large uploads/downloads
     private const int MaxBodySizeBytes = 64 * 1024;
+
+    /// <summary>
+    /// Detects gRPC requests by content type.
+    /// gRPC requests use <c>application/grpc</c> (optionally with <c>+proto</c> or <c>+json</c>
+    /// encoding suffix) and require HTTP/2 trailer support which is broken by response body capture.
+    /// Also matches gRPC-Web (<c>application/grpc-web</c>).
+    /// </summary>
+    private static bool IsGrpcRequest(HttpRequest request)
+    {
+        return request.ContentType != null &&
+               request.ContentType.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static async Task<string> ReadBodyAsync(HttpRequest request)
     {
