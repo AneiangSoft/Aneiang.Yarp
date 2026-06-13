@@ -16,24 +16,5 @@
 	</ItemGroup>
 
 
-	<!-- 复制 Dashboard 的 wwwroot 文件到输出目录 -->
-	<Target Name="CopyDashboardStaticFiles" AfterTargets="Build">
-		<ItemGroup>
-			<DashboardWwwroot Include="..\..\src\Aneiang.Yarp.Dashboard\wwwroot\**\*" />
-		</ItemGroup>
-		<Copy SourceFiles="%(DashboardWwwroot.FullPath)"
-		      DestinationFiles="$(TargetDir)_content\Aneiang.Yarp.Dashboard\%(DashboardWwwroot.RecursiveDir)%(DashboardWwwroot.Filename)%(DashboardWwwroot.Extension)"
-		      SkipUnchangedFiles="true" />
-	</Target>
-
-	<!-- 发布时也复制 -->
-	<Target Name="PublishDashboardStaticFiles" AfterTargets="Publish">
-		<ItemGroup>
-			<DashboardWwwroot Include="..\..\src\Aneiang.Yarp.Dashboard\wwwroot\**\*" />
-		</ItemGroup>
-		<Copy SourceFiles="%(DashboardWwwroot.FullPath)"
-		      DestinationFiles="$(PublishDir)_content\Aneiang.Yarp.Dashboard\%(DashboardWwwroot.RecursiveDir)%(DashboardWwwroot.Filename)%(DashboardWwwroot.Extension)"
-		      SkipUnchangedFiles="true" />
-	</Target>
 
 </Project>

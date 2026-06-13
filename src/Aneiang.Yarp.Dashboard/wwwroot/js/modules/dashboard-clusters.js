@@ -866,8 +866,8 @@
             }
 
             const json = JSON.stringify(yarpCluster, null, 2);
-            navigator.clipboard.writeText(json).then(function() {
-                window.DashboardModals.showSuccess(__('index.copied'));
+            window.DashboardUtils.copyToClipboard(json).then(function(success) {
+                if (success) window.DashboardModals.showSuccess(__('index.copied'));
             });
         },
 
@@ -880,7 +880,8 @@
                     click: (e) => {
                         e.stopPropagation();
                         if (!text) return;
-                        navigator.clipboard.writeText(text).then(() => {
+                        window.DashboardUtils.copyToClipboard(text).then((success) => {
+                            if (!success) return;
                             btn.classList.add('copied');
                             const icon = btn.querySelector('i');
                             if (icon) {

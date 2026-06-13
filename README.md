@@ -19,7 +19,9 @@ Dashboard · Dynamic Routing · WAF · Notifications · IP Isolation · Auto-Reg
 
 **Aneiang.Yarp** is an enhanced, production-ready API gateway built on [Microsoft YARP](https://microsoft.github.io/reverse-proxy/) 2.3.0. It adds everything YARP leaves for you to build: a visual management dashboard, WAF firewall, notification alerts, health monitoring, circuit breaker views, client auto-registration, IP-based load balancing — all through three NuGet packages.
 
-> **Live Demo**: http://113.45.65.71:8930/apigateway &nbsp;·&nbsp; `admin` / `demo123`
+> **Docs**：https://yarp.aneiang.com/aneiang
+
+> **Live Demo**: http://47.97.229.51:5200/aneiang &nbsp;·&nbsp; `admin` / `demo123`
 
 ---
 
@@ -52,24 +54,9 @@ builder.Services.AddAneiangYarpDashboard();
 app.UseAneiangYarpDashboard();
 ```
 
-<table>
-  <tr>
-    <td align="center"><b>Clusters</b></td>
-    <td align="center"><b>Routes</b></td>
-  </tr>
-  <tr>
-    <td><img src="docs/cluster-list.png" alt="Cluster list" width="480"/></td>
-    <td><img src="docs/route-list.png" alt="Route list" width="480"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>JSON Editor</b></td>
-    <td align="center"><b>Request Logs</b></td>
-  </tr>
-  <tr>
-    <td><img src="docs/cluster-create.png" alt="JSON editor" width="480"/></td>
-    <td><img src="docs/log-list.png" alt="Request logs" width="480"/></td>
-  </tr>
-</table>
+<p align="center">
+  <img src="docs/overview.png" alt="Dashboard Overview" width="800"/>
+</p>
 
 ### All 15 Dashboard Pages
 
