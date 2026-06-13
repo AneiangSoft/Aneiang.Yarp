@@ -109,6 +109,9 @@ public class NotificationEvent
     /// <summary>Client IP if applicable.</summary>
     public string? ClientIp { get; set; }
 
+    /// <summary>Operator who triggered this event (e.g., "dashboard-user").</summary>
+    public string? Operator { get; set; }
+
     /// <summary>Additional metadata specific to event type.</summary>
     public Dictionary<string, string?> Metadata { get; set; } = new();
 }

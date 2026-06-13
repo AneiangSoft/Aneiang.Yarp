@@ -690,7 +690,7 @@
 
             // Order
             var tdOrder = window.DashboardDOM.create('td', {
-                style: { width: '56px', verticalAlign: 'middle', textAlign: 'center' }
+                style: { width: '80px', verticalAlign: 'middle', textAlign: 'center' }
             });
             if (route.order !== null && route.order !== undefined) {
                 var orderSpan = document.createElement('span');
@@ -1924,17 +1924,18 @@
             try {
                 window.DashboardModals.showInfo(__('index.route.renaming'));
 
-                // Create new route with new ID FIRST (cluster already exists via old route)
-                await window.DashboardApi.endpoints.saveRoute(newId, routeConfig);
+                // Call dedicated rename API (triggers a single "RenameRoute" event)
+                const renamePayload = {
+                    newRouteId: newId,
+                    matchPath: routeConfig.matchPath || routeConfig.Match?.Path,
+                    clusterId: routeConfig.clusterId || routeConfig.ClusterId,
+                    order: routeConfig.order || routeConfig.Order,
+                    transforms: routeConfig.transforms || routeConfig.Transforms
+                };
 
-                // Delete old route AFTER (new route already references the cluster, so don't delete it)
-                if (oldId !== newId) {
-                    try {
-                        await window.DashboardApi.delete(`/api/config/routes/${encodeURIComponent(oldId)}?removeOrphanedCluster=false`);
-                    } catch (e) {
-                        console.warn('[Routes] Failed to delete old route after rename:', e);
-                    }
-                }
+                await window.DashboardApi.put(
+                    `/api/config/routes/${encodeURIComponent(oldId)}/rename`,
+                    renamePayload);
 
                 window.DashboardModals.showSuccess(__('index.route.renamed'));
                 await self.loadRoutes(true);

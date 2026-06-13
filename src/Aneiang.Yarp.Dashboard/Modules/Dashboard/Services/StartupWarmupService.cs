@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
+using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +33,7 @@ public sealed class StartupWarmupService : IHostedService
         tasks.Add(WarmupRepositoryAsync(ct));
         tasks.Add(WarmupQueryCacheAsync(ct));
         tasks.Add(WarmupProxyLogStoreAsync(ct));
+        tasks.Add(WarmupNotificationRulesAsync(ct));
 
         try { await Task.WhenAll(tasks); }
         catch (Exception ex) { _logger.LogWarning(ex, "Some warmup tasks failed — application will continue"); }
@@ -98,6 +100,77 @@ public sealed class StartupWarmupService : IHostedService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "ProxyLogStore warmup failed");
+        }
+    }
+
+
+    private async Task WarmupNotificationRulesAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var repo = scope.ServiceProvider.GetService<IGatewayRepository>();
+            if (repo == null) return;
+
+            // ── 1. Ensure notification global settings are explicitly enabled ──
+            try
+            {
+                var gs = await repo.GetGlobalSettingsAsync(ct);
+                if (gs == null) gs = new NotificationGlobalSettings();
+                gs.Enabled = true;
+                await repo.SaveGlobalSettingsAsync(gs, ct);
+                _logger.LogDebug("Notification global settings initialized: Enabled=true, Locale={Locale}", gs.Locale);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to initialize notification global settings");
+            }
+
+            var channels = await repo.GetChannelsAsync(ct);
+            var rules = await repo.GetRulesAsync(ct);
+
+            // ── 2. Seed a default rule for all common events if no rules exist ──
+            // The rule always records to history; channelIds are populated only if channels exist.
+            if (rules.Count == 0)
+            {
+                var defaultRule = new NotificationRule
+                {
+                    Id = "default-all-events",
+                    Name = channels.Count > 0 ? "默认通知规则" : "默认通知规则（需配置渠道）",
+                    Enabled = true,
+                    EventTypes = new List<string>
+                    {
+                        "AddRoute", "UpdateRoute", "RemoveRoute",
+                        "AddCluster", "UpdateCluster", "RemoveCluster",
+                        "RollbackConfig",
+                        "CircuitBreakerOpen",
+                        "RetryExhausted",
+                        "WafBlock",
+                        "ProxyError",
+                        "RateLimitExceeded"
+                    },
+                    MinSeverity = NotificationSeverity.Info,
+                    ChannelIds = channels.Select(c => c.Id).ToList(),
+                    CooldownSeconds = 60,
+                    RecordToHistory = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                try { await repo.SaveRuleAsync(defaultRule, ct); }
+                catch { /* rule may already exist */ }
+
+                if (channels.Count > 0)
+                    _logger.LogInformation("Default notification rule seeded ({ChannelCount} channels)", defaultRule.ChannelIds.Count);
+                else
+                    _logger.LogWarning("Default notification rule seeded but no channels configured — history will be recorded; push requires at least one channel");
+            }
+
+            _logger.LogInformation("NotificationRules warmup done ({RuleCount} rules, {ChannelCount} channels)", rules.Count, channels.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "NotificationRules warmup failed");
         }
     }
 }

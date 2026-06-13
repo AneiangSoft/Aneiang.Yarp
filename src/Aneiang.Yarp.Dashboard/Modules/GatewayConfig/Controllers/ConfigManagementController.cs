@@ -1,16 +1,12 @@
 using System.Text.Json;
-using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Models;
-using Aneiang.Yarp.Dashboard.Modules.Webhook.Models;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
-using Aneiang.Yarp.Dashboard.Modules.Webhook.Services;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Controllers;
 
@@ -24,10 +20,6 @@ public class ConfigManagementController : ControllerBase
     private readonly IConfigPersistenceService _persistenceService;
     private readonly IDynamicYarpConfigService _dynamicConfig;
     private readonly ILogger<ConfigManagementController> _logger;
-    private readonly DashboardOptions _dashboardOptions;
-    private readonly IWebhookSettingsPersistenceService _webhookPersistence;
-    private readonly WebhookNotificationService _webhookService;
-    private readonly IHttpClientFactory _httpClientFactory;
     private readonly IMemoryCache _memoryCache;
     private readonly IWafSettingsPersistenceService? _wafPersistence;
 
@@ -35,20 +27,12 @@ public class ConfigManagementController : ControllerBase
         IConfigPersistenceService persistenceService,
         IDynamicYarpConfigService dynamicConfig,
         ILogger<ConfigManagementController> logger,
-        IOptions<DashboardOptions> dashboardOptions,
-        IWebhookSettingsPersistenceService webhookPersistence,
-        WebhookNotificationService webhookService,
-        IHttpClientFactory httpClientFactory,
         IMemoryCache memoryCache,
         IWafSettingsPersistenceService? wafPersistence = null)
     {
         _persistenceService = persistenceService;
         _dynamicConfig = dynamicConfig;
         _logger = logger;
-        _dashboardOptions = dashboardOptions.Value;
-        _webhookPersistence = webhookPersistence;
-        _webhookService = webhookService;
-        _httpClientFactory = httpClientFactory;
         _memoryCache = memoryCache;
         _wafPersistence = wafPersistence;
     }
@@ -336,6 +320,74 @@ public class ConfigManagementController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to rename cluster: {ClusterId}", clusterId);
+            return StatusCode(500, new { code = 500, message = $"Rename failed: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Rename a route atomically (replace route ID, keep cluster reference and all settings).
+    /// </summary>
+    [HttpPut("routes/{routeId}/rename")]
+    public async Task<IActionResult> RenameRoute(string routeId, [FromBody] JsonElement config)
+    {
+        try
+        {
+            _logger.LogInformation("Rename route requested: {OldRouteId}", routeId);
+
+            // Get new route ID
+            string? newRouteId = null;
+            if (config.TryGetProperty("newRouteId", out var newIdProp))
+                newRouteId = newIdProp.GetString();
+            else if (config.TryGetProperty("routeId", out var ridProp))
+                newRouteId = ridProp.GetString();
+
+            if (string.IsNullOrWhiteSpace(newRouteId))
+                return BadRequest(new { code = 400, message = "newRouteId is required" });
+
+            if (string.Equals(routeId, newRouteId, StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { code = 400, message = "New route ID is the same as the old one" });
+
+            // Parse optional fields from config (same format as SaveRoute)
+            string? matchPath = null;
+            string? clusterId = null;
+            int? order = null;
+            List<Dictionary<string, string>>? transforms = null;
+
+            if (config.TryGetProperty("matchPath", out var mp) || config.TryGetProperty("MatchPath", out mp))
+                matchPath = mp.GetString();
+
+            if (config.TryGetProperty("clusterId", out var ci) || config.TryGetProperty("ClusterId", out ci))
+                clusterId = ci.GetString();
+
+            if (config.TryGetProperty("order", out var o) || config.TryGetProperty("Order", out o))
+                order = o.GetInt32();
+
+            if (config.TryGetProperty("transforms", out var t) || config.TryGetProperty("Transforms", out t))
+                transforms = t.Deserialize<List<Dictionary<string, string>>>();
+
+            var request = new RegisterRouteRequest
+            {
+                RouteName = newRouteId,
+                ClusterName = clusterId ?? string.Empty,
+                MatchPath = matchPath ?? string.Empty,
+                Order = order,
+                Transforms = transforms
+            };
+
+            await _persistenceService.SaveSnapshotAsync(
+                $"Before route '{routeId}' renamed to '{newRouteId}' via dashboard", GetClientIp());
+
+            var result = await _dynamicConfig.TryRenameRoute(routeId, newRouteId, request,
+                source: "dashboard", createdBy: "dashboard-user");
+
+            if (result.Success) InvalidateQueryCaches();
+            return result.Success
+                ? Ok(new { code = 200, message = result.Message, routeId = newRouteId })
+                : BadRequest(new { code = 400, message = result.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to rename route: {RouteId}", routeId);
             return StatusCode(500, new { code = 500, message = $"Rename failed: {ex.Message}" });
         }
     }
@@ -647,431 +699,7 @@ public class ConfigManagementController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Get current webhook notification settings (DingTalk + Generic only).
-    /// </summary>
-    [HttpGet("webhook")]
-    public IActionResult GetWebhookSettings()
-    {
-        try
-        {
-            // Load from persistence file
-            var data = _webhookPersistence.Load() ?? new WebhookSettingsData();
-
-            // Sync to DashboardOptions for notification service
-            SyncToDashboardOptions(data);
-
-            return Ok(new
-            {
-                code = 200,
-                data = new
-                {
-                    dingtalk = data.DingTalkEndpoints.Select(e => new { url = e.Url, secret = e.Secret }),
-                    generic = data.GenericEndpoints.Select(e => new { url = e.Url, secret = e.Secret }),
-                    enabledEvents = data.EnabledEvents ?? []
-                }
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get webhook settings");
-            return StatusCode(500, new { code = 500, message = $"Failed: {ex.Message}" });
-        }
-    }
-
-    /// <summary>
-    /// Update webhook notification settings.
-    /// </summary>
-    [HttpPut("webhook")]
-    public IActionResult UpdateWebhookSettings([FromBody] WebhookSettingsRequest request)
-    {
-        try
-        {
-            if (request == null)
-                return BadRequest(new { code = 400, message = "Request body is required" });
-
-            // Load existing or create new
-            var data = _webhookPersistence.Load() ?? new WebhookSettingsData();
-
-            // Validate and update DingTalk endpoints
-            if (request.Platforms != null && request.Platforms.TryGetValue("dingtalk", out var dingtalkEntry))
-            {
-                if (dingtalkEntry.Endpoints != null)
-                {
-                    var validEndpoints = new List<WebhookEndpoint>();
-                    foreach (var ep in dingtalkEntry.Endpoints)
-                    {
-                        if (string.IsNullOrWhiteSpace(ep.Url))
-                            continue;
-                        if (!Uri.TryCreate(ep.Url, UriKind.Absolute, out var uri)
-                            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-                        {
-                            return BadRequest(new { code = 400, message = $"Invalid DingTalk URL: {ep.Url}" });
-                        }
-                        validEndpoints.Add(new WebhookEndpoint { Url = ep.Url, Secret = ep.Secret });
-                    }
-                    data.DingTalkEndpoints = validEndpoints;
-                }
-            }
-
-            // Validate and update Generic endpoints
-            if (request.Platforms != null && request.Platforms.TryGetValue("generic", out var genericEntry))
-            {
-                if (genericEntry.Endpoints != null)
-                {
-                    var validEndpoints = new List<WebhookEndpoint>();
-                    foreach (var ep in genericEntry.Endpoints)
-                    {
-                        if (string.IsNullOrWhiteSpace(ep.Url))
-                            continue;
-                        if (!Uri.TryCreate(ep.Url, UriKind.Absolute, out var uri)
-                            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-                        {
-                            return BadRequest(new { code = 400, message = $"Invalid generic URL: {ep.Url}" });
-                        }
-                        validEndpoints.Add(new WebhookEndpoint { Url = ep.Url, Secret = ep.Secret });
-                    }
-                    data.GenericEndpoints = validEndpoints;
-                }
-            }
-
-            // Update enabled event types
-            if (request.EnabledEvents != null)
-            {
-                var allValidEvents = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    "AddRoute", "UpdateRoute", "RemoveRoute",
-                    "AddCluster", "UpdateCluster", "RemoveCluster", "RenameCluster",
-                    "RollbackConfig"
-                };
-                var validEvents = request.EnabledEvents
-                    .Where(e => allValidEvents.Contains(e))
-                    .ToList();
-                data.EnabledEvents = validEvents.Count == allValidEvents.Count ? null : validEvents;
-            }
-
-            // Update timeout and retry settings – preserve stored values when not explicitly provided
-            data.TimeoutSeconds = request.TimeoutSeconds > 0 ? request.TimeoutSeconds : data.TimeoutSeconds;
-            data.RetryCount = request.RetryCount > 0 ? request.RetryCount : data.RetryCount;
-
-            // Persist to repository (preserves AlertConfig from existing data)
-            _webhookPersistence.Save(data);
-
-            // Sync to DashboardOptions for notification service
-            SyncToDashboardOptions(data);
-            // Also ensure timeout/retry are on DashboardOptions
-            _dashboardOptions.WebhookTimeoutSeconds = data.TimeoutSeconds;
-            _dashboardOptions.WebhookRetryCount = data.RetryCount;
-
-            _logger.LogInformation("Webhook settings updated: DingTalk={DingTalkCount}, Generic={GenericCount}",
-                data.DingTalkEndpoints.Count, data.GenericEndpoints.Count);
-
-            return Ok(new { code = 200, message = "Webhook settings saved successfully" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update webhook settings");
-            return StatusCode(500, new { code = 500, message = $"Failed: {ex.Message}" });
-        }
-    }
-
-    /// <summary>
-    /// Test webhook notification by sending a test message.
-    /// </summary>
-    [HttpPost("webhook/test")]
-    public async Task<IActionResult> TestWebhook([FromBody] WebhookTestRequest request)
-    {
-        try
-        {
-            if (request == null || string.IsNullOrEmpty(request.Platform))
-                return BadRequest(new { code = 400, message = "Platform is required" });
-
-            var data = _webhookPersistence.Load() ?? new WebhookSettingsData();
-            var endpoints = request.Platform == "dingtalk" ? data.DingTalkEndpoints : data.GenericEndpoints;
-
-            if (endpoints.Count == 0)
-                return BadRequest(new { code = 400, message = $"No endpoints configured for {request.Platform}" });
-
-            // Send test notification
-            var results = new List<object>();
-            foreach (var endpoint in endpoints)
-            {
-                try
-                {
-                    // Each endpoint gets a unique test message with current timestamp
-                    var testPayload = new WebhookPayload
-                    {
-                        EventType = "test",
-                        Target = "webhook-test",
-                        Operator = "dashboard-user",
-                        Timestamp = DateTime.Now,
-                        Details = new { message = $"Test notification #{results.Count + 1} from YARP Dashboard at {DateTime.Now:HH:mm:ss}" }
-                    };
-
-                    var success = await SendTestWebhookAsync(endpoint.Url, testPayload, endpoint.Secret, request.Platform);
-                    results.Add(new { url = endpoint.Url, success, message = success ? "OK" : "Failed" });
-                }
-                catch (Exception ex)
-                {
-                    results.Add(new { url = endpoint.Url, success = false, message = ex.Message });
-                }
-            }
-
-            var successCount = results.Count(r => (bool)((dynamic)r).success);
-            return Ok(new
-            {
-                code = 200,
-                data = new
-                {
-                    platform = request.Platform,
-                    total = endpoints.Count,
-                    success = successCount,
-                    failed = endpoints.Count - successCount,
-                    results
-                }
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to test webhook");
-            return StatusCode(500, new { code = 500, message = $"Failed: {ex.Message}" });
-        }
-    }
-
-    /// <summary>Represents the persisted alert/notification config subset.</summary>
-    internal class AlertConfigData
-    {
-        public bool AlertEnabled { get; set; }
-        public bool AlertCircuitBreakerOpen { get; set; } = true;
-        public bool AlertRetryExhausted { get; set; } = true;
-        public bool AlertWafBlocks { get; set; }
-        public bool AlertProxyErrors { get; set; } = true;
-        public bool AlertRateLimitExceeded { get; set; }
-        public int AlertMaxRecords { get; set; } = 500;
-        public int WafMaxEvents { get; set; } = 1000;
-        public int WebhookTimeoutSeconds { get; set; } = 10;
-        public int WebhookRetryCount { get; set; } = 1;
-    }
-
-    private AlertConfigData LoadAlertConfig()
-    {
-        try
-        {
-            var data = _webhookPersistence.Load();
-            if (data?.AlertConfig != null)
-            {
-                var alertConfig = JsonSerializer.Deserialize<AlertConfigData>(data.AlertConfig);
-                if (alertConfig != null)
-                {
-                    // Sync timeout/retry from webhook data to DashboardOptions
-                    _dashboardOptions.WebhookTimeoutSeconds = data.TimeoutSeconds > 0 ? data.TimeoutSeconds : 10;
-                    _dashboardOptions.WebhookRetryCount = data.RetryCount >= 0 ? data.RetryCount : 1;
-                    // Apply alert config to DashboardOptions
-                    ApplyAlertConfigToOptions(alertConfig);
-                    return alertConfig;
-                }
-            }
-
-            // Sync timeout/retry even if no alert config
-            if (data != null)
-            {
-                _dashboardOptions.WebhookTimeoutSeconds = data.TimeoutSeconds > 0 ? data.TimeoutSeconds : 10;
-                _dashboardOptions.WebhookRetryCount = data.RetryCount >= 0 ? data.RetryCount : 1;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to load alert config from persistence, using DashboardOptions defaults");
-        }
-
-        return new AlertConfigData
-        {
-            AlertEnabled = _dashboardOptions.AlertEnabled,
-            AlertCircuitBreakerOpen = _dashboardOptions.AlertCircuitBreakerOpen,
-            AlertRetryExhausted = _dashboardOptions.AlertRetryExhausted,
-            AlertWafBlocks = _dashboardOptions.AlertWafBlocks,
-            AlertProxyErrors = _dashboardOptions.AlertProxyErrors,
-            AlertRateLimitExceeded = _dashboardOptions.AlertRateLimitExceeded,
-            AlertMaxRecords = _dashboardOptions.AlertMaxRecords,
-            WafMaxEvents = _dashboardOptions.WafMaxEvents,
-            WebhookTimeoutSeconds = _dashboardOptions.WebhookTimeoutSeconds,
-            WebhookRetryCount = _dashboardOptions.WebhookRetryCount
-        };
-    }
-
-    private void ApplyAlertConfigToOptions(AlertConfigData config)
-    {
-        _dashboardOptions.AlertEnabled = config.AlertEnabled;
-        _dashboardOptions.AlertCircuitBreakerOpen = config.AlertCircuitBreakerOpen;
-        _dashboardOptions.AlertRetryExhausted = config.AlertRetryExhausted;
-        _dashboardOptions.AlertWafBlocks = config.AlertWafBlocks;
-        _dashboardOptions.AlertProxyErrors = config.AlertProxyErrors;
-        _dashboardOptions.AlertRateLimitExceeded = config.AlertRateLimitExceeded;
-        _dashboardOptions.AlertMaxRecords = config.AlertMaxRecords > 0 ? config.AlertMaxRecords : 500;
-        _dashboardOptions.WafMaxEvents = config.WafMaxEvents > 0 ? config.WafMaxEvents : 1000;
-        _dashboardOptions.WebhookTimeoutSeconds = config.WebhookTimeoutSeconds > 0 ? config.WebhookTimeoutSeconds : 10;
-        _dashboardOptions.WebhookRetryCount = config.WebhookRetryCount >= 0 ? config.WebhookRetryCount : 1;
-    }
-
-    private void SaveAlertConfig()
-    {
-        try
-        {
-            var data = _webhookPersistence.Load() ?? new WebhookSettingsData();
-            var alertConfig = new AlertConfigData
-            {
-                AlertEnabled = _dashboardOptions.AlertEnabled,
-                AlertCircuitBreakerOpen = _dashboardOptions.AlertCircuitBreakerOpen,
-                AlertRetryExhausted = _dashboardOptions.AlertRetryExhausted,
-                AlertWafBlocks = _dashboardOptions.AlertWafBlocks,
-                AlertProxyErrors = _dashboardOptions.AlertProxyErrors,
-                AlertRateLimitExceeded = _dashboardOptions.AlertRateLimitExceeded,
-                AlertMaxRecords = _dashboardOptions.AlertMaxRecords,
-                WafMaxEvents = _dashboardOptions.WafMaxEvents,
-                WebhookTimeoutSeconds = _dashboardOptions.WebhookTimeoutSeconds,
-                WebhookRetryCount = _dashboardOptions.WebhookRetryCount
-            };
-            data.AlertConfig = JsonSerializer.Serialize(alertConfig);
-            data.TimeoutSeconds = _dashboardOptions.WebhookTimeoutSeconds;
-            data.RetryCount = _dashboardOptions.WebhookRetryCount;
-            _webhookPersistence.Save(data);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to save alert config to persistence");
-        }
-    }
-
-    private void SyncToDashboardOptions(WebhookSettingsData data)
-    {
-        // Merge all URLs into flat list for notification service
-        var allUrls = new List<string>();
-        allUrls.AddRange(data.DingTalkEndpoints.Select(e => e.Url));
-        allUrls.AddRange(data.GenericEndpoints.Select(e => e.Url));
-        _dashboardOptions.WebhookUrls = allUrls;
-
-        // Build URL-to-secret map for notification service
-        _dashboardOptions.WebhookSecrets = new Dictionary<string, string?>();
-        foreach (var ep in data.DingTalkEndpoints)
-            _dashboardOptions.WebhookSecrets[ep.Url] = ep.Secret;
-        foreach (var ep in data.GenericEndpoints)
-            _dashboardOptions.WebhookSecrets[ep.Url] = ep.Secret;
-
-        // Sync enabled events
-        _dashboardOptions.WebhookEnabledEvents = data.EnabledEvents;
-
-        // Sync timeout and retry settings
-        _dashboardOptions.WebhookTimeoutSeconds = data.TimeoutSeconds > 0 ? data.TimeoutSeconds : 10;
-        _dashboardOptions.WebhookRetryCount = data.RetryCount >= 0 ? data.RetryCount : 1;
-    }
-
-    private async Task<bool> SendTestWebhookAsync(string url, WebhookPayload payload, string? secret, string platform)
-    {
-        using var http = _httpClientFactory.CreateClient("webhook");
-        http.Timeout = TimeSpan.FromSeconds(10);
-
-        IWebhookProvider provider = platform == "dingtalk"
-            ? new DingTalkWebhookProvider()
-            : new GenericWebhookProvider();
-
-        var request = provider.BuildRequest(url, payload, secret);
-
-        var httpRequest = new HttpRequestMessage(new HttpMethod(request.Method), request.Url);
-        if (request.Body != null)
-            httpRequest.Content = new StringContent(request.Body, System.Text.Encoding.UTF8, request.ContentType);
-
-        foreach (var kvp in request.Headers)
-            httpRequest.Headers.TryAddWithoutValidation(kvp.Key, kvp.Value);
-
-        var response = await http.SendAsync(httpRequest);
-        return response.IsSuccessStatusCode;
-    }
-
     // ── Diff Helpers ──
-
-    /// <summary>
-    /// Get current alert/notification settings.
-    /// </summary>
-    [HttpGet("alert-settings")]
-    public IActionResult GetAlertSettings()
-    {
-        try
-        {
-            // Load alert config from persistence, falling back to DashboardOptions defaults
-            var alertConfig = LoadAlertConfig();
-            return Ok(new
-            {
-                code = 200,
-                data = new
-                {
-                    alertEnabled = alertConfig.AlertEnabled,
-                    alertCircuitBreakerOpen = alertConfig.AlertCircuitBreakerOpen,
-                    alertRetryExhausted = alertConfig.AlertRetryExhausted,
-                    alertWafBlocks = alertConfig.AlertWafBlocks,
-                    alertProxyErrors = alertConfig.AlertProxyErrors,
-                    alertRateLimitExceeded = alertConfig.AlertRateLimitExceeded,
-                    alertMaxRecords = alertConfig.AlertMaxRecords > 0 ? alertConfig.AlertMaxRecords : 500,
-                    wafMaxEvents = alertConfig.WafMaxEvents > 0 ? alertConfig.WafMaxEvents : 1000,
-                    webhookTimeoutSeconds = _dashboardOptions.WebhookTimeoutSeconds,
-                    webhookRetryCount = _dashboardOptions.WebhookRetryCount,
-                    alertCooldownMinutes = 5
-                }
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get alert settings");
-            return StatusCode(500, new { code = 500, message = $"Failed: {ex.Message}" });
-        }
-    }
-
-    /// <summary>
-    /// Update alert/notification settings.
-    /// </summary>
-    [HttpPut("alert-settings")]
-    public IActionResult UpdateAlertSettings([FromBody] Dictionary<string, object>? request)
-    {
-        try
-        {
-            if (request == null)
-                return BadRequest(new { code = 400, message = "Request body is required" });
-
-            // Apply to in-memory DashboardOptions
-            if (request.TryGetValue("alertEnabled", out var aeObj) && aeObj is bool ae)
-                _dashboardOptions.AlertEnabled = ae;
-            if (request.TryGetValue("alertCircuitBreakerOpen", out var acbObj) && acbObj is bool acb)
-                _dashboardOptions.AlertCircuitBreakerOpen = acb;
-            if (request.TryGetValue("alertRetryExhausted", out var areObj) && areObj is bool are)
-                _dashboardOptions.AlertRetryExhausted = are;
-            if (request.TryGetValue("alertWafBlocks", out var awbObj) && awbObj is bool awb)
-                _dashboardOptions.AlertWafBlocks = awb;
-            if (request.TryGetValue("alertProxyErrors", out var apeObj) && apeObj is bool ape)
-                _dashboardOptions.AlertProxyErrors = ape;
-            if (request.TryGetValue("alertRateLimitExceeded", out var arleObj) && arleObj is bool arle)
-                _dashboardOptions.AlertRateLimitExceeded = arle;
-            if (request.TryGetValue("alertMaxRecords", out var amrObj) && amrObj is int amr)
-                _dashboardOptions.AlertMaxRecords = Math.Clamp(amr, 50, 5000);
-            if (request.TryGetValue("wafMaxEvents", out var wmeObj) && wmeObj is int wme)
-                _dashboardOptions.WafMaxEvents = Math.Clamp(wme, 100, 10000);
-            if (request.TryGetValue("webhookTimeoutSeconds", out var wtsObj) && wtsObj is int wts)
-                _dashboardOptions.WebhookTimeoutSeconds = Math.Clamp(wts, 1, 60);
-            if (request.TryGetValue("webhookRetryCount", out var wrcObj) && wrcObj is int wrc)
-                _dashboardOptions.WebhookRetryCount = Math.Clamp(wrc, 0, 5);
-
-            // Persist alert config to DB
-            SaveAlertConfig();
-
-            _logger.LogInformation("Alert settings updated and persisted: AlertEnabled={AlertEnabled}, AlertMaxRecords={AlertMaxRecords}",
-                _dashboardOptions.AlertEnabled, _dashboardOptions.AlertMaxRecords);
-
-            return Ok(new { code = 200, message = "Alert settings saved successfully" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update alert settings");
-            return StatusCode(500, new { code = 500, message = $"Failed: {ex.Message}" });
-        }
-    }
 
     private static List<SnapshotRoute> ParseSnapshotRoutes(JsonElement config)
     {
@@ -1358,11 +986,4 @@ public class ConfigManagementController : ControllerBase
             return StatusCode(500, new { code = 500, message = $"Failed: {ex.Message}" });
         }
     }
-}
-
-    /// <summary>Request body for webhook test.</summary>
-public class WebhookTestRequest
-{
-    /// <summary>Platform to test: "dingtalk" or "generic".</summary>
-    public string? Platform { get; set; }
 }

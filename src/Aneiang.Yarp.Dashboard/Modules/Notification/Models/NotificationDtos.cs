@@ -49,9 +49,6 @@ public class RuleRequest
     [JsonPropertyName("eventTypes")]
     public List<string>? EventTypes { get; set; }
 
-    [JsonPropertyName("minSeverity")]
-    public string MinSeverity { get; set; } = "Info";
-
     [JsonPropertyName("channelIds")]
     public List<string> ChannelIds { get; set; } = [];
 
@@ -143,9 +140,6 @@ public class RuleResponse
     [JsonPropertyName("eventTypes")]
     public List<string> EventTypes { get; set; } = [];
 
-    [JsonPropertyName("minSeverity")]
-    public string MinSeverity { get; set; } = "Info";
-
     [JsonPropertyName("channelIds")]
     public List<string> ChannelIds { get; set; } = [];
 
@@ -211,9 +205,6 @@ public class NotificationSummaryResponse
 
     [JsonPropertyName("unread")]
     public int Unread { get; set; }
-
-    [JsonPropertyName("bySeverity")]
-    public Dictionary<string, int> BySeverity { get; set; } = new();
 
     [JsonPropertyName("byEventType")]
     public Dictionary<string, int> ByEventType { get; set; } = new();

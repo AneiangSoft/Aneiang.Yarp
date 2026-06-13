@@ -7,7 +7,6 @@ using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
-using Aneiang.Yarp.Dashboard.Modules.Alert.Services;
 using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Yarp.ReverseProxy.Model;
@@ -28,10 +27,9 @@ public sealed class WafMiddleware
     private readonly WafOptions _wafOptions;
     private readonly string _dashPrefix;
     private readonly WafEventStore _eventStore;
-    private readonly IGatewayAlertService _alertService;
     private readonly IGatewayPluginManager _pluginManager;
     private readonly IWafSettingsPersistenceService? _wafPersistence;
-    private readonly INotificationService? _notificationService;
+    private readonly INotificationService _notificationService;
 
     /// <summary>Ultra-tight timeout (5ms) prevents catastrophic backtracking while allowing benign input.</summary>
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(5);
@@ -82,7 +80,6 @@ public sealed class WafMiddleware
         IOptions<WafOptions> wafOptions,
         IOptions<DashboardOptions> dashOptions,
         WafEventStore eventStore,
-        IGatewayAlertService alertService,
         IGatewayPluginManager pluginManager,
         IWafSettingsPersistenceService? wafPersistence = null,
         INotificationService? notificationService = null)
@@ -95,10 +92,9 @@ public sealed class WafMiddleware
             prefix = dashOptions.Value.RoutePrefix;
         _dashPrefix = "/" + prefix.Trim('/');
         _eventStore = eventStore;
-        _alertService = alertService;
         _pluginManager = pluginManager;
         _wafPersistence = wafPersistence;
-        _notificationService = notificationService;
+        _notificationService = notificationService ?? NullNotificationService.Instance;
     }
 
     /// <summary>
@@ -270,8 +266,7 @@ public sealed class WafMiddleware
             StatusCode = 403
         });
 
-        _alertService.AlertWafBlock(clientIp ?? "unknown", eventType, requestUri);
-        _notificationService?.NotifyWafBlock(clientIp ?? "unknown", eventType, requestUri);
+        _notificationService.NotifyWafBlock(clientIp ?? "unknown", eventType, requestUri);
     }
 
     private bool CheckIp(HttpContext context, WafOptions opts)

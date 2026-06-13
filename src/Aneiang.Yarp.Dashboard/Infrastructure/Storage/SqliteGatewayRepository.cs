@@ -31,9 +31,7 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
         "ALTER TABLE yarp_clusters ADD COLUMN circuit_breaker_config TEXT",
         "ALTER TABLE gateway_policies ADD COLUMN policy_type TEXT NOT NULL DEFAULT 'route'",
         "ALTER TABLE gateway_policies ADD COLUMN waf_enabled TEXT",
-        "ALTER TABLE gateway_policies ADD COLUMN applied_targets TEXT",
-        "ALTER TABLE webhook_settings ADD COLUMN generic_endpoints TEXT",
-        "ALTER TABLE webhook_settings ADD COLUMN alert_config TEXT"
+        "ALTER TABLE gateway_policies ADD COLUMN applied_targets TEXT"
     ];
 
     public SqliteGatewayRepository(StorageOptions options, ILoggerFactory loggerFactory)
@@ -169,20 +167,6 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
             );
             CREATE INDEX IF NOT EXISTS ix_audit_timestamp ON config_audit_logs(timestamp DESC);
             CREATE INDEX IF NOT EXISTS ix_audit_target ON config_audit_logs(target);
-
-            -- Webhook settings table (single row)
-            CREATE TABLE IF NOT EXISTS webhook_settings (
-                id INTEGER PRIMARY KEY CHECK (id = 1),
-                enabled INTEGER DEFAULT 0,
-                endpoints TEXT,
-                events TEXT,
-                timeout_seconds INTEGER DEFAULT 30,
-                retry_count INTEGER DEFAULT 3,
-                secret TEXT,
-                generic_endpoints TEXT,
-                alert_config TEXT,
-                updated_at TEXT NOT NULL
-            );
 
             -- WAF settings table (single row)
             CREATE TABLE IF NOT EXISTS waf_settings (
@@ -693,56 +677,6 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    // ========== IWebhookSettingsRepository ==========
-
-    public async Task<WebhookSettingsEntity?> GetWebhookSettingsAsync(CancellationToken ct = default)
-    {
-        await EnsureInitializedAsync(ct);
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(ct);
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT * FROM webhook_settings WHERE id = 1";
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
-        return new WebhookSettingsEntity
-        {
-            Enabled = reader.GetInt32(1) == 1,
-            Endpoints = reader.IsDBNull(2) ? null : reader.GetString(2),
-            Events = reader.IsDBNull(3) ? null : reader.GetString(3),
-            TimeoutSeconds = reader.GetInt32(4),
-            RetryCount = reader.GetInt32(5),
-            Secret = reader.IsDBNull(6) ? null : reader.GetString(6),
-            UpdatedAt = DateTime.Parse(reader.GetString(7)),
-            GenericEndpoints = reader.FieldCount > 8 && !reader.IsDBNull(8) ? reader.GetString(8) : null,
-            AlertConfig = reader.FieldCount > 9 && !reader.IsDBNull(9) ? reader.GetString(9) : null
-        };
-    }
-
-    public async Task SaveWebhookSettingsAsync(WebhookSettingsEntity settings, CancellationToken ct = default)
-    {
-        await EnsureInitializedAsync(ct);
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(ct);
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            INSERT INTO webhook_settings (id, enabled, endpoints, events, timeout_seconds, retry_count, secret, generic_endpoints, alert_config, updated_at)
-            VALUES (1, @en, @ep, @ev, @to, @retry, @secret, @ge, @ac, @ua)
-            ON CONFLICT(id) DO UPDATE SET
-                enabled = @en, endpoints = @ep, events = @ev, timeout_seconds = @to, retry_count = @retry, secret = @secret,
-                generic_endpoints = @ge, alert_config = @ac, updated_at = @ua
-            """;
-        cmd.Parameters.AddWithValue("@en", settings.Enabled ? 1 : 0);
-        cmd.Parameters.AddWithValue("@ep", settings.Endpoints ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@ev", settings.Events ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@to", settings.TimeoutSeconds);
-        cmd.Parameters.AddWithValue("@retry", settings.RetryCount);
-        cmd.Parameters.AddWithValue("@secret", settings.Secret ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@ge", settings.GenericEndpoints ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@ac", settings.AlertConfig ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@ua", DateTime.UtcNow.ToString("O"));
-        await cmd.ExecuteNonQueryAsync(ct);
-    }
-
     // ========== IWafSettingsRepository ==========
 
     public async Task<WafSettingsEntity?> GetWafSettingsAsync(CancellationToken ct = default)
@@ -1028,8 +962,9 @@ public sealed class SqliteGatewayRepository : IGatewayRepository
     public Task RecordNotificationAsync(NotificationHistory record, CancellationToken ct = default) =>
         _notificationRepo.RecordNotificationAsync(record, ct);
     public Task<(List<NotificationHistory> Records, int Total)> GetHistoryAsync(
-        int page = 1, int pageSize = 100, string? eventType = null, string? severity = null, CancellationToken ct = default) =>
-        _notificationRepo.GetHistoryAsync(page, pageSize, eventType, severity, ct);
+        int page = 1, int pageSize = 100, string? eventType = null, string? severity = null,
+        string? dateStart = null, string? dateEnd = null, CancellationToken ct = default) =>
+        _notificationRepo.GetHistoryAsync(page, pageSize, eventType, severity, dateStart, dateEnd, ct);
     public Task ClearHistoryAsync(CancellationToken ct = default) =>
         _notificationRepo.ClearHistoryAsync(ct);
 }

@@ -23,6 +23,7 @@ public sealed class NotificationService : INotificationService
     private static readonly ConcurrentDictionary<string, DateTime> _cooldowns = new();
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _channelLocks = new();
 
+    private string _locale = "zh-CN";
     private NotificationSettingsEntity? _cachedSettings;
     private DateTime _cacheExpiry = DateTime.MinValue;
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
@@ -61,6 +62,15 @@ public sealed class NotificationService : INotificationService
                 return _cachedSettings;
 
             _cachedSettings = await _repository.LoadSettingsAsync(ct) ?? new NotificationSettingsEntity();
+
+            // Sync the global-settings Enabled flag into SettingsEntity.Enabled so the UI toggle
+            // (which writes into the JSON column) actually controls whether notifications fire.
+            var globalSettings = await _repository.GetGlobalSettingsAsync(ct);
+            if (globalSettings != null)
+            {
+                _cachedSettings.Enabled = globalSettings.Enabled;
+            }
+
             _cacheExpiry = DateTime.UtcNow.AddMinutes(5);
             return _cachedSettings;
         }
@@ -74,52 +84,36 @@ public sealed class NotificationService : INotificationService
 
     // ─── Event Notification ───────────────────────────────────────────────────
 
+    /// <summary>
+    /// Known config-change event types. When a rule specifies "ConfigChange" (legacy umbrella type),
+    /// we expand it to match any of these concrete sub-types.
+    /// </summary>
+    private static readonly HashSet<string> s_configChangeSubTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "AddRoute", "UpdateRoute", "RemoveRoute",
+        "AddCluster", "UpdateCluster", "RemoveCluster",
+        "RollbackConfig"
+    };
+
     public async Task NotifyAsync(NotificationEvent evt, CancellationToken ct = default)
     {
-        var settings = await GetSettingsAsync(ct);
-
-        if (!settings.Enabled)
+        try
         {
-            _logger.LogDebug("Notification suppressed: notifications disabled");
-            return;
-        }
+            _logger.LogInformation("[Notification] NotifyAsync called: {EventType}, severity={Severity}",
+                evt.EventType, evt.Severity);
+            var settings = await GetSettingsAsync(ct);
 
-        var rules = await _repository.GetRulesAsync(ct);
-        var channels = await _repository.GetChannelsAsync(ct);
-
-        var matchingRules = rules
-            .Where(r => r.Enabled && MatchesRule(r, evt))
-            .ToList();
-
-        if (matchingRules.Count == 0)
-        {
-            _logger.LogDebug("No matching rules for event type: {Type}", evt.EventType);
-            return;
-        }
-
-        var notifiedChannelIds = new List<string>();
-        var anySuccess = false;
-
-        foreach (var rule in matchingRules)
-        {
-            foreach (var channelId in rule.ChannelIds)
+            if (!settings.Enabled)
             {
-                if (!channels.Any(c => c.Id == channelId && c.Enabled))
-                    continue;
-
-                var cooldownKey = $"{rule.Id}:{channelId}:{GetCooldownTarget(evt)}";
-                if (!TryAcquireCooldown(cooldownKey, TimeSpan.FromSeconds(rule.CooldownSeconds)))
-                    continue;
-
-                var channel = channels.First(c => c.Id == channelId);
-                var success = await SendToChannelAsync(channel, evt, rule, ct);
-                if (success) anySuccess = true;
-                notifiedChannelIds.Add(channel.Name);
+                _logger.LogDebug("Notification suppressed: notifications disabled");
+                return;
             }
-        }
 
-        if (matchingRules.Any(r => r.RecordToHistory))
-        {
+            // Load locale for i18n message generation
+            var gs = await _repository.GetGlobalSettingsAsync(ct);
+            if (!string.IsNullOrEmpty(gs.Locale)) _locale = gs.Locale;
+
+            // ── Prepare history record (save after delivery so DeliverySuccess is accurate) ──
             var history = new NotificationHistory
             {
                 Id = evt.Id,
@@ -136,38 +130,108 @@ public sealed class NotificationService : INotificationService
                 ErrorMessage = evt.Metadata.TryGetValue("errorMessage", out var em) ? em : null,
                 AttemptCount = evt.Metadata.TryGetValue("attemptCount", out var ac) && int.TryParse(ac, out var a) ? a : null,
                 LastStatusCode = evt.Metadata.TryGetValue("lastStatusCode", out var ls) && int.TryParse(ls, out var l) ? l : null,
-                NotifiedChannels = notifiedChannelIds,
-                DeliverySuccess = anySuccess
+                NotifiedChannels = [],
+                DeliverySuccess = false
             };
 
+            // ── Check rules for channel delivery ──
+            var rules = await _repository.GetRulesAsync(ct);
+            var channels = await _repository.GetChannelsAsync(ct);
+
+            var matchingRules = rules
+                .Where(r => r.Enabled && MatchesRule(r, evt))
+                .ToList();
+
+            var notifiedChannelNames = new List<string>();
+            var anySuccess = false;
+
+            if (matchingRules.Count > 0)
+            {
+                foreach (var rule in matchingRules)
+                {
+                    foreach (var channelId in rule.ChannelIds)
+                    {
+                        if (!channels.Any(c => c.Id == channelId && c.Enabled))
+                            continue;
+
+                        var cooldownKey = $"{rule.Id}:{channelId}:{GetCooldownTarget(evt)}";
+                        if (!TryAcquireCooldown(cooldownKey, TimeSpan.FromSeconds(rule.CooldownSeconds)))
+                            continue;
+
+                        var channel = channels.First(c => c.Id == channelId);
+                        var success = await SendToChannelAsync(channel, evt, rule, ct);
+                        if (success) anySuccess = true;
+                        notifiedChannelNames.Add(channel.Name);
+                    }
+                }
+
+                history.NotifiedChannels = notifiedChannelNames;
+                history.DeliverySuccess = anySuccess;
+            }
+
+            // ── Always save history with accurate delivery result ──
             await _repository.RecordNotificationAsync(history, ct);
+            _logger.LogInformation(
+                "[Notification] History recorded: {EventType} severity={Severity} channels=[{Channels}] delivered={Delivered}",
+                history.EventType, history.Severity,
+                string.Join(", ", notifiedChannelNames), anySuccess);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "[Notification] Unhandled error in NotifyAsync for event {EventType}: {ErrorMessage}",
+                evt.EventType, ex.Message);
+            // Do NOT rethrow — all callers use fire-and-forget pattern
         }
     }
 
-    private static bool MatchesRule(NotificationRule rule, NotificationEvent evt)
+    private bool MatchesRule(NotificationRule rule, NotificationEvent evt)
     {
-        // Check severity
-        if (evt.Severity < rule.MinSeverity)
-            return false;
+        // All events match regardless of severity (severity filtering removed per user request)
 
-        // Check event types (empty = all events)
-        if (rule.EventTypes.Count > 0 && !rule.EventTypes.Contains(evt.EventType))
-            return false;
+        // Check event types (empty list = all events)
+        if (rule.EventTypes.Count > 0)
+        {
+            // Direct match: event type is explicitly listed in the rule
+            var directMatch = rule.EventTypes.Contains(evt.EventType);
+            // Legacy compatibility: "ConfigChange" is an umbrella type that matches any concrete config-change sub-type
+            var legacyMatch = rule.EventTypes.Contains("ConfigChange") && s_configChangeSubTypes.Contains(evt.EventType);
+            if (!directMatch && !legacyMatch)
+            {
+                _logger.LogDebug(
+                    "[Notification] Rule '{RuleName}' skipped: event type '{EventType}' not in rule types [{RuleTypes}]",
+                    rule.Name, evt.EventType, string.Join(", ", rule.EventTypes));
+                return false;
+            }
+        }
 
         // Check target routes
         if (rule.TargetRouteIds?.Count > 0 && !string.IsNullOrEmpty(evt.RouteId))
         {
             if (!rule.TargetRouteIds.Contains(evt.RouteId))
+            {
+                _logger.LogDebug(
+                    "[Notification] Rule '{RuleName}' skipped: route '{RouteId}' not in target routes",
+                    rule.Name, evt.RouteId);
                 return false;
+            }
         }
 
         // Check target clusters
         if (rule.TargetClusterIds?.Count > 0 && !string.IsNullOrEmpty(evt.ClusterId))
         {
             if (!rule.TargetClusterIds.Contains(evt.ClusterId))
+            {
+                _logger.LogDebug(
+                    "[Notification] Rule '{RuleName}' skipped: cluster '{ClusterId}' not in target clusters",
+                    rule.Name, evt.ClusterId);
                 return false;
+            }
         }
 
+        _logger.LogDebug(
+            "[Notification] Rule '{RuleName}' MATCHED for event '{EventType}'",
+            rule.Name, evt.EventType);
         return true;
     }
 
@@ -252,14 +316,13 @@ public sealed class NotificationService : INotificationService
                 MsgType = "markdown",
                 Markdown = new DingTalkMarkdown
                 {
-                    Title = $"[{evt.Severity}] {evt.Title}",
+                    Title = evt.Title,
                     Text = BuildDingTalkText(evt)
                 }
             },
             _ => new GenericWebhookPayload
             {
                 EventType = evt.EventType,
-                Severity = evt.Severity.ToString(),
                 Title = evt.Title,
                 Message = evt.Message,
                 Timestamp = evt.Timestamp,
@@ -272,14 +335,13 @@ public sealed class NotificationService : INotificationService
         };
     }
 
-    private static string BuildDingTalkText(NotificationEvent evt)
+    private string BuildDingTalkText(NotificationEvent evt)
     {
         var sb = new StringBuilder();
         sb.AppendLine($"### {evt.Title}");
         sb.AppendLine();
         sb.AppendLine($"> {evt.Message}");
         sb.AppendLine();
-        sb.AppendLine($"- **Severity**: {evt.Severity}");
         sb.AppendLine($"- **Time**: {evt.Timestamp:yyyy-MM-dd HH:mm:ss} UTC");
 
         if (!string.IsNullOrEmpty(evt.ClusterId))
@@ -382,12 +444,13 @@ public sealed class NotificationService : INotificationService
 
     public void NotifyCircuitBreakerOpen(string clusterId, string? destinationId = null)
     {
+        var destInfo = destinationId != null ? $" (destination: {destinationId})" : "";
         _ = NotifyAsync(new NotificationEvent
         {
             EventType = "CircuitBreakerOpen",
-            Title = "Circuit Breaker Opened",
-            Message = $"Circuit breaker opened for cluster '{clusterId}'" +
-                      (destinationId != null ? $" (destination: {destinationId})" : ""),
+            Title = NotificationI18n.GetTitle("CircuitBreakerOpen", _locale, clusterId),
+            Message = NotificationI18n.GetBody("CircuitBreakerOpen", _locale, clusterId)
+                      + (destinationId != null ? $" (destination: {destinationId})" : ""),
             Severity = NotificationSeverity.Warning,
             ClusterId = clusterId,
             Metadata = destinationId != null ? new() { ["destinationId"] = destinationId } : new()
@@ -399,9 +462,9 @@ public sealed class NotificationService : INotificationService
         _ = NotifyAsync(new NotificationEvent
         {
             EventType = "RetryExhausted",
-            Title = "Retry Exhausted",
-            Message = $"All {attempts} retry attempts failed for route '{routeId}' " +
-                      $"(cluster: {clusterId}, last status: {statusCode})",
+            Title = NotificationI18n.GetTitle("RetryExhausted", _locale),
+            Message = NotificationI18n.GetBody("RetryExhausted", _locale,
+                routeId, attempts, clusterId, statusCode),
             Severity = NotificationSeverity.Error,
             ClusterId = clusterId,
             RouteId = routeId,
@@ -418,8 +481,8 @@ public sealed class NotificationService : INotificationService
         _ = NotifyAsync(new NotificationEvent
         {
             EventType = "WafBlock",
-            Title = "WAF Blocked Request",
-            Message = $"WAF blocked a request from {clientIp}. Reason: {blockReason}",
+            Title = NotificationI18n.GetTitle("WafBlock", _locale),
+            Message = NotificationI18n.GetBody("WafBlock", _locale, clientIp, blockReason),
             Severity = NotificationSeverity.Warning,
             ClientIp = clientIp,
             Metadata = new()
@@ -432,13 +495,13 @@ public sealed class NotificationService : INotificationService
 
     public void NotifyProxyError(string clusterId, string? destinationId, string errorMessage)
     {
+        var destInfo = destinationId != null ? $" (destination: {destinationId})" : "";
         _ = NotifyAsync(new NotificationEvent
         {
             EventType = "ProxyError",
-            Title = "Proxy Error",
-            Message = $"Proxy error for cluster '{clusterId}'" +
-                      (destinationId != null ? $" (destination: {destinationId})" : "") +
-                      $": {errorMessage}",
+            Title = NotificationI18n.GetTitle("ProxyError", _locale, clusterId),
+            Message = NotificationI18n.GetBody("ProxyError", _locale,
+                clusterId, destInfo, errorMessage),
             Severity = NotificationSeverity.Error,
             ClusterId = clusterId,
             Metadata = new()
@@ -451,27 +514,66 @@ public sealed class NotificationService : INotificationService
 
     public void NotifyRateLimitExceeded(string clientIp, string? routeId = null)
     {
+        var routeInfo = routeId != null ? $" on route '{routeId}'" : "";
         _ = NotifyAsync(new NotificationEvent
         {
             EventType = "RateLimitExceeded",
-            Title = "Rate Limit Exceeded",
-            Message = $"Rate limit exceeded for {clientIp}" +
-                      (routeId != null ? $" on route '{routeId}'" : ""),
+            Title = NotificationI18n.GetTitle("RateLimitExceeded", _locale),
+            Message = NotificationI18n.GetBody("RateLimitExceeded", _locale,
+                clientIp, routeInfo),
             Severity = NotificationSeverity.Warning,
             ClientIp = clientIp,
             RouteId = routeId
         });
     }
 
-    public void NotifyCustom(string eventType, string title, string message, string severity = "Info")
+    /// <summary>Notify config change event (AddRoute, UpdateRoute, RemoveRoute, etc.).</summary>
+    public void NotifyConfigChange(string eventType, string target, string? operatorName = null, object? details = null)
     {
-        var sev = Enum.TryParse<NotificationSeverity>(severity, true, out var s) ? s : NotificationSeverity.Info;
+        var op = operatorName ?? "system";
+        var eventLabel = NotificationI18n.GetTitle(eventType, _locale, eventType);
+
+        var detailsStr = details switch
+        {
+            null => null,
+            JsonElement je => JsonSerializer.Serialize(je, _jsonOptions),
+            string s => s,
+            _ => JsonSerializer.Serialize(details, _jsonOptions)
+        };
+
+        var sev = eventType switch
+        {
+            "RemoveRoute" or "RemoveCluster" => NotificationSeverity.Warning,
+            "RollbackConfig" => NotificationSeverity.Warning,
+            _ => NotificationSeverity.Info
+        };
+
+        var body = NotificationI18n.GetBody("configChange", _locale, op, target, eventLabel)
+                   + (detailsStr != null ? $"\nDetails: {detailsStr}" : "");
+
+        _ = NotifyAsync(new NotificationEvent
+        {
+            EventType = eventType,
+            Title = NotificationI18n.GetTitle("configChange", _locale, eventLabel),
+            Message = body,
+            Severity = sev,
+            Operator = operatorName,
+            Metadata = new()
+            {
+                ["target"] = target,
+                ["details"] = detailsStr ?? ""
+            }
+        });
+    }
+
+    public void NotifyCustom(string eventType, string title, string message)
+    {
         _ = NotifyAsync(new NotificationEvent
         {
             EventType = eventType,
             Title = title,
             Message = message,
-            Severity = sev
+            Severity = NotificationSeverity.Info
         });
     }
 }
@@ -508,8 +610,11 @@ public interface INotificationService
     /// <summary>Notify rate limit exceeded event.</summary>
     void NotifyRateLimitExceeded(string clientIp, string? routeId = null);
 
+    /// <summary>Notify config change event (AddRoute, UpdateRoute, RemoveRoute, etc.).</summary>
+    void NotifyConfigChange(string eventType, string target, string? operatorName = null, object? details = null);
+
     /// <summary>Send a custom notification.</summary>
-    void NotifyCustom(string eventType, string title, string message, string severity = "Info");
+    void NotifyCustom(string eventType, string title, string message);
 }
 
 // ─── Webhook Payload Models ────────────────────────────────────────────────────
@@ -535,7 +640,6 @@ internal class DingTalkMarkdown
 internal class GenericWebhookPayload
 {
     public string EventType { get; set; } = string.Empty;
-    public string Severity { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
     public DateTime Timestamp { get; set; }
@@ -544,4 +648,28 @@ internal class GenericWebhookPayload
     public string? ClientIp { get; set; }
     public Dictionary<string, string?> Metadata { get; set; } = new();
     public string GatewayName { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// No-op notification service used when <see cref="INotificationService"/> is not available.
+/// All methods are no-ops; callers should use the null-conditional pattern (e.g.,
+/// <c>notificationService ?? NullNotificationService.Instance</c>).
+/// </summary>
+public sealed class NullNotificationService : INotificationService
+{
+    public static readonly NullNotificationService Instance = new();
+
+    private NullNotificationService() { }
+
+    public Task PreloadAsync(CancellationToken ct = default) => Task.CompletedTask;
+    public void InvalidateCache() { }
+    public Task NotifyAsync(NotificationEvent evt, CancellationToken ct = default) => Task.CompletedTask;
+    public Task<bool> TestChannelAsync(string channelId, CancellationToken ct = default) => Task.FromResult(false);
+    public void NotifyCircuitBreakerOpen(string clusterId, string? destinationId = null) { }
+    public void NotifyRetryExhausted(string clusterId, string routeId, int attempts, int statusCode) { }
+    public void NotifyWafBlock(string clientIp, string blockReason, string? uri = null) { }
+    public void NotifyProxyError(string clusterId, string? destinationId, string errorMessage) { }
+    public void NotifyRateLimitExceeded(string clientIp, string? routeId = null) { }
+    public void NotifyConfigChange(string eventType, string target, string? operatorName = null, object? details = null) { }
+    public void NotifyCustom(string eventType, string title, string message) { }
 }

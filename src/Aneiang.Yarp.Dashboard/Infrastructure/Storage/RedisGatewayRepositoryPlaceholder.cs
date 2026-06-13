@@ -82,11 +82,6 @@ public sealed class RedisGatewayRepositoryPlaceholder : IGatewayRepository
     public Task DeleteOldAuditLogsAsync(int keepCount, CancellationToken ct = default) =>
         throw NotImplementedException();
 
-    public Task<WebhookSettingsEntity?> GetWebhookSettingsAsync(CancellationToken ct = default) =>
-        throw NotImplementedException();
-    public Task SaveWebhookSettingsAsync(WebhookSettingsEntity settings, CancellationToken ct = default) =>
-        throw NotImplementedException();
-
     public Task<WafSettingsEntity?> GetWafSettingsAsync(CancellationToken ct = default) =>
         throw NotImplementedException();
     public Task SaveWafSettingsAsync(WafSettingsEntity settings, CancellationToken ct = default) =>
@@ -121,7 +116,8 @@ public sealed class RedisGatewayRepositoryPlaceholder : IGatewayRepository
     public Task RecordNotificationAsync(NotificationHistory record, CancellationToken ct = default) =>
         throw NotImplementedException();
     public Task<(List<NotificationHistory> Records, int Total)> GetHistoryAsync(
-        int page = 1, int pageSize = 100, string? eventType = null, string? severity = null, CancellationToken ct = default) =>
+        int page = 1, int pageSize = 100, string? eventType = null, string? severity = null,
+        string? dateStart = null, string? dateEnd = null, CancellationToken ct = default) =>
         throw NotImplementedException();
     public Task ClearHistoryAsync(CancellationToken ct = default) =>
         throw NotImplementedException();

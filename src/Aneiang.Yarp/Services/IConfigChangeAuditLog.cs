@@ -26,4 +26,26 @@ public interface IConfigChangeAuditLog : IConfigChangeNotifier
 
     /// <summary>Get total evicted entries.</summary>
     long EvictedCount { get; }
+
+    /// <summary>
+    /// Called by the background dispatcher to drain pending notifications.
+    /// Returns false when the queue is empty.
+    /// </summary>
+    bool TryDequeuePendingNotification(out PendingNotification notification);
+
+    /// <summary>
+    /// Called by the background dispatcher to fire an event.
+    /// </summary>
+    void InvokeOnConfigChanged(string eventType, string target, string? @operator, object? details);
+}
+
+/// <summary>
+/// Queued notification awaiting dispatch by the background service.
+/// </summary>
+public readonly struct PendingNotification
+{
+    public string EventType { get; init; }
+    public string Target { get; init; }
+    public string? Operator { get; init; }
+    public object? Details { get; init; }
 }

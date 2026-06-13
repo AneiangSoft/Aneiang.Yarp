@@ -80,10 +80,11 @@
         // ===== Update Stat Cards =====
         updateStatCards: async function() {
             try {
-                // Load clusters and routes in parallel
-                const [clusters, routes] = await Promise.all([
+                // Load clusters, routes, and traffic in parallel
+                const [clusters, routes, trafficData] = await Promise.all([
                     window.DashboardApi.endpoints.getClusters(),
-                    window.DashboardApi.endpoints.getRoutes()
+                    window.DashboardApi.endpoints.getRoutes(),
+                    window.DashboardApi.endpoints.getTrafficData?.(15) || Promise.resolve(null)
                 ]);
 
                 // Update state — ServiceTabs will render from this without re-fetching
@@ -108,6 +109,14 @@
 
                 const routesEl = window.DashboardDOM.safe('#stat-routes');
                 if (routesEl) routesEl.textContent = routeCount;
+
+                // Update QPS stat card (Index.cshtml)
+                const qpsEl = window.DashboardDOM.safe('#stat-qps');
+                if (qpsEl && trafficData) {
+                    var qv = (trafficData.currentQps != null && !isNaN(trafficData.currentQps))
+                        ? trafficData.currentQps : 0;
+                    qpsEl.textContent = qv;
+                }
 
                 // Render preview lists
                 this.renderClusterPreview(clusters || []);

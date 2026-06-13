@@ -12,6 +12,9 @@ namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 /// Uses in-memory <see cref="ConcurrentQueue{T}"/> for fast writes,
 /// and persists to repository for structured query capability.
 /// Thread-safe, bounded by max capacity (ring-buffer style).
+///
+/// Config-change events are queued and dispatched by <see cref="ConfigChangeEventDispatcher"/>
+/// to guarantee delivery even when the first request arrives before all consumers are constructed.
 /// </summary>
 public class ConfigChangeAuditLog : IConfigChangeAuditLog
 {
@@ -28,6 +31,7 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
     private long _evictedCount;
     private bool _loaded;
 
+    private readonly ConcurrentQueue<PendingNotification> _pendingNotifications = new();
     private readonly IGatewayRepository _repository;
     private readonly ILogger<ConfigChangeAuditLog> _logger;
 
@@ -98,8 +102,8 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
             else break;
         }
 
-        _logger.LogDebug("Audit: {Action} on '{Target}' by {Operator} - {Status}",
-            entry.Action, entry.Target, entry.Operator ?? "unknown",
+        _logger.LogDebug("Audit queued: {Action} on '{Target}' — {Status}",
+            entry.Action, entry.Target,
             entry.Success ? "OK" : $"FAIL: {entry.ErrorMessage}");
 
         // Persist to repository (fire-and-forget)
@@ -109,9 +113,17 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
             catch (Exception ex) { _logger.LogWarning(ex, "Failed to persist audit entry"); }
         });
 
+        // Queue the notification for the background dispatcher to deliver.
+        // This is reliable regardless of when consumers are constructed.
         if (entry.Success)
         {
-            OnConfigChanged?.Invoke(entry.Action, entry.Target, entry.Operator, entry.After);
+            _pendingNotifications.Enqueue(new PendingNotification
+            {
+                EventType = entry.Action,
+                Target = entry.Target,
+                Operator = entry.Operator,
+                Details = entry.After
+            });
         }
     }
 
@@ -169,4 +181,12 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
         var entities = await _repository.GetAuditLogsByTargetAsync(target, count);
         return entities.ToConfigChangeAudits();
     }
+
+    /// <inheritdoc />
+    public bool TryDequeuePendingNotification(out PendingNotification notification)
+        => _pendingNotifications.TryDequeue(out notification);
+
+    /// <inheritdoc />
+    public void InvokeOnConfigChanged(string eventType, string target, string? @operator, object? details)
+        => OnConfigChanged?.Invoke(eventType, target, @operator, details);
 }

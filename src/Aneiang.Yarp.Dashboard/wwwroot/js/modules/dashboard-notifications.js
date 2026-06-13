@@ -4,13 +4,41 @@
 (function() {
     'use strict';
 
+    // Shared event type metadata — used for both the filter dropdown and rule modal checkboxes.
+    // Add new event types here; all UI rendering and i18n labels flow from this single source.
+    window.NOTIF_EVENT_TYPES = [
+        // Runtime events
+        { value: 'CircuitBreakerOpen', i18nKey: 'notif.event.CircuitBreakerOpen', group: 'runtime' },
+        { value: 'RetryExhausted',     i18nKey: 'notif.event.RetryExhausted',     group: 'runtime' },
+        { value: 'WafBlock',           i18nKey: 'notif.event.WafBlock',           group: 'runtime' },
+        { value: 'ProxyError',         i18nKey: 'notif.event.ProxyError',         group: 'runtime' },
+        { value: 'RateLimitExceeded',  i18nKey: 'notif.event.RateLimitExceeded',  group: 'runtime' },
+        // Config change events (DISPATCHED by ConfigChangeEventDispatcher)
+        { value: 'AddRoute',           i18nKey: 'notif.event.AddRoute',           group: 'config' },
+        { value: 'UpdateRoute',        i18nKey: 'notif.event.UpdateRoute',        group: 'config' },
+        { value: 'RemoveRoute',        i18nKey: 'notif.event.RemoveRoute',        group: 'config' },
+        { value: 'AddCluster',         i18nKey: 'notif.event.AddCluster',         group: 'config' },
+        { value: 'UpdateCluster',      i18nKey: 'notif.event.UpdateCluster',      group: 'config' },
+        { value: 'RemoveCluster',      i18nKey: 'notif.event.RemoveCluster',      group: 'config' },
+        { value: 'RollbackConfig',     i18nKey: 'notif.event.RollbackConfig',     group: 'config' },
+        { value: 'TestNotification',   i18nKey: 'notif.event.TestNotification',   group: 'misc' },
+    ];
+
+    /**
+     * Look up an i18n key from window.I18N, falling back to the raw value.
+     * Mirrors the pattern used throughout the dashboard JS codebase.
+     */
+    window._notifI18n = function(key, fallback) {
+        return (window.I18N && window.I18N[key]) || fallback;
+    };
+
     var NotificationModule = {
         name: 'notification',
         initialized: false,
         autoRefreshInterval: null,
         currentPage: 1,
         pageSize: 50,
-        currentFilters: { eventType: '', severity: '' },
+        currentFilters: { eventType: '', keyword: '', dateStart: '', dateEnd: '' },
 
         // Data cache
         _data: {
@@ -24,10 +52,161 @@
 
         init: function() {
             if (this.initialized) return;
+            this._renderNotifTypeFilter();
+            this._renderRuleEventTypes();
             this.setupEvents();
             this.setupTabs();
             this.loadAll();
             this.initialized = true;
+        },
+
+        // ─── Event Type Rendering ───────────────────────────────────────────
+
+        /**
+         * Render the notification-type filter dropdown using the shared event metadata.
+         * Preserves the first "all types" option from the Razor template.
+         */
+        _renderNotifTypeFilter: function() {
+            var select = document.getElementById('notif-type-filter');
+            if (!select) return;
+
+            // Keep the first "all types" option; clear the rest
+            var allOpt = select.options[0];
+            select.innerHTML = '';
+            select.appendChild(allOpt);
+
+            var self = this;
+            window.NOTIF_EVENT_TYPES.forEach(function(evt) {
+                var opt = document.createElement('option');
+                opt.value = evt.value;
+                opt.textContent = window._notifI18n(evt.i18nKey, evt.value);
+                select.appendChild(opt);
+            });
+
+            // Re-attach the change listener
+            select.addEventListener('change', function() {
+                self.applyFilters();
+            });
+        },
+
+        /**
+         * Render the rule modal event-type checkboxes using the shared event metadata.
+         * Includes a "Select All" toggle and group headers (runtime / config).
+         */
+        _renderRuleEventTypes: function() {
+            var container = document.getElementById('rule-event-types');
+            if (!container) return;
+            container.innerHTML = '';
+
+            // "Select All" toggle
+            var selectAllLabel = document.createElement('label');
+            selectAllLabel.className = 'event-type-item event-type-select-all';
+            selectAllLabel.innerHTML = '<input type="checkbox" id="event-select-all" onchange="NotificationModule._toggleAllEvents(this)"> '
+                + '<strong>' + __('notif.selectAll') + '</strong>';
+            container.appendChild(selectAllLabel);
+            container.appendChild(document.createElement('hr'));
+
+            var groups = {};
+            window.NOTIF_EVENT_TYPES.forEach(function(evt) {
+                var g = evt.group || 'other';
+                if (!groups[g]) groups[g] = [];
+                groups[g].push(evt);
+            });
+
+            var groupLabels = {
+                runtime: __('notif.groupRuntime') || 'Runtime Events',
+                config: __('notif.groupConfig') || 'Config Change Events',
+                misc: __('notif.groupMisc') || 'Other'
+            };
+
+            ['runtime', 'config', 'misc'].forEach(function(groupKey) {
+                var list = groups[groupKey];
+                if (!list || list.length === 0) return;
+                var groupHeader = document.createElement('div');
+                groupHeader.className = 'event-type-group-label';
+                groupHeader.textContent = groupLabels[groupKey] || groupKey;
+                container.appendChild(groupHeader);
+
+                list.forEach(function(evt) {
+                    var label = document.createElement('label');
+                    label.className = 'event-type-item';
+                    label.innerHTML = '<input type="checkbox" value="' + evt.value + '" class="event-type-cb"> '
+                        + window._notifI18n(evt.i18nKey, evt.value);
+                    container.appendChild(label);
+                });
+            });
+        },
+
+        /**
+         * Toggle all event-type checkboxes when the "Select All" master checkbox changes.
+         */
+        _toggleAllEvents: function(master) {
+            document.querySelectorAll('#rule-event-types input.event-type-cb').forEach(function(cb) {
+                cb.checked = master.checked;
+            });
+        },
+
+        /**
+         * Apply a quick preset to the rule event type checkboxes.
+         * @param {'all'|'config'|'runtime'|'test'} preset
+         */
+        _applyPreset: function(preset) {
+            var allCbs = document.querySelectorAll('#rule-event-types input.event-type-cb');
+            var nameInput = document.getElementById('rule-name');
+
+            // Uncheck all first
+            allCbs.forEach(function(cb) { cb.checked = false; });
+
+            var targets = [];
+            switch (preset) {
+                case 'all':
+                    targets = [];
+                    allCbs.forEach(function(cb) { cb.checked = true; });
+                    if (!nameInput.value) nameInput.value = __('notif.preset.allName') || '全部事件通知';
+                    break;
+                case 'config':
+                    targets = ['AddRoute','UpdateRoute','RemoveRoute','AddCluster','UpdateCluster','RemoveCluster','RollbackConfig'];
+                    if (!nameInput.value) nameInput.value = __('notif.preset.configName') || '配置变更通知';
+                    break;
+                case 'runtime':
+                    targets = ['CircuitBreakerOpen','RetryExhausted','WafBlock','ProxyError','RateLimitExceeded'];
+                    if (!nameInput.value) nameInput.value = __('notif.preset.runtimeName') || '运行时告警通知';
+                    break;
+                case 'test':
+                    targets = ['TestNotification'];
+                    if (!nameInput.value) nameInput.value = __('notif.preset.testName') || '测试通知';
+                    break;
+            }
+
+            if (targets.length > 0) {
+                allCbs.forEach(function(cb) {
+                    if (targets.indexOf(cb.value) >= 0) cb.checked = true;
+                });
+            }
+
+            // Refresh master checkbox
+            var master = document.getElementById('event-select-all');
+            if (master) {
+                master.checked = Array.from(allCbs).every(function(c) { return c.checked; });
+            }
+        },
+
+        /**
+         * Generate a test history entry directly via API for debugging purposes.
+         */
+        generateTestEntry: async function() {
+            try {
+                var resp = await DashboardApi.post('/api/notifications/test-entry');
+                if (resp && resp.ok !== false) {
+                    DashboardModals.showSuccess(__('notif.testEntry.created') || '测试记录已生成');
+                    this.loadHistory();
+                } else {
+                    DashboardModals.showError((resp && resp.error) || __('notif.testEntry.failed') || '生成失败');
+                }
+            } catch (e) {
+                console.error('[Notification] Generate test entry failed:', e);
+                DashboardModals.showError(__('notif.testEntry.failed') || '生成失败');
+            }
         },
 
         setupEvents: function() {
@@ -81,23 +260,51 @@
             }
         },
 
-        loadHistory: async function(page) {
+        loadHistory: async function(page, silent) {
             if (page) this.currentPage = page;
 
             try {
+                if (!silent) this.showHistoryLoading(true);
+
                 var params = {
                     page: this.currentPage,
                     pageSize: this.pageSize,
                     eventType: this.currentFilters.eventType || undefined,
-                    severity: this.currentFilters.severity || undefined
+                    dateStart: this.currentFilters.dateStart || undefined,
+                    dateEnd: this.currentFilters.dateEnd || undefined
                 };
                 var resp = await DashboardApi.get('/api/notifications/history', params);
                 if (resp) {
-                    this._data.history = resp.entries || [];
-                    this.renderHistory(resp);
+                    // Client-side keyword search + date range fallback
+                    var entries = resp.entries || [];
+                    if (this.currentFilters.keyword) {
+                        var kw = this.currentFilters.keyword.toLowerCase();
+                        entries = entries.filter(function(e) {
+                            return (e.title && e.title.toLowerCase().indexOf(kw) >= 0) ||
+                                   (e.message && e.message.toLowerCase().indexOf(kw) >= 0) ||
+                                   (e.eventType && e.eventType.toLowerCase().indexOf(kw) >= 0) ||
+                                   (e.clusterId && e.clusterId.toLowerCase().indexOf(kw) >= 0) ||
+                                   (e.routeId && e.routeId.toLowerCase().indexOf(kw) >= 0) ||
+                                   (e.clientIp && e.clientIp.toLowerCase().indexOf(kw) >= 0);
+                        });
+                    }
+
+                    this._data.history = entries;
+                    this.renderHistory({ entries: entries, total: resp.total, page: resp.page, pageSize: resp.pageSize });
                 }
             } catch (e) {
                 console.error('[Notification] Load history failed:', e);
+                if (!silent) {
+                    var container = document.getElementById('notif-history-list');
+                    if (container) container.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle-fill" style="color:#ef4444;"></i><p>' + (__('notif.loadFailed') || '加载失败') + '</p></div>';
+                }
+            }
+        },
+
+        showHistoryLoading: function(show) {
+            var container = document.getElementById('notif-history-list');
+            if (container && show) {
+                container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><div class="loading-text">' + (__('notif.loading') || '加载中...') + '</div></div>';
             }
         },
 
@@ -122,76 +329,130 @@
 
         renderSummary: function(data) {
             var totalCount = document.getElementById('notif-total-count');
-            var errorCount = document.getElementById('notif-error-count');
-            var warningCount = document.getElementById('notif-warning-count');
             var channelCount = document.getElementById('notif-channel-count');
+            var rulesCount = document.getElementById('notif-rules-count');
+            var lastEventEl = document.getElementById('notif-last-event');
 
             if (totalCount) totalCount.textContent = data.total || 0;
-            if (errorCount) errorCount.textContent = (data.bySeverity && data.bySeverity.Error) || 0;
-            if (warningCount) warningCount.textContent = (data.bySeverity && data.bySeverity.Warning) || 0;
             if (channelCount) channelCount.textContent = data.channelsConfigured || 0;
+            if (rulesCount) rulesCount.textContent = data.rulesActive || 0;
+            if (lastEventEl) {
+                if (data.lastEvent && data.lastEvent.timestamp) {
+                    var t = typeof DashboardI18n !== 'undefined' && DashboardI18n.formatDate
+                        ? DashboardI18n.formatDate(data.lastEvent.timestamp)
+                        : new Date(data.lastEvent.timestamp).toLocaleString();
+                    lastEventEl.textContent = t;
+                } else {
+                    lastEventEl.textContent = '-';
+                }
+            }
         },
 
         renderHistory: function(data) {
             var container = document.getElementById('notif-history-list');
             if (!container) return;
 
-            if (!data.entries || data.entries.length === 0) {
-                container.innerHTML = '<div class="empty-state">' +
-                    '<i class="bi bi-bell"></i>' +
-                    '<p>' + __('notif.emptyHistory') + '</p>' +
-                    '</div>';
-                this.renderPagination(data.total, data.page, data.pageSize);
+            var total = data.total || 0;
+            var page = data.page || 1;
+            var pageSize = data.pageSize || this.pageSize;
+            var entries = data.entries || [];
+
+            // Show result info
+            var infoEl = document.getElementById('notif-result-info');
+            if (infoEl) {
+                if (entries.length > 0) {
+                    var from = (page - 1) * pageSize + 1;
+                    var to = Math.min(page * pageSize, total);
+                    infoEl.textContent = (__('notif.showing') || '显示') + ' ' + from + '-' + to + ' / ' + (__('notif.of') || '共') + ' ' + total + ' ' + (__('notif.records') || '条');
+                } else {
+                    infoEl.textContent = '';
+                }
+            }
+
+            if (entries.length === 0) {
+                var hasFilter = this.currentFilters.eventType || this.currentFilters.keyword || this.currentFilters.dateStart || this.currentFilters.dateEnd;
+                var emptyMsg = hasFilter
+                    ? '<p>' + (__('notif.emptyFilter') || '没有符合筛选条件的记录') + '</p><small style="color:#94a3b8;">' + (__('notif.emptyFilterHint') || '请尝试调整筛选条件或清除筛选') + '</small>'
+                    : '<p>' + (__('notif.emptyHistory') || '暂无通知记录') + '</p><small style="color:#94a3b8;">' + (__('notif.emptyHistoryHint') || '通知事件将在中间件触发后自动记录，或点击"生成测试"创建测试数据') + '</small>';
+                container.innerHTML = '<div class="empty-state"><i class="bi bi-bell"></i>' + emptyMsg + '</div>';
+                this.renderPagination(total, page, pageSize);
                 return;
             }
 
             var html = '';
             var self = this;
-            data.entries.forEach(function(entry) {
-                var sevClass = entry.severity === 'Error' ? 'error' :
-                               entry.severity === 'Warning' ? 'warning' : 'info';
-                var time = DashboardI18n.formatDate(entry.timestamp);
+            entries.forEach(function(entry) {
+                var time = typeof DashboardI18n !== 'undefined' && DashboardI18n.formatDate
+                    ? DashboardI18n.formatDate(entry.timestamp)
+                    : (entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '');
                 var details = self.buildHistoryDetails(entry);
+                var evtMeta = window.NOTIF_EVENT_TYPES.find(function(e) { return e.value === entry.eventType; });
+                var evtLabel = evtMeta ? window._notifI18n(evtMeta.i18nKey, evtMeta.value) : entry.eventType;
+
+                // Channel chips
+                var channelChips = '';
+                if (entry.notifiedChannels && entry.notifiedChannels.length > 0) {
+                    channelChips = '<span style="font-size:11px;color:#94a3b8;margin-left:8px;">' +
+                        entry.notifiedChannels.map(function(c) { return '<span style="background:#e0e7ff;padding:1px 6px;border-radius:4px;margin-left:4px;color:#4338ca;">' + DashboardUtils.escapeHtml(c) + '</span>'; }).join('') +
+                        '</span>';
+                }
+
+                var deliveryIcon = '';
+                if (entry.notifiedChannels && entry.notifiedChannels.length > 0) {
+                    deliveryIcon = entry.deliverySuccess
+                        ? '<i class="bi bi-check-circle-fill" style="color:#16a34a;font-size:12px;margin-left:4px;" title="推送成功"></i>'
+                        : '<i class="bi bi-x-circle-fill" style="color:#dc2626;font-size:12px;margin-left:4px;" title="推送失败"></i>';
+                }
 
                 html += '<div class="notification-item" onclick="NotificationModule.toggleNotification(this)" data-id="' + entry.id + '">' +
                     '<span class="notif-time">' + time + '</span>' +
-                    '<span class="notif-badge ' + sevClass + '">' + entry.severity + '</span>' +
-                    '<span class="notif-badge" style="background:#f1f5f9;color:#475569;">' + entry.eventType + '</span>' +
-                    '<span class="notif-message" style="flex:1;">' + DashboardUtils.escapeHtml(entry.title) + '</span>' +
+                    '<span class="notif-badge" style="background:#f1f5f9;color:#475569;">' + evtLabel + '</span>' +
+                    '<span class="notif-message">' + DashboardUtils.escapeHtml(entry.title) + '</span>' +
+                    channelChips + deliveryIcon +
                     '<i class="bi bi-chevron-right notif-arrow"></i>' +
                     '<div class="notif-details">' + details + '</div>' +
                     '</div>';
             });
 
             container.innerHTML = html;
-            this.renderPagination(data.total, data.page, data.pageSize);
+            this.renderPagination(total, page, pageSize);
         },
 
         buildHistoryDetails: function(entry) {
             var html = '<div class="notif-detail-row">';
-            if (entry.clusterId) html += '<span><strong>Cluster:</strong> <code>' + DashboardUtils.escapeHtml(entry.clusterId) + '</code></span>';
-            if (entry.routeId) html += '<span><strong>Route:</strong> <code>' + DashboardUtils.escapeHtml(entry.routeId) + '</code></span>';
-            if (entry.clientIp) html += '<span><strong>IP:</strong> <code>' + DashboardUtils.escapeHtml(entry.clientIp) + '</code></span>';
+            if (entry.clusterId) html += '<span><strong>' + (__('notif.detail.cluster') || 'Cluster') + ':</strong> <code>' + DashboardUtils.escapeHtml(entry.clusterId) + '</code></span>';
+            if (entry.routeId) html += '<span><strong>' + (__('notif.detail.route') || 'Route') + ':</strong> <code>' + DashboardUtils.escapeHtml(entry.routeId) + '</code></span>';
+            if (entry.clientIp) html += '<span><strong>' + (__('notif.detail.ip') || 'IP') + ':</strong> <code>' + DashboardUtils.escapeHtml(entry.clientIp) + '</code></span>';
             html += '</div>';
-            if (entry.message) html += '<div style="margin-top:8px;">' + DashboardUtils.escapeHtml(entry.message) + '</div>';
-            if (entry.blockReason) html += '<div style="margin-top:4px;color:#dc2626;"><strong>Reason:</strong> ' + DashboardUtils.escapeHtml(entry.blockReason) + '</div>';
-            if (entry.requestUri) html += '<div style="margin-top:4px;"><strong>URI:</strong> <code>' + DashboardUtils.escapeHtml(entry.requestUri) + '</code></div>';
-            if (entry.errorMessage) html += '<div style="margin-top:4px;"><strong>Error:</strong> ' + DashboardUtils.escapeHtml(entry.errorMessage) + '</div>';
-            if (entry.attemptCount) html += '<div style="margin-top:4px;"><strong>Attempts:</strong> ' + entry.attemptCount + '</div>';
+            if (entry.message) html += '<div style="margin-top:8px;color:#475569;">' + DashboardUtils.escapeHtml(entry.message) + '</div>';
+            if (entry.blockReason) html += '<div style="margin-top:4px;color:#dc2626;"><strong>' + (__('notif.detail.reason') || 'Reason') + ':</strong> ' + DashboardUtils.escapeHtml(entry.blockReason) + '</div>';
+            if (entry.requestUri) html += '<div style="margin-top:4px;"><strong>' + (__('notif.detail.uri') || 'URI') + ':</strong> <code>' + DashboardUtils.escapeHtml(entry.requestUri) + '</code></div>';
+            if (entry.errorMessage) html += '<div style="margin-top:4px;color:#dc2626;"><strong>' + (__('notif.detail.error') || 'Error') + ':</strong> ' + DashboardUtils.escapeHtml(entry.errorMessage) + '</div>';
+            if (entry.attemptCount != null) html += '<div style="margin-top:4px;"><strong>' + (__('notif.detail.attempts') || 'Attempts') + ':</strong> ' + entry.attemptCount + '</div>';
+            if (entry.lastStatusCode != null) html += '<div style="margin-top:4px;"><strong>' + (__('notif.detail.statusCode') || 'Status') + ':</strong> ' + entry.lastStatusCode + '</div>';
+            // Show notification ID for debugging
+            if (entry.id) html += '<div style="margin-top:8px;font-size:10px;color:#94a3b8;"><strong>ID:</strong> <code style="font-size:10px;">' + entry.id + '</code></div>';
             return html;
         },
 
         renderPagination: function(total, page, pageSize) {
             var container = document.getElementById('notif-history-pagination');
-            if (!container || total <= pageSize) {
-                if (container) container.innerHTML = '';
+            if (!container) return;
+
+            var totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+            // Always show pagination info, even for single page
+            if (total <= pageSize && totalPages <= 1) {
+                container.innerHTML = total > 0
+                    ? '<div style="text-align:center;padding:12px;color:#94a3b8;font-size:13px;">' + (__('notif.allRecords') || '共 {0} 条记录').replace('{0}', total) + '</div>'
+                    : '';
                 return;
             }
 
-            var totalPages = Math.ceil(total / pageSize);
-            var html = '';
+            var html = '<div style="display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap;">';
 
-            html += '<button class="pagination-btn" onclick="NotificationModule.loadHistory(' + (page - 1) + ')" ' + (page <= 1 ? 'disabled' : '') + '>' +
+            // Previous
+            html += '<button class="pagination-btn" onclick="NotificationModule.loadHistory(' + (page - 1) + ')" ' + (page <= 1 ? 'disabled' : '') + ' title="' + (__('notif.prevPage') || '上一页') + '">' +
                 '<i class="bi bi-chevron-left"></i></button>';
 
             var start = Math.max(1, page - 2);
@@ -199,7 +460,7 @@
 
             if (start > 1) {
                 html += '<button class="pagination-btn" onclick="NotificationModule.loadHistory(1)">1</button>';
-                if (start > 2) html += '<span style="padding:0 8px;color:#94a3b8;">...</span>';
+                if (start > 2) html += '<span style="padding:0 6px;color:#94a3b8;font-size:13px;">...</span>';
             }
 
             for (var i = start; i <= end; i++) {
@@ -207,14 +468,29 @@
             }
 
             if (end < totalPages) {
-                if (end < totalPages - 1) html += '<span style="padding:0 8px;color:#94a3b8;">...</span>';
+                if (end < totalPages - 1) html += '<span style="padding:0 6px;color:#94a3b8;font-size:13px;">...</span>';
                 html += '<button class="pagination-btn" onclick="NotificationModule.loadHistory(' + totalPages + ')">' + totalPages + '</button>';
             }
 
-            html += '<button class="pagination-btn" onclick="NotificationModule.loadHistory(' + (page + 1) + ')" ' + (page >= totalPages ? 'disabled' : '') + '>' +
+            // Next
+            html += '<button class="pagination-btn" onclick="NotificationModule.loadHistory(' + (page + 1) + ')" ' + (page >= totalPages ? 'disabled' : '') + ' title="' + (__('notif.nextPage') || '下一页') + '">' +
                 '<i class="bi bi-chevron-right"></i></button>';
 
+            // Page jump
+            html += '<span style="margin-left:12px;font-size:12px;color:#94a3b8;">' +
+                '<span>' + (__('notif.page') || '第') + ' </span>' +
+                '<input type="number" class="pagination-jump" id="notif-page-jump" value="' + page + '" min="1" max="' + totalPages + '" style="width:50px;text-align:center;border:1px solid #e2e8f0;border-radius:6px;padding:4px 6px;font-size:13px;" onkeydown="NotificationModule._onPageJump(event)">' +
+                '<span> / ' + totalPages + ' ' + (__('notif.pageUnit') || '页') + '</span>' +
+                '</span>';
+
+            html += '</div>';
             container.innerHTML = html;
+        },
+
+        _onPageJump: function(e) {
+            if (e.key !== 'Enter') return;
+            var page = parseInt(e.target.value);
+            if (page > 0) this.loadHistory(page);
         },
 
         renderChannels: function(channels) {
@@ -274,7 +550,11 @@
             rules.forEach(function(rule) {
                 var disabledClass = rule.enabled ? '' : 'disabled';
                 var eventTags = rule.eventTypes && rule.eventTypes.length > 0
-                    ? rule.eventTypes.map(function(e) { return '<span class="rule-event-tag">' + e + '</span>'; }).join('')
+                    ? rule.eventTypes.map(function(e) {
+                        var meta = window.NOTIF_EVENT_TYPES.find(function(m) { return m.value === e; });
+                        var label = meta ? window._notifI18n(meta.i18nKey, meta.value) : e;
+                        return '<span class="rule-event-tag">' + label + '</span>';
+                    }).join('')
                     : '<span class="rule-event-tag">' + __('notif.allEvents') + '</span>';
 
                 var channelChips = (rule.channelDetails || [])
@@ -283,18 +563,24 @@
 
                 html += '<div class="rule-card ' + disabledClass + '" data-id="' + rule.id + '">' +
                     '<div class="rule-header">' +
+                    '<div>' +
                     '<span class="rule-name">' + DashboardUtils.escapeHtml(rule.name) + '</span>' +
                     '<div class="rule-meta">' +
+                    '<span><i class="bi bi-tags"></i> ' + (rule.eventTypes && rule.eventTypes.length > 0 ? rule.eventTypes.length + ' ' + (__('notif.events') || 'events') : (__('notif.allEvents') || 'All')) + '</span>' +
                     '<span><i class="bi bi-clock"></i> ' + rule.cooldownSeconds + 's</span>' +
-                    '<span><i class="bi bi-' + (rule.minSeverity === 'Error' ? 'exclamation-circle text-danger' : 'info-circle') + '"></i> ' + rule.minSeverity + '</span>' +
+                    '<span><i class="bi bi-megaphone"></i> ' + (rule.channelDetails ? rule.channelDetails.length : 0) + ' ' + (__('notif.channels') || 'channels') + '</span>' +
+                    '</div>' +
+                    '</div>' +
+                    '<div class="d-flex align-items-center gap-2">' +
+                    (rule.enabled ? '<span style="font-size:11px;color:#16a34a;background:#f0fdf4;padding:2px 8px;border-radius:10px;">' + (__('notif.enabled') || 'Enabled') + '</span>' : '<span style="font-size:11px;color:#94a3b8;background:#f1f5f9;padding:2px 8px;border-radius:10px;">' + (__('notif.disabled') || 'Disabled') + '</span>') +
                     '</div>' +
                     '</div>' +
                     '<div class="rule-events">' + eventTags + '</div>' +
                     '<div class="rule-channels">' + channelChips + '</div>' +
                     '<div class="channel-actions" style="margin-top:12px;">' +
-                    '<button class="btn btn-sm btn-outline-secondary" onclick="NotificationModule.editRule(\'' + rule.id + '\')">' +
+                    '<button class="btn btn-sm btn-outline-secondary" onclick="NotificationModule.editRule(\'' + rule.id + '\')" title="' + (__('notif.editRule') || '编辑规则') + '">' +
                     '<i class="bi bi-pencil"></i></button>' +
-                    '<button class="btn btn-sm btn-outline-danger" onclick="NotificationModule.deleteRule(\'' + rule.id + '\')">' +
+                    '<button class="btn btn-sm btn-outline-danger" onclick="NotificationModule.deleteRule(\'' + rule.id + '\')" title="' + (__('notif.deleteRule') || '删除规则') + '">' +
                     '<i class="bi bi-trash"></i></button>' +
                     '</div>' +
                     '</div>';
@@ -350,7 +636,27 @@
         applyFilters: function() {
             this.currentFilters.eventType = document.getElementById('notif-type-filter')?.value || '';
             this.currentFilters.severity = document.getElementById('notif-severity-filter')?.value || '';
+            this.currentFilters.keyword = document.getElementById('notif-keyword-filter')?.value || '';
+            this.currentFilters.dateStart = document.getElementById('notif-date-start')?.value || '';
+            this.currentFilters.dateEnd = document.getElementById('notif-date-end')?.value || '';
             this.loadHistory(1);
+        },
+
+        onKeywordChange: function(e) {
+            // Debounce keyword search
+            var self = this;
+            clearTimeout(this._keywordTimer);
+            this._keywordTimer = setTimeout(function() {
+                self.applyFilters();
+            }, 400);
+        },
+
+        onPageSizeChange: function() {
+            var sel = document.getElementById('notif-page-size');
+            if (sel) {
+                this.pageSize = parseInt(sel.value) || 50;
+                this.loadHistory(1);
+            }
         },
 
         // ─── Channel Management ─────────────────────────────────────────────
@@ -442,16 +748,30 @@
         showRuleModal: function(rule) {
             document.getElementById('rule-id').value = rule?.id || '';
             document.getElementById('rule-name').value = rule?.name || '';
-            document.getElementById('rule-severity').value = rule?.minSeverity || 'Info';
             document.getElementById('rule-cooldown').value = rule?.cooldownSeconds || 300;
             document.getElementById('rule-record').checked = rule?.recordToHistory !== false;
             document.getElementById('rule-enabled').checked = rule?.enabled !== false;
 
+            // Config-change sub-types for legacy "ConfigChange" umbrella compatibility
+            var configSubTypes = ['AddRoute','UpdateRoute','RemoveRoute','AddCluster','UpdateCluster','RemoveCluster','RollbackConfig'];
+            var hasLegacyConfigChange = rule?.eventTypes?.indexOf('ConfigChange') >= 0;
+
             // Event types
             var eventCheckboxes = document.querySelectorAll('#rule-event-types input[type="checkbox"]');
             eventCheckboxes.forEach(function(cb) {
-                cb.checked = rule?.eventTypes?.includes(cb.value) || false;
+                if (hasLegacyConfigChange && configSubTypes.indexOf(cb.value) >= 0) {
+                    cb.checked = true;  // legacy umbrella → check all sub-types
+                } else {
+                    cb.checked = rule?.eventTypes?.indexOf(cb.value) >= 0 || false;
+                }
             });
+
+            // Refresh the "Select All" master checkbox if it exists
+            var master = document.getElementById('event-select-all');
+            if (master) {
+                var allCbs = document.querySelectorAll('#rule-event-types input.event-type-cb');
+                master.checked = allCbs.length > 0 && Array.from(allCbs).every(function(c) { return c.checked; });
+            }
 
             // Channel selection
             this.renderChannelSelect(rule?.channelIds || []);
@@ -503,7 +823,7 @@
             var data = {
                 id: id || undefined,
                 name: document.getElementById('rule-name').value,
-                minSeverity: document.getElementById('rule-severity').value,
+                minSeverity: 'Info',
                 eventTypes: eventTypes,
                 channelIds: channelIds,
                 cooldownSeconds: parseInt(document.getElementById('rule-cooldown').value) || 300,
@@ -577,6 +897,19 @@
             } catch (e) {
                 console.error('[Notification] Clear history failed:', e);
                 DashboardModals.showError(__('notif.clearFailed'));
+            }
+        },
+
+        testNotification: async function() {
+            try {
+                await DashboardApi.post('/api/notifications/test', {});
+                // Refresh history and summary to show the test notification record immediately
+                this.loadHistory(1, true);
+                this.loadSummary();
+                DashboardModals.showToast(__('notif.testSent') || 'Test notification sent', 'success');
+            } catch (e) {
+                console.error('[Notification] Test notification failed:', e);
+                DashboardModals.showError(__('notif.testFailed') || 'Test failed');
             }
         }
     };

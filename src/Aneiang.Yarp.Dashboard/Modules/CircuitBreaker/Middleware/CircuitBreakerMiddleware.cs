@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
-using Aneiang.Yarp.Dashboard.Modules.Alert.Services;
 using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
 using System.Collections.Concurrent;
 using Yarp.ReverseProxy.Model;
@@ -23,11 +22,10 @@ public sealed class CircuitBreakerMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<CircuitBreakerMiddleware> _logger;
     private readonly CircuitBreakerOptions _options;
-    private readonly IGatewayAlertService _alertService;
     private readonly IGatewayPluginManager _pluginManager;
     private readonly IDynamicYarpConfigService _yarpConfig;
     private readonly string _dashPrefix;
-    private readonly INotificationService? _notificationService;
+    private readonly INotificationService _notificationService;
 
     private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
 
@@ -63,7 +61,6 @@ public sealed class CircuitBreakerMiddleware
         ILogger<CircuitBreakerMiddleware> logger,
         IOptions<CircuitBreakerOptions> options,
         IOptions<DashboardOptions> dashOptions,
-        IGatewayAlertService alertService,
         IGatewayPluginManager pluginManager,
         IDynamicYarpConfigService yarpConfig,
         INotificationService? notificationService = null)
@@ -71,11 +68,10 @@ public sealed class CircuitBreakerMiddleware
         _next = next;
         _logger = logger;
         _options = options.Value;
-        _alertService = alertService;
         _pluginManager = pluginManager;
         _yarpConfig = yarpConfig;
         _dashPrefix = "/" + dashOptions.Value.RoutePrefix.Trim('/');
-        _notificationService = notificationService;
+        _notificationService = notificationService ?? NullNotificationService.Instance;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -237,8 +233,7 @@ public sealed class CircuitBreakerMiddleware
                     state.OpenedAt = DateTime.Now;
                     _logger.LogWarning("Circuit HALF-OPEN probe FAILED for {CircuitKey}, back to OPEN", circuitKey);
                     var (cbCluster, cbDest) = ParseCircuitKey(circuitKey);
-                    _alertService.AlertCircuitBreakerOpen(cbCluster, cbDest);
-                    _notificationService?.NotifyCircuitBreakerOpen(cbCluster, cbDest);
+                    _notificationService.NotifyCircuitBreakerOpen(cbCluster, cbDest);
                 }
                 else if (state.ConsecutiveFailures >= state.FailureThreshold)
                 {
@@ -246,8 +241,7 @@ public sealed class CircuitBreakerMiddleware
                     state.OpenedAt = DateTime.Now;
                     _logger.LogWarning("Circuit OPENED for {CircuitKey} after {Failures} failures", circuitKey, state.ConsecutiveFailures);
                     var (cbCluster, cbDest) = ParseCircuitKey(circuitKey);
-                    _alertService.AlertCircuitBreakerOpen(cbCluster, cbDest);
-                    _notificationService?.NotifyCircuitBreakerOpen(cbCluster, cbDest);
+                    _notificationService.NotifyCircuitBreakerOpen(cbCluster, cbDest);
                 }
             }
             else

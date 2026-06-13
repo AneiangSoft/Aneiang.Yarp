@@ -62,6 +62,10 @@ public interface IDynamicYarpConfigService
     /// <summary>Update heartbeat timestamp for a registered service.</summary>
     bool UpdateHeartbeat(string routeName, string? clientIp = null);
 
+    /// <summary>Atomically rename a route (repoint references + delete old).</summary>
+    Task<RouteOperationResult> TryRenameRoute(string oldRouteId, string newRouteId, RegisterRouteRequest request,
+        string source = "dashboard", string? createdBy = "dashboard-user");
+
     /// <summary>Update circuit breaker configuration for a cluster.</summary>
     Task<bool> UpdateClusterCircuitBreakerAsync(string clusterId, Models.CircuitBreakerConfig? config);
 }
