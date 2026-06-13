@@ -42,7 +42,7 @@ internal sealed class GatewayRegistrationHostedService : IHostedService
 
     public async Task StartAsync(CancellationToken ct)
     {
-        _logger.LogInformation("Auto-registration starting...");
+        _logger.LogDebug("Auto-registration starting...");
 
         for (int attempt = 0; attempt < MaxRetries; attempt++)
         {
@@ -50,7 +50,7 @@ internal sealed class GatewayRegistrationHostedService : IHostedService
             {
                 if (await _client.RegisterAsync(ct).ConfigureAwait(false))
                 {
-                    _logger.LogInformation("Auto-registration complete");
+                    _logger.LogDebug("Auto-registration complete");
                     StartHeartbeatIfEnabled(ct);
                     return;
                 }

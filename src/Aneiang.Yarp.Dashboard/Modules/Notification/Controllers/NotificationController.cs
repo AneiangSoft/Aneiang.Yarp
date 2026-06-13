@@ -158,7 +158,7 @@ public class NotificationController : ControllerBase
             }
 
             _notificationService.InvalidateCache();
-            _logger.LogInformation("Notification settings saved");
+            _logger.LogDebug("Notification settings saved");
 
             return Ok(new { code = 200, message = "Settings saved successfully" });
         }
@@ -483,7 +483,7 @@ public class NotificationController : ControllerBase
             };
 
             await _repository.RecordNotificationAsync(entry);
-            _logger.LogInformation("[Notification] Test history entry generated: {Id}", entry.Id);
+            _logger.LogDebug("[Notification] Test history entry generated: {Id}", entry.Id);
 
             return Ok(new { code = 200, ok = true, message = "Test entry created", entry });
         }

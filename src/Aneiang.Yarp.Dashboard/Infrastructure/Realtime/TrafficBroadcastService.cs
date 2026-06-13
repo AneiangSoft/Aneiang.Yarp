@@ -33,7 +33,7 @@ public sealed class TrafficBroadcastService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation(
+        _logger.LogDebug(
             "TrafficBroadcastService started — broadcasting every {Interval}s",
             _broadcastInterval.TotalSeconds);
 

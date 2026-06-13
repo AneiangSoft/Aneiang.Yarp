@@ -37,7 +37,7 @@ public sealed class JwtSecretProvider
         if (!string.IsNullOrWhiteSpace(configuredSecret))
         {
             _cachedSecret = configuredSecret;
-            _logger.LogInformation("Using JWT secret from configuration");
+            _logger.LogDebug("Using JWT secret from configuration");
             return _cachedSecret;
         }
 
@@ -58,7 +58,7 @@ public sealed class JwtSecretProvider
                     var secret = secretProp.GetString();
                     if (!string.IsNullOrWhiteSpace(secret))
                     {
-                        _logger.LogInformation("JWT secret loaded from {File}", _filePath);
+                        _logger.LogDebug("JWT secret loaded from {File}", _filePath);
                         return secret;
                     }
                 }
