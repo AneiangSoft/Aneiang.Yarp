@@ -377,6 +377,15 @@ public static class DashboardI18n
         ["config.loading"] = "加载中...",
         ["config.close"] = "关闭",
 
+        // ── Database Download ──
+        ["config.database"] = "数据库管理",
+        ["config.downloadDb"] = "下载数据库",
+        ["config.downloadDbDesc"] = "将 SQLite 数据库文件下载到本地，方便使用数据库工具查看",
+        ["config.downloadDbBtn"] = "下载",
+        ["config.downloading"] = "正在下载...",
+        ["config.downloaded"] = "下载完成",
+        ["config.downloadFailed"] = "下载失败：",
+
         // ── Webhook Settings ──
         ["webhook.title"] = "Webhook 通知设置",
         ["webhook.urls"] = "回调地址列表",
@@ -1518,6 +1527,15 @@ public static class DashboardI18n
         ["config.getHistoryFailed"] = "Failed to get config history",
         ["config.loading"] = "Loading...",
         ["config.close"] = "Close",
+
+        // ── Database Download ──
+        ["config.database"] = "Database Management",
+        ["config.downloadDb"] = "Download Database",
+        ["config.downloadDbDesc"] = "Download the SQLite database file for local inspection with database tools",
+        ["config.downloadDbBtn"] = "Download",
+        ["config.downloading"] = "Downloading...",
+        ["config.downloaded"] = "Download complete",
+        ["config.downloadFailed"] = "Download failed: ",
 
         // ── Webhook Settings ──
         ["webhook.title"] = "Webhook Notification Settings",
