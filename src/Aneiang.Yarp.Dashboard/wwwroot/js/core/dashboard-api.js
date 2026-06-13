@@ -311,6 +311,9 @@
         compareWithCurrent: (fromId) => DashboardApi.get('/api/dashboard/config/diff/' + fromId + '/current'),
         configDiff: (versionId) => DashboardApi.get('/api/config/diff/' + versionId),
 
+        // Database Download
+        downloadDatabase: () => DashboardApi.download('/api/settings/database', 'gateway-store.db'),
+
         // Cluster Toggle (Stage 2)
         toggleCluster: (clusterId) => DashboardApi.post('/api/config/clusters/' + clusterId + '/toggle'),
 

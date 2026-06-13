@@ -34,6 +34,18 @@
         }
     };
 
+    // ===== Download Database =====
+    window.DashboardConfig.downloadDatabase = async function() {
+        try {
+            window.DashboardModals.showInfo(__('config.downloading'));
+            await window.DashboardApi.endpoints.downloadDatabase();
+            window.DashboardModals.showSuccess(__('config.downloaded'));
+        } catch (error) {
+            console.error('[Config] Database download failed:', error);
+            window.DashboardModals.showError(__('config.downloadFailed') + error.message);
+        }
+    };
+
     // ===== Show Import Modal =====
     window.DashboardConfig.showImportModal = function() {
         const self = this;
