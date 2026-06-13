@@ -92,17 +92,6 @@ YARP requires `appsettings.json` + restart for route changes. Aneiang.Yarp adds 
 - **Source tracking**: every route & cluster records `CreatedAt`, `CreatedBy`, `Source` metadata
 - **Thread-safe**: all operations protected by `SemaphoreSlim(1,1)` — async-friendly concurrency
 
-```http
-POST   /api/gateway/register-route   Register or update route + cluster
-DELETE /api/gateway/{routeName}       Delete route (supports IP isolation)
-GET    /api/gateway/routes            Query all routes
-GET    /api/gateway/dynamic-config    Query config with metadata
-POST   /api/gateway/clusters          Create cluster
-PUT    /api/gateway/clusters/{id}     Update cluster
-DELETE /api/gateway/clusters/{id}     Delete cluster
-GET    /api/gateway/ping              Health check
-```
-
 ### WAF Firewall
 
 Production-grade web application firewall built into the gateway — no external service needed.
