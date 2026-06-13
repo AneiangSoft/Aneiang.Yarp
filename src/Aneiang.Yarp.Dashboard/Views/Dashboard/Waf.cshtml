@@ -1,0 +1,184 @@
+@using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "WAF Firewall" : "WAF 防火墙";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<div class="card-panel mb-4">
+    <div class="card-header">
+        <span><i class="bi bi-shield-lock me-2" style="color:#ef4444;"></i><span data-i18n="waf.title">WAF 防火墙设置</span></span>
+        <button class="btn btn-sm btn-outline-primary" onclick="DashboardWafSettings.save()">
+            <i class="bi bi-check-lg"></i> <span data-i18n="waf.save">保存设置</span>
+        </button>
+    </div>
+    <div class="card-body" id="waf-settings-body">
+        <div class="loading-state">
+            <div class="loading-spinner"></div>
+            <div class="loading-text" data-i18n="security.loading">加载中...</div>
+        </div>
+    </div>
+</div>
+
+<!-- WAF rule descriptions -->
+<div class="card-panel mb-4">
+    <div class="card-header">
+        <span><i class="bi bi-info-circle me-2" style="color:#3b82f6;"></i><span data-i18n="waf.ruleDescriptions">触发规则说明</span></span>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item px-0"><i class="bi bi-geo-alt me-2 text-primary"></i><strong data-i18n="policy.wafRuleIp">IP 黑名单/白名单</strong><br><small class="text-muted" data-i18n="policy.wafRuleIpHint">根据配置的 IP 列表阻止或放行访问</small></li>
+                    <li class="list-group-item px-0"><i class="bi bi-file-earmark me-2 text-warning"></i><strong data-i18n="policy.wafRuleBody">请求体大小限制</strong><br><small class="text-muted" data-i18n="policy.wafRuleBodyHint">超过限制的请求将被拦截</small></li>
+                    <li class="list-group-item px-0"><i class="bi bi-card-heading me-2 text-info"></i><strong data-i18n="policy.wafRuleHeader">请求头限制</strong><br><small class="text-muted" data-i18n="policy.wafRuleHeaderHint">请求头数量或单个头部大小超限时拦截</small></li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item px-0"><i class="bi bi-link-45deg me-2 text-secondary"></i><strong data-i18n="policy.wafRuleUri">URI 长度限制</strong><br><small class="text-muted" data-i18n="policy.wafRuleUriHint">超过 4096 字符的请求路径将被拦截</small></li>
+                    <li class="list-group-item px-0"><i class="bi bi-folder2-open me-2 text-danger"></i><strong data-i18n="policy.wafRulePath">路径遍历检测</strong><br><small class="text-muted" data-i18n="policy.wafRulePathHint">拦截 ../ 等目录穿越攻击</small></li>
+                    <li class="list-group-item px-0"><i class="bi bi-database me-2 text-danger"></i><strong data-i18n="policy.wafRuleSql">SQL 注入检测</strong><br><small class="text-muted" data-i18n="policy.wafRuleSqlHint">拦截 SELECT/UNION/DROP 等危险关键词及注入值</small></li>
+                    <li class="list-group-item px-0"><i class="bi bi-code-slash me-2 text-danger"></i><strong data-i18n="policy.wafRuleXss">XSS 检测</strong><br><small class="text-muted" data-i18n="policy.wafRuleXssHint">拦截 script 事件处理器等危险标签</small></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+@{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
+
+<script>
+    // WAF Settings Module
+    window.DashboardWafSettings = {
+        _data: null,
+
+        init: async function() {
+            try {
+            var resp = await DashboardApi.endpoints.getWafSettings();
+            this._data = resp || {};
+                this.render();
+            } catch (e) {
+                console.error('[WafSettings] Load failed:', e);
+                var el = document.getElementById('waf-settings-body');
+                if (el) el.innerHTML = '<div class="alert alert-danger">' + __('waf.loadFailed') + '</div>';
+            }
+        },
+
+        render: function() {
+            var d = this._data || {};
+            var mb = Math.round((d.maxRequestBodySize || 10485760) / (1024 * 1024));
+            var el = document.getElementById('waf-settings-body');
+            if (!el) return;
+
+            el.innerHTML =
+                '<div class="row g-4">' +
+                    '<div class="col-md-6">' +
+                        '<div class="d-flex align-items-center justify-content-between p-3 border rounded mb-3">' +
+                            '<div><strong>' + __('waf.globalSwitch') + '</strong></div>' +
+                            '<div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="waf-enabled" style="width:3em;height:1.5em;" ' + (d.enabled ? 'checked' : '') + '></div>' +
+                        '</div>' +
+                        '<h6 class="mb-2"><i class="bi bi-bug me-1"></i>' + __('waf.detectionRules') + '</h6>' +
+                        '<div class="list-group mb-3">' +
+                            '<label class="list-group-item d-flex justify-content-between align-items-center">' + __('waf.ipCheck') + '<input class="form-check-input" type="checkbox" id="waf-ip-check" ' + (d.enableIpCheck !== false ? 'checked' : '') + '></label>' +
+                            '<label class="list-group-item d-flex justify-content-between align-items-center">' + __('waf.sqlInjection') + '<input class="form-check-input" type="checkbox" id="waf-sqli" ' + (d.enableSqlInjectionDetection !== false ? 'checked' : '') + '></label>' +
+                            '<label class="list-group-item d-flex justify-content-between align-items-center">' + __('waf.xss') + '<input class="form-check-input" type="checkbox" id="waf-xss" ' + (d.enableXssDetection !== false ? 'checked' : '') + '></label>' +
+                            '<label class="list-group-item d-flex justify-content-between align-items-center">' + __('waf.pathTraversal') + '<input class="form-check-input" type="checkbox" id="waf-path" ' + (d.enablePathTraversalDetection !== false ? 'checked' : '') + '></label>' +
+                        '</div>' +
+                        '<h6 class="mb-2"><i class="bi bi-rulers me-1"></i>' + __('waf.requestLimits') + '</h6>' +
+                        '<div class="row g-3">' +
+                            '<div class="col-4"><label class="form-label small">' + __('waf.maxBodySize') + '</label><input type="number" class="form-control form-control-sm" id="waf-max-body" value="' + mb + '" min="1"></div>' +
+                            '<div class="col-4"><label class="form-label small">' + __('waf.maxHeaderCount') + '</label><input type="number" class="form-control form-control-sm" id="waf-max-headers" value="' + (d.maxHeaderCount || 64) + '" min="1"></div>' +
+                            '<div class="col-4"><label class="form-label small">' + __('waf.maxHeaderSize') + '</label><input type="number" class="form-control form-control-sm" id="waf-max-header-size" value="' + (d.maxHeaderSize || 8192) + '" min="256"></div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="col-md-6">' +
+                        '<h6 class="mb-2"><i class="bi bi-geo-alt me-1"></i>' + __('waf.ipWhitelist') + '</h6>' +
+                        '<textarea class="form-control form-control-sm mb-1" id="waf-whitelist" rows="4" placeholder="' + __('waf.ipWhitelist.help') + '">' + this._escapeList(d.ipWhitelist) + '</textarea>' +
+                        '<div class="text-muted small mb-3">' + __('waf.ipWhitelist.help') + '</div>' +
+                        '<h6 class="mb-2"><i class="bi bi-ban me-1"></i>' + __('waf.ipBlacklist') + '</h6>' +
+                        '<textarea class="form-control form-control-sm mb-1" id="waf-blacklist" rows="4" placeholder="' + __('waf.ipBlacklist.help') + '">' + this._escapeList(d.ipBlacklist) + '</textarea>' +
+                        '<div class="text-muted small">' + __('waf.ipBlacklist.help') + '</div>' +
+                    '</div>' +
+                '</div>';
+        },
+
+        _escapeList: function(arr) {
+            if (!arr || !arr.length) return '';
+            return arr.map(function(s) { return window.DashboardUtils ? DashboardUtils.escapeHtml(s) : s; }).join('\n');
+        },
+
+        save: async function() {
+            var mbVal = parseInt(document.getElementById('waf-max-body').value) || 10;
+            var data = {
+                enabled: document.getElementById('waf-enabled').checked,
+                enableIpCheck: document.getElementById('waf-ip-check').checked,
+                ipWhitelist: this._parseArea(document.getElementById('waf-whitelist').value),
+                ipBlacklist: this._parseArea(document.getElementById('waf-blacklist').value),
+                enableRequestSizeValidation: true,
+                maxRequestBodySize: mbVal * 1024 * 1024,
+                maxHeaderCount: parseInt(document.getElementById('waf-max-headers').value) || 64,
+                maxHeaderSize: parseInt(document.getElementById('waf-max-header-size').value) || 8192,
+                enableSqlInjectionDetection: document.getElementById('waf-sqli').checked,
+                enableXssDetection: document.getElementById('waf-xss').checked,
+                enablePathTraversalDetection: document.getElementById('waf-path').checked
+            };
+
+            var btn = document.querySelector('[onclick="DashboardWafSettings.save()"]');
+            if (btn) { btn.disabled = true; btn.querySelector('span') && (btn.querySelector('span').textContent = __('waf.saving')); }
+
+            try {
+                await DashboardApi.endpoints.saveWafSettings(data);
+                this._data = data;
+                if (window.DashboardModals) DashboardModals.showToast(__('waf.saved'), 'success');
+            } catch (e) {
+                console.error('[WafSettings] Save failed:', e);
+                if (window.DashboardModals) DashboardModals.showError(__('waf.saveFailed'));
+            } finally {
+                if (btn) { btn.disabled = false; var sp = btn.querySelector('span'); if (sp) sp.textContent = __('waf.save'); }
+            }
+        },
+
+        _parseArea: function(text) {
+            if (!text) return [];
+            return text.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 0; });
+        }
+    };
+</script>
+
+<script>
+    window.__dashboard = window.__dashboard || {};
+    var dash = window.__dashboard;
+    dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
+    dash.token = localStorage.getItem('dashboard_token');
+    dash.CURRENT_LOCALE = '@ViewBag.Locale';
+    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
+    dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
+    dash.currentPage = '@ViewBag.CurrentPage';
+</script>
+
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+
+        // Load WAF settings
+        try { await DashboardWafSettings.init(); } catch (e) { console.error('[Waf] Load failed:', e); }
+    })();
+</script>
+}

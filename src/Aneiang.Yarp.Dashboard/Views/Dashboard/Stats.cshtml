@@ -1,0 +1,268 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Statistics" : "访问统计";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+    var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
+    var v = "2.3.0.14";
+}
+
+<!-- Summary Stats Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-card stat-card--blue" style="border-left: 3px solid #3b82f6;">
+            <div class="stat-card__icon"><i class="bi bi-arrow-down-up"></i></div>
+            <div class="stat-card__body">
+                <div class="stat-card__value" id="stat-total-requests">-</div>
+                <div class="stat-card__label" data-i18n="stats.totalRequests">总请求数</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card stat-card--green" style="border-left: 3px solid #22c55e;">
+            <div class="stat-card__icon"><i class="bi bi-check-circle"></i></div>
+            <div class="stat-card__body">
+                <div class="stat-card__value" id="stat-success-rate">-</div>
+                <div class="stat-card__label" data-i18n="stats.successRate">成功率</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card stat-card--amber" style="border-left: 3px solid #f59e0b;">
+            <div class="stat-card__icon"><i class="bi bi-stopwatch"></i></div>
+            <div class="stat-card__body">
+                <div class="stat-card__value" id="stat-avg-latency">-</div>
+                <div class="stat-card__label" data-i18n="stats.avgLatency">平均延迟</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card stat-card--purple" style="border-left: 3px solid #8b5cf6;">
+            <div class="stat-card__icon"><i class="bi bi-lightning"></i></div>
+            <div class="stat-card__body">
+                <div class="stat-card__value" id="stat-rpm">-</div>
+                <div class="stat-card__label" data-i18n="stats.rpm">每分钟请求</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toolbar: time range + refresh -->
+<div class="card-panel mb-3">
+    <div class="card-body py-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-1">
+            <span class="text-muted small me-1"><i class="bi bi-clock-history me-1"></i><span data-i18n="stats.timeRange">时间范围</span></span>
+            <div class="btn-group btn-group-sm" role="group" id="time-range-group">
+                <input type="radio" class="btn-check" name="timeRange" id="range-1h" value="60" checked>
+                <label class="btn btn-outline-secondary" for="range-1h">1h</label>
+                <input type="radio" class="btn-check" name="timeRange" id="range-6h" value="360">
+                <label class="btn btn-outline-secondary" for="range-6h">6h</label>
+                <input type="radio" class="btn-check" name="timeRange" id="range-24h" value="1440">
+                <label class="btn btn-outline-secondary" for="range-24h">24h</label>
+                <input type="radio" class="btn-check" name="timeRange" id="range-7d" value="10080">
+                <label class="btn btn-outline-secondary" for="range-7d">7d</label>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-muted small" id="stats-last-updated"></span>
+            <button class="btn btn-sm btn-outline-secondary" id="stats-refresh-btn" title="刷新">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 1: QPS + Error Rate -->
+<div class="row g-3 mb-3">
+    <div class="col-lg-8">
+        <div class="card-panel">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-graph-up me-2"></i><span data-i18n="stats.chart.qps">QPS 趋势</span></span>
+                <div class="d-flex align-items-center gap-3 small text-muted" id="qps-legend">
+                    <span><i class="bi bi-circle-fill" style="color:#6366f1;font-size:8px"></i> QPS</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div style="height:240px;position:relative;">
+                    <canvas id="qps-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card-panel h-100">
+            <div class="card-header">
+                <span><i class="bi bi-pie-chart me-2"></i><span data-i18n="stats.chart.statusCodes">状态码分布</span></span>
+            </div>
+            <div class="card-body d-flex align-items-center justify-content-center">
+                <div style="height:220px;width:100%;">
+                    <canvas id="status-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 2: Latency + Error Rate -->
+<div class="row g-3 mb-3">
+    <div class="col-lg-6">
+        <div class="card-panel">
+            <div class="card-header">
+                <span><i class="bi bi-stopwatch me-2"></i><span data-i18n="stats.chart.latency">延迟分布</span></span>
+                <span class="badge bg-secondary small">P50 / P90 / P99</span>
+            </div>
+            <div class="card-body">
+                <div style="height:200px;">
+                    <canvas id="latency-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card-panel">
+            <div class="card-header">
+                <span><i class="bi bi-exclamation-triangle me-2"></i><span data-i18n="stats.chart.errorRate">错误率趋势</span></span>
+                <span class="badge bg-danger small" id="error-rate-badge" style="display:none">0%</span>
+            </div>
+            <div class="card-body">
+                <div style="height:200px;">
+                    <canvas id="error-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top Routes & Top Clusters -->
+<div class="row g-3 mb-3">
+    <div class="col-lg-6">
+        <div class="card-panel">
+            <div class="card-header">
+                <span><i class="bi bi-signpost-split me-2"></i><span data-i18n="stats.topRoutes">热门路由</span></span>
+                <span class="badge bg-primary small" id="top-routes-count"></span>
+            </div>
+            <div class="card-body" style="max-height:280px;overflow-y:auto;">
+                <div id="top-routes-list" class="stats-list"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card-panel">
+            <div class="card-header">
+                <span><i class="bi bi-diagram-3 me-2"></i><span data-i18n="stats.topClusters">热门集群</span></span>
+                <span class="badge bg-info small" id="top-clusters-count"></span>
+            </div>
+            <div class="card-body" style="max-height:280px;overflow-y:auto;">
+                <div id="top-clusters-list" class="stats-list"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-stats-page.js?v=@v"></script>
+<script>
+    window.__dashboard = window.__dashboard || {};
+    var dash = window.__dashboard;
+    dash.basePath = '/' + '@prefix';
+    dash.routePrefix = '@prefix';
+    dash.token = localStorage.getItem('dashboard_token');
+
+    document.addEventListener('DOMContentLoaded', function() {
+        window.DashboardApi.init();
+        StatsPageModule.init();
+    });
+</script>
+}
+
+<style>
+.stat-card {
+    background: var(--panel-bg, #fff);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 16px;
+    padding: 1.125rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+.stat-card:hover {
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+.stat-card::after {
+    content: '';
+    position: absolute; bottom: -30px; right: -15px;
+    width: 80px; height: 80px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 70%);
+    pointer-events: none;
+}
+.stat-card__icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+.stat-card--blue .stat-card__icon { background: linear-gradient(135deg, #eff6ff, #dbeafe); color: #3b82f6; }
+.stat-card--green .stat-card__icon { background: linear-gradient(135deg, #f0fdf4, #dcfce7); color: #22c55e; }
+.stat-card--amber .stat-card__icon { background: linear-gradient(135deg, #fefce8, #fef9c3); color: #eab308; }
+.stat-card--purple .stat-card__icon { background: linear-gradient(135deg, #f5f3ff, #ede9fe); color: #7c3aed; }
+.stat-card__value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--text-color, #111827);
+}
+.stat-card__label {
+    font-size: 0.78rem;
+    color: #9ca3af;
+    margin-top: 2px;
+}
+
+.stats-list { display: flex; flex-direction: column; gap: 6px; }
+.stats-list-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--hover-bg, #f9fafb);
+    transition: background 0.15s;
+}
+.stats-list-row:hover { background: var(--hover-bg-active, #f3f4f6); }
+.stats-list-rank {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700;
+    flex-shrink: 0;
+    background: #e5e7eb; color: #6b7280;
+}
+.stats-list-rank.top-1 { background: #fef3c7; color: #d97706; }
+.stats-list-rank.top-2 { background: #e5e7eb; color: #6b7280; }
+.stats-list-rank.top-3 { background: #fef3c7; color: #92400e; opacity: 0.7; }
+.stats-list-name {
+    flex: 1; min-width: 0;
+    font-size: 12px; font-weight: 500;
+    color: var(--text-color, #374151);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.stats-list-value {
+    font-size: 11px; color: #9ca3af;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+}
+.stats-list-bar-wrap {
+    width: 80px; height: 4px;
+    background: #f3f4f6; border-radius: 2px;
+    overflow: hidden; flex-shrink: 0;
+}
+.stats-list-bar {
+    height: 100%; border-radius: 2px;
+    background: linear-gradient(90deg, #6366f1, #818cf8);
+    transition: width 0.5s ease;
+}
+</style>

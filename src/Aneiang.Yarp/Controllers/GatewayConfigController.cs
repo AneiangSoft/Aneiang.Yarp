@@ -3,6 +3,7 @@ using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Controllers;
 
@@ -13,10 +14,14 @@ namespace Aneiang.Yarp.Controllers;
 public class GatewayConfigController : ControllerBase
 {
     private readonly DynamicYarpConfigService _dynamicConfig;
+    private readonly ILogger<GatewayConfigController> _logger;
 
     /// <summary>Creates a new instance of the controller.</summary>
-    public GatewayConfigController(DynamicYarpConfigService dynamicConfig)
-        => _dynamicConfig = dynamicConfig;
+    public GatewayConfigController(DynamicYarpConfigService dynamicConfig, ILogger<GatewayConfigController> logger)
+    {
+        _dynamicConfig = dynamicConfig;
+        _logger = logger;
+    }
 
     /// <summary>Register or update a route and its cluster.</summary>
     [HttpPost("register-route")]
@@ -106,6 +111,7 @@ public class GatewayConfigController : ControllerBase
         }
         catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to update route {RouteId}: invalid JSON", routeId);
             return BadRequest(new { code = 400, message = $"Invalid JSON: {ex.Message}" });
         }
     }
@@ -178,4 +184,87 @@ public class GatewayConfigController : ControllerBase
 
         return Ok(new { code = 200, message = "heartbeat" });
     }
+
+    // ─── Batch Operations ──────────────────────────────────
+
+    /// <summary>Batch register routes and clusters in a single atomic operation.</summary>
+    [HttpPost("batch/register")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> BatchRegister([FromBody] BatchRegisterRequest request)
+    {
+        if (request.Routes == null || request.Routes.Count == 0)
+            return BadRequest(new { code = 400, message = "At least one route is required" });
+
+        var results = new List<object>();
+        var allSucceeded = true;
+
+        foreach (var routeReq in request.Routes)
+        {
+            try
+            {
+                var result = await _dynamicConfig.TryAddRoute(routeReq, request.Source ?? "batch", request.CreatedBy);
+                results.Add(new { route = routeReq.RouteName, success = result.Success, message = result.Message });
+                if (!result.Success)
+                    allSucceeded = false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Batch register failed for route {RouteName}", routeReq.RouteName);
+                results.Add(new { route = routeReq.RouteName, success = false, message = ex.Message });
+                allSucceeded = false;
+            }
+        }
+
+        var summary = allSucceeded ? "All operations succeeded" : "Some operations failed";
+        return Ok(new { code = 200, message = summary, details = results });
+    }
+
+    /// <summary>Batch delete routes in a single atomic operation.</summary>
+    [HttpPost("batch/delete-routes")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    public async Task<IActionResult> BatchDeleteRoutes([FromBody] BatchDeleteRoutesRequest request)
+    {
+        if (request.RouteNames == null || request.RouteNames.Count == 0)
+            return BadRequest(new { code = 400, message = "At least one route name is required" });
+
+        var results = new List<object>();
+        var allSucceeded = true;
+
+        foreach (var routeName in request.RouteNames)
+        {
+            try
+            {
+                var result = await _dynamicConfig.TryRemoveRoute(routeName, request.ClientIp, request.RemoveOrphanedClusters);
+                results.Add(new { route = routeName, success = result.Success, message = result.Message });
+                if (!result.Success)
+                    allSucceeded = false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Batch delete failed for route {RouteName}", routeName);
+                results.Add(new { route = routeName, success = false, message = ex.Message });
+                allSucceeded = false;
+            }
+        }
+
+        var summary = allSucceeded ? "All operations succeeded" : "Some operations failed";
+        return Ok(new { code = 200, message = summary, details = results });
+    }
+}
+
+/// <summary>Request model for batch register operation.</summary>
+public class BatchRegisterRequest
+{
+    public List<RegisterRouteRequest> Routes { get; set; } = new();
+    public string? Source { get; set; }
+    public string? CreatedBy { get; set; }
+}
+
+/// <summary>Request model for batch delete routes operation.</summary>
+public class BatchDeleteRoutesRequest
+{
+    public List<string> RouteNames { get; set; } = new();
+    public string? ClientIp { get; set; }
+    public bool RemoveOrphanedClusters { get; set; } = true;
 }

@@ -63,7 +63,6 @@
             const token = this.getToken();
             if (token) {
                 requestHeaders['Authorization'] = `Bearer ${token}`;
-                requestHeaders['X-Requested-With'] = 'XMLHttpRequest';
             }
         }
 
@@ -126,7 +125,15 @@
     // ===== HTTP Method Helpers =====
     window.DashboardApi.get = function(url, params, options = {}) {
         if (params) {
-            const queryString = new URLSearchParams(params).toString();
+            // Strip null/undefined values so they never become the string "undefined"/"null" in the query string.
+            const cleaned = {};
+            for (const key of Object.keys(params)) {
+                const v = params[key];
+                if (v != null && v !== undefined && v !== '') {
+                    cleaned[key] = v;
+                }
+            }
+            const queryString = new URLSearchParams(cleaned).toString();
             url = queryString ? `${url}?${queryString}` : url;
         }
         return this.request(url, { method: 'GET', ...options });
@@ -140,8 +147,11 @@
         return this.request(url, { method: 'PUT', body, ...options });
     };
 
-    window.DashboardApi.delete = function(url, options = {}) {
-        return this.request(url, { method: 'DELETE', ...options });
+    window.DashboardApi.delete = function(url, bodyOrOptions, options = {}) {
+        if (bodyOrOptions && typeof bodyOrOptions === 'object' && !bodyOrOptions.method && !bodyOrOptions.headers) {
+            return this.request(url, { method: 'DELETE', body: bodyOrOptions, ...options });
+        }
+        return this.request(url, { method: 'DELETE', ...bodyOrOptions, ...options });
     };
 
     // ===== File Operations =====
@@ -205,29 +215,20 @@
     // ===== API Endpoints =====
     window.DashboardApi.endpoints = {
         // Info
-        getInfo: () => DashboardApi.get('/info'),
+        getInfo: () => DashboardApi.get('/api/info'),
 
-        // Clusters
-        getClusters: () => DashboardApi.get('/clusters'),
-        addCluster: (data) => DashboardApi.post('/clusters', data),
-        updateCluster: (id, data) => DashboardApi.put(`/clusters/${id}`, data),
-        deleteCluster: (id) => DashboardApi.delete(`/clusters/${id}`),
+        // Clusters (read-only list; CRUD via /api/config/*)
+        getClusters: () => DashboardApi.get('/api/clusters'),
 
-        // Routes
-        getRoutes: () => DashboardApi.get('/routes'),
-        addRoute: (data) => DashboardApi.post('/routes', data),
-        updateRoute: (id, data) => DashboardApi.put(`/routes/${id}`, data),
-        deleteRoute: (id) => DashboardApi.delete(`/routes/${id}`),
+        // Routes (read-only list; CRUD via /api/config/*)
+        getRoutes: () => DashboardApi.get('/api/routes'),
 
         // Logs
-        getLogs: (count = 100) => DashboardApi.get('/logs', { count }),
-        clearLogs: () => DashboardApi.delete('/logs'),
+        getLogs: (count = 100) => DashboardApi.get('/api/logs', { count }),
+        clearLogs: () => DashboardApi.delete('/api/logs'),
 
         // Statistics
-        getStats: () => DashboardApi.get('/stats'),
-
-        // Rate Limit Status
-        getRateLimitStatus: () => DashboardApi.get('/rate-limit'),
+        getStats: () => DashboardApi.get('/api/stats'),
 
         // Config History
         getHistory: () => DashboardApi.get('/api/config/history'),
@@ -236,7 +237,7 @@
 
         // Auth
         login: (credentials) => DashboardApi.post('/login', credentials, { requireAuth: false }),
-        getAuthStatus: () => DashboardApi.get('/auth/status'),
+        getAuthStatus: () => DashboardApi.get('/api/auth/status'),
 
         // Configuration Management (Phase 6)
         exportConfig: () => DashboardApi.get('/api/config/export'),
@@ -251,11 +252,111 @@
         validateConfig: (config) => DashboardApi.post('/api/config/validate', config),
 
         // Audit Logs
-        getAuditLogs: (count, action) => DashboardApi.get('/audit-logs', { count: count || 100, action: action || '' }),
+        getAuditLogs: (count, action) => DashboardApi.get('/api/audit-logs', { count: count || 100, action: action || '' }),
 
         // Circuit Breaker
-        getCircuitBreakerStatus: () => DashboardApi.get('/circuit-breaker/status'),
-        resetCircuitBreakers: () => DashboardApi.post('/circuit-breaker/reset')
+        getCircuitBreakerStatus: () => DashboardApi.get('/api/circuit-breaker/status'),
+        resetCircuitBreakers: () => DashboardApi.post('/api/circuit-breaker/reset', {}),
+
+        // Security Events
+        getSecurityEvents: (count) => DashboardApi.get('/api/security-events', { count: count || 100 }),
+        clearSecurityEvents: () => DashboardApi.delete('/api/security-events'),
+        getSecurityEventSummary: () => DashboardApi.get('/api/security-events/summary'),
+
+        // Policies
+        getPolicies: (type) => DashboardApi.get('/api/policies/' + type),
+        getPolicy: (type, id) => DashboardApi.get('/api/policies/' + type + '/' + id),
+        createPolicy: (type, data) => DashboardApi.post('/api/policies/' + type, data),
+        updatePolicy: (type, id, data) => DashboardApi.put('/api/policies/' + type + '/' + id, data),
+        deletePolicy: (type, id) => DashboardApi.delete('/api/policies/' + type + '/' + id),
+        applyPolicy: (type, id, targetId) => DashboardApi.post('/api/policies/' + type + '/' + id + '/apply', { targetId: targetId }),
+        unapplyPolicy: (type, id, targetId) => DashboardApi.delete('/api/policies/' + type + '/' + id + '/apply', { targetId: targetId }),
+        getRoutePoliciesForRoute: (routeId) => DashboardApi.get('/api/policies/routes/for-route/' + encodeURIComponent(routeId)),
+        getClusterPoliciesForCluster: (clusterId) => DashboardApi.get('/api/policies/clusters/for-cluster/' + encodeURIComponent(clusterId)),
+
+        // Plugins
+        getPlugins: () => DashboardApi.get('/api/plugins'),
+        getPlugin: (id) => DashboardApi.get('/api/plugins/' + id),
+        togglePlugin: (id, enabled) => DashboardApi.post('/api/plugins/' + id + '/toggle', { enabled }),
+        resetPlugins: () => DashboardApi.post('/api/plugins/reset'),
+
+        // Webhook Settings
+        getWebhookSettings: () => DashboardApi.get('/api/config/webhook'),
+        saveWebhookSettings: (data) => DashboardApi.put('/api/config/webhook', data),
+        testWebhook: (data) => DashboardApi.post('/api/config/webhook/test', data),
+
+        // WAF Settings
+        getWafSettings: () => DashboardApi.get('/api/config/waf'),
+        saveWafSettings: (data) => DashboardApi.put('/api/config/waf', data),
+
+        // Alert Settings (/api/config/alert-settings)
+        getAlertSettings: () => DashboardApi.get('/api/config/alert-settings'),
+        saveAlertSettings: (data) => DashboardApi.put('/api/config/alert-settings', data),
+
+        // Health Check
+        getHealthCheckStatus: () => DashboardApi.get('/api/health-check/status'),
+        getClusterHealthConfigs: () => DashboardApi.get('/api/health-check/clusters'),
+        getHealthSummary: () => DashboardApi.get('/api/operations/health-summary'),
+
+        // Operations (Enhanced Dashboard)
+        getTrafficData: (minutes) => DashboardApi.get('/api/operations/traffic', { minutes }),
+        getOpsAlertSummary: () => DashboardApi.get('/api/operations/alert-summary'),
+        getTopIssues: (count) => DashboardApi.get('/api/operations/top-issues', { count }),
+        exportSnapshot: () => DashboardApi.get('/api/operations/snapshot'),
+
+        // Config Snapshot & Diff (Stage 2)
+        getSnapshots: (limit) => DashboardApi.get('/api/dashboard/config/snapshots', { limit: limit || 50 }),
+        getSnapshot: (id) => DashboardApi.get('/api/dashboard/config/snapshots/' + id),
+        compareSnapshots: (fromId, toId) => DashboardApi.get('/api/dashboard/config/diff', { fromId, toId: toId || 'current' }),
+        compareWithCurrent: (fromId) => DashboardApi.get('/api/dashboard/config/diff/' + fromId + '/current'),
+        configDiff: (versionId) => DashboardApi.get('/api/config/diff/' + versionId),
+
+        // Database Download
+        downloadDatabase: () => DashboardApi.download('/api/settings/database', 'gateway-store.db'),
+
+        // Cluster Toggle (Stage 2)
+        toggleCluster: (clusterId) => DashboardApi.post('/api/config/clusters/' + clusterId + '/toggle'),
+
+        // Notifications (New Unified System)
+        getNotificationSettings: () => DashboardApi.get('/api/notifications/settings'),
+        saveNotificationSettings: (data) => DashboardApi.put('/api/notifications/settings', data),
+        getNotificationHistory: (params) => DashboardApi.get('/api/notifications/history', params),
+        clearNotificationHistory: () => DashboardApi.delete('/api/notifications/history'),
+        getNotificationSummary: () => DashboardApi.get('/api/notifications/summary'),
+        testNotificationChannel: (channelId) => DashboardApi.post('/api/notifications/channels/' + channelId + '/test', {}),
+        createNotificationChannel: (data) => DashboardApi.post('/api/notifications/channels', data),
+        updateNotificationChannel: (id, data) => DashboardApi.put('/api/notifications/channels/' + id, data),
+        deleteNotificationChannel: (id) => DashboardApi.delete('/api/notifications/channels/' + id),
+        createNotificationRule: (data) => DashboardApi.post('/api/notifications/rules', data),
+        updateNotificationRule: (id, data) => DashboardApi.put('/api/notifications/rules/' + id, data),
+        deleteNotificationRule: (id) => DashboardApi.delete('/api/notifications/rules/' + id),
+        sendTestNotification: (data) => DashboardApi.post('/api/notifications/test', data || {})
     };
+
+    // Aliases: expose top-level convenience methods (used by page-level JS)
+    window.DashboardApi.getRoutes = () => DashboardApi.endpoints.getRoutes();
+    window.DashboardApi.getClusters = () => DashboardApi.endpoints.getClusters();
+    window.DashboardApi.getCircuitBreakerStatus = () => DashboardApi.endpoints.getCircuitBreakerStatus();
+    window.DashboardApi.resetCircuitBreakers = () => DashboardApi.endpoints.resetCircuitBreakers();
+    window.DashboardApi.getSecurityEvents = (count) => DashboardApi.endpoints.getSecurityEvents(count);
+    window.DashboardApi.clearSecurityEvents = () => DashboardApi.endpoints.clearSecurityEvents();
+    window.DashboardApi.getPolicies = (type) => DashboardApi.endpoints.getPolicies(type);
+    window.DashboardApi.getPolicy = (type, id) => DashboardApi.endpoints.getPolicy(type, id);
+    window.DashboardApi.createPolicy = (type, data) => DashboardApi.endpoints.createPolicy(type, data);
+    window.DashboardApi.updatePolicy = (type, id, data) => DashboardApi.endpoints.updatePolicy(type, id, data);
+    window.DashboardApi.deletePolicy = (type, id) => DashboardApi.endpoints.deletePolicy(type, id);
+    window.DashboardApi.applyPolicy = (type, id, targetId) => DashboardApi.endpoints.applyPolicy(type, id, targetId);
+    window.DashboardApi.unapplyPolicy = (type, id, targetId) => DashboardApi.endpoints.unapplyPolicy(type, id, targetId);
+    window.DashboardApi.getPlugins = () => DashboardApi.endpoints.getPlugins();
+    window.DashboardApi.getPlugin = (id) => DashboardApi.endpoints.getPlugin(id);
+    window.DashboardApi.togglePlugin = (id, enabled) => DashboardApi.endpoints.togglePlugin(id, enabled);
+    window.DashboardApi.resetPlugins = () => DashboardApi.endpoints.resetPlugins();
+    window.DashboardApi.getWebhookSettings = () => DashboardApi.endpoints.getWebhookSettings();
+    window.DashboardApi.saveWebhookSettings = (data) => DashboardApi.endpoints.saveWebhookSettings(data);
+    window.DashboardApi.testWebhook = (data) => DashboardApi.endpoints.testWebhook(data);
+
+    // Notifications (New Unified System)
+    window.DashboardApi.getNotificationSettings = () => DashboardApi.endpoints.getNotificationSettings();
+    window.DashboardApi.saveNotificationSettings = (data) => DashboardApi.endpoints.saveNotificationSettings(data);
 
 })();

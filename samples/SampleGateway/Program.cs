@@ -21,30 +21,38 @@ try
     // Replace default logger with Serilog
     builder.Host.UseSerilog();
 
+    // Enable HTTP/2 on all endpoints (required for gRPC)
+    builder.UseYarpKestrelAutoConfig();
+
     // Gateway: one-liner — auto-loads ReverseProxy routes/clusters + dynamic config
     builder.Services.AddAneiangYarp();
 
     // Dashboard with JWT auth (DefaultJwt: username=admin, password from config)
     builder.Services.AddAneiangYarpDashboard();
 
+    // Optional: enable gRPC endpoint auth (shares Dashboard credentials by default)
+    // builder.Services.AddGatewayApiAuth();
+
     var app = builder.Build();
 
-    //app.UseStaticFiles();
     app.UseRouting();
 
-    // Register Dashboard middleware (request capture, auth, etc.)
+    // Register Dashboard middleware + MapReverseProxy (all-in-one)
+    // This ensures core middleware runs inside
+    // the proxy pipeline where IReverseProxyFeature is available.
     app.UseAneiangYarpDashboard();
 
     app.MapControllers();
-    app.MapReverseProxy();
+    app.MapAneiangYarpGrpc(); // gRPC GatewayRegistry service (HTTP/2)
 
-    Console.WriteLine("╔══════════════════════════════════════════════════╗");
-    Console.WriteLine("║  Internal gateway is running                     ║");
-    Console.WriteLine("║  Dashboard:           /apigateway                ║");
-    Console.WriteLine("║  Login:               /apigateway/login          ║");
-    Console.WriteLine("║  Credentials:         admin / demo123            ║");
-    Console.WriteLine("║  Logger:              Serilog                    ║");
-    Console.WriteLine("╚══════════════════════════════════════════════════╝");
+    Console.WriteLine("======================================================");
+    Console.WriteLine("  Internal gateway is running");
+    Console.WriteLine("  Dashboard:           /apigateway");
+    Console.WriteLine("  Login:               /apigateway/login");
+    Console.WriteLine("  Credentials:         admin / demo123");
+    Console.WriteLine("  Logger:              Serilog");
+    Console.WriteLine("  gRPC:                HTTP/2 enabled");
+    Console.WriteLine("======================================================");
 
     Log.Information("Gateway started successfully");
     app.Run();

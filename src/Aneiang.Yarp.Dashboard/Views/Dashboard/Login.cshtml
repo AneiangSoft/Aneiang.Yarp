@@ -15,22 +15,118 @@
     <link href="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet" />
     <style>
         * { box-sizing: border-box; }
-        body { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-        .login-card { background: #fff; border-radius: 20px; padding: 40px; width: 100%; max-width: 420px; box-shadow: 0 25px 60px rgba(0,0,0,.35); position: relative; overflow: hidden; }
-        .login-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #6366f1, #0ea5e9); }
-        .login-card .brand { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 32px; display: flex; align-items: center; justify-content: center; gap: 10px; }
-        .login-card .brand-icon { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #818cf8); color: #fff; font-size: 20px; }
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            height: 100vh; display: flex; align-items: center; justify-content: center;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            position: relative; overflow: hidden;
+        }
+        body::before {
+            content: ''; position: absolute; width: 600px; height: 600px;
+            border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,0.15), transparent 70%);
+            top: -200px; right: -100px; pointer-events: none;
+            animation: floatOrb1 8s ease-in-out infinite alternate;
+        }
+        body::after {
+            content: ''; position: absolute; width: 400px; height: 400px;
+            border-radius: 50%; background: radial-gradient(circle, rgba(14,165,233,0.12), transparent 70%);
+            bottom: -100px; left: -50px; pointer-events: none;
+            animation: floatOrb2 10s ease-in-out infinite alternate;
+        }
+        @@keyframes floatOrb1 { from { transform: translate(0, 0); } to { transform: translate(-30px, 40px); } }
+        @@keyframes floatOrb2 { from { transform: translate(0, 0); } to { transform: translate(20px, -30px); } }
+
+        /* Animated Grid Background */
+        .login-grid {
+            position: absolute; inset: 0;
+            background-image:
+                linear-gradient(rgba(99,102,241,0.06) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(99,102,241,0.06) 1px, transparent 1px);
+            background-size: 60px 60px;
+            animation: gridPulse 4s ease-in-out infinite;
+            pointer-events: none; z-index: 0;
+        }
+        @@keyframes gridPulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 0.8; }
+        }
+
+        /* Floating Particles */
+        .login-particles {
+            position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0;
+        }
+        .particle {
+            position: absolute;
+            width: 3px; height: 3px;
+            background: rgba(99,102,241,0.4);
+            border-radius: 50%;
+            animation: particleFloat linear infinite;
+        }
+        @@keyframes particleFloat {
+            0% { transform: translateY(100vh) scale(0); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-20vh) scale(1); opacity: 0; }
+        }
+
+        .login-card {
+            background: rgba(255,255,255,0.98); border-radius: 24px; padding: 44px 40px;
+            width: 100%; max-width: 430px;
+            box-shadow: 0 25px 60px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,0.1);
+            position: relative; overflow: hidden; z-index: 1;
+            backdrop-filter: blur(20px);
+            animation: cardEnter 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        @@keyframes cardEnter {
+            from { opacity: 0; transform: translateY(30px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .login-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #6366f1, #0ea5e9, #8b5cf6); }
+        .login-card .brand { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 36px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .login-card .brand-icon {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 44px; height: 44px; border-radius: 12px;
+            background: linear-gradient(135deg, #6366f1, #818cf8); color: #fff; font-size: 22px;
+            box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+            animation: iconPulse 2s ease-in-out infinite;
+        }
+        @@keyframes iconPulse {
+            0%, 100% { box-shadow: 0 4px 12px rgba(99,102,241,0.3); }
+            50% { box-shadow: 0 4px 20px rgba(99,102,241,0.5); }
+        }
         .login-card .form-label { font-weight: 600; color: #475569; font-size: 13px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
-        .login-card .form-control { border-radius: 10px; padding: 10px 14px; border: 1.5px solid #e2e8f0; font-size: 14px; transition: border-color 0.2s, box-shadow 0.2s; }
+        .login-card .form-control { border-radius: 12px; padding: 11px 14px; border: 1.5px solid #e2e8f0; font-size: 14px; transition: border-color 0.2s, box-shadow 0.2s; }
         .login-card .form-control:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
-        .login-card .btn-primary { padding: 10px; font-weight: 600; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #818cf8); border: none; transition: transform 0.15s, box-shadow 0.15s; }
-        .login-card .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(99,102,241,0.35); }
-        .login-card .btn-primary:active { transform: translateY(0); }
-        .login-card .alert { border-radius: 10px; font-size: 14px; margin-bottom: 16px; display: none; }
+        .login-card .btn-primary {
+            padding: 12px; font-weight: 600; border-radius: 12px; font-size: 15px; letter-spacing: 0.5px;
+            background: linear-gradient(135deg, #6366f1, #818cf8); border: none;
+            transition: transform 0.15s, box-shadow 0.15s;
+            position: relative; overflow: hidden;
+        }
+        .login-card .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(99,102,241,0.35); }
+        .login-card .btn-primary:active { transform: translateY(0); box-shadow: 0 2px 6px rgba(99,102,241,0.2); }
+        .login-card .btn-primary .ripple {
+            position: absolute; border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+            transform: scale(0);
+            animation: ripple 0.6s linear;
+            pointer-events: none;
+        }
+        @@keyframes ripple { to { transform: scale(4); opacity: 0; } }
+        .login-card .alert { border-radius: 12px; font-size: 14px; margin-bottom: 16px; display: none; animation: alertShake 0.4s ease; }
+        @@keyframes alertShake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-6px); }
+            40%, 80% { transform: translateX(6px); }
+        }
         .login-card .input-icon { color: #6366f1; font-size: 14px; }
     </style>
 </head>
 <body>
+    <!-- Animated Background -->
+    <div class="login-grid"></div>
+    <div class="login-particles" id="login-particles"></div>
+
     <div class="login-card">
         <div class="brand">
             <span class="brand-icon"><i class="bi bi-hdd-rack"></i></span>
@@ -68,6 +164,22 @@
             localStorage.setItem('dashboard_locale', next);
             location.reload();
         }
+
+        // Generate floating particles
+        (function() {
+            var container = document.getElementById('login-particles');
+            if (!container) return;
+            for (var i = 0; i < 20; i++) {
+                var p = document.createElement('div');
+                p.className = 'particle';
+                p.style.left = Math.random() * 100 + '%';
+                p.style.animationDuration = (8 + Math.random() * 12) + 's';
+                p.style.animationDelay = (Math.random() * 10) + 's';
+                p.style.width = p.style.height = (2 + Math.random() * 3) + 'px';
+                container.appendChild(p);
+            }
+        })();
+
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('[data-i18n]').forEach(function(el) {
                 var key = el.getAttribute('data-i18n');
@@ -97,6 +209,9 @@
             text.textContent = __('login.submitting');
             spinner.classList.remove('d-none');
             errorMsg.style.display = 'none';
+
+            // Ripple effect on button
+            btn.querySelectorAll('.ripple').forEach(r => r.remove());
 
             try {
                 const res = await fetch(basePath + '/login', {

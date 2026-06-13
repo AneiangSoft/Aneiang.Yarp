@@ -1,5 +1,6 @@
-﻿/**
- * Dashboard Logs Module - Log viewer with filtering and polling
+/**
+ * Dashboard Logs Module - Log viewer with filtering, polling and virtual scrolling
+ * Optimized with virtual scrolling for handling large log volumes
  */
 (function() {
     'use strict';
@@ -8,26 +9,86 @@
         name: 'logs',
         initialized: false,
         pollTimer: null,
+        wasPollingBeforeHidden: false,
+
+        // Virtual scrolling state
+        virtualScroll: {
+            enabled: true,
+            itemHeight: 48, // Estimated row height in pixels
+            overscan: 5, // Number of extra items to render outside viewport
+            containerHeight: 0, // Will be measured
+            visibleCount: 0, // Calculated based on container height
+            startIndex: 0, // First visible item index
+            endIndex: 0, // Last visible item index
+            scrollTop: 0, // Current scroll position
+            totalHeight: 0, // Total scrollable height
+            lastEntriesLength: 0 // Track for resize recalculation
+        },
+
+        // DOM element pool for virtual scrolling
+        domPool: [],
+        poolSize: 50, // Maximum pooled elements
 
         // ===== Initialization =====
         init: async function() {
             if (this.initialized) return;
-            
-            console.log('[Logs] Initializing...');
-            
-            try {
-                // Load initial logs
-                await this.loadLogs();
-                
-                // Setup event listeners
-                this.setupEvents();
-                
-                this.initialized = true;
-                console.log('[Logs] Initialized');
-            } catch (error) {
-                console.error('[Logs] Init failed:', error);
-                throw error;
-            }
+
+            console.log('[Logs] Initializing with virtual scrolling...');
+
+            this.initVirtualScroll();
+            this.setupEvents();
+
+            this.initialized = true;
+            console.log('[Logs] Initialized with virtual scrolling');
+        },
+
+        destroy: function() {
+            this.stopPolling();
+            this.initialized = false;
+        },
+
+        // ===== Virtual Scrolling Setup =====
+        initVirtualScroll: function() {
+            const scrollEl = window.DashboardDOM.safe('#log-scroll-container');
+            const container = window.DashboardDOM.safe('#log-entries');
+            if (!scrollEl || !container) return;
+
+            // Measure container height
+            this.virtualScroll.containerHeight = scrollEl.clientHeight;
+            this.virtualScroll.visibleCount = Math.ceil(
+                this.virtualScroll.containerHeight / this.virtualScroll.itemHeight
+            ) + this.virtualScroll.overscan * 2;
+
+            // Setup scroll handler with RAF throttling
+            let ticking = false;
+            scrollEl.addEventListener('scroll', () => {
+                this.virtualScroll.scrollTop = scrollEl.scrollTop;
+                if (!ticking) {
+                    requestAnimationFrame(() => {
+                        this.updateVisibleRange();
+                        ticking = false;
+                    });
+                    ticking = true;
+                }
+            }, { passive: true });
+
+            // Handle window resize
+            window.addEventListener('resize', this.debounce(() => {
+                this.virtualScroll.containerHeight = scrollEl.clientHeight;
+                this.virtualScroll.visibleCount = Math.ceil(
+                    this.virtualScroll.containerHeight / this.virtualScroll.itemHeight
+                ) + this.virtualScroll.overscan * 2;
+                this.updateVisibleRange();
+            }, 150));
+        },
+
+        // ===== Debounce Helper =====
+        debounce: function(fn, delay) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => fn.apply(this, args), delay);
+            };
         },
 
         // ===== Load Logs =====
@@ -42,12 +103,12 @@
                 window.DashboardDOM.showLoading(container, __('index.log.loading'));
 
                 const result = await window.DashboardApi.endpoints.getLogs(maxCount);
-                
+
                 // Update state
                 state.set('data.logs', result.entries || []);
                 state.set('data.logMeta', { evictedCount: result.evictedCount || 0, bufferSize: result.bufferSize || 0, bufferCapacity: result.bufferCapacity || 0 });
 
-                // Render logs
+                // Render logs with virtual scrolling
                 this.renderLogs();
 
             } catch (error) {
@@ -63,34 +124,173 @@
         renderLogs: function() {
             const state = window.DashboardState;
             const entries = state.getFilteredLogs();
-            
+
             // Render filter toolbar
             this.renderFilterToolbar();
-            
+
             const container = window.DashboardDOM.safe('#log-entries');
             const scrollEl = window.DashboardDOM.safe('#log-scroll-container');
-            
+
             if (!container) return;
 
             if (entries.length === 0) {
                 window.DashboardDOM.showEmpty(
-                    container, 
+                    container,
                     __('index.log.empty'),
                     'bi bi-journal-x'
                 );
+                // Reset virtual scroll state
+                this.virtualScroll.totalHeight = 0;
+                this.virtualScroll.lastEntriesLength = 0;
             } else {
-                this.renderLogEntries(entries, container);
+                // Check if we should use virtual scrolling
+                if (entries.length > 100 && this.virtualScroll.enabled) {
+                    this.renderVirtualLogEntries(entries, container);
+                } else {
+                    // Fall back to regular rendering for small lists
+                    this.renderLogEntries(entries, container);
+                }
             }
 
             // Update counts
             this.updateLogCounts(entries);
 
-            // Auto-scroll if polling
-            if (state.get('filters.logs.autoRefresh')) {
+            // Auto-scroll if polling (only if at top)
+            if (state.get('filters.logs.autoRefresh') && scrollEl && scrollEl.scrollTop < 50) {
                 requestAnimationFrame(() => {
-                    if (scrollEl) scrollEl.scrollTop = 0;
+                    scrollEl.scrollTop = 0;
+                    this.virtualScroll.scrollTop = 0;
+                    this.updateVisibleRange();
                 });
             }
+        },
+
+        // ===== Virtual Scrolling Render =====
+        renderVirtualLogEntries: function(entries, container) {
+            // Calculate total height
+            this.virtualScroll.totalHeight = entries.length * this.virtualScroll.itemHeight;
+            this.virtualScroll.lastEntriesLength = entries.length;
+
+            // Pre-group entries by traceId for O(n) pairing
+            const traceIdMap = new Map();
+            const processed = new Set();
+
+            entries.forEach((entry, index) => {
+                if (entry.traceId && entry.eventType !== 'YarpEvent') {
+                    if (!traceIdMap.has(entry.traceId)) {
+                        traceIdMap.set(entry.traceId, []);
+                    }
+                    traceIdMap.get(entry.traceId).push({ entry, index });
+                }
+            });
+
+            // Create wrapper with proper height for scrolling
+            container.innerHTML = `
+                <div class="virtual-scroll-wrapper" style="position: relative; height: ${this.virtualScroll.totalHeight}px;">
+                    <div class="virtual-scroll-content" style="position: absolute; top: 0; left: 0; right: 0;"></div>
+                </div>
+            `;
+
+            const contentEl = container.querySelector('.virtual-scroll-content');
+
+            // Store references for updates
+            this.virtualScroll.entries = entries;
+            this.virtualScroll.traceIdMap = traceIdMap;
+            this.virtualScroll.processed = processed;
+            this.virtualScroll.contentEl = contentEl;
+
+            // Initial render of visible range
+            this.updateVisibleRange();
+        },
+
+        // ===== Update Visible Range (Virtual Scrolling) =====
+        updateVisibleRange: function() {
+            if (!this.virtualScroll.contentEl || !this.virtualScroll.entries) return;
+
+            const entries = this.virtualScroll.entries;
+            const scrollTop = this.virtualScroll.scrollTop;
+            const itemHeight = this.virtualScroll.itemHeight;
+            const overscan = this.virtualScroll.overscan;
+            const containerHeight = this.virtualScroll.containerHeight || 600;
+
+            // Calculate visible range
+            const startIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - overscan);
+            const visibleCount = Math.ceil(containerHeight / itemHeight) + overscan * 2;
+            const endIndex = Math.min(entries.length, startIndex + visibleCount);
+
+            // Only update if range changed significantly
+            if (Math.abs(startIndex - this.virtualScroll.startIndex) < overscan / 2 &&
+                Math.abs(endIndex - this.virtualScroll.endIndex) < overscan / 2) {
+                return;
+            }
+
+            this.virtualScroll.startIndex = startIndex;
+            this.virtualScroll.endIndex = endIndex;
+
+            // Update content offset
+            const offsetTop = startIndex * itemHeight;
+            this.virtualScroll.contentEl.style.transform = `translateY(${offsetTop}px)`;
+
+            // Render visible items
+            this.renderVisibleItems(startIndex, endIndex, entries);
+        },
+
+        // ===== Render Visible Items =====
+        renderVisibleItems: function(startIndex, endIndex, entries) {
+            const contentEl = this.virtualScroll.contentEl;
+            const traceIdMap = this.virtualScroll.traceIdMap;
+            const processed = new Set();
+
+            // Create document fragment for batch DOM update
+            const fragment = document.createDocumentFragment();
+
+            for (let i = startIndex; i < endIndex && i < entries.length; i++) {
+                if (processed.has(i)) continue;
+
+                const entry = entries[i];
+                const item = this.createVirtualLogItem(entry, i, entries, traceIdMap, processed);
+                if (item) {
+                    fragment.appendChild(item);
+                }
+            }
+
+            // Batch DOM update
+            contentEl.innerHTML = '';
+            contentEl.appendChild(fragment);
+        },
+
+        // ===== Create Virtual Log Item =====
+        createVirtualLogItem: function(entry, index, entries, traceIdMap, processed) {
+            // Try to find paired entry
+            if (entry.traceId && entry.eventType !== 'YarpEvent') {
+                const group = traceIdMap.get(entry.traceId);
+                if (group && group.length > 1) {
+                    const pairIndex = group.findIndex(x => x.index === index);
+                    const pairInfo = group.find((x, i) => i !== pairIndex && !processed.has(x.index));
+
+                    if (pairInfo && !processed.has(pairInfo.index)) {
+                        const pairedEntry = pairInfo.entry;
+                        const requestEntry = entry.eventType === 'ProxyRequest' ? entry : pairedEntry;
+                        const responseEntry = entry.eventType === 'ProxyResponse' ? entry : pairedEntry;
+
+                        processed.add(index);
+                        processed.add(pairInfo.index);
+
+                        const logKey = `paired:${requestEntry.timestamp}|${responseEntry.timestamp}|${requestEntry.traceId}`;
+                        const isExpanded = window.DashboardState.get(`ui.expandedLogs.${logKey}`) || false;
+                        return this.createPairedLogItem(requestEntry, responseEntry, logKey, isExpanded);
+                    }
+                }
+            }
+
+            // Single entry
+            if (!processed.has(index)) {
+                processed.add(index);
+                const logKey = `${entry.timestamp}|${entry.level}|${(entry.message || '').substring(0, 80)}`;
+                const isExpanded = window.DashboardState.get(`ui.expandedLogs.${logKey}`) || false;
+                return this.createLogItem(entry, logKey, isExpanded);
+            }
+            return null;
         },
 
         // ===== Render Filter Toolbar =====
@@ -268,32 +468,50 @@
 
             const fragment = document.createDocumentFragment();
 
-            // Group entries by traceId for request-response pairing
+            // Pre-group entries by traceId for O(n) pairing instead of O(n^2)
+            const traceIdMap = new Map();
             const processed = new Set();
             const self = this;
 
+            // Build traceId index: O(n)
+            entries.forEach((entry, index) => {
+                if (entry.traceId && entry.eventType !== 'YarpEvent') {
+                    if (!traceIdMap.has(entry.traceId)) {
+                        traceIdMap.set(entry.traceId, []);
+                    }
+                    traceIdMap.get(entry.traceId).push({ entry, index });
+                }
+            });
+
+            // Process entries: O(n)
             entries.forEach((entry, index) => {
                 if (processed.has(index)) return;
 
-                // Try to find paired entry by traceId
+                // Try to find paired entry by traceId using pre-built map
                 if (entry.traceId && entry.eventType !== 'YarpEvent') {
-                    const pairedIndex = entries.findIndex((e, i) =>
-                        i !== index && e.traceId === entry.traceId && e.eventType !== 'YarpEvent' && !processed.has(i));
+                    const group = traceIdMap.get(entry.traceId);
+                    if (group && group.length > 1) {
+                        // Find the pair that hasn't been processed
+                        const pairIndex = group.findIndex(x => x.index === index);
+                        const pairInfo = group.length === 2
+                            ? group[pairIndex === 0 ? 1 : 0]
+                            : group.find((x, i) => i !== pairIndex && !processed.has(x.index));
 
-                    if (pairedIndex >= 0) {
-                        // Found a pair - create grouped item
-                        const pairedEntry = entries[pairedIndex];
-                        const requestEntry = entry.eventType === 'ProxyRequest' ? entry : pairedEntry;
-                        const responseEntry = entry.eventType === 'ProxyResponse' ? entry : pairedEntry;
+                        if (pairInfo && !processed.has(pairInfo.index)) {
+                            // Found a pair - create grouped item
+                            const pairedEntry = pairInfo.entry;
+                            const requestEntry = entry.eventType === 'ProxyRequest' ? entry : pairedEntry;
+                            const responseEntry = entry.eventType === 'ProxyResponse' ? entry : pairedEntry;
 
-                        const logKey = `paired:${requestEntry.timestamp}|${responseEntry.timestamp}|${requestEntry.traceId}`;
-                        const isExpanded = window.DashboardState.get(`ui.expandedLogs.${logKey}`) || false;
-                        const item = self.createPairedLogItem(requestEntry, responseEntry, logKey, isExpanded);
-                        fragment.appendChild(item);
+                            const logKey = `paired:${requestEntry.timestamp}|${responseEntry.timestamp}|${requestEntry.traceId}`;
+                            const isExpanded = window.DashboardState.get(`ui.expandedLogs.${logKey}`) || false;
+                            const item = self.createPairedLogItem(requestEntry, responseEntry, logKey, isExpanded);
+                            fragment.appendChild(item);
 
-                        processed.add(index);
-                        processed.add(pairedIndex);
-                        return;
+                            processed.add(index);
+                            processed.add(pairInfo.index);
+                            return;
+                        }
                     }
                 }
 
@@ -930,7 +1148,14 @@
         // ===== Copy Log Entry =====
         copyLogEntry: function(entry, btnElement) {
             const text = JSON.stringify(entry, null, 2);
-            navigator.clipboard.writeText(text).then(() => {
+            window.DashboardUtils.copyToClipboard(text).then((success) => {
+                if (!success) {
+                    console.error('[Logs] Failed to copy');
+                    if (window.DashboardModals) {
+                        window.DashboardModals.showError(__('index.copyFailed'));
+                    }
+                    return;
+                }
                 // Visual feedback - same pattern as clusters/routes copy button
                 if (btnElement) {
                     const icon = btnElement.querySelector('i');
@@ -945,11 +1170,6 @@
                 }
                 if (window.DashboardModals) {
                     window.DashboardModals.showSuccess(__('index.copied'));
-                }
-            }).catch(err => {
-                console.error('[Logs] Failed to copy:', err);
-                if (window.DashboardModals) {
-                    window.DashboardModals.showError(__('index.copyFailed'));
                 }
             });
         },
@@ -1002,11 +1222,14 @@
 
         stopPolling: function() {
             const state = window.DashboardState;
-            
+
             if (this.pollTimer) {
                 clearInterval(this.pollTimer);
                 this.pollTimer = null;
             }
+
+            // Reset the hidden state flag when manually stopping
+            this.wasPollingBeforeHidden = false;
 
             state.set('filters.logs.autoRefresh', false);
             this.updateListenButton(false);
@@ -1059,6 +1282,25 @@
             // Locale change
             document.addEventListener('dashboard:localeChange', () => {
                 this.renderLogs();
+            });
+
+            // Page Visibility API - pause polling when tab is hidden to save resources
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    // Page is hidden - pause polling if active
+                    if (this.pollTimer) {
+                        this.wasPollingBeforeHidden = true;
+                        this.stopPolling();
+                        console.log('[Logs] Paused polling (page hidden)');
+                    }
+                } else {
+                    // Page is visible again - resume polling if it was active
+                    if (this.wasPollingBeforeHidden) {
+                        this.wasPollingBeforeHidden = false;
+                        this.startPolling();
+                        console.log('[Logs] Resumed polling (page visible)');
+                    }
+                }
             });
         }
     };

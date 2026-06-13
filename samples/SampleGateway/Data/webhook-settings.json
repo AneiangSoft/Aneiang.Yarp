@@ -1,0 +1,11 @@
+{
+  "DingTalkEndpoints": [
+    {
+      "Url": "https://oapi.dingtalk.com/robot/send?access_token=your-dingtalk-webhook-url",
+      "Secret": ""
+    }
+  ],
+  "EnabledEvents": [],
+  "TimeoutSeconds": 10,
+  "RetryCount": 1
+}
