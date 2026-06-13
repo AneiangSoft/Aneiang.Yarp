@@ -45,14 +45,14 @@ try
     app.MapControllers();
     app.MapAneiangYarpGrpc(); // gRPC GatewayRegistry service (HTTP/2)
 
-    Console.WriteLine("╔══════════════════════════════════════════════════╗");
-    Console.WriteLine("║  Internal gateway is running                     ║");
-    Console.WriteLine("║  Dashboard:           /apigateway                ║");
-    Console.WriteLine("║  Login:               /apigateway/login          ║");
-    Console.WriteLine("║  Credentials:         admin / demo123            ║");
-    Console.WriteLine("║  Logger:              Serilog                    ║");
-    Console.WriteLine("║  gRPC:                HTTP/2 enabled             ║");
-    Console.WriteLine("╚══════════════════════════════════════════════════╝");
+    Console.WriteLine("======================================================");
+    Console.WriteLine("  Internal gateway is running");
+    Console.WriteLine("  Dashboard:           /apigateway");
+    Console.WriteLine("  Login:               /apigateway/login");
+    Console.WriteLine("  Credentials:         admin / demo123");
+    Console.WriteLine("  Logger:              Serilog");
+    Console.WriteLine("  gRPC:                HTTP/2 enabled");
+    Console.WriteLine("======================================================");
 
     Log.Information("Gateway started successfully");
     app.Run();
