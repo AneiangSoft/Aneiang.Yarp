@@ -5,10 +5,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.UseYarpKestrelAutoConfig();
 // Client: one-liner — auto-register on startup, auto-unregister on shutdown
 // Minimal config: just GatewayUrl in code or appsettings.json
-builder.Services.AddAneiangYarpClient(options =>
-{
-    options.UseGrpcRegistration = false;
-});
+builder.Services.AddAneiangYarpClient();
 
 // Or with code override (higher priority than config file):
 // builder.Services.AddAneiangYarpClient(options =>

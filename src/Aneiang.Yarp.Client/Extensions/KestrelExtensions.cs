@@ -7,7 +7,7 @@ using Microsoft.Extensions.Configuration;
 namespace Aneiang.Yarp.Extensions;
 
 /// <summary>
-/// Kestrel 自动配置扩展方法
+/// Kestrel 自动配置扩展方法。支持 HTTP/1.1 + HTTP/2 双协议，确保 gRPC 可用。
 /// </summary>
 public static class KestrelExtensions
 {
@@ -94,10 +94,11 @@ public static class KestrelExtensions
         }
 
         // 4. 如果都没有配置，使用默认端口
+        //    Port 5000: HTTP/1.1 (Dashboard, YARP) + Port 5001: HTTP/2 (gRPC)
         if (!configured)
         {
-            options.ListenAnyIP(5000); // HTTP 默认端口
-            // HTTPS 需要证书配置，让用户自己配置
+            options.ListenAnyIP(5000, o => o.Protocols = HttpProtocols.Http1);
+            options.ListenAnyIP(5001, o => o.Protocols = HttpProtocols.Http2);
         }
     }
 
@@ -185,7 +186,9 @@ public static class KestrelExtensions
     }
 
     /// <summary>
-    /// 解析 URL 并配置 Kestrel 监听
+    /// 解析 URL 并配置 Kestrel 监听。HTTP 端点自动启用 Http1AndHttp2 以支持 gRPC。
+    /// 对于纯 HTTP（非 TLS）端点，额外在 port+1 上开启 HTTP/2 only 端口给 gRPC
+    /// （.NET 9 Kestrel 不支持在无 TLS 的端点上同时协商 HTTP/1.1 和 HTTP/2）。
     /// </summary>
     private static bool TryParseAndConfigure(
         string url,
@@ -208,9 +211,16 @@ public static class KestrelExtensions
         if (shouldListenAnyIP)
         {
             if (isHttps)
+            {
                 options.ListenAnyIP(port, listenOptions => listenOptions.UseHttps());
+            }
             else
-                options.ListenAnyIP(port);
+            {
+                // Main port: HTTP/1.1 only (Dashboard, YARP proxy, REST API)
+                options.ListenAnyIP(port, o => o.Protocols = HttpProtocols.Http1);
+                // gRPC port: HTTP/2 only (h2c) — .NET 9 requires separate port for cleartext HTTP/2
+                options.ListenAnyIP(port + 1, o => o.Protocols = HttpProtocols.Http2);
+            }
             return true;
         }
 
@@ -218,9 +228,14 @@ public static class KestrelExtensions
         if (IPAddress.TryParse(host, out var ipAddress))
         {
             if (isHttps)
+            {
                 options.Listen(ipAddress, port, listenOptions => listenOptions.UseHttps());
+            }
             else
-                options.Listen(ipAddress, port);
+            {
+                options.Listen(ipAddress, port, o => o.Protocols = HttpProtocols.Http1);
+                options.Listen(ipAddress, port + 1, o => o.Protocols = HttpProtocols.Http2);
+            }
             return true;
         }
 
