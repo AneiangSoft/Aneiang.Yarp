@@ -9,43 +9,59 @@
     // ===== Event Handlers Storage =====
     const handlers = {};
 
+    // ===== Named Global Handlers for Cleanup =====
+    const _globalHandlers = {
+        beforeunload: null,
+        online: null,
+        offline: null,
+        keydown: null,
+        localeChange: null,
+        dataChanged: null
+    };
+
     // ===== Setup =====
     window.DashboardEvents.setup = function() {
+        // Only setup once
+        if (_globalHandlers.beforeunload) return;
+
         this.setupGlobalHandlers();
         this.setupKeyboardShortcuts();
         this.setupCustomEvents();
-        
+
         console.log('[Events] Setup complete');
     };
 
     // ===== Global Event Handlers =====
     window.DashboardEvents.setupGlobalHandlers = function() {
         // Prevent accidental navigation with unsaved changes
-        window.addEventListener('beforeunload', function(e) {
-            const hasDraft = window.DashboardStorage?.getDraft('cluster') || 
+        _globalHandlers.beforeunload = function(e) {
+            const hasDraft = window.DashboardStorage?.getDraft('cluster') ||
                             window.DashboardStorage?.getDraft('route');
-            
+
             if (hasDraft) {
                 e.preventDefault();
                 e.returnValue = '';
             }
-        });
+        };
+        window.addEventListener('beforeunload', _globalHandlers.beforeunload);
 
         // Handle online/offline
-        window.addEventListener('online', function() {
+        _globalHandlers.online = function() {
             console.log('[Events] Connection restored');
             document.dispatchEvent(new CustomEvent('dashboard:online'));
-        });
+        };
+        window.addEventListener('online', _globalHandlers.online);
 
-        window.addEventListener('offline', function() {
+        _globalHandlers.offline = function() {
             console.warn('[Events] Connection lost');
             document.dispatchEvent(new CustomEvent('dashboard:offline'));
-        });
+        };
+        window.addEventListener('offline', _globalHandlers.offline);
     };
 
     // ===== Keyboard Shortcuts =====
     window.DashboardEvents.setupKeyboardShortcuts = function() {
-        document.addEventListener('keydown', function(e) {
+        _globalHandlers.keydown = function(e) {
             // Skip shortcuts when typing in input/textarea/select or contentEditable
             const tag = e.target.tagName.toLowerCase();
             const isEditable = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
@@ -88,39 +104,27 @@
                 document.dispatchEvent(new CustomEvent('dashboard:shortcut:redo'));
                 return;
             }
-        });
+        };
+        document.addEventListener('keydown', _globalHandlers.keydown);
     };
 
     // ===== Custom Events =====
     window.DashboardEvents.setupCustomEvents = function() {
-        // Listen for locale changes
-        document.addEventListener('dashboard:localeChange', function(e) {
+        _globalHandlers.localeChange = function(e) {
             console.log('[Events] Locale changed:', e.detail.locale);
-            // Re-render all visible content
             if (window.DashboardState) {
                 window.DashboardState.saveState();
             }
-        });
+        };
+        document.addEventListener('dashboard:localeChange', _globalHandlers.localeChange);
 
-        // Listen for data changes
-        document.addEventListener('dashboard:dataChanged', function(e) {
+        _globalHandlers.dataChanged = function(e) {
             console.log('[Events] Data changed:', e.detail.type);
             if (window.DashboardState) {
                 window.DashboardState.saveState();
             }
-        });
-
-        // Load module data on tab switch
-        document.addEventListener('dashboard:tabChanged', function(e) {
-            var tab = e.detail.tab;
-            if (tab === 'overview' && window.StatsModule) {
-                window.StatsModule.loadStats();
-            } else if (tab === 'history' && window.HistoryModule) {
-                window.HistoryModule.loadHistory();
-            } else if (tab === 'audit' && window.AuditModule) {
-                window.AuditModule.loadAuditLogs();
-            }
-        });
+        };
+        document.addEventListener('dashboard:dataChanged', _globalHandlers.dataChanged);
     };
 
     // ===== Event Registration =====
@@ -199,14 +203,40 @@
 
     // ===== Cleanup =====
     window.DashboardEvents.cleanup = function() {
+        // Remove named global handlers
+        if (_globalHandlers.beforeunload) {
+            window.removeEventListener('beforeunload', _globalHandlers.beforeunload);
+            _globalHandlers.beforeunload = null;
+        }
+        if (_globalHandlers.online) {
+            window.removeEventListener('online', _globalHandlers.online);
+            _globalHandlers.online = null;
+        }
+        if (_globalHandlers.offline) {
+            window.removeEventListener('offline', _globalHandlers.offline);
+            _globalHandlers.offline = null;
+        }
+        if (_globalHandlers.keydown) {
+            document.removeEventListener('keydown', _globalHandlers.keydown);
+            _globalHandlers.keydown = null;
+        }
+        if (_globalHandlers.localeChange) {
+            document.removeEventListener('dashboard:localeChange', _globalHandlers.localeChange);
+            _globalHandlers.localeChange = null;
+        }
+        if (_globalHandlers.dataChanged) {
+            document.removeEventListener('dashboard:dataChanged', _globalHandlers.dataChanged);
+            _globalHandlers.dataChanged = null;
+        }
+
+        // Remove dynamically registered handlers
         Object.keys(handlers).forEach(event => {
             handlers[event].forEach(h => {
                 h.target.removeEventListener(event, h.handler);
             });
         });
-        
         Object.keys(handlers).forEach(key => delete handlers[key]);
-        
+
         console.log('[Events] Cleanup complete');
     };
 

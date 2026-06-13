@@ -53,6 +53,16 @@ public class GatewayRegistrationOptions
     /// <summary>Basic auth password. Must pair with <see cref="BasicAuthUsername"/>.</summary>
     public string? BasicAuthPassword { get; set; }
 
+    /// <summary>Use gRPC registration instead of the legacy HTTP registration endpoints.</summary>
+    public bool? UseGrpcRegistration { get; set; }
+
+    /// <summary>
+    /// Explicit gRPC port on the gateway (HTTP/2 cleartext).
+    /// When not set, defaults to <c>GatewayUrl.Port + 1</c> in HTTP mode.
+    /// Ignored in HTTPS mode (gRPC uses the same port via ALPN negotiation).
+    /// </summary>
+    public int? GrpcPort { get; set; }
+
     /// <summary>
     /// Override downstream path prefix. If set, requests will be forwarded to this path prefix.
     /// </summary>
@@ -70,4 +80,17 @@ public class GatewayRegistrationOptions
     /// Default: false.
     /// </summary>
     public bool? UseIpIsolation { get; set; }
+
+    /// <summary>
+    /// Enable periodic heartbeat to keep the registration alive on the gateway.
+    /// When disabled, the service still registers on startup but won't send heartbeat.
+    /// Default: true.
+    /// </summary>
+    public bool? HeartbeatEnabled { get; set; }
+
+    /// <summary>
+    /// Heartbeat interval in seconds. Must be between 5 and 3600.
+    /// Default: 30.
+    /// </summary>
+    public int? HeartbeatIntervalSeconds { get; set; }
 }

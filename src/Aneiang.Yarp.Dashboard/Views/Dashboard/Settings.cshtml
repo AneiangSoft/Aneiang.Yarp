@@ -1,0 +1,120 @@
+@using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Settings" : "设置";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<!-- Settings page with unified sections -->
+
+<!-- Configuration management section -->
+<div class="card-panel mb-4">
+    <div class="card-header">
+        <span><i class="bi bi-box-seam me-2" style="color:#6366f1;"></i><span data-i18n="config.management">配置管理</span></span>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="border rounded-3 p-4 h-100" style="background: linear-gradient(135deg, #f8fafc, #f1f5f9);">
+                    <h6 class="mb-2"><i class="bi bi-download me-1" style="color:#3b82f6;"></i> <span data-i18n="config.export">导出配置</span></h6>
+                    <p class="text-muted small mb-3" data-i18n="config.exportDesc">将当前网关配置导出为 JSON 文件</p>
+                    <button class="btn btn-sm btn-outline-primary" onclick="DashboardConfig.exportConfig()">
+                        <i class="bi bi-download"></i> <span data-i18n="config.exportBtn">导出</span>
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="border rounded-3 p-4 h-100" style="background: linear-gradient(135deg, #f8fafc, #f1f5f9);">
+                    <h6 class="mb-2"><i class="bi bi-upload me-1" style="color:#22c55e;"></i> <span data-i18n="config.import">导入配置</span></h6>
+                    <p class="text-muted small mb-3" data-i18n="config.importDesc">从 JSON 文件导入网关配置</p>
+                    <button class="btn btn-sm btn-outline-primary" onclick="DashboardConfig.showImportModal()">
+                        <i class="bi bi-upload"></i> <span data-i18n="config.importBtn">导入</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Database management section -->
+<div class="card-panel mb-4">
+    <div class="card-header">
+        <span><i class="bi bi-database me-2" style="color:#f59e0b;"></i><span data-i18n="config.database">数据库管理</span></span>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="border rounded-3 p-4 h-100" style="background: linear-gradient(135deg, #f8fafc, #f1f5f9);">
+                    <h6 class="mb-2"><i class="bi bi-download me-1" style="color:#f59e0b;"></i> <span data-i18n="config.downloadDb">下载数据库</span></h6>
+                    <p class="text-muted small mb-3" data-i18n="config.downloadDbDesc">将 SQLite 数据库文件下载到本地，方便使用数据库工具查看</p>
+                    <button class="btn btn-sm btn-outline-primary" onclick="DashboardConfig.downloadDatabase()">
+                        <i class="bi bi-download"></i> <span data-i18n="config.downloadDbBtn">下载</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+@section Scripts {
+@{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
+
+<!-- Schema Service for import/validation -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-service.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-validator.js?v=@v"></script>
+
+<!-- Monaco for import modal — lazy loaded -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/lazy-monaco-loader.js?v=@v"></script>
+
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-monaco-editor.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-config-editor.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-form-builder.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-diff-panel.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-validation-panel.js?v=@v"></script>
+
+<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-config.js?v=@v"></script>
+
+<script>
+    window.__dashboard = window.__dashboard || {};
+    var dash = window.__dashboard;
+    dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
+    dash.token = localStorage.getItem('dashboard_token');
+    dash.CURRENT_LOCALE = '@ViewBag.Locale';
+    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
+    dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
+    dash.currentPage = '@ViewBag.CurrentPage';
+</script>
+
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+
+        if (window.DashboardSchemaService) await DashboardSchemaService.load();
+        if (window.LazyMonacoLoader) await window.LazyMonacoLoader.ensure();
+
+        // Load settings data - webhook settings have been moved to the Notifications page
+        try {
+            // Nothing to load for webhook summary here anymore
+        } catch (e) {
+            console.error('[Settings] Load failed:', e);
+        }
+
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

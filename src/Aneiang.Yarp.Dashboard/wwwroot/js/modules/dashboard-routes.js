@@ -11,36 +11,45 @@
         // ===== Initialization =====
         init: async function() {
             if (this.initialized) return;
-            
+
             console.log('[Routes] Initializing...');
-            
-            try {
-                // Load initial data
-                await this.loadRoutes();
-                
-                // Setup event listeners
-                this.setupEvents();
-                
-                this.initialized = true;
-                console.log('[Routes] Initialized');
-            } catch (error) {
-                console.error('[Routes] Init failed:', error);
-                throw error;
-            }
+
+            this.setupEvents();
+
+            this.initialized = true;
+            console.log('[Routes] Initialized');
         },
 
         // ===== Load Routes =====
-        loadRoutes: async function() {
+        loadRoutes: async function(forceReload) {
             try {
                 const container = window.DashboardDOM.safe('#route-tbody');
                 if (!container) return;
 
+                const cached = window.DashboardState.get('data.routes');
+
+                // Use cached data if already loaded and not forcing reload
+                if (!forceReload && Array.isArray(cached) && cached.length > 0) {
+                    window.DashboardState.set('data.routes', cached);
+                    // Ensure clusters are also loaded for Add Route modal
+                    if (!window.DashboardState.get('data.clusters')?.length) {
+                        await this.ensureClustersLoaded();
+                    }
+                    this.renderRoutes();
+                    return;
+                }
+
                 window.DashboardDOM.showLoading(container, __('index.route.loading'));
 
-                const routes = await window.DashboardApi.endpoints.getRoutes();
-                
+                // Load both routes and clusters in parallel (clusters needed for Add Route modal)
+                const [routes, clusters] = await Promise.all([
+                    window.DashboardApi.endpoints.getRoutes(),
+                    window.DashboardApi.endpoints.getClusters()
+                ]);
+
                 // Update state
                 window.DashboardState.set('data.routes', routes || []);
+                window.DashboardState.set('data.clusters', clusters || []);
 
                 // Render routes
                 this.renderRoutes();
@@ -54,6 +63,16 @@
             }
         },
 
+        // ===== Ensure clusters are loaded (for Add Route modal) =====
+        ensureClustersLoaded: async function() {
+            try {
+                const clusters = await window.DashboardApi.endpoints.getClusters();
+                window.DashboardState.set('data.clusters', clusters || []);
+            } catch (e) {
+                console.warn('[Routes] Failed to load clusters:', e);
+            }
+        },
+
         // ===== Render Routes =====
         renderRoutes: function() {
             const state = window.DashboardState;
@@ -61,31 +80,27 @@
                     
             // Render filter toolbar (only once, then update counts)
             this.renderFilterToolbar();
-                    
+
+            // Render table view
             const tbody = window.DashboardDOM.safe('#route-tbody');
-            if (!tbody) {
-                console.error('[Routes] tbody not found, cannot render');
-                return;
-            }
-        
-            // Always clear tbody content, not the parent table
-            window.DashboardDOM.clear(tbody);
-                    
-            if (routes.length === 0) {
-                // Show empty state INSIDE tbody, not replacing it
-                const emptyRow = document.createElement('tr');
-                emptyRow.innerHTML = `
-                    <td colspan="8" class="text-center py-5">
-                        <div class="empty-state">
-                            <i class="bi bi-signpost-split" style="font-size: 2.5rem; opacity: 0.4; color: #64748b;"></i>
-                            <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.route.empty')}</div>
-                            <div class="mt-2 text-muted small">${__('index.route.emptyHelp')}</div>
-                        </div>
-                    </td>
-                `; 
-                tbody.appendChild(emptyRow);
-            } else {
-                this.renderRouteRows(routes, tbody);
+            if (tbody) {
+                window.DashboardDOM.clear(tbody);
+                        
+                if (routes.length === 0) {
+                    const emptyRow = document.createElement('tr');
+                    emptyRow.innerHTML = `
+                        <td colspan="7" class="text-center py-5">
+                            <div class="empty-state">
+                                <i class="bi bi-signpost-split" style="font-size: 2.5rem; opacity: 0.4; color: #64748b;"></i>
+                                <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.route.empty')}</div>
+                                <div class="mt-2 text-muted small">${__('index.route.emptyHelp')}</div>
+                            </div>
+                        </td>
+                    `; 
+                    tbody.appendChild(emptyRow);
+                } else {
+                    this.renderRouteRows(routes, tbody);
+                }
             }
         
             // Update refresh time
@@ -152,7 +167,7 @@
                                 <button class="btn btn-sm btn-outline-danger" id="route-clear-btn" title="${__('index.search.clear')}" style="display:none;">
                                     <i class="bi bi-x-circle"></i>
                                 </button>
-                                <button class="btn btn-sm btn-success" id="route-add-btn" title="${__('index.route.add')}">
+                                <button class="btn btn-sm btn-outline-secondary" id="route-add-btn" title="${__('modal.addRoute') || 'Add Route'}">
                                     <i class="bi bi-plus-circle"></i>
                                 </button>
                             </div>
@@ -229,21 +244,51 @@
             };
         },
                         
-        // ===== Bind Filter Events =====
+        // ===== Bind Filter Events (Optimized) =====
         _bindFilterEvents: function() {
             const self = this;
             
-            // Search input - live search on input
+            // Search input - optimized debounced live search
             const searchInput = document.getElementById('route-search-input');
             if (searchInput) {
-                // Debounced live search
                 let searchTimeout = null;
+                let lastValue = '';
+                
                 searchInput.addEventListener('input', function(e) {
+                    const value = e.target.value;
+                    
+                    // Clear existing timeout
                     clearTimeout(searchTimeout);
-                    searchTimeout = setTimeout(function() {
-                        window.DashboardState.set('filters.routes.search', searchInput.value);
+                    
+                    // Empty value or first character - immediate response
+                    if (!value || !lastValue) {
+                        window.DashboardState.set('filters.routes.search', value);
                         self.renderRoutes();
-                    }, 300);
+                    } else {
+                        // Debounced for subsequent typing
+                        searchTimeout = setTimeout(function() {
+                            window.DashboardState.set('filters.routes.search', value);
+                            self.renderRoutes();
+                        }, 200); // Reduced from 300ms to 200ms for better responsiveness
+                    }
+                    
+                    lastValue = value;
+                    
+                    // Update clear button visibility immediately
+                    const clearBtn = document.getElementById('route-clear-btn');
+                    if (clearBtn) {
+                        clearBtn.style.display = value ? '' : 'none';
+                    }
+                });
+
+                // Handle Escape key to clear search
+                searchInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        searchInput.value = '';
+                        window.DashboardState.set('filters.routes.search', '');
+                        self.renderRoutes();
+                        searchInput.blur();
+                    }
                 });
             }
             
@@ -252,11 +297,17 @@
             if (clearBtn) {
                 clearBtn.addEventListener('click', function() {
                     const input = document.getElementById('route-search-input');
-                    if (input) input.value = ''; 
+                    if (input) {
+                        input.value = '';
+                        input.focus();
+                    }
                     window.DashboardState.set('filters.routes.search', '');
                     window.DashboardState.set('filters.routes.method', 'all');
                     window.DashboardState.set('filters.routes.source', 'all');
                     self.renderRoutes();
+                    
+                    // Update clear button
+                    clearBtn.style.display = 'none';
                 });
             }
             
@@ -289,7 +340,10 @@
             // Add button
             const addBtn = document.getElementById('route-add-btn');
             if (addBtn) {
-                addBtn.addEventListener('click', function() {
+                addBtn.disabled = false;
+                addBtn.removeAttribute('aria-disabled');
+                addBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
                     self.showAddModal();
                 });
             }
@@ -297,10 +351,193 @@
 
                 
         // ===== Render Route Rows =====
-        renderRouteRows: function(routes, tbody) {
-            window.DashboardDOM.clear(tbody);
+        // ===== Render Route Cards (Optimized with DocumentFragment) =====
+        renderRouteCards: function(routes) {
+            var container = document.getElementById('route-cards-view');
+            if (!container) return;
 
-            const fragment = document.createDocumentFragment();
+            if (routes.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:48px 0;">' +
+                    '<i class="bi bi-signpost-split" style="font-size:2.5rem;opacity:0.4;color:#64748b;display:block;margin-bottom:12px;"></i>' +
+                    '<div style="font-size:14px;color:#64748b;">' + __('index.route.empty') + '</div>' +
+                    '<div style="font-size:12px;color:#94a3b8;margin-top:6px;">' + __('index.route.emptyHelp') + '</div></div>';
+                return;
+            }
+
+            // Sort by order
+            var sortedRoutes = routes.slice().sort(function(a, b) {
+                var orderA = a.order !== null && a.order !== undefined ? a.order : 999999;
+                var orderB = b.order !== null && b.order !== undefined ? b.order : 999999;
+                return orderA - orderB;
+            });
+
+            // Use DocumentFragment for better performance
+            var fragment = document.createDocumentFragment();
+            var gridContainer = document.createElement('div');
+            gridContainer.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px;';
+
+            // Batch render for large lists
+            if (sortedRoutes.length > 50) {
+                this._renderCardsBatched(sortedRoutes, gridContainer, function() {
+                    container.innerHTML = '';
+                    fragment.appendChild(gridContainer);
+                    container.appendChild(fragment);
+                });
+                return;
+            }
+
+            // Standard render for smaller lists
+            sortedRoutes.forEach(function(route) {
+                var card = this.createRouteCardDOM(route);
+                if (card) gridContainer.appendChild(card);
+            }.bind(this));
+
+            container.innerHTML = '';
+            fragment.appendChild(gridContainer);
+            container.appendChild(fragment);
+        },
+
+        // ===== Batch Render Cards using requestAnimationFrame =====
+        _renderCardsBatched: function(routes, container, onComplete) {
+            var batchSize = 30;
+            var index = 0;
+            var total = routes.length;
+
+            var renderBatch = function() {
+                var end = Math.min(index + batchSize, total);
+                var fragment = document.createDocumentFragment();
+
+                for (; index < end; index++) {
+                    var card = RoutesModule.createRouteCardDOM(routes[index]);
+                    if (card) fragment.appendChild(card);
+                }
+
+                container.appendChild(fragment);
+
+                if (index < total) {
+                    requestAnimationFrame(renderBatch);
+                } else {
+                    if (onComplete) onComplete();
+                }
+            };
+
+            renderBatch();
+        },
+
+        // ===== Render Route Cards (Legacy - falls back to string HTML) =====
+        _renderRouteCardsLegacy: function(routes) {
+            var container = document.getElementById('route-cards-view');
+            if (!container) return;
+
+            if (routes.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:48px 0;">' +
+                    '<i class="bi bi-signpost-split" style="font-size:2.5rem;opacity:0.4;color:#64748b;display:block;margin-bottom:12px;"></i>' +
+                    '<div style="font-size:14px;color:#64748b;">' + __('index.route.empty') + '</div>' +
+                    '<div style="font-size:12px;color:#94a3b8;margin-top:6px;">' + __('index.route.emptyHelp') + '</div></div>';
+                return;
+            }
+
+            // Sort by order
+            var sortedRoutes = routes.slice().sort(function(a, b) {
+                var orderA = a.order !== null && a.order !== undefined ? a.order : 999999;
+                var orderB = b.order !== null && b.order !== undefined ? b.order : 999999;
+                return orderA - orderB;
+            });
+
+            var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px;">';
+
+            sortedRoutes.forEach(function(route) {
+                var pathText = route.match && route.match.path || '-';
+                var methods = route.match && route.match.methods || [];
+                var hostText = route.match && route.match.hosts && route.match.hosts.length > 0 ? route.match.hosts[0] : '';
+                var hasTransforms = route.transforms && route.transforms.length > 0;
+                var hasAuthorization = route.authorizationPolicy || route.authorizationPolicy === '';
+
+                // Determine card accent color by cluster
+                var accentColor = route.clusterId ? '#3b82f6' : '#94a3b8';
+
+                html += '<div style="border:1px solid var(--border-color);border-left:4px solid ' + accentColor +
+                    ';border-radius:12px;background:var(--card-bg);overflow:hidden;transition:box-shadow 0.2s,transform 0.15s;cursor:pointer;"' +
+                    ' onmouseover="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.08)\';this.style.transform=\'translateY(-1px)\'"' +
+                    ' onmouseout="this.style.boxShadow=\'none\';this.style.transform=\'none\'"' +
+                    ' onclick="window.DashboardApp.modules.routes.toggleRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')"' +
+                    ' data-route-id="' + (route.routeId || '') + '">';
+
+                // Card header
+                html += '<div style="padding:14px 16px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;gap:8px;">';
+                html += '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">';
+
+                // Order badge
+                if (route.order !== null && route.order !== undefined) {
+                    html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:' +
+                        (route.order < 100 ? '#fef3c7' : route.order < 1000 ? '#e0e7ff' : '#f1f5f9') +
+                        ';color:' + (route.order < 100 ? '#92400e' : route.order < 1000 ? '#3730a3' : '#64748b') +
+                        ';font-size:12px;font-weight:700;flex-shrink:0;">' + route.order + '</span>';
+                } else {
+                    html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:#f1f5f9;color:#94a3b8;font-size:12px;flex-shrink:0;">-</span>';
+                }
+
+                html += '<div style="min-width:0;flex:1;">';
+                html += '<div style="font-weight:600;font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '</div>';
+                html += '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;">';
+                html += '<span>' + (window.DashboardUtils ? DashboardUtils.createSourceBadge(route.source) : route.source || '-') + '</span>';
+                if (hostText) {
+                    html += '<span style="color:#cbd5e1;">|</span><span style="font-size:11px;color:#64748b;"><i class="bi bi-globe me-1"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(hostText) : hostText) + '</span>';
+                }
+                var indicators = [];
+                if (hasTransforms) indicators.push('<i class="bi bi-arrow-left-right" style="color:#8b5cf6;" title="Transforms"></i>');
+                if (hasAuthorization) indicators.push('<i class="bi bi-shield-lock" style="color:#f59e0b;" title="Authorization"></i>');
+                if (indicators.length > 0) {
+                    html += '<span style="color:#cbd5e1;">|</span><span style="display:inline-flex;gap:4px;">' + indicators.join('') + '</span>';
+                }
+                html += '</div></div></div>';
+
+                // Action buttons
+                html += '<div style="display:flex;gap:4px;flex-shrink:0;" onclick="event.stopPropagation()">';
+                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--primary-color);transition:background 0.15s;" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.showEditModal(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.edit")) + '"><i class="bi bi-pencil"></i></button>';
+                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:#ef4444;transition:background 0.15s;" onmouseover="this.style.background=\'#fef2f2\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.deleteRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.delete")) + '"><i class="bi bi-trash"></i></button>';
+                html += '</div></div>';
+
+                // Card body
+                html += '<div style="padding:12px 16px;">';
+
+                // Path
+                html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">';
+                html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;background:#eff6ff;color:#3b82f6;font-size:12px;flex-shrink:0;"><i class="bi bi-signpost-2"></i></span>';
+                html += '<code style="font-size:13px;color:var(--text-secondary);background:var(--bg-secondary,#f8fafc);padding:3px 8px;border-radius:4px;word-break:break-all;border:1px solid var(--border-color);">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(pathText) : pathText) + '</code>';
+                html += '</div>';
+
+                // Cluster + Methods row
+                html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
+
+                // Cluster
+                if (route.clusterId) {
+                    html += '<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:500;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;"><i class="bi bi-diagram-3"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.clusterId) : route.clusterId) + '</span>';
+                }
+
+                // Methods
+                if (methods.length > 0) {
+                    methods.forEach(function(m) {
+                        var mColors = { 'GET': '#22c55e', 'POST': '#3b82f6', 'PUT': '#f59e0b', 'DELETE': '#ef4444', 'PATCH': '#8b5cf6', 'HEAD': '#64748b', 'OPTIONS': '#94a3b8' };
+                        var mBg = { 'GET': '#f0fdf4', 'POST': '#eff6ff', 'PUT': '#fffbeb', 'DELETE': '#fef2f2', 'PATCH': '#f5f3ff', 'HEAD': '#f8fafc', 'OPTIONS': '#f8fafc' };
+                        var mBorder = { 'GET': '#bbf7d0', 'POST': '#bfdbfe', 'PUT': '#fde68a', 'DELETE': '#fecaca', 'PATCH': '#ddd6fe', 'HEAD': '#e2e8f0', 'OPTIONS': '#e2e8f0' };
+                        var c = mColors[m] || '#64748b';
+                        html += '<span style="display:inline-flex;align-items:center;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;font-family:monospace;background:' + (mBg[m] || '#f8fafc') + ';color:' + c + ';border:1px solid ' + (mBorder[m] || '#e2e8f0') + ';">' + m + '</span>';
+                    });
+                } else {
+                    html += '<span style="font-size:11px;color:#94a3b8;">ANY</span>';
+                }
+
+                html += '</div>';
+                html += '</div></div>';
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        },
+
+        renderRouteRows: function(routes, tbody) {
+            if (!tbody) return;
 
             // Sort by order
             const sortedRoutes = [...routes].sort((a, b) => {
@@ -309,26 +546,124 @@
                 return orderA - orderB;
             });
 
-            sortedRoutes.forEach(route => {
-                const isExpanded = (window.DashboardState.get('ui.expandedRoutes') || new Set()).has(route.routeId);
-                const rows = this.createRouteRows(route, isExpanded);
-                rows.forEach(row => fragment.appendChild(row));
-            });
+            // Check if this is first render or we should use diff
+            const existingRowCount = tbody.querySelectorAll('tr[data-route-id]').length;
+            const isFirstRender = existingRowCount === 0;
+            
+            // Use diff rendering for updates with many items
+            if (!isFirstRender && existingRowCount > 10) {
+                this._renderRouteRowsDiff(sortedRoutes, tbody);
+            } else {
+                this._renderRouteRowsStandard(sortedRoutes, tbody);
+            }
+        },
+
+        // ===== Standard Render (full rebuild - used for first render) =====
+        _renderRouteRowsStandard: function(routes, tbody) {
+            window.DashboardDOM.clear(tbody);
+            const fragment = document.createDocumentFragment();
+
+            routes.forEach(function(route) {
+                var isExpanded = (window.DashboardState.get('ui.expandedRoutes') || new Set()).has(route.routeId);
+                var rows = this.createRouteRows(route, isExpanded);
+                rows.forEach(function(row) { fragment.appendChild(row); });
+            }.bind(this));
 
             tbody.appendChild(fragment);
         },
 
+        // ===== Diff Render (only update changed rows) =====
+        _renderRouteRowsDiff: function(routes, tbody) {
+            const startTime = performance.now();
+            
+            // Get existing rows grouped by routeId
+            const existingRows = new Map();
+            tbody.querySelectorAll('tr[data-route-id]').forEach(row => {
+                const routeId = row.dataset.routeId;
+                if (!existingRows.has(routeId)) {
+                    existingRows.set(routeId, []);
+                }
+                existingRows.get(routeId).push(row);
+            });
+
+            // Track which routeIds should exist
+            const newRouteIds = new Set(routes.map(r => r.routeId));
+            
+            // Remove rows that no longer exist
+            existingRows.forEach((rows, routeId) => {
+                if (!newRouteIds.has(routeId)) {
+                    rows.forEach(row => row.remove());
+                }
+            });
+
+            // Build new order and update/create rows
+            const rowOrder = [];
+
+            routes.forEach(function(route) {
+                const routeRows = existingRows.get(route.routeId);
+                var isExpanded = (window.DashboardState.get('ui.expandedRoutes') || new Set()).has(route.routeId);
+
+                if (routeRows && routeRows.length > 0) {
+                    // Reuse existing rows
+                    const mainRow = routeRows[0];
+                    const detailRow = routeRows[1];
+                    
+                    // Update main row content (check for changes)
+                    this._updateRouteRowContent(mainRow, route, isExpanded);
+                    
+                    if (isExpanded && !detailRow) {
+                        // Need to add detail row
+                        const newDetailRow = this.createRouteDetailRow(route);
+                        newDetailRow.dataset.routeId = route.routeId;
+                        rowOrder.push(mainRow, newDetailRow);
+                    } else if (!isExpanded && detailRow) {
+                        // Need to remove detail row
+                        detailRow.remove();
+                        rowOrder.push(mainRow);
+                    } else {
+                        // Same structure
+                        rowOrder.push(mainRow);
+                        if (detailRow) {
+                            detailRow.dataset.routeId = route.routeId;
+                            rowOrder.push(detailRow);
+                        }
+                    }
+                } else {
+                    // Create new rows
+                    var rows = this.createRouteRows(route, isExpanded);
+                    rows.forEach(row => rowOrder.push(row));
+                }
+            }.bind(this));
+
+            // Reorder rows in DOM efficiently
+            rowOrder.forEach(function(row) {
+                tbody.appendChild(row);
+            });
+
+            const endTime = performance.now();
+            console.log(`[Routes] Diff render: ${routes.length} routes in ${(endTime - startTime).toFixed(2)}ms`);
+        },
+
+        // ===== Update Route Row Content (for diff updates) =====
+        _updateRouteRowContent: function(row, route, isExpanded) {
+            // Update expand icon
+            const expandIcon = row.querySelector('.row-expand-icon');
+            if (expandIcon) {
+                expandIcon.classList.toggle('expanded', isExpanded);
+            }
+        },
+
         // ===== Create Route Rows =====
         createRouteRows: function(route, isExpanded) {
-            const rows = [];
+            var rows = [];
 
             // Main row
-            const mainTr = this.createRouteMainRow(route, isExpanded);
+            var mainTr = this.createRouteMainRow(route, isExpanded);
             rows.push(mainTr);
 
             // Expanded detail row
             if (isExpanded) {
-                const detailTr = this.createRouteDetailRow(route);
+                var detailTr = this.createRouteDetailRow(route);
                 rows.push(detailTr);
             }
 
@@ -337,130 +672,144 @@
 
         // ===== Create Route Main Row =====
         createRouteMainRow: function(route, isExpanded) {
-            const tr = window.DashboardDOM.create('tr', {
+            var tr = window.DashboardDOM.create('tr', {
                 className: 'route-row',
                 attributes: { 'data-route-id': route.routeId },
                 style: { cursor: 'pointer' }
             });
 
-            // Expand column
-            const tdExpand = window.DashboardDOM.create('td', {
-                style: { verticalAlign: 'middle', textAlign: 'center' }
+            // Expand icon
+            var tdExpand = window.DashboardDOM.create('td', {
+                style: { width: '36px', verticalAlign: 'middle', textAlign: 'center' }
             });
-            const expandIcon = window.DashboardDOM.create('i', {
-                className: `bi bi-chevron-right row-expand-icon ${isExpanded ? 'expanded' : ''}`
+            var expandIcon = window.DashboardDOM.create('i', {
+                className: 'bi bi-chevron-right row-expand-icon' + (isExpanded ? ' expanded' : '')
             });
             tdExpand.appendChild(expandIcon);
             tr.appendChild(tdExpand);
 
             // Order
-            const tdOrder = window.DashboardDOM.create('td', {
-                style: { textAlign: 'center' }
+            var tdOrder = window.DashboardDOM.create('td', {
+                style: { width: '80px', verticalAlign: 'middle', textAlign: 'center' }
             });
-            tdOrder.appendChild(this.createOrderBadge(route.order));
+            if (route.order !== null && route.order !== undefined) {
+                var orderSpan = document.createElement('span');
+                orderSpan.className = 'priority-badge';
+                if (route.order < 50) orderSpan.classList.add('priority-high');
+                else if (route.order < 100) orderSpan.classList.add('priority-medium');
+                else orderSpan.classList.add('priority-low');
+                orderSpan.textContent = route.order;
+                tdOrder.appendChild(orderSpan);
+            } else {
+                tdOrder.innerHTML = '<span class="priority-badge priority-none">-</span>';
+            }
             tr.appendChild(tdOrder);
 
-            // Route ID - with copy button
-            const tdId = window.DashboardDOM.create('td', {
-                style: { fontWeight: '500', overflow: 'hidden' }
-            });
-            const nameWrapper = window.DashboardDOM.create('div', {
-                className: 'cell-with-copy'
-            });
-            const nameSpan = window.DashboardDOM.create('span', {
-                className: 'cell-text',
-                textContent: route.routeId,
-                attributes: { title: route.routeId }
-            });
-            const nameCopyBtn = this.createCopyButton(route.routeId);
-            nameWrapper.appendChild(nameSpan);
-            nameWrapper.appendChild(nameCopyBtn);
-            tdId.appendChild(nameWrapper);
-            tr.appendChild(tdId);
-
-            // Source column
-            const tdSource = window.DashboardDOM.create('td', {});
-            const sourceBadgeSpan = window.DashboardDOM.create('span', {});
-            sourceBadgeSpan.innerHTML = this.createSourceBadge(route.source);
-            tdSource.appendChild(sourceBadgeSpan);
-            tr.appendChild(tdSource);
-
-            // Click to expand (on the row)
-            tr.addEventListener('click', (e) => {
-                if (e.target.closest('.copy-btn')) return;
-                this.toggleRoute(route.routeId);
-            });
-
-            // Path - with copy button
-            const pathText = route.match?.path || '-';
-            const tdPath = window.DashboardDOM.create('td', {
+            // Route name
+            var tdName = window.DashboardDOM.create('td', {
                 style: { overflow: 'hidden' }
             });
-            const pathWrapper = window.DashboardDOM.create('div', {
-                className: 'cell-with-copy'
+            var nameDiv = document.createElement('div');
+            nameDiv.style.cssText = 'display:flex;align-items:center;gap:6px;';
+            var nameStrong = document.createElement('strong');
+            nameStrong.style.cssText = 'font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;';
+            nameStrong.textContent = route.routeId;
+            nameStrong.title = route.routeId;
+            nameDiv.appendChild(nameStrong);
+
+            var sourceSpan = document.createElement('span');
+            sourceSpan.innerHTML = this.createSourceBadge(route.source);
+            nameDiv.appendChild(sourceSpan);
+            // Indicators (transforms, auth)
+            var indicators = [];
+            if (route.transforms && route.transforms.length > 0) indicators.push('<i class="bi bi-arrow-left-right" style="color:#8b5cf6;font-size:12px;" title="Transforms"></i>');
+            if (route.authorizationPolicy || route.authorizationPolicy === '') indicators.push('<i class="bi bi-shield-lock" style="color:#f59e0b;font-size:12px;" title="Authorization"></i>');
+            if (route.metadata && (route.metadata['Policy:Id'] || route.metadata['Policy:Name'])) indicators.push('<i class="bi bi-shield-check" style="color:#0ea5e9;font-size:12px;" title="' + (__('index.route.policyBadge') || 'Policy') + '"></i>');
+            if (indicators.length > 0) {
+                var indSpan = document.createElement('span');
+                indSpan.style.cssText = 'display:inline-flex;gap:3px;';
+                indSpan.innerHTML = indicators.join('');
+                nameDiv.appendChild(indSpan);
+            }
+            var nameCopyBtn = this.createCopyButton(route.routeId);
+            nameDiv.appendChild(nameCopyBtn);
+            tdName.appendChild(nameDiv);
+            tr.appendChild(tdName);
+
+            // Path
+            var tdPath = window.DashboardDOM.create('td', {
+                style: { overflow: 'hidden' }
             });
-            const pathSpan = window.DashboardDOM.create('span', {
-                className: 'cell-text'
-            });
-            const pathCode = window.DashboardDOM.create('code', {
-                textContent: pathText,
-                attributes: { title: pathText }
-            });
-            pathSpan.appendChild(pathCode);
-            const pathCopyBtn = this.createCopyButton(route.match?.path || '');
-            pathWrapper.appendChild(pathSpan);
-            pathWrapper.appendChild(pathCopyBtn);
-            tdPath.appendChild(pathWrapper);
+            var pathText = route.match && route.match.path || '-';
+            var pathDiv = document.createElement('div');
+            pathDiv.style.cssText = 'display:flex;align-items:center;gap:6px;';
+            var pathCode = document.createElement('code');
+            pathCode.style.cssText = 'font-size:13px;background:var(--bg-secondary,#f8fafc);padding:3px 8px;border-radius:4px;border:1px solid var(--border-color);word-break:break-all;';
+            pathCode.textContent = pathText;
+            pathDiv.appendChild(pathCode);
+            var pathCopyBtn = this.createCopyButton(route.match && route.match.path || '');
+            pathDiv.appendChild(pathCopyBtn);
+            tdPath.appendChild(pathDiv);
             tr.appendChild(tdPath);
 
-            // Cluster - with copy button and ellipsis
-            const tdCluster = window.DashboardDOM.create('td', {
-                style: { overflow: 'hidden' }
+            // Cluster
+            var tdCluster = window.DashboardDOM.create('td', {
+                style: { width: '140px', verticalAlign: 'middle', overflow: 'hidden' }
             });
             if (route.clusterId) {
-                const clusterWrapper = window.DashboardDOM.create('div', {
-                    className: 'cell-with-copy'
-                });
-                const clusterBadge = window.DashboardDOM.create('span', {
-                    className: 'badge bg-primary cell-text',
-                    textContent: route.clusterId,
-                    attributes: { title: route.clusterId },
-                    style: { fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }
-                });
-                const clusterCopyBtn = this.createCopyButton(route.clusterId);
-                clusterWrapper.appendChild(clusterBadge);
-                clusterWrapper.appendChild(clusterCopyBtn);
-                tdCluster.appendChild(clusterWrapper);
+                var clusterDiv = document.createElement('div');
+                clusterDiv.style.cssText = 'display:flex;align-items:center;gap:4px;';
+                var clusterBadge = document.createElement('span');
+                clusterBadge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:5px;font-size:12px;font-weight:600;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;';
+                clusterBadge.innerHTML = '<i class="bi bi-diagram-3" style="font-size:11px;flex-shrink:0;"></i><span style="overflow:hidden;text-overflow:ellipsis;">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.clusterId) : route.clusterId) + '</span>';
+                clusterBadge.title = route.clusterId;
+                clusterDiv.appendChild(clusterBadge);
+                tdCluster.appendChild(clusterDiv);
             } else {
-                const span = window.DashboardDOM.create('span', {
-                    className: 'text-muted',
-                    textContent: '-'
-                });
-                tdCluster.appendChild(span);
+                tdCluster.innerHTML = '<span class="text-muted">-</span>';
             }
             tr.appendChild(tdCluster);
 
             // Methods
-            const tdMethods = window.DashboardDOM.create('td', {});
-            const methods = route.match?.methods;
-            if (methods && methods.length > 0) {
-                methods.forEach(method => {
-                    const methodBadge = this.createMethodBadge(method);
-                    tdMethods.appendChild(methodBadge);
+            var tdMethods = window.DashboardDOM.create('td', {
+                style: { width: '120px', verticalAlign: 'middle' }
+            });
+            var methods = route.match && route.match.methods || [];
+            var methDiv = document.createElement('div');
+            methDiv.style.cssText = 'display:flex;align-items:center;gap:3px;flex-wrap:wrap;';
+            if (methods.length > 0) {
+                var mColors = { 'GET': '#22c55e', 'POST': '#3b82f6', 'PUT': '#f59e0b', 'DELETE': '#ef4444', 'PATCH': '#8b5cf6', 'HEAD': '#64748b', 'OPTIONS': '#94a3b8' };
+                var mBg = { 'GET': '#f0fdf4', 'POST': '#eff6ff', 'PUT': '#fffbeb', 'DELETE': '#fef2f2', 'PATCH': '#f5f3ff', 'HEAD': '#f8fafc', 'OPTIONS': '#f8fafc' };
+                var mBorder = { 'GET': '#bbf7d0', 'POST': '#bfdbfe', 'PUT': '#fde68a', 'DELETE': '#fecaca', 'PATCH': '#ddd6fe', 'HEAD': '#e2e8f0', 'OPTIONS': '#e2e8f0' };
+                methods.forEach(function(m) {
+                    var methSpan = document.createElement('span');
+                    var c = mColors[m] || '#64748b';
+                    methSpan.style.cssText = 'display:inline-flex;align-items:center;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;font-family:monospace;background:' + (mBg[m] || '#f8fafc') + ';color:' + c + ';border:1px solid ' + (mBorder[m] || '#e2e8f0') + ';';
+                    methSpan.textContent = m;
+                    methDiv.appendChild(methSpan);
                 });
             } else {
-                const span = window.DashboardDOM.create('span', {
-                    className: 'text-muted',
-                    textContent: __('index.route.allMethods')
-                });
-                tdMethods.appendChild(span);
+                var anySpan = document.createElement('span');
+                anySpan.className = 'text-muted';
+                anySpan.style.cssText = 'font-size:12px;';
+                anySpan.textContent = 'ANY';
+                methDiv.appendChild(anySpan);
             }
+            tdMethods.appendChild(methDiv);
             tr.appendChild(tdMethods);
 
             // Actions
-            const tdActions = window.DashboardDOM.create('td', {});
+            var tdActions = window.DashboardDOM.create('td', {
+                style: { width: '80px', verticalAlign: 'middle', textAlign: 'center' }
+            });
             tdActions.appendChild(this.createActionButtons(route));
             tr.appendChild(tdActions);
+
+            // Click to expand
+            tr.addEventListener('click', function(e) {
+                if (e.target.closest('.copy-btn') || e.target.closest('.btn-group')) return;
+                this.toggleRoute(route.routeId);
+            }.bind(this));
 
             return tr;
         },
@@ -550,6 +899,23 @@
             editBtn.appendChild(editIcon);
             container.appendChild(editBtn);
 
+            // Policy button
+            const policyBtn = window.DashboardDOM.create('button', {
+                className: 'btn btn-outline-info',
+                attributes: { title: __('index.route.managePolicy') || 'Manage Policy' },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        RoutesModule.showPolicyModal(route.routeId);
+                    }
+                }
+            });
+            const policyIcon = window.DashboardDOM.create('i', {
+                className: 'bi bi-shield-check'
+            });
+            policyBtn.appendChild(policyIcon);
+            container.appendChild(policyBtn);
+
             // Delete button
             const deleteBtn = window.DashboardDOM.create('button', {
                 className: 'btn btn-outline-danger',
@@ -570,6 +936,7 @@
             return container;
         },
 
+
         // ===== Create Route Detail Row =====
         createRouteDetailRow: function(route) {
             const tr = window.DashboardDOM.create('tr', {
@@ -577,7 +944,7 @@
             });
                 
             const td = window.DashboardDOM.create('td', {
-                attributes: { colspan: '8' }
+                attributes: { colspan: '7' }
             });
                 
             const detailHtml = []; 
@@ -603,6 +970,17 @@
             detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Source</span><span class="detail-kv-value">${sourceBadge}</span></div>`);
             detailHtml.push('</div>');
             detailHtml.push('</div>');
+
+            // Applied Policy section
+            if (route.metadata && (route.metadata['Policy:Id'] || route.metadata['Policy:Name'])) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield-check"></i>${__('index.route.appliedPolicy')}</div>`);
+                detailHtml.push('<div class="detail-structured-config">');
+                var policyName = route.metadata['Policy:Name'] || route.metadata['Policy:Id'];
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-bookmark-check"></i> ${__('policy.routePolicy')}</span><span class="detail-kv-value"><span class="badge bg-primary"><i class="bi bi-shield-check"></i> ${window.DashboardUtils.escapeHtml(policyName)}</span></span></div>`);
+                detailHtml.push('</div>');
+                detailHtml.push('</div>');
+            }
 
             // Match Rules
             detailHtml.push('<div class="detail-section">');
@@ -690,11 +1068,81 @@
                 detailHtml.push('</div>');
             }
 
-            // Metadata - structured key-value display
-            if (route.metadata && Object.keys(route.metadata).length > 0) {
+            // Retry Configuration - dedicated section for better visibility
+            const retryConfig = this.extractRetryConfig(route.metadata);
+            if (retryConfig && retryConfig.enabled) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-arrow-repeat"></i>${__('index.route.retry')}</div>`);
+                detailHtml.push('<div class="detail-structured-config">');
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-toggle-on"></i> ${__('index.route.retry.enabled')}</span><span class="detail-kv-value"><span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span></span></div>`);
+                if (retryConfig.maxRetries !== undefined) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-123"></i> ${__('index.route.retry.maxRetries')}</span><span class="detail-kv-value"><code>${retryConfig.maxRetries}</code></span></div>`);
+                }
+                if (retryConfig.retryOnStatusCodes) {
+                    const codes = retryConfig.retryOnStatusCodes.split(',').map(c => `<code>${c.trim()}</code>`).join(' ');
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-exclamation-triangle"></i> ${__('index.route.retry.statusCodes')}</span><span class="detail-kv-value">${codes}</span></div>`);
+                }
+                if (retryConfig.retryNonIdempotent) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield-exclamation"></i> ${__('index.route.retry.nonIdempotent')}</span><span class="detail-kv-value"><span class="badge bg-warning text-dark"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span></span></div>`);
+                }
+                detailHtml.push('</div>');
+                detailHtml.push('</div>');
+            }
+
+            // Rate Limit Configuration - dedicated section
+            const rateLimitConfig = this.extractRateLimitConfig(route.metadata);
+            if (rateLimitConfig && rateLimitConfig.enabled) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-speedometer2"></i>${__('index.route.rateLimitConfig') || 'Rate Limit'}</div>`);
+                detailHtml.push('<div class="detail-structured-config">');
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-toggle-on"></i> ${__('policy.enabled') || 'Enabled'}</span><span class="detail-kv-value"><span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span></span></div>`);
+                if (rateLimitConfig.permitLimit !== undefined) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-123"></i> ${__('index.route.rateLimit.permitLimit') || 'Permit Limit'}</span><span class="detail-kv-value"><code>${rateLimitConfig.permitLimit}</code></span></div>`);
+                }
+                if (rateLimitConfig.window) {
+                    var windowDisplay = rateLimitConfig.window;
+                    var wm = windowDisplay && windowDisplay.match(/^(\d+(?:\.\d+)?)\s*(s|m|h|ms)?$/i);
+                    if (wm) {
+                        var wNum = parseFloat(wm[1]);
+                        var wUnit = (wm[2] || 's').toLowerCase();
+                        if (wUnit === 'm') windowDisplay = Math.round(wNum * 60) + 's';
+                        else if (wUnit === 'h') windowDisplay = Math.round(wNum * 3600) + 's';
+                        else if (wUnit === 'ms') windowDisplay = (wNum / 1000) + 's';
+                    }
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-clock"></i> ${__('index.route.rateLimit.window') || 'Window'}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(windowDisplay)}</code></span></div>`);
+                }
+                if (rateLimitConfig.algorithm) {
+                    var algoDisplay = __('policy.algo.' + rateLimitConfig.algorithm) || rateLimitConfig.algorithm;
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-gear"></i> ${__('index.route.rateLimit.algorithm') || 'Algorithm'}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(algoDisplay)}</code></span></div>`);
+                }
+                if (rateLimitConfig.queueLimit !== undefined) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-list-ol"></i> ${__('index.route.rateLimit.queueLimit') || 'Queue Limit'}</span><span class="detail-kv-value"><code>${rateLimitConfig.queueLimit}</code></span></div>`);
+                }
+                detailHtml.push('</div>');
+                detailHtml.push('</div>');
+            }
+
+            // WAF Configuration - dedicated section
+            const wafConfig = this.extractWafConfig(route.metadata);
+            if (wafConfig && wafConfig.hasConfig) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield-lock"></i>${__('index.route.wafConfig') || 'WAF'}</div>`);
+                detailHtml.push('<div class="detail-structured-config">');
+                var wafStatus = wafConfig.enabled === true ? __('index.route.waf.forceOn') : wafConfig.enabled === false ? __('index.route.waf.forceOff') : __('index.route.waf.followGlobal');
+                var wafBadge = wafConfig.enabled === true ? 'bg-success' : wafConfig.enabled === false ? 'bg-danger' : 'bg-secondary';
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield-check"></i> ${__('index.route.waf.status') || 'Status'}</span><span class="detail-kv-value"><span class="badge ${wafBadge}">${window.DashboardUtils.escapeHtml(wafStatus)}</span></span></div>`);
+                detailHtml.push('</div>');
+                detailHtml.push('</div>');
+            }
+
+            // Metadata - structured key-value display (excluding retry/rate-limit/WAF/policy/circuit-breaker configs which are shown above)
+            const nonRetryMetadata = route.metadata ? Object.fromEntries(
+                Object.entries(route.metadata).filter(([key]) => !key.startsWith('Retry:') && !key.startsWith('RateLimit:') && !key.startsWith('Waf:') && !key.startsWith('Policy:') && !key.startsWith('CircuitBreaker:'))
+            ) : {};
+            if (Object.keys(nonRetryMetadata).length > 0) {
                 detailHtml.push('<div class="detail-section">');
                 detailHtml.push(`<div class="detail-section-title"><i class="bi bi-tags"></i>${__('index.route.metadata')}</div>`);
-                detailHtml.push(this.renderStructuredConfig(route.metadata, 'metadata'));
+                detailHtml.push(this.renderStructuredConfig(nonRetryMetadata, 'metadata'));
                 detailHtml.push('</div>');
             }
                 
@@ -773,6 +1221,60 @@
             return html.join('');
         },
 
+        // ===== Extract Retry Configuration from Metadata =====
+        extractRetryConfig: function(metadata) {
+            if (!metadata || typeof metadata !== 'object') return null;
+            
+            const retryKeys = ['Retry:Enabled', 'Retry:MaxRetries', 'Retry:RetryOnStatusCodes', 'Retry:RetryNonIdempotent'];
+            const hasRetryConfig = retryKeys.some(key => metadata.hasOwnProperty(key));
+            
+            if (!hasRetryConfig) return null;
+            
+            const enabled = metadata['Retry:Enabled'] === 'true' || metadata['Retry:Enabled'] === true;
+            
+            return {
+                enabled: enabled,
+                maxRetries: metadata['Retry:MaxRetries'],
+                retryOnStatusCodes: metadata['Retry:RetryOnStatusCodes'],
+                retryNonIdempotent: metadata['Retry:RetryNonIdempotent'] === 'true' || metadata['Retry:RetryNonIdempotent'] === true
+            };
+        },
+
+        // ===== Extract Rate Limit Configuration from Metadata =====
+        extractRateLimitConfig: function(metadata) {
+            if (!metadata || typeof metadata !== 'object') return null;
+            
+            const rlKeys = ['RateLimit:Enabled', 'RateLimit:PermitLimit', 'RateLimit:Window', 'RateLimit:Algorithm', 'RateLimit:QueueLimit'];
+            const hasRlConfig = rlKeys.some(key => metadata.hasOwnProperty(key));
+            
+            if (!hasRlConfig) return null;
+            
+            const enabled = metadata['RateLimit:Enabled'] === 'true' || metadata['RateLimit:Enabled'] === true;
+            
+            return {
+                enabled: enabled,
+                permitLimit: metadata['RateLimit:PermitLimit'],
+                window: metadata['RateLimit:Window'],
+                algorithm: metadata['RateLimit:Algorithm'],
+                queueLimit: metadata['RateLimit:QueueLimit']
+            };
+        },
+
+        // ===== Extract WAF Configuration from Metadata =====
+        extractWafConfig: function(metadata) {
+            if (!metadata || typeof metadata !== 'object') return null;
+            
+            if (!metadata.hasOwnProperty('Waf:Enabled')) return null;
+            
+            var wafVal = metadata['Waf:Enabled'];
+            var enabled = wafVal === 'true' ? true : wafVal === 'false' ? false : null;
+            
+            return {
+                hasConfig: true,
+                enabled: enabled
+            };
+        },
+
         // ===== Render Structured Config =====
         renderStructuredConfig: function(obj, configType) {
             if (!obj || typeof obj !== 'object') return '';
@@ -847,11 +1349,20 @@
             if (route.timeout) yarpRoute.Timeout = route.timeout;
             if (route.timeoutPolicy) yarpRoute.TimeoutPolicy = route.timeoutPolicy;
             if (route.rateLimiterPolicy) yarpRoute.RateLimiterPolicy = route.rateLimiterPolicy;
-            if (route.metadata && Object.keys(route.metadata).length > 0) yarpRoute.Metadata = route.metadata;
+            if (route.metadata && Object.keys(route.metadata).length > 0) {
+                const cleanMeta = Object.fromEntries(
+                    Object.entries(route.metadata).filter(([key]) =>
+                        !key.startsWith('Retry:') && !key.startsWith('RateLimit:') && !key.startsWith('CircuitBreaker:') && !key.startsWith('Waf:') && !key.startsWith('Policy:')
+                    )
+                );
+                if (Object.keys(cleanMeta).length > 0) {
+                    yarpRoute.Metadata = cleanMeta;
+                }
+            }
 
             const json = JSON.stringify(yarpRoute, null, 2);
-            navigator.clipboard.writeText(json).then(function() {
-                window.DashboardModals.showSuccess(__('index.copied'));
+            window.DashboardUtils.copyToClipboard(json).then(function(success) {
+                if (success) window.DashboardModals.showSuccess(__('index.copied'));
             });
         },
         
@@ -864,7 +1375,8 @@
                     click: (e) => {
                         e.stopPropagation();
                         if (!text) return;
-                        navigator.clipboard.writeText(text).then(() => {
+                        window.DashboardUtils.copyToClipboard(text).then((success) => {
+                            if (!success) return;
                             btn.classList.add('copied');
                             const icon = btn.querySelector('i');
                             if (icon) {
@@ -931,6 +1443,95 @@
         },
 
 
+        // ===== Show Policy Management Modal =====
+        showPolicyModal: async function(routeId) {
+            try {
+                const policies = await window.DashboardApi.endpoints.getRoutePoliciesForRoute(routeId);
+                const allPolicies = await window.DashboardApi.endpoints.getPolicies('routes');
+                const policyList = (allPolicies && allPolicies.data) || allPolicies || [];
+                const appliedIds = [];
+                
+                if (policies) {
+                    var policyData = policies.data || policies;
+                    if (Array.isArray(policyData)) {
+                        policyData.forEach(function(p) { appliedIds.push(p.policyId); });
+                    }
+                }
+                
+                var itemsHtml = policyList.map(function(policy) {
+                    var isApplied = appliedIds.indexOf(policy.policyId) >= 0;
+                    var features = [];
+                    if (policy.retry && policy.retry.enabled) features.push(__('policy.retry') || 'Retry');
+                    if (policy.rateLimit && policy.rateLimit.enabled) features.push(__('policy.rateLimit') || 'Rate Limit');
+                    if (policy.wafEnabled === true) features.push(__('policy.wafOn') || 'WAF On');
+                    else if (policy.wafEnabled === false) features.push(__('policy.wafOff') || 'WAF Off');
+                    var featureStr = features.length > 0 ? ' <span class="text-muted small">(' + features.join(', ') + ')</span>' : '';
+                    return '<div class="form-check">' +
+                        '<input class="form-check-input route-policy-check" type="checkbox" value="' + window.DashboardUtils.escapeHtml(policy.policyId) + '" id="rpolicy-' + window.DashboardUtils.escapeHtml(policy.policyId) + '" ' + (isApplied ? 'checked' : '') + ' />' +
+                        '<label class="form-check-label" for="rpolicy-' + window.DashboardUtils.escapeHtml(policy.policyId) + '">' + window.DashboardUtils.escapeHtml(policy.displayName || policy.policyId) + featureStr + '</label>' +
+                    '</div>';
+                }).join('');
+
+                if (policyList.length === 0) {
+                    itemsHtml = '<div class="text-muted text-center py-3">' + (__('policy.empty') || 'No policies') + '</div>';
+                }
+
+                var modalId = 'routePolicyModal';
+                var existing = document.getElementById(modalId);
+                if (existing) existing.remove();
+
+                var modalHtml = '<div class="modal fade" id="' + modalId + '" tabindex="-1">' +
+                    '<div class="modal-dialog modal-dialog-centered">' +
+                        '<div class="modal-content">' +
+                            '<div class="modal-header">' +
+                                '<h5 class="modal-title"><i class="bi bi-shield-check me-2"></i>' + (__('index.route.managePolicy') || 'Manage Policy') + ' - ' + window.DashboardUtils.escapeHtml(routeId) + '</h5>' +
+                                '<button type="button" class="btn-close" data-bs-dismiss="modal"></button>' +
+                            '</div>' +
+                            '<div class="modal-body">' +
+                                '<div class="text-muted small mb-2">' + (__('policy.applyHelpRoute') || 'Select policies to apply to this route') + '</div>' +
+                                '<div style="max-height:300px;overflow-y:auto">' + itemsHtml + '</div>' +
+                            '</div>' +
+                            '<div class="modal-footer">' +
+                                '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">' + (__('policy.cancel') || 'Cancel') + '</button>' +
+                                '<button type="button" class="btn btn-primary" id="routePolicySaveBtn"><i class="bi bi-check-lg me-1"></i><span>' + (__('policy.confirm') || 'Confirm') + '</span></button>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                var modalEl = document.getElementById(modalId);
+                var bsModal = new bootstrap.Modal(modalEl);
+
+                document.getElementById('routePolicySaveBtn').addEventListener('click', async function() {
+                    var checkboxes = document.querySelectorAll('.route-policy-check');
+                    var promises = [];
+                    checkboxes.forEach(function(cb) {
+                        var policyId = cb.value;
+                        if (cb.checked && appliedIds.indexOf(policyId) < 0) {
+                            promises.push(window.DashboardApi.endpoints.applyPolicy('routes', policyId, routeId));
+                        } else if (!cb.checked && appliedIds.indexOf(policyId) >= 0) {
+                            promises.push(window.DashboardApi.endpoints.unapplyPolicy('routes', policyId, routeId).catch(function() {}));
+                        }
+                    });
+                    try {
+                        await Promise.all(promises);
+                        if (window.DashboardModals) window.DashboardModals.showToast(__('policy.applySuccess') || 'Policy applied successfully', 'success');
+                        bsModal.hide();
+                        await RoutesModule.loadRoutes(true);
+                    } catch (err) {
+                        if (window.DashboardModals) window.DashboardModals.showError(__('policy.applyFailed') || 'Failed to apply policy');
+                    }
+                });
+
+                modalEl.addEventListener('hidden.bs.modal', function() { modalEl.remove(); });
+                bsModal.show();
+            } catch (error) {
+                console.error('[Routes] Load policy modal failed:', error);
+                if (window.DashboardModals) window.DashboardModals.showError(__('policy.loadFailed') || 'Failed to load policies');
+            }
+        },
+
         // ===== Toggle Route (Direct DOM Manipulation) =====
         toggleRoute: function(routeId) {
             const state = window.DashboardState;
@@ -977,20 +1578,87 @@
             }
         },
 
-        // ===== Show Add Modal (JSON Mode) =====
+        // ===== Show Add Modal (Form Mode with JSON toggle) =====
         showAddModal: function() {
+            this.showAddFormModal();
+        },
+
+        // ===== Show Add Form Modal =====
+        showAddFormModal: async function() {
             const self = this;
-                    
-            // Get available clusters
-            const clusters = window.DashboardState.get('data.clusters') || [];
+
+            // Get available clusters (lazy-load if not yet fetched)
+            let clusters = window.DashboardState.get('data.clusters') || [];
+            if (clusters.length === 0) {
+                await self.ensureClustersLoaded();
+                clusters = window.DashboardState.get('data.clusters') || [];
+            }
             const clusterIds = clusters.map(c => c.clusterId);
-                    
+
             // If no clusters, show warning
             if (clusterIds.length === 0) {
                 window.DashboardModals.showWarning(__('index.route.noClusters'));
                 return;
             }
-        
+
+            const clusterOptions = clusterIds.map(id => ({ value: id, label: id }));
+
+            window.DashboardModals.showFormModal({
+                title: __('modal.addRoute'),
+                icon: 'bi-plus-circle',
+                size: 'lg',
+                fields: [
+                    { name: 'routeId', label: 'Route ID', type: 'text', required: true, placeholder: 'my-route' },
+                    { name: 'clusterId', label: __('index.route.clusterId') || 'Cluster ID', type: 'select', required: true, options: clusterOptions, value: clusterIds[0] },
+                    { name: 'matchPath', label: __('index.route.matchPath') || 'Match Path', type: 'text', required: true, placeholder: '/api/service/{**catchAll}', value: '/api/service/{**catchAll}' },
+                    { name: 'order', label: __('index.route.order') || 'Order', type: 'number', value: '50', min: '0', max: '1000' }
+                ],
+                data: { clusterId: clusterIds[0], matchPath: '/api/service/{**catchAll}', order: '50' },
+                jsonModeCallback: function() {
+                    self._showAddJsonModal();
+                },
+                onSave: function(formData) {
+                    const routeConfig = {
+                        ClusterId: formData.clusterId,
+                        Order: parseInt(formData.order) || 50,
+                        Match: {
+                            Path: formData.matchPath || '/api/{**catchAll}'
+                        }
+                    };
+
+                    if (!routeConfig.ClusterId || !routeConfig.ClusterId.trim()) {
+                        window.DashboardModals.showError(__('index.route.invalidCluster'));
+                        return false;
+                    }
+                    if (!routeConfig.Match.Path) {
+                        window.DashboardModals.showError(__('index.route.invalidMatch'));
+                        return false;
+                    }
+
+                    self.saveRouteFromJson(routeConfig, formData.routeId);
+                    return true;
+                }
+            });
+        },
+
+        // ===== Show Add Modal (JSON Mode) =====
+        _showAddJsonModal: async function() {
+            const self = this;
+
+            // Get available clusters (lazy-load if not yet fetched)
+            let clusters = window.DashboardState.get('data.clusters') || [];
+            if (clusters.length === 0) {
+                await self.ensureClustersLoaded();
+                clusters = window.DashboardState.get('data.clusters') || [];
+            }
+            const clusterIds = clusters.map(c => c.clusterId);
+
+            // If no clusters, show warning
+            if (clusterIds.length === 0) {
+                window.DashboardModals.showWarning(__('index.route.noClusters'));
+                return;
+            }
+
             // Default route template for new route
             const defaultRoute = {
                 "ClusterId": clusterIds[0] || "",
@@ -998,13 +1666,14 @@
                 "Match": {
                     "Path": "/api/service/{**catchAll}"
                 }
-            }; 
-        
+            };
+
             window.DashboardModals.showJsonModal({
                 title: __('modal.addRoute'),
                 data: defaultRoute,
                 schemaType: 'route',
                 size: 'xl',
+                hint: __('modal.policyManagedHint') || undefined,
                 onSave: function(parsedData) {
                     // Validate route config
                     if (!parsedData.ClusterId || !parsedData.ClusterId.trim()) {
@@ -1020,7 +1689,7 @@
                         window.DashboardModals.showWarning(__('index.route.clusterNotFound') + parsedData.ClusterId);
                         // Still allow save for flexibility
                     }
-        
+
                     // Save route
                     self.saveRouteFromJson(parsedData);
                     return true;
@@ -1044,7 +1713,7 @@
                 const response = await window.DashboardApi.endpoints.saveRoute(routeId, routeConfig);
         
                 window.DashboardModals.showSuccess(__('index.route.saved'));
-                await this.loadRoutes();
+                await this.loadRoutes(true);
         
                 document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
                     detail: { type: 'route', id: routeId, action: 'save' }
@@ -1098,7 +1767,7 @@
                         
                 document.body.insertAdjacentHTML('beforeend', modalHtml);
                 const modalEl = document.getElementById(modalId);
-                const bsModal = new bootstrap.Modal(modalEl);
+                const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
                 const inputEl = document.getElementById(modalId + '-input');
         
                 document.getElementById(modalId + '-confirm').addEventListener('click', function() {
@@ -1193,16 +1862,27 @@
                 yarpRoute.TimeoutPolicy = route.timeoutPolicy;
             }
         
-            // Add metadata if exists
+            // Add metadata - strip policy-related keys (managed via "Manage Policy" button)
+            yarpRoute.Metadata = {};
+            const _preservedPolicyMeta = {};
             if (route.metadata && Object.keys(route.metadata).length > 0) {
-                yarpRoute.Metadata = route.metadata;
+                Object.keys(route.metadata).forEach(function(key) {
+                    if (key.startsWith('RateLimit:') || key.startsWith('Policy:') || key.startsWith('Retry:') || key.startsWith('Waf:') || key.startsWith('CircuitBreaker:')) {
+                        _preservedPolicyMeta[key] = route.metadata[key];
+                    } else {
+                        yarpRoute.Metadata[key] = route.metadata[key];
+                    }
+                });
             }
+            // Remove empty Metadata section
+            if (Object.keys(yarpRoute.Metadata).length === 0) delete yarpRoute.Metadata;
         
             window.DashboardModals.showJsonModal({
                 title: __('modal.editRoute'),
                 data: yarpRoute,
                 schemaType: 'route',
                 size: 'xl',
+                hint: __('modal.policyManagedHint') || undefined,
                 editableId: {
                     label: 'Route ID',
                     value: routeId,
@@ -1218,6 +1898,14 @@
                     if (!parsedData.Match || (!parsedData.Match.Path && !parsedData.Match.Hosts)) {
                         window.DashboardModals.showError(__('index.route.invalidMatch'));
                         return false;
+                    }
+
+                    // Merge back preserved policy metadata before saving
+                    if (Object.keys(_preservedPolicyMeta).length > 0) {
+                        if (!parsedData.Metadata) parsedData.Metadata = {};
+                        Object.keys(_preservedPolicyMeta).forEach(function(key) {
+                            parsedData.Metadata[key] = _preservedPolicyMeta[key];
+                        });
                     }
 
                     // Handle rename: only if ID actually changed (case-sensitive comparison)
@@ -1237,20 +1925,21 @@
             try {
                 window.DashboardModals.showInfo(__('index.route.renaming'));
 
-                // Create new route with new ID FIRST (cluster already exists via old route)
-                await window.DashboardApi.endpoints.saveRoute(newId, routeConfig);
+                // Call dedicated rename API (triggers a single "RenameRoute" event)
+                const renamePayload = {
+                    newRouteId: newId,
+                    matchPath: routeConfig.matchPath || routeConfig.Match?.Path,
+                    clusterId: routeConfig.clusterId || routeConfig.ClusterId,
+                    order: routeConfig.order || routeConfig.Order,
+                    transforms: routeConfig.transforms || routeConfig.Transforms
+                };
 
-                // Delete old route AFTER (new route already references the cluster, so don't delete it)
-                if (oldId !== newId) {
-                    try {
-                        await window.DashboardApi.delete(`/api/config/routes/${encodeURIComponent(oldId)}?removeOrphanedCluster=false`);
-                    } catch (e) {
-                        console.warn('[Routes] Failed to delete old route after rename:', e);
-                    }
-                }
+                await window.DashboardApi.put(
+                    `/api/config/routes/${encodeURIComponent(oldId)}/rename`,
+                    renamePayload);
 
                 window.DashboardModals.showSuccess(__('index.route.renamed'));
-                await self.loadRoutes();
+                await self.loadRoutes(true);
 
                 document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
                     detail: { type: 'route', id: newId, oldId: oldId, action: 'rename' }
@@ -1266,13 +1955,13 @@
             const self = this;
             
             window.DashboardModals.showConfirm(
-                __('index.route.deleteConfirm').replace('{id}', routeId) || `确认删除路由 '${routeId}'？此操作不可撤销。`,
+                __('index.route.deleteConfirm').replace('{id}', routeId),
                 async function() {
                     try {
                         window.DashboardModals.showInfo(__('index.route.deleting'));
                         
                         await window.DashboardApi.endpoints.deleteRouteConfig(routeId);
-                        await self.loadRoutes();
+                        await self.loadRoutes(true);
                         
                         window.DashboardModals.showSuccess(__('index.route.deleted'));
 
@@ -1301,6 +1990,136 @@
             document.addEventListener('dashboard:localeChange', () => {
                 this.renderRoutes();
             });
+
+            // Setup event delegation for card and table views
+            this._setupEventDelegation();
+        },
+
+        // ===== Event Delegation Setup =====
+        _setupEventDelegation: function() {
+            // Table view: individual row click handlers are set in createRouteMainRow (line ~855),
+            // createActionButtons buttons have stopPropagation, so no delegation needed.
+        },
+
+        // ===== Helper: Find Route by ID =====
+        _findRouteById: function(routeId) {
+            const routes = window.DashboardState.get('data.routes') || [];
+            return routes.find(r => r.routeId === routeId);
+        },
+
+        // ===== Optimized Render Methods =====
+
+        // ===== Create Route Card (DOM-based for performance) =====
+        createRouteCardDOM: function(route) {
+            const pathText = route.match && route.match.path || '-';
+            const methods = route.match && route.match.methods || [];
+            const hostText = route.match && route.match.hosts && route.match.hosts.length > 0 ? route.match.hosts[0] : '';
+            const hasTransforms = route.transforms && route.transforms.length > 0;
+            const hasAuthorization = route.authorizationPolicy || route.authorizationPolicy === '';
+            const accentColor = route.clusterId ? '#3b82f6' : '#94a3b8';
+
+            // Create card element
+            const card = document.createElement('div');
+            card.className = 'route-card';
+            card.dataset.routeId = route.routeId;
+            card.dataset.key = route.routeId; // For diff tracking
+            card.style.cssText = 'border:1px solid var(--border-color);border-left:4px solid ' + accentColor + 
+                ';border-radius:12px;background:var(--card-bg);overflow:hidden;transition:box-shadow 0.2s,transform 0.15s;cursor:pointer;';
+            
+            // Hover effects
+            card.addEventListener('mouseenter', function() {
+                this.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+                this.style.transform = 'translateY(-1px)';
+            });
+            card.addEventListener('mouseleave', function() {
+                this.style.boxShadow = 'none';
+                this.style.transform = 'none';
+            });
+
+            // Card content HTML
+            card.innerHTML = this._buildCardHTML(route, pathText, methods, hostText, hasTransforms, hasAuthorization);
+
+            return card;
+        },
+
+        // ===== Build Card HTML (separate for easier maintenance) =====
+        _buildCardHTML: function(route, pathText, methods, hostText, hasTransforms, hasAuthorization) {
+            const orderBadge = route.order !== null && route.order !== undefined 
+                ? '<span class="route-order-badge" style="background:' + (route.order < 100 ? '#fef3c7' : route.order < 1000 ? '#e0e7ff' : '#f1f5f9') + ';color:' + (route.order < 100 ? '#92400e' : route.order < 1000 ? '#3730a3' : '#64748b') + '">' + route.order + '</span>'
+                : '<span class="route-order-badge" style="background:#f1f5f9;color:#94a3b8">-</span>';
+
+            const hostBadge = hostText 
+                ? '<span class="route-host"><i class="bi bi-globe"></i>' + window.DashboardUtils.escapeHtml(hostText) + '</span>' 
+                : '';
+
+            const indicators = [];
+            if (hasTransforms) indicators.push('<i class="bi bi-arrow-left-right" style="color:#8b5cf6;" title="Transforms"></i>');
+            if (hasAuthorization) indicators.push('<i class="bi bi-shield-lock" style="color:#f59e0b;" title="Authorization"></i>');
+            const indicatorHtml = indicators.length > 0 ? '<span class="route-indicators">' + indicators.join('') + '</span>' : '';
+
+            let methodsHtml = '';
+            if (methods.length > 0) {
+                const mColors = { 'GET': '#22c55e', 'POST': '#3b82f6', 'PUT': '#f59e0b', 'DELETE': '#ef4444', 'PATCH': '#8b5cf6', 'HEAD': '#64748b', 'OPTIONS': '#94a3b8' };
+                const mBg = { 'GET': '#f0fdf4', 'POST': '#eff6ff', 'PUT': '#fffbeb', 'DELETE': '#fef2f2', 'PATCH': '#f5f3ff', 'HEAD': '#f8fafc', 'OPTIONS': '#f8fafc' };
+                const mBorder = { 'GET': '#bbf7d0', 'POST': '#bfdbfe', 'PUT': '#fde68a', 'DELETE': '#fecaca', 'PATCH': '#ddd6fe', 'HEAD': '#e2e8f0', 'OPTIONS': '#e2e8f0' };
+                methodsHtml = methods.map(m => {
+                    const c = mColors[m] || '#64748b';
+                    return '<span class="route-method" style="background:' + (mBg[m] || '#f8fafc') + ';color:' + c + ';border-color:' + (mBorder[m] || '#e2e8f0') + '">' + m + '</span>';
+                }).join('');
+            } else {
+                methodsHtml = '<span class="route-method-any">ANY</span>';
+            }
+
+            const clusterHtml = route.clusterId 
+                ? '<span class="route-cluster"><i class="bi bi-diagram-3"></i>' + window.DashboardUtils.escapeHtml(route.clusterId) + '</span>' 
+                : '';
+
+            return '<div class="route-card-header">' +
+                '<div class="route-card-title">' +
+                orderBadge +
+                '<div class="route-name-wrap">' +
+                '<div class="route-name" title="' + window.DashboardUtils.escapeHtml(route.routeId) + '">' + window.DashboardUtils.escapeHtml(route.routeId) + '</div>' +
+                '<div class="route-meta">' +
+                window.DashboardUtils.createSourceBadge(route.source) +
+                hostBadge +
+                indicatorHtml +
+                '</div>' +
+                '</div>' +
+                '</div>' +
+                '<div class="route-card-actions">' +
+                '<button class="btn-edit btn btn-sm" title="' + (window.__ ? __("index.route.edit") : "编辑") + '" data-action="edit"><i class="bi bi-pencil"></i></button>' +
+                '<button class="btn-delete btn btn-sm" title="' + (window.__ ? __("index.route.delete") : "删除") + '" data-action="delete"><i class="bi bi-trash"></i></button>' +
+                '</div>' +
+                '</div>' +
+                '<div class="route-card-body">' +
+                '<div class="route-path-row">' +
+                '<span class="route-path-icon"><i class="bi bi-signpost-2"></i></span>' +
+                '<code class="route-path">' + window.DashboardUtils.escapeHtml(pathText) + '</code>' +
+                '</div>' +
+                '<div class="route-bottom-row">' +
+                clusterHtml +
+                methodsHtml +
+                '</div>' +
+                '</div>';
+        },
+
+        // ===== Create Route Row for Table (with key for diff) =====
+        createRouteRowsOptimized: function(route, isExpanded) {
+            var rows = [];
+
+            // Main row
+            var mainTr = this.createRouteMainRow(route, isExpanded);
+            mainTr.dataset.key = route.routeId; // For diff tracking
+            rows.push(mainTr);
+
+            // Expanded detail row
+            if (isExpanded) {
+                var detailTr = this.createRouteDetailRow(route);
+                detailTr.dataset.key = route.routeId + '-detail';
+                rows.push(detailTr);
+            }
+
+            return rows;
         }
     };
 
@@ -1312,12 +2131,10 @@
     // Expose to window
     window.RoutesModule = RoutesModule;
     
-    // Global functions for onclick handlers
+    // Global function for external route creation triggers.
     window.showAddRouteModal = function() {
-        if (RoutesModule.showAddModal) {
+        if (RoutesModule && typeof RoutesModule.showAddModal === 'function') {
             RoutesModule.showAddModal();
-        } else {
-            console.warn('[Routes] showAddModal not implemented yet');
         }
     };
 

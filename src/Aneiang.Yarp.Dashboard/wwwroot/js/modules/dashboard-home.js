@@ -11,22 +11,14 @@
         // ===== Initialization =====
         init: async function() {
             if (this.initialized) return;
-            
+
             console.log('[Home] Initializing...');
-            
-            try {
-                // Load initial data
-                await this.loadInfo();
-                
-                // Setup event listeners
-                this.setupEvents();
-                
-                this.initialized = true;
-                console.log('[Home] Initialized');
-            } catch (error) {
-                console.error('[Home] Init failed:', error);
-                throw error;
-            }
+
+            // Setup event listeners
+            this.setupEvents();
+
+            this.initialized = true;
+            console.log('[Home] Initialized');
         },
 
         // ===== Load Gateway Info =====
@@ -88,20 +80,21 @@
         // ===== Update Stat Cards =====
         updateStatCards: async function() {
             try {
-                // Load clusters and routes in parallel
-                const [clusters, routes] = await Promise.all([
+                // Load clusters, routes, and traffic in parallel
+                const [clusters, routes, trafficData] = await Promise.all([
                     window.DashboardApi.endpoints.getClusters(),
-                    window.DashboardApi.endpoints.getRoutes()
+                    window.DashboardApi.endpoints.getRoutes(),
+                    window.DashboardApi.endpoints.getTrafficData?.(15) || Promise.resolve(null)
                 ]);
 
-                // Update state
+                // Update state — ServiceTabs will render from this without re-fetching
                 window.DashboardState.set('data.clusters', clusters || []);
                 window.DashboardState.set('data.routes', routes || []);
 
                 // Calculate stats
                 const clusterCount = (clusters || []).length;
                 const routeCount = (routes || []).length;
-                
+
                 // Use healthyCount/unknownCount/unhealthyCount from backend
                 const healthy = (clusters || []).reduce((sum, c) => sum + (c.healthyCount || 0), 0);
                 const unknown = (clusters || []).reduce((sum, c) => sum + (c.unknownCount || 0), 0);
@@ -117,9 +110,23 @@
                 const routesEl = window.DashboardDOM.safe('#stat-routes');
                 if (routesEl) routesEl.textContent = routeCount;
 
+                // Update QPS stat card (Index.cshtml)
+                const qpsEl = window.DashboardDOM.safe('#stat-qps');
+                if (qpsEl && trafficData) {
+                    var qv = (trafficData.currentQps != null && !isNaN(trafficData.currentQps))
+                        ? trafficData.currentQps : 0;
+                    qpsEl.textContent = qv;
+                }
+
                 // Render preview lists
                 this.renderClusterPreview(clusters || []);
                 this.renderRoutePreview(routes || []);
+
+                // Trigger ServiceTabs to render clusters if that tab is active (data already loaded)
+                if (window.ServiceTabs && window.ServiceTabs.current === 'clusters') {
+                    window.DashboardApp?.modules?.clusters?.init?.();
+                    window.DashboardApp?.modules?.clusters?.renderClusters?.();
+                }
 
             } catch (error) {
                 console.error('[Home] Update stats failed:', error);

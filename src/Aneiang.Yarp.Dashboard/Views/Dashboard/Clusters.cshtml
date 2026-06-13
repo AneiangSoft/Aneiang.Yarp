@@ -1,0 +1,91 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Clusters" : "服务集群";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<!-- Cluster panel -->
+<div id="cluster-panel" class="card-panel mb-4">
+    <div class="card-header">
+        <span><i class="bi bi-hdd-stack me-2" style="color:#3b82f6;"></i><span data-i18n="index.cluster.title">集群 &amp; 目标节点状态</span></span>
+        <div class="info-bar-actions">
+        </div>
+        <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
+            <span class="refresh-badge" id="cluster-refresh-time"></span>
+            <span class="refresh-badge"><span data-i18n="index.cluster.showing">显示 </span><strong id="cluster-display-count">0</strong><span data-i18n="index.cluster.of"> / </span><span id="cluster-total-count">0</span><span data-i18n="index.cluster.entries"> 个</span></span>
+        </div>
+    </div>
+    
+    <!-- Filter toolbar container -->
+    <div id="cluster-filter-container"></div>
+
+    <!-- Table view -->
+    <div id="cluster-table-view">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped-custom align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th style="width:38px"></th>
+                        <th><span data-i18n="index.cluster.th.name">集群名称</span></th>
+                        <th style="width:90px"><span data-i18n="index.source.filter">来源</span></th>
+                        <th style="width:90px"><span data-i18n="index.cluster.health.filter">健康状态</span></th>
+                        <th style="width:80px"><span data-i18n="index.cluster.destCount">节点数</span></th>
+                        <th style="width:110px"><span data-i18n="index.cluster.loadBalancing">负载策略</span></th>
+                        <th style="width:80px"><span data-i18n="index.cluster.th.actions">操作</span></th>
+                    </tr>
+                </thead>
+                <tbody id="cluster-tbody">
+                    <tr><td colspan="7" class="text-center py-4">
+                        <div style="padding:4px 0;">
+                            <div class="skeleton skeleton-line long"></div>
+                            <div class="skeleton skeleton-line medium"></div>
+                            <div class="skeleton skeleton-line short"></div>
+                        </div>
+                    </td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<!-- Page config (shared scripts now in _DashboardLayout.cshtml) -->
+<script>
+    window.__dashboard = window.__dashboard || {};
+    var dash = window.__dashboard;
+    dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
+    dash.token = localStorage.getItem('dashboard_token');
+    dash.CURRENT_LOCALE = '@ViewBag.Locale';
+    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
+    dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
+    dash.currentPage = 'clusters';
+
+    // Initialize i18n after setting translations
+    if (window.DashboardI18n) { window.DashboardI18n.init(); }
+</script>
+
+<script>
+    (async function() {
+        DashboardApi.init();
+        if (window.DashboardApp?.modules?.clusters?.init) await DashboardApp.modules.clusters.init();
+        if (window.DashboardApp?.modules?.clusters?.loadClusters) await DashboardApp.modules.clusters.loadClusters();
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+
+    window.clustersRefresh = async function(btn) {
+        var originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise spin me-1"></i>';
+        btn.disabled = true;
+        try {
+            await window.DashboardApp?.modules?.clusters?.loadClusters?.();
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    };
+</script>
+
+<style>
+@@keyframes spin { to { transform: rotate(360deg); } }
+.spin { display:inline-block; animation: spin .6s linear infinite; }
+</style>
+}

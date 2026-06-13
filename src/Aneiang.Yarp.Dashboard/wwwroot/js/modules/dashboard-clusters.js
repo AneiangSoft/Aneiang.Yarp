@@ -11,34 +11,35 @@
         // ===== Initialization =====
         init: async function() {
             if (this.initialized) return;
-            
+
             console.log('[Clusters] Initializing...');
-            
-            try {
-                // Load initial data
-                await this.loadClusters();
-                
-                // Setup event listeners
-                this.setupEvents();
-                
-                this.initialized = true;
-                console.log('[Clusters] Initialized');
-            } catch (error) {
-                console.error('[Clusters] Init failed:', error);
-                throw error;
-            }
+
+            this.setupEvents();
+
+            this.initialized = true;
+            console.log('[Clusters] Initialized');
         },
 
         // ===== Load Clusters =====
-        loadClusters: async function() {
+        loadClusters: async function(forceReload) {
             try {
                 const container = window.DashboardDOM.safe('#cluster-tbody');
                 if (!container) return;
 
+                const state = window.DashboardState;
+                const cached = state.get('data.clusters');
+
+                // Use cached data if already loaded and not forcing reload
+                if (!forceReload && Array.isArray(cached) && cached.length > 0) {
+                    window.DashboardState.set('data.clusters', cached);
+                    this.renderClusters();
+                    return;
+                }
+
                 window.DashboardDOM.showLoading(container, __('index.cluster.loading'));
 
                 const clusters = await window.DashboardApi.endpoints.getClusters();
-                
+
                 // Update state
                 window.DashboardState.set('data.clusters', clusters || []);
 
@@ -69,30 +70,26 @@
             // Render filter toolbar (only once, then update counts)
             this.renderFilterToolbar();
             
+            // Render table view
             const tbody = window.DashboardDOM.safe('#cluster-tbody');
-            if (!tbody) {
-                console.error('[Clusters] tbody not found, cannot render');
-                return;
-            }
-
-            // Always clear tbody content, not the parent table
-            window.DashboardDOM.clear(tbody);
-            
-            if (clusters.length === 0) {
-                // Show empty state INSIDE tbody, not replacing it
-                const emptyRow = document.createElement('tr');
-                emptyRow.innerHTML = `
-                    <td colspan="9" class="text-center py-5">
-                        <div class="empty-state">
-                            <i class="bi bi-hdd-rack" style="font-size: 2.5rem; opacity: 0.4; color: #64748b;"></i>
-                            <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.cluster.empty')}</div>
-                            <div class="mt-2 text-muted small">${__('index.cluster.emptyHelp')}</div>
-                        </div>
-                    </td>
-                `; 
-                tbody.appendChild(emptyRow);
-            } else {
-                this.renderClusterRows(clusters, tbody);
+            if (tbody) {
+                window.DashboardDOM.clear(tbody);
+                
+                if (clusters.length === 0) {
+                    const emptyRow = document.createElement('tr');
+                    emptyRow.innerHTML = `
+                        <td colspan="7" class="text-center py-5">
+                            <div class="empty-state">
+                                <i class="bi bi-hdd-rack" style="font-size: 2.5rem; opacity: 0.4; color: #64748b;"></i>
+                                <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.cluster.empty')}</div>
+                                <div class="mt-2 text-muted small">${__('index.cluster.emptyHelp')}</div>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(emptyRow);
+                } else {
+                    this.renderClusterRows(clusters, tbody);
+                }
             }
 
             // Update refresh time
@@ -158,7 +155,7 @@
                                 <button class="btn btn-sm btn-outline-danger" id="cluster-clear-btn" title="${__('index.search.clear')}" style="display:none;">
                                     <i class="bi bi-x-circle"></i>
                                 </button>
-                                <button class="btn btn-sm btn-success" id="cluster-add-btn" title="${__('index.cluster.add')}">
+                                <button class="btn btn-sm btn-outline-secondary" id="cluster-add-btn" title="${__('modal.addCluster') || 'Add Cluster'}">
                                     <i class="bi bi-plus-circle"></i>
                                 </button>
                             </div>
@@ -290,7 +287,10 @@
             // Add button
             const addBtn = document.getElementById('cluster-add-btn');
             if (addBtn) {
-                addBtn.addEventListener('click', function() {
+                addBtn.disabled = false;
+                addBtn.removeAttribute('aria-disabled');
+                addBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
                     self.showAddModal();
                 });
             }
@@ -299,165 +299,219 @@
 
 
 
+        // ===== Render Cluster Cards =====
+        renderClusterCards: function(clusters) {
+            var container = document.getElementById('cluster-cards-view');
+            if (!container) return;
+
+            if (clusters.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:48px 0;">' +
+                    '<i class="bi bi-hdd-rack" style="font-size:2.5rem;opacity:0.4;color:#64748b;display:block;margin-bottom:12px;"></i>' +
+                    '<div style="font-size:14px;color:#64748b;">' + __('index.cluster.empty') + '</div>' +
+                    '<div style="font-size:12px;color:#94a3b8;margin-top:6px;">' + __('index.cluster.emptyHelp') + '</div></div>';
+                return;
+            }
+
+            var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:16px;">';
+
+            clusters.forEach(function(cluster) {
+                var destinations = cluster.destinations || [];
+                var overallHealth = 'unknown';
+                if (cluster.healthyCount > 0) overallHealth = 'healthy';
+                else if (cluster.unhealthyCount > 0) overallHealth = 'unhealthy';
+
+                var borderColor = overallHealth === 'healthy' ? '#22c55e' : overallHealth === 'unhealthy' ? '#ef4444' : '#94a3b8';
+                var healthIcon = overallHealth === 'healthy' ? 'bi-heart-pulse-fill' : overallHealth === 'unhealthy' ? 'bi-heart-pulse-fill' : 'bi-heart-pulse';
+                var healthColor = overallHealth === 'healthy' ? '#22c55e' : overallHealth === 'unhealthy' ? '#ef4444' : '#94a3b8';
+                var healthLabel = overallHealth === 'healthy' ? __('index.cluster.health.healthy') : overallHealth === 'unhealthy' ? __('index.cluster.health.unhealthy') : __('index.cluster.health.unknown');
+
+                html += '<div style="border:1px solid var(--border-color);border-left:4px solid ' + borderColor +
+                    ';border-radius:12px;background:var(--card-bg);overflow:hidden;transition:box-shadow 0.2s,transform 0.15s;cursor:pointer;"' +
+                    ' onmouseover="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.08)\';this.style.transform=\'translateY(-1px)\'"' +
+                    ' onmouseout="this.style.boxShadow=\'none\';this.style.transform=\'none\'"' +
+                    ' onclick="window.DashboardApp.modules.clusters.toggleCluster(\'' + (cluster.clusterId || '').replace(/'/g, "\\'") + '\')"' +
+                    ' data-cluster-id="' + (cluster.clusterId || '') + '">';
+
+                // Card header
+                html += '<div style="padding:14px 16px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;gap:8px;">';
+                html += '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">';
+                html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#60a5fa);color:#fff;font-size:15px;flex-shrink:0;"><i class="bi bi-hdd-stack"></i></span>';
+                html += '<div style="min-width:0;flex:1;">';
+                html += '<div style="font-weight:600;font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(cluster.clusterId) : cluster.clusterId) + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(cluster.clusterId) : cluster.clusterId) + '</div>';
+                html += '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;">';
+                html += '<span>' + (window.DashboardUtils ? DashboardUtils.createSourceBadge(cluster.source) : cluster.source || '-') + '</span>';
+                html += '<span style="color:#cbd5e1;">|</span>';
+                html += '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:' + healthColor + ';"><i class="bi ' + healthIcon + '"></i>' + healthLabel + '</span>';
+                html += '</div></div></div>';
+
+                // Action buttons
+                html += '<div style="display:flex;gap:4px;flex-shrink:0;" onclick="event.stopPropagation()">';
+                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--primary-color);transition:background 0.15s;" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.clusters.showEditModal(\'' + (cluster.clusterId || '').replace(/'/g, "\\'") + '\')" title="' + __('index.cluster.edit') + '"><i class="bi bi-pencil"></i></button>';
+                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:#ef4444;transition:background 0.15s;" onmouseover="this.style.background=\'#fef2f2\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.clusters.deleteCluster(\'' + (cluster.clusterId || '').replace(/'/g, "\\'") + '\')" title="' + __('index.cluster.delete') + '"><i class="bi bi-trash"></i></button>';
+                html += '</div></div>';
+
+                // Destinations
+                html += '<div style="padding:12px 16px;">';
+                if (destinations.length === 0) {
+                    html += '<div style="text-align:center;padding:16px 0;color:#94a3b8;font-size:13px;"><i class="bi bi-inbox me-1"></i>' + __('index.cluster.noDestinations') + '</div>';
+                } else {
+                    html += '<div style="display:flex;flex-direction:column;gap:8px;">';
+                    destinations.forEach(function(dest) {
+                        var ah = dest.activeHealth || 'Unknown';
+                        var ph = dest.passiveHealth || 'Unknown';
+                        var ahColor = ah === 'Healthy' ? '#22c55e' : ah === 'Unhealthy' ? '#ef4444' : '#94a3b8';
+                        var phColor = ph === 'Healthy' ? '#22c55e' : ph === 'Unhealthy' ? '#ef4444' : '#94a3b8';
+
+                        html += '<div style="background:var(--bg-secondary,#f8fafc);border:1px solid var(--border-color);border-radius:8px;padding:10px 12px;">';
+                        html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">';
+                        html += '<div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;">';
+                        html += '<i class="bi bi-robot" style="color:#6366f1;font-size:13px;flex-shrink:0;"></i>';
+                        html += '<code style="font-size:12px;color:var(--text-secondary);flex-shrink:0;">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(dest.name || '-') : dest.name || '-') + '</code>';
+                        html += '<span style="font-size:12px;color:var(--text-secondary);font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(dest.address || '') : dest.address || '') + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(dest.address || '-') : dest.address || '-') + '</span>';
+                        html += '</div>';
+                        html += '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">';
+                        html += '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:500;background:' + (ah === 'Healthy' ? '#f0fdf4' : ah === 'Unhealthy' ? '#fef2f2' : '#f8fafc') + ';color:' + ahColor + ';border:1px solid ' + (ah === 'Healthy' ? '#bbf7d0' : ah === 'Unhealthy' ? '#fecaca' : '#e2e8f0') + ';"><i class="bi bi-activity"></i>' + ah + '</span>';
+                        html += '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:500;background:' + (ph === 'Healthy' ? '#f0fdf4' : ph === 'Unhealthy' ? '#fef2f2' : '#f8fafc') + ';color:' + phColor + ';border:1px solid ' + (ph === 'Healthy' ? '#bbf7d0' : ph === 'Unhealthy' ? '#fecaca' : '#e2e8f0') + ';"><i class="bi bi-shield-check"></i>' + ph + '</span>';
+                        html += '</div></div></div>';
+                    });
+                    html += '</div>';
+                }
+
+                // Footer
+                html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-color);">';
+                html += '<span style="font-size:11px;color:#64748b;"><i class="bi bi-nodes me-1"></i>' + destinations.length + ' ' + __('index.cluster.destCount') + '</span>';
+                html += '<span style="font-size:11px;color:#64748b;"><i class="bi bi-sliders me-1"></i>' + (cluster.loadBalancingPolicy || 'RoundRobin') + '</span>';
+                html += '</div>';
+
+                html += '</div></div>';
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        },
+
         // ===== Render Cluster Rows =====
         renderClusterRows: function(clusters, tbody) {
             window.DashboardDOM.clear(tbody);
 
-            const fragment = document.createDocumentFragment();
+            var fragment = document.createDocumentFragment();
 
-            clusters.forEach(cluster => {
-                const isExpanded = (window.DashboardState.get('ui.expandedClusters') || new Set()).has(cluster.clusterId);
-                const rows = this.createClusterRows(cluster, isExpanded);
-                rows.forEach(row => fragment.appendChild(row));
-            });
+            clusters.forEach(function(cluster) {
+                var isExpanded = (window.DashboardState.get('ui.expandedClusters') || new Set()).has(cluster.clusterId);
+                var rows = this.createClusterRows(cluster, isExpanded);
+                rows.forEach(function(row) { fragment.appendChild(row); });
+            }.bind(this));
 
             tbody.appendChild(fragment);
         },
 
         // ===== Create Cluster Rows =====
         createClusterRows: function(cluster, isExpanded) {
-            const rows = [];
-            const destinations = cluster.destinations || []; 
-            const rowspan = destinations.length || 1;
+            var rows = [];
+            var destinations = cluster.destinations || [];
 
-            // Determine overall health status for color bar
-            let overallHealth = 'Unknown';
+            // Determine overall health status
+            var overallHealth = 'Unknown';
             if (cluster.healthyCount > 0) overallHealth = 'Healthy';
             else if (cluster.unhealthyCount > 0) overallHealth = 'Unhealthy';
-                    
-            destinations.forEach((dest, index) => {
-                const tr = window.DashboardDOM.create('tr', {
-                    className: `cluster-row health-${overallHealth.toLowerCase()}`,
-                    attributes: index === 0 ? { 'data-cluster-id': cluster.clusterId } : {},
-                    style: { cursor: 'pointer' }
-                });
 
-                // Expand column (first row only)
-                if (index === 0) {
-                    const tdExpand = window.DashboardDOM.create('td', {
-                        attributes: { rowspan: rowspan },
-                        style: { verticalAlign: 'middle', textAlign: 'center' }
-                    });
-                    const expandIcon = window.DashboardDOM.create('i', {
-                        className: `bi bi-chevron-right row-expand-icon ${isExpanded ? 'expanded' : ''}`
-                    });
-                    tdExpand.appendChild(expandIcon);
-                    tr.appendChild(tdExpand);
-                }
-
-                // Cluster name column (first row only) - with copy button
-                if (index === 0) {
-                    const tdCluster = window.DashboardDOM.create('td', {
-                        attributes: { rowspan: rowspan },
-                        style: {
-                            fontWeight: '600',
-                            verticalAlign: 'middle',
-                            overflow: 'hidden'
-                        }
-                    });
-
-                    const nameWrapper = window.DashboardDOM.create('div', {
-                        className: 'cell-with-copy'
-                    });
-                    const nameSpan = window.DashboardDOM.create('span', {
-                        className: 'cell-text',
-                        textContent: cluster.clusterId,
-                        attributes: { title: cluster.clusterId }
-                    });
-                    const copyBtn = this.createCopyButton(cluster.clusterId);
-                    nameWrapper.appendChild(nameSpan);
-                    nameWrapper.appendChild(copyBtn);
-                    tdCluster.appendChild(nameWrapper);
-
-                    // Click to expand
-                    tr.addEventListener('click', (e) => {
-                        if (e.target.closest('.copy-btn')) return;
-                        this.toggleCluster(cluster.clusterId);
-                    });
-
-                    tr.appendChild(tdCluster);
-                }
-
-                // Source column (first row only)
-                if (index === 0) {
-                    const tdSource = window.DashboardDOM.create('td', {
-                        attributes: { rowspan: rowspan },
-                        style: { verticalAlign: 'middle' }
-                    });
-                    const sourceBadgeSpan = window.DashboardDOM.create('span', {});
-                    sourceBadgeSpan.innerHTML = this.createSourceBadge(cluster.source);
-                    tdSource.appendChild(sourceBadgeSpan);
-                    tr.appendChild(tdSource);
-                }
-
-                // Destination name
-                const tdName = window.DashboardDOM.create('td', {});
-                const code = window.DashboardDOM.create('code', {
-                    textContent: dest.name || '-'
-                });
-                tdName.appendChild(code);
-                tr.appendChild(tdName);
-
-                // Destination address - with copy button
-                const tdAddress = window.DashboardDOM.create('td', {
-                    style: { overflow: 'hidden' }
-                });
-                const addrWrapper = window.DashboardDOM.create('div', {
-                    className: 'cell-with-copy'
-                });
-                const addrText = window.DashboardDOM.create('span', {
-                    className: 'cell-text'
-                });
-                if (dest.address) {
-                    const link = window.DashboardDOM.create('a', {
-                        textContent: dest.address,
-                        attributes: { href: dest.address, target: '_blank', title: dest.address },
-                        style: { textDecoration: 'none', color: '#0ea5e9' }
-                    });
-                    addrText.appendChild(link);
-                } else {
-                    addrText.textContent = '-';
-                }
-                const addrCopyBtn = this.createCopyButton(dest.address || '');
-                addrWrapper.appendChild(addrText);
-                addrWrapper.appendChild(addrCopyBtn);
-                tdAddress.appendChild(addrWrapper);
-                tr.appendChild(tdAddress);
-
-                // Active health
-                const tdActive = window.DashboardDOM.create('td', {});
-                tdActive.appendChild(this.createHealthBadge(dest.activeHealth || 'Unknown'));
-                tr.appendChild(tdActive);
-
-                // Passive health
-                const tdPassive = window.DashboardDOM.create('td', {});
-                tdPassive.appendChild(this.createHealthBadge(dest.passiveHealth || 'Unknown'));
-                tr.appendChild(tdPassive);
-
-                // Load balancing policy (only on first row)
-                if (index === 0) {
-                    const tdPolicy = window.DashboardDOM.create('td', {
-                        attributes: { rowspan: rowspan },
-                        style: { verticalAlign: 'middle' }
-                    });
-                    tdPolicy.appendChild(this.createPolicyBadge(cluster.loadBalancingPolicy));
-                    tr.appendChild(tdPolicy);
-
-                    // Actions (only on first row)
-                    const tdActions = window.DashboardDOM.create('td', {
-                        attributes: { rowspan: rowspan },
-                        style: { verticalAlign: 'middle' }
-                    });
-                    tdActions.appendChild(this.createActionButtons(cluster));
-                    tr.appendChild(tdActions);
-                }
-
-                rows.push(tr);
+            // --- Cluster main row ---
+            var headerTr = window.DashboardDOM.create('tr', {
+                className: 'cluster-row health-' + overallHealth.toLowerCase(),
+                attributes: { 'data-cluster-id': cluster.clusterId },
+                style: { cursor: 'pointer' }
             });
 
+            // Expand icon
+            var tdExpand = window.DashboardDOM.create('td', {
+                style: { width: '38px', verticalAlign: 'middle', textAlign: 'center' }
+            });
+            var expandIcon = window.DashboardDOM.create('i', {
+                className: 'bi bi-chevron-right row-expand-icon' + (isExpanded ? ' expanded' : '')
+            });
+            tdExpand.appendChild(expandIcon);
+            headerTr.appendChild(tdExpand);
+
+            // Cluster name
+            var tdName = window.DashboardDOM.create('td', {
+                style: { overflow: 'hidden' }
+            });
+            var nameDiv = document.createElement('div');
+            nameDiv.style.cssText = 'display:flex;align-items:center;gap:6px;';
+            var nameStrong = document.createElement('strong');
+            nameStrong.style.cssText = 'font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+            nameStrong.textContent = cluster.clusterId;
+            nameStrong.title = cluster.clusterId;
+            nameDiv.appendChild(nameStrong);
+            var nameCopyBtn = this.createCopyButton(cluster.clusterId);
+            nameDiv.appendChild(nameCopyBtn);
+            tdName.appendChild(nameDiv);
+            headerTr.appendChild(tdName);
+
+            // Source
+            var tdSource = window.DashboardDOM.create('td', {
+                style: { width: '90px', verticalAlign: 'middle' }
+            });
+            var sourceSpan = document.createElement('span');
+            sourceSpan.innerHTML = this.createSourceBadge(cluster.source);
+            tdSource.appendChild(sourceSpan);
+            headerTr.appendChild(tdSource);
+
+            // Health
+            var tdHealth = window.DashboardDOM.create('td', {
+                style: { width: '90px', verticalAlign: 'middle' }
+            });
+            var healthColors = { 'Healthy': '#22c55e', 'Unhealthy': '#ef4444', 'Unknown': '#94a3b8' };
+            var healthLabels = {
+                'Healthy': __('index.cluster.health.healthy'),
+                'Unhealthy': __('index.cluster.health.unhealthy'),
+                'Unknown': __('index.cluster.health.unknown')
+            };
+            var healthDiv = document.createElement('div');
+            healthDiv.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:13px;color:' + (healthColors[overallHealth] || '#94a3b8') + ';';
+            var dotSpan = document.createElement('span');
+            dotSpan.className = 'health-dot ' + overallHealth.toLowerCase();
+            healthDiv.appendChild(dotSpan);
+            healthDiv.appendChild(document.createTextNode(healthLabels[overallHealth] || overallHealth));
+            tdHealth.appendChild(healthDiv);
+            headerTr.appendChild(tdHealth);
+
+            // Dest count
+            var tdCount = window.DashboardDOM.create('td', {
+                style: { width: '80px', verticalAlign: 'middle', textAlign: 'center' }
+            });
+            tdCount.textContent = destinations.length;
+            headerTr.appendChild(tdCount);
+
+            // Policy
+            var tdPolicy = window.DashboardDOM.create('td', {
+                style: { width: '110px', verticalAlign: 'middle' }
+            });
+            var policyBadge = document.createElement('span');
+            policyBadge.className = 'badge bg-light text-dark';
+            policyBadge.style.cssText = 'font-size:12px;font-weight:500;';
+            policyBadge.textContent = cluster.loadBalancingPolicy || 'RoundRobin';
+            tdPolicy.appendChild(policyBadge);
+            headerTr.appendChild(tdPolicy);
+
+            // Actions
+            var tdActions = window.DashboardDOM.create('td', {
+                style: { width: '80px', verticalAlign: 'middle', textAlign: 'center' }
+            });
+            tdActions.appendChild(this.createActionButtons(cluster));
+            headerTr.appendChild(tdActions);
+
+            // Click to expand
+            headerTr.addEventListener('click', function(e) {
+                if (e.target.closest('.copy-btn') || e.target.closest('.btn-group')) return;
+                this.toggleCluster(cluster.clusterId);
+            }.bind(this));
+
+            rows.push(headerTr);
+
             // Expanded detail row
-            if (isExpanded && destinations.length > 0) {
-                const detailTr = this.createClusterDetailRow(cluster);
+            if (isExpanded) {
+                var detailTr = this.createClusterDetailRow(cluster);
                 rows.push(detailTr);
             }
 
@@ -519,6 +573,23 @@
             editBtn.appendChild(editIcon);
             container.appendChild(editBtn);
 
+            // Policy button
+            const policyBtn = window.DashboardDOM.create('button', {
+                className: 'btn btn-outline-info',
+                attributes: { title: __('index.cluster.managePolicy') || 'Manage Policy' },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        ClustersModule.showPolicyModal(cluster.clusterId);
+                    }
+                }
+            });
+            const policyIcon = window.DashboardDOM.create('i', {
+                className: 'bi bi-shield-check'
+            });
+            policyBtn.appendChild(policyIcon);
+            container.appendChild(policyBtn);
+
             // Delete button
             const deleteBtn = window.DashboardDOM.create('button', {
                 className: 'btn btn-outline-danger',
@@ -546,7 +617,7 @@
             });
 
             const td = window.DashboardDOM.create('td', {
-                attributes: { colspan: '9' }
+                attributes: { colspan: '7' }
             });
 
             const detailHtml = [];
@@ -569,6 +640,13 @@
             detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">ClusterId</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(cluster.clusterId)}</code></span></div>`);
             detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Source</span><span class="detail-kv-value">${sourceBadge}</span></div>`);
             detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">${__('index.cluster.loadBalancing')}</span><span class="detail-kv-value"><span class="badge bg-light text-dark">${window.DashboardUtils.escapeHtml(cluster.loadBalancingPolicy || 'RoundRobin')}</span></span></div>`);
+            if (cluster.circuitBreaker && cluster.circuitBreaker.enabled) {
+                var cbInfo = cluster.circuitBreaker;
+                var cbSummary = (cbInfo.failureThreshold || 5) + '/' + (cbInfo.recoveryTimeoutSeconds || 30) + 's';
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-lightning-charge"></i> ${__('index.cluster.appliedPolicy')}</span><span class="detail-kv-value"><span class="badge bg-warning text-dark"><i class="bi bi-lightning-charge"></i> ${__('policy.circuitBreaker')} ${cbSummary}</span></span></div>`);
+            } else {
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-lightning-charge"></i> ${__('index.cluster.appliedPolicy')}</span><span class="detail-kv-value"><span class="text-muted">${__('index.cluster.noPolicy')}</span></span></div>`);
+            }
             detailHtml.push('</div>');
             detailHtml.push('</div>');
 
@@ -636,17 +714,55 @@
                 detailHtml.push('</div>');
             }
 
-            // Metadata - structured key-value display
-            if (cluster.metadata && Object.keys(cluster.metadata).length > 0) {
+            // Metadata - structured key-value display (excluding policy configs which are managed via "Manage Policy")
+            const nonPolicyClusterMeta = cluster.metadata ? Object.fromEntries(
+                Object.entries(cluster.metadata).filter(([key]) =>
+                    !key.startsWith('CircuitBreaker:') && !key.startsWith('Policy:') && !key.startsWith('RateLimit:') && !key.startsWith('Waf:') && !key.startsWith('Retry:')
+                )
+            ) : {};
+            if (Object.keys(nonPolicyClusterMeta).length > 0) {
                 detailHtml.push('<div class="detail-section">');
                 detailHtml.push(`<div class="detail-section-title"><i class="bi bi-tags"></i>${__('index.route.metadata')}</div>`);
-                detailHtml.push(this.renderStructuredConfig(cluster.metadata, 'metadata'));
+                detailHtml.push(this.renderStructuredConfig(nonPolicyClusterMeta, 'metadata'));
                 detailHtml.push('</div>');
             }
 
             detailHtml.push('</div>');
             td.innerHTML = detailHtml.join('');
             tr.appendChild(td);
+
+            // Async: load circuit breaker runtime status and inject into overview
+            if (cluster.circuitBreaker && cluster.circuitBreaker.enabled) {
+                const circuitKey = cluster.clusterId + ':any';
+                const circuitPlaceholderId = 'cb-status-' + cluster.clusterId.replace(/[^a-zA-Z0-9]/g, '_');
+                var cbRow = td.querySelector('.detail-kv-row:last-child');
+                if (cbRow) {
+                    var cbValSpan = cbRow.querySelector('.detail-kv-value');
+                    if (cbValSpan) {
+                        cbValSpan.innerHTML += ' <span id="' + circuitPlaceholderId + '" class="ms-1"><i class="bi bi-arrow-repeat spin" style="font-size:11px;color:#6b7280;"></i></span>';
+                    }
+                }
+                window.DashboardApi.getCircuitBreakerStatus().then(function(allCircuits) {
+                    var placeholder = document.getElementById(circuitPlaceholderId);
+                    if (!placeholder) return;
+                    var circuit = allCircuits && allCircuits[circuitKey];
+                    if (!circuit) {
+                        placeholder.innerHTML = '<span class="badge bg-secondary ms-1">Closed</span>';
+                        return;
+                    }
+                    var st = (typeof circuit === 'object' && circuit.status) ? circuit.status : String(circuit);
+                    var badge = st === 'Closed' ? 'bg-success' : (st === 'Open' ? 'bg-danger' : 'bg-warning');
+                    var label = st === 'Closed' ? __('circuit.status.closed') : (st === 'Open' ? __('circuit.status.open') : __('circuit.status.halfOpen'));
+                    var extra = '';
+                    if (typeof circuit === 'object' && circuit.consecutiveFailures > 0) {
+                        extra = ' <span class="text-muted small">(' + circuit.consecutiveFailures + '/' + circuit.failureThreshold + ')</span>';
+                    }
+                    placeholder.innerHTML = '<span class="badge ' + badge + ' ms-1">' + label + '</span>' + extra;
+                }).catch(function() {
+                    var placeholder = document.getElementById(circuitPlaceholderId);
+                    if (placeholder) placeholder.innerHTML = '';
+                });
+            }
 
             return tr;
         },
@@ -740,11 +856,18 @@
             if (cluster.healthCheck) yarpCluster.HealthCheck = cluster.healthCheck;
             if (cluster.httpClient) yarpCluster.HttpClient = cluster.httpClient;
             if (cluster.sessionAffinity) yarpCluster.SessionAffinity = cluster.sessionAffinity;
-            if (cluster.metadata && Object.keys(cluster.metadata).length > 0) yarpCluster.Metadata = cluster.metadata;
+            if (cluster.metadata && Object.keys(cluster.metadata).length > 0) {
+                const cleanMeta = Object.fromEntries(
+                    Object.entries(cluster.metadata).filter(([key]) =>
+                        !key.startsWith('CircuitBreaker:') && !key.startsWith('Policy:') && !key.startsWith('RateLimit:') && !key.startsWith('Waf:') && !key.startsWith('Retry:')
+                    )
+                );
+                if (Object.keys(cleanMeta).length > 0) yarpCluster.Metadata = cleanMeta;
+            }
 
             const json = JSON.stringify(yarpCluster, null, 2);
-            navigator.clipboard.writeText(json).then(function() {
-                window.DashboardModals.showSuccess(__('index.copied'));
+            window.DashboardUtils.copyToClipboard(json).then(function(success) {
+                if (success) window.DashboardModals.showSuccess(__('index.copied'));
             });
         },
 
@@ -757,7 +880,8 @@
                     click: (e) => {
                         e.stopPropagation();
                         if (!text) return;
-                        navigator.clipboard.writeText(text).then(() => {
+                        window.DashboardUtils.copyToClipboard(text).then((success) => {
+                            if (!success) return;
                             btn.classList.add('copied');
                             const icon = btn.querySelector('i');
                             if (icon) {
@@ -805,46 +929,32 @@
             const state = window.DashboardState;
             const expandedSet = state.get('ui.expandedClusters');
             const current = expandedSet ? expandedSet.has(clusterId) : false;
-            
+
             // Update state
             if (current) {
                 expandedSet.delete(clusterId);
             } else {
                 expandedSet.add(clusterId);
             }
-            
-            // Direct DOM manipulation for better performance
-            // Find the first row of this cluster (with data-cluster-id attribute)
-            const clusterRow = document.querySelector(`.cluster-row[data-cluster-id="${CSS.escape(clusterId)}"]`);
-            if (clusterRow) {
+
+            // Find the cluster row
+            const headerRow = document.querySelector('.cluster-row[data-cluster-id="' + CSS.escape(clusterId) + '"]');
+            if (headerRow) {
                 // Update expand icon
-                const expandIcon = clusterRow.querySelector('.row-expand-icon');
+                const expandIcon = headerRow.querySelector('.row-expand-icon');
                 if (expandIcon) {
                     expandIcon.classList.toggle('expanded', !current);
                 }
-                
-                // Find all rows belonging to this cluster (rows following the first row until next cluster or end)
-                const clusterRows = [clusterRow];
-                let nextRow = clusterRow.nextElementSibling;
-                while (nextRow && nextRow.classList.contains('cluster-row') && !nextRow.hasAttribute('data-cluster-id')) {
-                    clusterRows.push(nextRow);
-                    nextRow = nextRow.nextElementSibling;
-                }
-                
-                // The last row is either a detail row or the last destination row
-                const lastRow = clusterRows[clusterRows.length - 1];
-                const existingDetailRow = lastRow.nextElementSibling;
-                
-                // Check if there's already a detail row
-                if (existingDetailRow && existingDetailRow.classList.contains('cluster-detail-row')) {
-                    // Remove existing detail row
-                    existingDetailRow.remove();
+
+                // Check if next row is a detail row
+                var detailRow = headerRow.nextElementSibling;
+                if (detailRow && detailRow.classList.contains('cluster-detail-row')) {
+                    detailRow.remove();
                 } else if (!current) {
-                    // Add detail row after the last cluster row
-                    const cluster = state.get('data.clusters').find(c => c.clusterId === clusterId);
+                    var cluster = state.get('data.clusters').find(function(c) { return c.clusterId === clusterId; });
                     if (cluster) {
-                        const detailTr = this.createClusterDetailRow(cluster);
-                        lastRow.after(detailTr);
+                        var detailTr = this.createClusterDetailRow(cluster);
+                        headerRow.after(detailTr);
                     }
                 }
             }
@@ -858,10 +968,57 @@
             }
         },
 
-        // ===== Show Add Modal (JSON Mode) =====
+        // ===== Show Add Modal (Form Mode with JSON toggle) =====
         showAddModal: function() {
+            this.showAddFormModal();
+        },
+
+        // ===== Show Add Form Modal =====
+        showAddFormModal: function() {
             const self = this;
-                    
+
+            window.DashboardModals.showFormModal({
+                title: __('modal.addCluster'),
+                icon: 'bi-plus-circle',
+                size: 'lg',
+                fields: [
+                    { name: 'clusterId', label: 'Cluster ID', type: 'text', required: true, placeholder: 'my-cluster' },
+                    { name: 'destAddress', label: __('index.cluster.destAddress') || 'Destination Address', type: 'text', required: true, placeholder: 'http://localhost:5000', value: 'http://localhost:5000' },
+                    { name: 'loadBalancingPolicy', label: __('index.cluster.lbPolicy') || 'Load Balancing', type: 'select', options: [
+                        { value: 'RoundRobin', label: 'RoundRobin' },
+                        { value: 'LeastRequests', label: 'LeastRequests' },
+                        { value: 'Random', label: 'Random' },
+                        { value: 'PowerOfTwoChoices', label: 'PowerOfTwoChoices' },
+                        { value: 'FirstAlphabetical', label: 'FirstAlphabetical' }
+                    ], value: 'RoundRobin' }
+                ],
+                data: { destAddress: 'http://localhost:5000', loadBalancingPolicy: 'RoundRobin' },
+                jsonModeCallback: function() {
+                    self._showAddJsonModal();
+                },
+                onSave: function(formData) {
+                    const clusterConfig = {
+                        Destinations: {
+                            "destination1": { "Address": formData.destAddress }
+                        },
+                        LoadBalancingPolicy: formData.loadBalancingPolicy || 'RoundRobin'
+                    };
+
+                    if (!formData.destAddress || !(formData.destAddress.startsWith('http://') || formData.destAddress.startsWith('https://'))) {
+                        window.DashboardModals.showError(__('index.cluster.invalidAddress'));
+                        return false;
+                    }
+
+                    self.saveClusterFromJson(clusterConfig, formData.clusterId);
+                    return true;
+                }
+            });
+        },
+
+        // ===== Show Add Modal (JSON Mode) =====
+        _showAddJsonModal: function() {
+            const self = this;
+
             // Default cluster template for new cluster
             const defaultCluster = {
                 "Destinations": {
@@ -870,20 +1027,21 @@
                     }
                 },
                 "LoadBalancingPolicy": "RoundRobin"
-            }; 
-        
+            };
+
             window.DashboardModals.showJsonModal({
                 title: __('modal.addCluster'),
                 data: defaultCluster,
                 schemaType: 'cluster',
                 size: 'xl',
+                hint: __('modal.policyManagedHint') || undefined,
                 onSave: function(parsedData) {
                     // Validate cluster config
                     if (!parsedData.Destinations || typeof parsedData.Destinations !== 'object') {
                         window.DashboardModals.showError(__('index.cluster.invalidDestinations'));
                         return false;
                     }
-        
+
                     // Check for valid addresses
                     let hasValidAddress = false;
                     for (const destName in parsedData.Destinations) {
@@ -897,7 +1055,7 @@
                         window.DashboardModals.showError(__('index.cluster.invalidAddress'));
                         return false;
                     }
-        
+
                     // Save cluster
                     self.saveClusterFromJson(parsedData);
                     return true;
@@ -933,7 +1091,7 @@
                 const response = await window.DashboardApi.endpoints.saveCluster(clusterId, apiConfig);
         
                 window.DashboardModals.showSuccess(__('index.cluster.saved'));
-                await this.loadClusters();
+                await this.loadClusters(true);
         
                 document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
                     detail: { type: 'cluster', id: clusterId, action: 'save' }
@@ -988,7 +1146,7 @@
                         
                 document.body.insertAdjacentHTML('beforeend', modalHtml);
                 const modalEl = document.getElementById(modalId);
-                const bsModal = new bootstrap.Modal(modalEl);
+                const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
                 const inputEl = document.getElementById(modalId + '-input');
         
                 document.getElementById(modalId + '-confirm').addEventListener('click', function() {
@@ -1029,7 +1187,7 @@
                 window.DashboardModals.showSuccess(__('index.cluster.saved'));
 
                 // Reload clusters
-                await this.loadClusters();
+                await this.loadClusters(true);
 
                 // Trigger config saved event
                 document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
@@ -1086,11 +1244,26 @@
                 yarpCluster.HttpClient = cluster.httpClient;
             }
 
+            // Add metadata - strip policy-related keys (managed via "Manage Policy" button)
+            const _preservedClusterPolicyMeta = {};
+            if (cluster.metadata && Object.keys(cluster.metadata).length > 0) {
+                const cleanMeta = {};
+                Object.keys(cluster.metadata).forEach(function(key) {
+                    if (key.startsWith('CircuitBreaker:') || key.startsWith('Policy:') || key.startsWith('RateLimit:') || key.startsWith('Waf:') || key.startsWith('Retry:')) {
+                        _preservedClusterPolicyMeta[key] = cluster.metadata[key];
+                    } else {
+                        cleanMeta[key] = cluster.metadata[key];
+                    }
+                });
+                if (Object.keys(cleanMeta).length > 0) yarpCluster.Metadata = cleanMeta;
+            }
+
             window.DashboardModals.showJsonModal({
                 title: __('modal.editCluster'),
                 data: yarpCluster,
                 schemaType: 'cluster',
                 size: 'xl',
+                hint: __('modal.policyManagedHint') || undefined,
                 editableId: {
                     label: 'Cluster ID',
                     value: clusterId,
@@ -1116,6 +1289,14 @@
                     if (!hasValidAddress) {
                         window.DashboardModals.showError(__('index.cluster.invalidAddress'));
                         return false;
+                    }
+
+                    // Merge back preserved policy metadata before saving
+                    if (Object.keys(_preservedClusterPolicyMeta).length > 0) {
+                        if (!parsedData.Metadata) parsedData.Metadata = {};
+                        Object.keys(_preservedClusterPolicyMeta).forEach(function(key) {
+                            parsedData.Metadata[key] = _preservedClusterPolicyMeta[key];
+                        });
                     }
 
                     // Handle rename: only if ID actually changed (case-sensitive comparison)
@@ -1160,7 +1341,7 @@
                 }
 
                 window.DashboardModals.showSuccess(__('index.cluster.renamed'));
-                await self.loadClusters();
+                await self.loadClusters(true);
 
                 document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
                     detail: { type: 'cluster', id: newId, oldId: oldId, action: 'rename' }
@@ -1175,13 +1356,13 @@
             const self = this;
             
             window.DashboardModals.showConfirm(
-                __('index.cluster.deleteConfirm').replace('{id}', clusterId) || `确认删除集群 '${clusterId}'？此操作不可撤销。`,
+                __('index.cluster.deleteConfirm').replace('{id}', clusterId),
                 async function() {
                     try {
                         window.DashboardModals.showInfo(__('index.cluster.deleting'));
                         
                         await window.DashboardApi.endpoints.deleteClusterConfig(clusterId);
-                        await self.loadClusters();
+                        await self.loadClusters(true);
                         
                         window.DashboardModals.showSuccess(__('index.cluster.deleted'));
 
@@ -1197,6 +1378,92 @@
                 null,
                 { title: __('modal.deleteCluster'), danger: true }
             );
+        },
+
+        // ===== Show Policy Management Modal =====
+        showPolicyModal: async function(clusterId) {
+            try {
+                const policies = await window.DashboardApi.endpoints.getClusterPoliciesForCluster(clusterId);
+                const allPolicies = await window.DashboardApi.endpoints.getPolicies('clusters');
+                const policyList = (allPolicies && allPolicies.data) || allPolicies || [];
+                const appliedIds = [];
+
+                if (policies) {
+                    var policyData = policies.data || policies;
+                    if (Array.isArray(policyData)) {
+                        policyData.forEach(function(p) { appliedIds.push(p.policyId); });
+                    }
+                }
+
+                var itemsHtml = policyList.map(function(policy) {
+                    var isApplied = appliedIds.indexOf(policy.policyId) >= 0;
+                    var cb = policy.circuitBreaker || {};
+                    var summary = cb.enabled !== false ? (cb.failureThreshold || 5) + '/' + (cb.recoveryTimeoutSeconds || 30) + 's' : '';
+                    var featureStr = summary ? ' <span class="text-muted small">(' + (__('policy.circuitBreaker') || 'Circuit Breaker') + ': ' + summary + ')</span>' : '';
+                    return '<div class="form-check">' +
+                        '<input class="form-check-input cluster-policy-check" type="checkbox" value="' + window.DashboardUtils.escapeHtml(policy.policyId) + '" id="cpolicy-' + window.DashboardUtils.escapeHtml(policy.policyId) + '" ' + (isApplied ? 'checked' : '') + ' />' +
+                        '<label class="form-check-label" for="cpolicy-' + window.DashboardUtils.escapeHtml(policy.policyId) + '">' + window.DashboardUtils.escapeHtml(policy.displayName || policy.policyId) + featureStr + '</label>' +
+                    '</div>';
+                }).join('');
+
+                if (policyList.length === 0) {
+                    itemsHtml = '<div class="text-muted text-center py-3">' + (__('policy.emptyCluster') || 'No cluster policies') + '</div>';
+                }
+
+                var modalId = 'clusterPolicyModal';
+                var existing = document.getElementById(modalId);
+                if (existing) existing.remove();
+
+                var modalHtml = '<div class="modal fade" id="' + modalId + '" tabindex="-1">' +
+                    '<div class="modal-dialog modal-dialog-centered">' +
+                        '<div class="modal-content">' +
+                            '<div class="modal-header">' +
+                                '<h5 class="modal-title"><i class="bi bi-shield-check me-2"></i>' + (__('index.cluster.managePolicy') || 'Manage Policy') + ' - ' + window.DashboardUtils.escapeHtml(clusterId) + '</h5>' +
+                                '<button type="button" class="btn-close" data-bs-dismiss="modal"></button>' +
+                            '</div>' +
+                            '<div class="modal-body">' +
+                                '<div class="text-muted small mb-2">' + (__('policy.applyHelpCluster') || 'Select cluster policies to apply to this cluster') + '</div>' +
+                                '<div style="max-height:300px;overflow-y:auto">' + itemsHtml + '</div>' +
+                            '</div>' +
+                            '<div class="modal-footer">' +
+                                '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">' + (__('policy.cancel') || 'Cancel') + '</button>' +
+                                '<button type="button" class="btn btn-primary" id="clusterPolicySaveBtn"><i class="bi bi-check-lg me-1"></i><span>' + (__('policy.confirm') || 'Confirm') + '</span></button>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                var modalEl = document.getElementById(modalId);
+                var bsModal = new bootstrap.Modal(modalEl);
+
+                document.getElementById('clusterPolicySaveBtn').addEventListener('click', async function() {
+                    var checkboxes = document.querySelectorAll('.cluster-policy-check');
+                    var promises = [];
+                    checkboxes.forEach(function(cb) {
+                        var policyId = cb.value;
+                        if (cb.checked && appliedIds.indexOf(policyId) < 0) {
+                            promises.push(window.DashboardApi.endpoints.applyPolicy('clusters', policyId, clusterId));
+                        } else if (!cb.checked && appliedIds.indexOf(policyId) >= 0) {
+                            promises.push(window.DashboardApi.endpoints.unapplyPolicy('clusters', policyId, clusterId).catch(function() {}));
+                        }
+                    });
+                    try {
+                        await Promise.all(promises);
+                        if (window.DashboardModals) window.DashboardModals.showToast(__('policy.applySuccess') || 'Policy applied successfully', 'success');
+                        bsModal.hide();
+                        await ClustersModule.loadClusters(true);
+                    } catch (err) {
+                        if (window.DashboardModals) window.DashboardModals.showError(__('policy.applyFailed') || 'Failed to apply policy');
+                    }
+                });
+
+                modalEl.addEventListener('hidden.bs.modal', function() { modalEl.remove(); });
+                bsModal.show();
+            } catch (error) {
+                console.error('[Clusters] Load policy modal failed:', error);
+                if (window.DashboardModals) window.DashboardModals.showError(__('policy.loadFailed') || 'Failed to load policies');
+            }
         },
 
         // ===== Setup Events =====
@@ -1239,10 +1506,8 @@
     };
     
     window.showAddClusterModal = function() {
-        if (ClustersModule.showAddModal) {
+        if (ClustersModule && typeof ClustersModule.showAddModal === 'function') {
             ClustersModule.showAddModal();
-        } else {
-            console.warn('[Clusters] showAddModal not implemented yet');
         }
     };
 

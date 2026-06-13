@@ -118,7 +118,7 @@
         if (existing) existing.remove();
 
         const modalHtml = `
-            <div class="modal fade" id="${confirmModalId}" tabindex="-1">
+            <div class="modal fade" id="${confirmModalId}" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content" style="border-radius:16px;border:none;box-shadow:0 25px 50px rgba(0,0,0,0.25);overflow:hidden;">
                         <div class="modal-header" style="background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);border-bottom:1px solid #e2e8f0;padding:18px 24px;">
@@ -149,7 +149,7 @@
         document.body.insertAdjacentHTML('beforeend', modalHtml);
 
         const modalEl = document.getElementById(confirmModalId);
-        const bsModal = new bootstrap.Modal(modalEl);
+        const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
 
         // Confirm button handler
         document.getElementById('confirm-btn').addEventListener('click', function() {
@@ -242,7 +242,7 @@
 
         // Build modal
         const modalHtml = `
-            <div class="modal fade" id="${modalId}" tabindex="-1">
+            <div class="modal fade" id="${modalId}" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
                 <div class="modal-dialog modal-dialog-centered modal-${size}">
                     <div class="modal-content" style="border-radius:16px;border:none;box-shadow:0 25px 50px rgba(0,0,0,0.25);overflow:hidden;">
                         <div class="modal-header" style="background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);border-bottom:1px solid #e2e8f0;padding:18px 24px;">
@@ -259,13 +259,18 @@
                                 ${formHtml}
                             </form>
                         </div>
-                        <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
-                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
-                                ${window.__('modal.cancelBtn')}
-                            </button>
-                            <button type="button" class="btn btn-primary btn-sm" id="${modalId}-save" style="min-width:80px;">
-                                <i class="bi bi-check-lg me-1"></i>${window.__('modal.saveBtn')}
-                            </button>
+                        <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;justify-content:space-between;">
+                            <div>
+                                ${config.jsonModeCallback ? `<button type="button" class="btn btn-outline-secondary btn-sm" id="${modalId}-json-switch" style="font-size:12px;"><i class="bi bi-braces me-1"></i>${window.__('modal.jsonMode') || 'JSON'}</button>` : ''}
+                            </div>
+                            <div style="display:flex;gap:8px;">
+                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
+                                    ${window.__('modal.cancelBtn')}
+                                </button>
+                                <button type="button" class="btn btn-primary btn-sm" id="${modalId}-save" style="min-width:80px;">
+                                    <i class="bi bi-check-lg me-1"></i>${window.__('modal.saveBtn')}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -275,7 +280,7 @@
         document.body.insertAdjacentHTML('beforeend', modalHtml);
 
         const modalEl = document.getElementById(modalId);
-        const bsModal = new bootstrap.Modal(modalEl);
+        const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
 
         // Save button handler
         document.getElementById(modalId + '-save').addEventListener('click', function() {
@@ -331,6 +336,18 @@
                 bsModal.hide();
             }
         });
+
+        // JSON mode switch handler
+        if (config.jsonModeCallback) {
+            const jsonSwitchBtn = document.getElementById(modalId + '-json-switch');
+            if (jsonSwitchBtn) {
+                jsonSwitchBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    bsModal.hide();
+                    config.jsonModeCallback();
+                });
+            }
+        }
 
         // Remove modal on hide
         modalEl.addEventListener('hidden.bs.modal', function() {
@@ -455,7 +472,7 @@
         ` : '';
 
         const modalHtml = `
-            <div class="modal fade" id="${modalId}" tabindex="-1">
+            <div class="modal fade" id="${modalId}" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
                 <div class="modal-dialog modal-dialog-centered modal-xl">
                     <div class="modal-content" style="border-radius:16px;border:none;box-shadow:0 25px 50px rgba(0,0,0,0.25);overflow:hidden;">
                         <div class="modal-header" style="background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);border-bottom:1px solid #e2e8f0;padding:18px 24px;">
@@ -469,7 +486,8 @@
                         </div>
                         <div class="modal-body" style="padding:0;">
                             ${idInputHtml}
-                            <div id="${modalId}-editor" style="height:${editableId ? '460' : '500'}px;border:none;"></div>
+                            ${config.hint ? `<div style="margin:10px 24px 0 24px;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;font-size:12px;color:#0369a1;display:flex;align-items:flex-start;gap:8px;"><i class="bi bi-info-circle" style="font-size:14px;margin-top:1px;flex-shrink:0;"></i><span>${config.hint}</span></div>` : ''}
+                            <div id="${modalId}-editor" style="height:${editableId ? (config.hint ? '430' : '460') : (config.hint ? '470' : '500')}px;border:none;"></div>
                         </div>
                         <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
                             <div style="flex:1;display:flex;align-items:center;gap:8px;">
@@ -504,7 +522,7 @@
         document.body.insertAdjacentHTML('beforeend', modalHtml);
 
         const modalEl = document.getElementById(modalId);
-        const bsModal = new bootstrap.Modal(modalEl);
+        const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
 
         // Initialize Monaco Editor with Schema
         let editor = null;
@@ -513,8 +531,11 @@
         // Load schema for this specific type
         let schemaPromise = schemaType ? this.loadSchema(schemaType) : Promise.resolve(null);
 
-        // Wait for Monaco and Schema to be ready
-        Promise.all([window.__monacoReady || Promise.resolve(), schemaPromise]).then(function(results) {
+        // Wait for Monaco and Schema to be ready (uses lazy loader if available)
+        var monacoReadyPromise = window.LazyMonacoLoader
+            ? window.LazyMonacoLoader.ensure()
+            : (window.__monacoReady || Promise.resolve());
+        Promise.all([monacoReadyPromise, schemaPromise]).then(function(results) {
             const monacoReady = typeof monaco !== 'undefined' && monaco.editor;
             const schema = results[1];
 
@@ -624,22 +645,13 @@
             value = document.getElementById(modalId + '-textarea')?.value || '';
         }
 
-        if (window.DashboardUtils?.copyToClipboard) {
-            window.DashboardUtils.copyToClipboard(value).then(function(success) {
-                if (success) {
-                    DashboardModals.showSuccess(window.__('modal.copied'));
-                } else {
-                    DashboardModals.showError(window.__('modal.copyFailed'));
-                }
-            });
-        } else {
-            // Fallback
-            navigator.clipboard.writeText(value).then(function() {
+        window.DashboardUtils.copyToClipboard(value).then(function(success) {
+            if (success) {
                 DashboardModals.showSuccess(window.__('modal.copied'));
-            }).catch(function() {
+            } else {
                 DashboardModals.showError(window.__('modal.copyFailed'));
-            });
-        }
+            }
+        });
     };
 
     // ===== Helper: Format JSON =====
@@ -705,6 +717,9 @@
         }
     `;
     document.head.appendChild(style);
+
+    // ===== Init (no-op, ensures guard checks pass) =====
+    window.DashboardModals.init = function() {};
 
     // ===== Global shortcuts =====
     window.showToast = window.DashboardModals.showToast;

@@ -1,0 +1,93 @@
+@using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Policy Management" : "策略管理";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<div id="policies-app">
+    <div class="card-panel mb-4">
+        <div class="card-header">
+            <span><i class="bi bi-sliders me-2" style="color:#0ea5e9;"></i><span data-i18n="policy.title">策略管理</span></span>
+            <div>
+                <span id="policy-refresh-time" class="refresh-badge"></span>
+                <div class="btn-group btn-group-sm me-2">
+                    <button class="btn btn-sm btn-primary" data-policy-tab="route" data-i18n="policy.routePolicy">路由策略</button>
+                    <button class="btn btn-sm btn-outline-secondary" data-policy-tab="cluster" data-i18n="policy.clusterPolicy">集群策略</button>
+                </div>
+                <button class="btn btn-sm btn-success" onclick="PolicyModule.openCreateModal()" title="" data-i18n-title="policy.add">
+                    <i class="bi bi-plus"></i> <span data-i18n="policy.add">新增策略</span>
+                </button>
+                <button class="btn btn-sm btn-outline-primary" onclick="PolicyModule.load()" title="" data-i18n-title="index.btn.refresh">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+        <div id="policy-content" class="card-body">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <div class="loading-text" data-i18n="policy.loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Policy Form / Apply Modal -->
+<div class="modal fade" id="policyModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="policyModalTitle" data-i18n="policy.add">新增策略</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="policyModalBody">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="policy.cancel">取消</button>
+                <button type="button" class="btn btn-primary" onclick="PolicyModule.save()" id="policySaveBtn">
+                    <span data-i18n="policy.create">创建策略</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+@{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-policies.js?v=@v"></script>
+
+<script>
+    window.__dashboard = window.__dashboard || {};
+    var dash = window.__dashboard;
+    dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
+    dash.token = localStorage.getItem('dashboard_token');
+    dash.CURRENT_LOCALE = '@ViewBag.Locale';
+    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
+    dash.currentPage = '@ViewBag.CurrentPage';
+</script>
+
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+        if (window.DashboardApp && window.DashboardApp.modules && window.DashboardApp.modules.policy) {
+            await DashboardApp.modules.policy.init();
+        }
+        await PolicyModule.load();
+        PolicyModule.updateTabUI();
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

@@ -1,0 +1,142 @@
+syntax = "proto3";
+
+package aneiang.yarp.v1;
+
+option csharp_namespace = "Aneiang.Yarp.GatewayRegistry";
+
+// ============================================================
+// Gateway Registry Service - Phase 2 (全面可用)
+//
+// 状态：HTTP+gRPC 双模注册，多 Path/多 Destination，端点鉴权
+//
+// Phase 2 已交付：
+//   - 多 Paths → 创建多个 YARP Route（共享同一 Cluster）
+//   - 多 Destinations → 全部加入 Cluster 负载均衡
+//   - gRPC 鉴权 → 支持 ApiKey / BasicAuth / BearerToken
+//
+// 后续路线：
+//   - Phase 3: TLS/mTLS
+//   - Phase 3: 双向流 (stream RegisterService, stream Heartbeat)
+//   - Phase 3: 服务发现增强 (DNS SRV, Consul, K8s Endpoints)
+// ============================================================
+
+// Gateway Registry Service - handles service registration and heartbeat
+service GatewayRegistry {
+  // Register a service with the gateway
+  rpc RegisterService (RegisterServiceRequest) returns (RegisterServiceResponse);
+  
+  // Unregister a service from the gateway
+  rpc UnregisterService (UnregisterServiceRequest) returns (UnregisterServiceResponse);
+  
+  // Send heartbeat to keep registration alive
+  rpc Heartbeat (HeartbeatRequest) returns (HeartbeatResponse);
+  
+  // Get registered services status
+  rpc GetServices (GetServicesRequest) returns (GetServicesResponse);
+  
+  // Update service destinations
+  rpc UpdateDestinations (UpdateDestinationsRequest) returns (UpdateDestinationsResponse);
+}
+
+// Register service request
+message RegisterServiceRequest {
+  string service_id = 1;
+  string service_name = 2;
+  repeated string paths = 3;           // URL paths this service handles
+  repeated Destination destinations = 4;
+  map<string, string> metadata = 5;   // Custom metadata
+  LoadBalancingPolicy load_balancing = 6;
+}
+
+// Service destination
+message Destination {
+  string destination_id = 1;
+  string address = 2;                 // Full URL (http://host:port)
+  bool enabled = 3;
+  map<string, string> metadata = 4;
+}
+
+// Load balancing policy
+enum LoadBalancingPolicy {
+  POWER_OF_TWO_CHOICES = 0;
+  RANDOM = 1;
+  ROUND_ROBIN = 2;
+  LEAST_REQUESTS = 3;
+}
+
+// Register service response
+message RegisterServiceResponse {
+  bool success = 1;
+  string message = 2;
+  string cluster_id = 3;              // Assigned cluster ID
+  int64 registered_at = 4;            // Unix timestamp
+  repeated string route_ids = 5;      // All created route IDs (one per path)
+}
+
+// Unregister service request
+message UnregisterServiceRequest {
+  string service_id = 1;
+}
+
+// Unregister service response
+message UnregisterServiceResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Heartbeat request
+message HeartbeatRequest {
+  string service_id = 1;
+  optional string destination_id = 2; // Optional: specific destination
+}
+
+// Heartbeat response
+message HeartbeatResponse {
+  bool success = 1;
+  string message = 2;
+  int64 next_heartbeat = 3;          // Unix timestamp for next expected heartbeat
+}
+
+// Get services request
+message GetServicesRequest {
+  optional bool active_only = 1;     // Only return active services
+}
+
+// Get services response
+message GetServicesResponse {
+  repeated ServiceInfo services = 1;
+}
+
+// Service information
+message ServiceInfo {
+  string service_id = 1;
+  string service_name = 2;
+  string cluster_id = 3;
+  repeated string paths = 4;
+  repeated DestinationInfo destinations = 5;
+  bool is_healthy = 6;
+  int64 last_heartbeat = 7;
+  int64 registered_at = 8;
+  map<string, string> metadata = 9;
+}
+
+// Destination info with health status
+message DestinationInfo {
+  string destination_id = 1;
+  string address = 2;
+  bool is_healthy = 3;
+  bool is_enabled = 4;
+  double health_ratio = 5;           // Health check pass ratio
+}
+
+// Update destinations request
+message UpdateDestinationsRequest {
+  string service_id = 1;
+  repeated Destination destinations = 2;
+}
+
+// Update destinations response
+message UpdateDestinationsResponse {
+  bool success = 1;
+  string message = 2;
+}

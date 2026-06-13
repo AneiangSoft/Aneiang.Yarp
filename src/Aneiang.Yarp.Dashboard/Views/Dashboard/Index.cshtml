@@ -23,36 +23,52 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4 col-sm-6">
-        <div class="stat-card">
-            <div class="d-flex align-items-center justify-content-between">
+    <div class="col-lg-3 col-md-4 col-sm-6">
+        <div class="stat-card" style="border-left: 3px solid #3b82f6;">
+            <div class="d-flex align-items-start justify-content-between">
                 <div>
                     <div class="stat-value" id="stat-clusters">-</div>
                     <div class="stat-label" data-i18n="index.stat.clusters">服务集群</div>
                 </div>
-                <div class="stat-icon" style="background:#eff6ff;color:#3b82f6;"><i class="bi bi-diagram-3"></i></div>
+                <div class="stat-icon" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);color:#3b82f6;"><i class="bi bi-diagram-3"></i></div>
             </div>
         </div>
     </div>
-    <div class="col-md-4 col-sm-6">
-        <div class="stat-card">
-            <div class="d-flex align-items-center justify-content-between">
+    <div class="col-lg-3 col-md-4 col-sm-6">
+        <div class="stat-card" style="border-left: 3px solid #22c55e;">
+            <div class="d-flex align-items-start justify-content-between">
                 <div>
                     <div class="stat-value" id="stat-healthy" style="color:#22c55e;">-</div>
-                    <div class="stat-label" data-i18n="index.stat.health">健康 / 未知 / 异常</div>
+                    <div class="stat-label" data-i18n="index.stat.health">健康状态</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                        <span style="color:#22c55e;">●</span> 健康
+                        <span style="color:#f59e0b;margin-left:6px;">●</span> 未知
+                        <span style="color:#ef4444;margin-left:6px;">●</span> 异常
+                    </div>
                 </div>
-                <div class="stat-icon" style="background:#f0fdf4;color:#22c55e;"><i class="bi bi-heart-pulse"></i></div>
+                <div class="stat-icon" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);color:#22c55e;"><i class="bi bi-heart-pulse"></i></div>
             </div>
         </div>
     </div>
-    <div class="col-md-4 col-sm-6">
-        <div class="stat-card">
-            <div class="d-flex align-items-center justify-content-between">
+    <div class="col-lg-3 col-md-4 col-sm-6">
+        <div class="stat-card" style="border-left: 3px solid #f59e0b;">
+            <div class="d-flex align-items-start justify-content-between">
                 <div>
                     <div class="stat-value" id="stat-routes">-</div>
                     <div class="stat-label" data-i18n="index.stat.routes">路由规则</div>
                 </div>
-                <div class="stat-icon" style="background:#fefce8;color:#eab308;"><i class="bi bi-signpost-split"></i></div>
+                <div class="stat-icon" style="background:linear-gradient(135deg,#fefce8,#fef9c3);color:#eab308;"><i class="bi bi-signpost-split"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-4 col-sm-6">
+        <div class="stat-card" style="border-left: 3px solid #8b5cf6;">
+            <div class="d-flex align-items-start justify-content-between">
+                <div>
+                    <div class="stat-value" style="color:#8b5cf6;" id="stat-qps">-</div>
+                    <div class="stat-label" data-i18n="index.stat.qps">当前 QPS</div>
+                </div>
+                <div class="stat-icon" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);color:#8b5cf6;"><i class="bi bi-lightning-charge"></i></div>
             </div>
         </div>
     </div>
@@ -60,72 +76,95 @@
 
 
 
-<!-- Cluster panel -->
-<div id="cluster-panel" class="card-panel mb-3" style="display:none;">
-    <div class="card-header">
-        <span><i class="bi bi-hdd-stack me-2"></i><span data-i18n="index.cluster.title">集群 &amp; 目标节点状态</span></span>
-        <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
-            <span class="refresh-badge" id="cluster-refresh-time"></span>
-            <span class="refresh-badge"><span data-i18n="index.cluster.showing">显示 </span><strong id="cluster-display-count">0</strong><span data-i18n="index.cluster.of"> / </span><span id="cluster-total-count">0</span><span data-i18n="index.cluster.entries"> 个</span></span>
+<!-- Service tabs (clusters + routes) -->
+<div id="service-panel" class="card-panel mb-3">
+    <!-- Tab bar -->
+    <div class="service-tabs">
+        <button class="service-tab active" data-tab="clusters" onclick="ServiceTabs.switch('clusters')">
+            <i class="bi bi-diagram-3"></i>
+            <span data-i18n="index.serviceTab.clusters">服务集群</span>
+        </button>
+        <button class="service-tab" data-tab="routes" onclick="ServiceTabs.switch('routes')">
+            <i class="bi bi-signpost-split"></i>
+            <span data-i18n="index.serviceTab.routes">路由规则</span>
+        </button>
+        <div class="service-tab-actions">
+            <button class="btn btn-icon btn-outline-primary" id="service-refresh-btn" onclick="ServiceTabs.refresh()" data-i18n-title="index.btn.refresh" title="刷新">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+        <div class="service-tab-counts">
+            <span class="refresh-badge" id="service-refresh-time"></span>
+            <span class="refresh-badge" id="service-count-label"></span>
         </div>
     </div>
-    
-    <!-- Filter toolbar container -->
-    <div id="cluster-filter-container"></div>
-    
-    <div class="table-responsive">
-        <table class="table table-hover align-middle" style="table-layout:fixed;width:100%">
-            <thead>
-                <tr>
-                    <th style="width:40px"></th>
-                    <th style="width:15%"><span data-i18n="index.cluster.th.name">集群名称</span></th>
-                    <th style="width:90px"><span data-i18n="index.cluster.th.source">来源</span></th>
-                    <th style="width:10%"><span data-i18n="index.cluster.th.dest">节点名</span></th>
-                    <th style="width:22%"><span data-i18n="index.cluster.th.address">目标地址</span></th>
-                    <th style="width:9%"><span data-i18n="index.cluster.th.active">主动健康</span></th>
-                    <th style="width:9%"><span data-i18n="index.cluster.th.passive">被动健康</span></th>
-                    <th style="width:9%"><span data-i18n="index.cluster.th.policy">均衡策略</span></th>
-                    <th style="width:80px"><span data-i18n="index.cluster.th.actions">操作</span></th>
-                </tr>
-            </thead>
-            <tbody id="cluster-tbody">
-                <tr><td colspan="9" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
-            </tbody>
-        </table>
-    </div>
-</div>
 
-<!-- Route panel -->
-<div id="route-panel" class="card-panel mb-3" style="display:none;">
-    <div class="card-header">
-        <span><i class="bi bi-signpost-split me-2"></i><span data-i18n="index.route.title">路由规则列表</span></span>
-        <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
-            <span class="refresh-badge" id="route-refresh-time"></span>
-            <span class="refresh-badge"><span data-i18n="index.route.showing">Showing </span><strong id="route-display-count">0</strong><span data-i18n="index.route.of"> / </span><span id="route-total-count">0</span><span data-i18n="index.route.entries"> entries</span></span>
+    <!-- Cluster tab content -->
+    <div id="tab-clusters" class="service-tab-content">
+        <!-- Filter toolbar container -->
+        <div id="cluster-filter-container"></div>
+
+        <!-- Table view -->
+        <div id="cluster-table-view">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped-custom align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width:38px"></th>
+                            <th><span data-i18n="index.cluster.th.name">集群名称</span></th>
+                            <th style="width:90px"><span data-i18n="index.source.filter">来源</span></th>
+                            <th style="width:90px"><span data-i18n="index.cluster.health.filter">健康状态</span></th>
+                            <th style="width:80px"><span data-i18n="index.cluster.destCount">节点数</span></th>
+                            <th style="width:110px"><span data-i18n="index.cluster.loadBalancing">负载策略</span></th>
+                            <th style="width:80px"><span data-i18n="index.cluster.th.actions">操作</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="cluster-tbody">
+                        <tr><td colspan="7" class="text-center py-4">
+                            <div style="padding:4px 0;">
+                                <div class="skeleton skeleton-line long"></div>
+                                <div class="skeleton skeleton-line medium"></div>
+                                <div class="skeleton skeleton-line short"></div>
+                            </div>
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
-    
-    <!-- Filter toolbar container -->
-    <div id="route-filter-container"></div>
-    
-    <div class="table-responsive">
-        <table class="table table-hover align-middle" style="table-layout:fixed;width:100%">
-            <thead>
-                <tr>
-                    <th style="width:40px"></th>
-                    <th style="width:60px"><span data-i18n="index.route.th.order">优先级</span></th>
-                    <th style="width:15%"><span data-i18n="index.route.th.name">路由名称</span></th>
-                    <th style="width:90px"><span data-i18n="index.route.th.source">来源</span></th>
-                    <th style="width:22%"><span data-i18n="index.route.th.path">匹配路径</span></th>
-                    <th style="width:14%"><span data-i18n="index.route.th.cluster">关联集群</span></th>
-                    <th style="width:14%"><span data-i18n="index.route.th.methods">允许方法</span></th>
-                    <th style="width:80px"><span data-i18n="index.route.th.actions">操作</span></th>
-                </tr>
-            </thead>
-            <tbody id="route-tbody">
-                <tr><td colspan="8" class="text-center text-muted py-4" data-i18n="index.loading">加载中...</td></tr>
-            </tbody>
-        </table>
+
+    <!-- Route tab content -->
+    <div id="tab-routes" class="service-tab-content" style="display:none;">
+        <!-- Filter toolbar container -->
+        <div id="route-filter-container"></div>
+
+        <!-- Table view -->
+        <div id="route-table-view">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped-custom align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width:36px"></th>
+                            <th style="width:80px;white-space:nowrap"><span data-i18n="index.route.orderCol">优先级</span></th>
+                            <th style="width:22%"><span data-i18n="index.route.th.name">路由名称</span></th>
+                            <th><span data-i18n="index.route.th.path">匹配路径</span></th>
+                            <th style="width:140px"><span data-i18n="index.route.clusterCol">集群</span></th>
+                            <th style="width:120px"><span data-i18n="index.route.methodCol">方法</span></th>
+                            <th style="width:80px"><span data-i18n="index.route.th.actions">操作</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="route-tbody">
+                        <tr><td colspan="7" class="text-center py-4">
+                            <div style="padding:4px 0;">
+                                <div class="skeleton skeleton-line long"></div>
+                                <div class="skeleton skeleton-line medium"></div>
+                                <div class="skeleton skeleton-line short"></div>
+                            </div>
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -185,77 +224,8 @@
 </div>
 
 @section Scripts {
-@{ var v = typeof(Aneiang.Yarp.Dashboard.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
-<!-- 1. Core Infrastructure -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-core.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
-
-<!-- 2. Schema Service (sync load) -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-service.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-validator.js?v=@v"></script>
-
-<!-- 3. Monaco Editor (async load) -->
+<!-- Page config (must be available before DashboardApp.init()) -->
 <script>
-    // Configure Monaco Worker paths BEFORE loading loader
-    window.MonacoEnvironment = {
-        getWorkerUrl: function(workerId, label) {
-            var workerPath = '/_content/Aneiang.Yarp.Dashboard/lib/monaco/';
-            // Map worker labels to their specific worker files
-            if (label === 'json') {
-                return workerPath + 'language/json/jsonWorker.js';
-            } else if (label === 'css') {
-                return workerPath + 'language/css/cssWorker.js';
-            } else if (label === 'html') {
-                return workerPath + 'language/html/htmlWorker.js';
-            } else if (label === 'typescript' || label === 'javascript') {
-                return workerPath + 'language/typescript/tsWorker.js';
-            }
-            // Default editor worker
-            return workerPath + 'editor/editor.worker.js';
-        }
-    }; 
-
-    window.__monacoReady = new Promise(function(resolve) {
-        window.__monacoResolve = resolve;
-    });
-</script>
-<script src="/_content/Aneiang.Yarp.Dashboard/lib/monaco/loader.js?v=@v"></script>
-<script>
-    require.config({ paths: { vs: '/_content/Aneiang.Yarp.Dashboard/lib/monaco' } });
-    require(['vs/editor/editor.main'], function() {
-        window.__monacoResolve();
-    });
-</script>
-
-<!-- 4. Editor Layer -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-monaco-editor.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-config-editor.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-form-builder.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-diff-panel.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-validation-panel.js?v=@v"></script>
-
-<!-- 5. App Bootstrap & Events -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-bootstrap.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
-
-<!-- 6. Modules -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-clusters.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-routes.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-logs.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-stats.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-history.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-audit.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-config.js?v=@v"></script>
-
-<script>
-    // Initialize dashboard config
     window.__dashboard = window.__dashboard || {};
     var dash = window.__dashboard;
     dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
@@ -263,10 +233,152 @@
     dash.CURRENT_LOCALE = '@ViewBag.Locale';
     dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
     dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
+    dash.currentPage = 'overview';
+
+    // Initialize i18n after setting translations (consistent with all other pages)
+    if (window.DashboardI18n) { window.DashboardI18n.init(); }
+</script>
+
+<!-- Service tabs JS -->
+<script>
+(function() {
+    // ServiceTabs: tab switching for clusters/routes on the overview page
+    window.ServiceTabs = {
+        current: localStorage.getItem('service_tab') || 'clusters',
+        _clustersLoaded: false,
+        _routesLoaded: false,
+
+        switch: function(tab) {
+            this.current = tab;
+            localStorage.setItem('service_tab', tab);
+
+            // Tab buttons
+            document.querySelectorAll('.service-tab').forEach(function(btn) {
+                btn.classList.toggle('active', btn.dataset.tab === tab);
+            });
+
+            // Tab content panels
+            document.querySelectorAll('.service-tab-content').forEach(function(content) {
+                content.style.display = content.id === 'tab-' + tab ? '' : 'none';
+            });
+
+            // Count label
+            this._updateCountLabel(tab);
+
+            // Lazy-load data
+            if (tab === 'clusters' && !this._clustersLoaded) {
+                this._clustersLoaded = true;
+                window.DashboardApp?.modules?.clusters?.init?.();
+                window.DashboardApp?.modules?.clusters?.loadClusters?.();
+            } else if (tab === 'routes' && !this._routesLoaded) {
+                this._routesLoaded = true;
+                window.DashboardApp?.modules?.routes?.init?.();
+                window.DashboardApp?.modules?.routes?.loadRoutes?.();
+            }
+        },
+
+        refresh: function() {
+            var tab = this.current;
+            var btn = document.getElementById('service-refresh-btn');
+            if (!btn) return;
+            var original = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise spin me-1"></i>';
+            btn.disabled = true;
+            Promise.resolve().then(function() {
+                if (tab === 'clusters') {
+                    return window.DashboardApp?.modules?.clusters?.loadClusters?.();
+                } else {
+                    return window.DashboardApp?.modules?.routes?.loadRoutes?.();
+                }
+            }).finally(function() {
+                btn.innerHTML = original;
+                btn.disabled = false;
+            });
+        },
+
+        _updateCountLabel: function(tab) {
+            var label = document.getElementById('service-count-label');
+            if (!label) return;
+            if (tab === 'clusters') {
+                var total = (window.DashboardState?.get('data.clusters') || []).length;
+                var filtered = (window.DashboardState?.getFilteredClusters?.() || []).length;
+                label.innerHTML = '<span>' + filtered + ' / ' + total + ' <span data-i18n="index.cluster.entries">个</span></span>';
+            } else {
+                var total = (window.DashboardState?.get('data.routes') || []).length;
+                var filtered = (window.DashboardState?.getFilteredRoutes?.() || []).length;
+                label.innerHTML = '<span>' + filtered + ' / ' + total + ' entries</span>';
+            }
+        },
+
+        init: function() {
+            var self = this;
+            document.addEventListener('DOMContentLoaded', function() {
+                // Restore saved tab
+                self.switch(localStorage.getItem('service_tab') || 'clusters');
+            });
+        }
+    };
+    window.ServiceTabs.init();
+})();
 </script>
 
 <style>
-@@keyframes spin { to { transform: rotate(360deg); } }
-.spin { display:inline-block; animation: spin .6s linear infinite; }
+.service-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    flex-wrap: wrap;
+}
+.service-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 18px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.2s ease;
+    position: relative;
+}
+.service-tab:hover {
+    color: var(--text-primary);
+    background: rgba(99,102,241,0.04);
+}
+.service-tab.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    font-weight: 600;
+}
+.service-tab.active::before {
+    content: '';
+    position: absolute;
+    inset: 4px -2px auto -2px;
+    bottom: -2px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    border-radius: 1px;
+}
+.service-tab i { font-size: 15px; }
+.service-tab-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    padding: 6px 0;
+}
+.service-tab-counts {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 0 0 8px;
+}
 </style>
 }

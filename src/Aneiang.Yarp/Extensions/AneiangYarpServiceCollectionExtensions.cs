@@ -1,13 +1,11 @@
 using Aneiang.Yarp.Controllers;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
-using Aneiang.Yarp.Middleware;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Yarp.ReverseProxy;
 using Yarp.ReverseProxy.Configuration;
@@ -38,13 +36,13 @@ public static class AneiangYarpServiceCollectionExtensions
         Action<IReverseProxyBuilder>? configureReverseProxy = null,
         bool enableRegistration = true)
     {
-        var proxyBuilder = services.AddReverseProxy();
+        // Guard: prevent double registration
+        if (services.Any(sd => sd.ServiceType == typeof(InMemoryConfigProvider)))
+        {
+            return services;
+        }
 
-        // Register rate limiting for proxy routes (configurable via Gateway:Dashboard:EnableRateLimiting)
-        // Note: DashboardOptions is defined in Aneiang.Yarp.Dashboard, but we bind from the same config section.
-        // The rate limiter is configured after DI is fully built via IConfigureOptions.
-        services.AddSingleton<RateLimitConfigProvider>();
-        services.AddRateLimiter(_ => { });
+        var proxyBuilder = services.AddReverseProxy();
 
         // Register custom load balancing policies
         services.AddSingleton<ILoadBalancingPolicy, IpBasedLoadBalancingPolicy>();
@@ -63,20 +61,11 @@ public static class AneiangYarpServiceCollectionExtensions
 
         // Sole config provider - both static + dynamic
         services.AddSingleton<IProxyConfigProvider>(sp => sp.GetRequiredService<InMemoryConfigProvider>());
-        
-        // Dynamic config persistence service
-        services.AddSingleton<DynamicConfigPersistenceService>(sp =>
-        {
-            var config = sp.GetRequiredService<IConfiguration>();
-            var dataDir = config["Gateway:DynamicConfigPath"] ?? "gateway-dynamic.json";
-            var logger = sp.GetRequiredService<ILogger<DynamicConfigPersistenceService>>();
-            return new DynamicConfigPersistenceService(dataDir, logger);
-        });
-        
+
+        // Dynamic config service (depends on IRouteRepository, IClusterRepository and IConfigChangeAuditLog
+        // which are registered by Dashboard when AddAneiangYarpDashboard is called)
         services.AddSingleton<DynamicYarpConfigService>();
-        
-        // Config change audit log
-        services.AddSingleton<ConfigChangeAuditLog>();
+        services.AddSingleton<IDynamicYarpConfigService>(sp => sp.GetRequiredService<DynamicYarpConfigService>());
 
         // Built-in transform options
         services.AddOptions<BuiltinTransformOptions>()
@@ -85,6 +74,13 @@ public static class AneiangYarpServiceCollectionExtensions
         // Register controllers + views so this library's controllers/MVC are discoverable
         services.AddControllersWithViews()
             .AddApplicationPart(typeof(GatewayConfigController).Assembly);
+
+        services.AddGrpc(options =>
+        {
+            // Register gRPC auth interceptor (Phase 2: 端点鉴权)
+            options.Interceptors.Add<GrpcAuthInterceptor>();
+        });
+        services.AddSingleton<GrpcAuthInterceptor>();
 
         // Remove registration API endpoints when disabled (security: no route = 404, not 401/403)
         if (!enableRegistration)
@@ -105,26 +101,7 @@ public static class AneiangYarpServiceCollectionExtensions
     /// <summary>
     /// Enable authorization for the gateway config API (register-route, delete-route, etc.).
     /// Supports BasicAuth and ApiKey modes.
-    /// Credentials are resolved in this order (later overrides earlier):
-    /// 1. <c>Gateway:ApiAuth</c> config section
-    /// 2. Auto-detect from <c>Gateway:Dashboard</c> (if Dashboard JWT password is configured)
-    /// 3. <paramref name="configureOptions"/> callback (highest precedence)
     /// </summary>
-    /// <param name="services">IServiceCollection</param>
-    /// <param name="configureOptions">Optional manual override for auth options. Takes precedence over all config sources.</param>
-    /// <example>
-    /// <code>
-    /// // From config file:
-    /// builder.Services.AddGatewayApiAuth();
-    ///
-    /// // From code (highest precedence):
-    /// builder.Services.AddGatewayApiAuth(o => {
-    ///     o.Mode = GatewayApiAuthMode.BasicAuth;
-    ///     o.Username = "admin";
-    ///     o.Password = "admin@2026";
-    /// });
-    /// </code>
-    /// </example>
     public static IServiceCollection AddGatewayApiAuth(
         this IServiceCollection services,
         Action<GatewayApiAuthOptions>? configureOptions = null)
@@ -150,14 +127,9 @@ public static class AneiangYarpServiceCollectionExtensions
                     }
                 }
             })
-            // 3. User callback overrides all config sources (highest precedence)
             .Configure(configureOptions ?? (_ => { }));
-
-        services.AddSingleton<GatewayApiAuthFilter>();
-        services.AddSingleton<IConfigureOptions<MvcOptions>>(_ =>
-            new ConfigureNamedOptions<MvcOptions>(null, mvo =>
-                mvo.Conventions.Add(new GatewayApiAuthConvention())));
 
         return services;
     }
+
 }
