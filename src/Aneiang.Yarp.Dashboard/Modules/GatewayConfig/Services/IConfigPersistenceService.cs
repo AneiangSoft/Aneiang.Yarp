@@ -5,7 +5,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 
 /// <summary>
 /// Interface for configuration snapshot management: export/import, version history, rollback, and validation.
-/// Snapshots are persisted via <see cref="Aneiang.Yarp.Storage.IGatewayRepository"/>.
+/// Snapshots are persisted via <see cref="Aneiang.Yarp.Storage.IConfigHistoryRepository"/>.
 /// </summary>
 public interface IConfigPersistenceService
 {

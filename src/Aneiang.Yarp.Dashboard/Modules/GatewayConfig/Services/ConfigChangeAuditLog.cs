@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 
 /// <summary>
-/// Audit log store for gateway configuration changes using <see cref="IGatewayRepository"/>.
+/// Audit log store for gateway configuration changes using <see cref="IAuditLogRepository"/>.
 /// Uses in-memory <see cref="ConcurrentQueue{T}"/> for fast writes,
 /// and persists to repository for structured query capability.
 /// Thread-safe, bounded by max capacity (ring-buffer style).
@@ -32,15 +32,15 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
     private bool _loaded;
 
     private readonly ConcurrentQueue<PendingNotification> _pendingNotifications = new();
-    private readonly IGatewayRepository _repository;
+    private readonly IAuditLogRepository _auditRepo;
     private readonly ILogger<ConfigChangeAuditLog> _logger;
 
     /// <inheritdoc />
     public event Action<string, string, string?, object?>? OnConfigChanged;
 
-    public ConfigChangeAuditLog(IGatewayRepository repository, ILogger<ConfigChangeAuditLog> logger)
+    public ConfigChangeAuditLog(IAuditLogRepository auditRepo, ILogger<ConfigChangeAuditLog> logger)
     {
-        _repository = repository;
+        _auditRepo = auditRepo;
         _logger = logger;
     }
 
@@ -57,7 +57,7 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
 
         try
         {
-            var persisted = await _repository.GetAuditLogsAsync(MaxCapacity);
+            var persisted = await _auditRepo.GetAuditLogsAsync(MaxCapacity);
             foreach (var entity in persisted)
             {
                 _entries.Enqueue(entity.ToConfigChangeAudit());
@@ -109,7 +109,7 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
         // Persist to repository (fire-and-forget)
         _ = Task.Run(async () =>
         {
-            try { await _repository.SaveAuditLogAsync(entry.ToEntity()); }
+            try { await _auditRepo.SaveAuditLogAsync(entry.ToEntity()); }
             catch (Exception ex) { _logger.LogWarning(ex, "Failed to persist audit entry"); }
         });
 
@@ -178,7 +178,7 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
     /// <summary>Query audit logs by target from repository.</summary>
     public async Task<IReadOnlyList<ConfigChangeAudit>> GetByTargetAsync(string target, int count = 50)
     {
-        var entities = await _repository.GetAuditLogsByTargetAsync(target, count);
+        var entities = await _auditRepo.GetAuditLogsByTargetAsync(target, count);
         return entities.ToConfigChangeAudits();
     }
 

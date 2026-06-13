@@ -62,7 +62,7 @@ public static class AneiangYarpServiceCollectionExtensions
         // Sole config provider - both static + dynamic
         services.AddSingleton<IProxyConfigProvider>(sp => sp.GetRequiredService<InMemoryConfigProvider>());
 
-        // Dynamic config service (depends on IGatewayRepository and IConfigChangeAuditLog
+        // Dynamic config service (depends on IRouteRepository, IClusterRepository and IConfigChangeAuditLog
         // which are registered by Dashboard when AddAneiangYarpDashboard is called)
         services.AddSingleton<DynamicYarpConfigService>();
         services.AddSingleton<IDynamicYarpConfigService>(sp => sp.GetRequiredService<DynamicYarpConfigService>());

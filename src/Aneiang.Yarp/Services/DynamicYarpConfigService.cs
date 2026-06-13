@@ -9,12 +9,13 @@ namespace Aneiang.Yarp.Services;
 /// <summary>
 /// Dynamic YARP config service: add, update, and delete routes and clusters at runtime.
 /// Thread-safe with SemaphoreSlim protection (fixes ReaderWriterLockSlim + await thread-affinity bug).
-/// Persistence via <see cref="IGatewayRepository"/> (SQLite by default).
+/// Persistence via <see cref="IRouteRepository"/> and <see cref="IClusterRepository"/> (SQLite by default).
 /// </summary>
 public class DynamicYarpConfigService : IDynamicYarpConfigService
 {
     private readonly InMemoryConfigProvider _configProvider;
-    private readonly IGatewayRepository _repository;
+    private readonly IRouteRepository _routeRepo;
+    private readonly IClusterRepository _clusterRepo;
     private readonly IConfigChangeAuditLog _auditLog;
     private readonly ILogger<DynamicYarpConfigService> _logger;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
@@ -33,12 +34,14 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
     /// </summary>
     public DynamicYarpConfigService(
         InMemoryConfigProvider configProvider,
-        IGatewayRepository repository,
+        IRouteRepository routeRepo,
+        IClusterRepository clusterRepo,
         IConfigChangeAuditLog auditLog,
         ILogger<DynamicYarpConfigService> logger)
     {
         _configProvider = configProvider;
-        _repository = repository;
+        _routeRepo = routeRepo;
+        _clusterRepo = clusterRepo;
         _auditLog = auditLog;
         _logger = logger;
 
@@ -86,8 +89,8 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
     {
         try
         {
-            var routeEntities = _repository.GetAllRoutesAsync().GetAwaiter().GetResult();
-            var clusterEntities = _repository.GetAllClustersAsync().GetAwaiter().GetResult();
+            var routeEntities = _routeRepo.GetAllRoutesAsync().GetAwaiter().GetResult();
+            var clusterEntities = _clusterRepo.GetAllClustersAsync().GetAwaiter().GetResult();
 
             var config = new GatewayDynamicConfig
             {
@@ -97,7 +100,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
             foreach (var clusterEntity in clusterEntities)
             {
                 var cluster = clusterEntity.ToClusterConfig();
-                var destEntities = _repository.GetDestinationsAsync(clusterEntity.ClusterId).GetAwaiter().GetResult();
+                var destEntities = _clusterRepo.GetDestinationsAsync(clusterEntity.ClusterId).GetAwaiter().GetResult();
                 cluster.Destinations = destEntities.ToDestinations();
                 config.Clusters.Add(cluster);
             }
@@ -344,41 +347,41 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
             var targetClusterIds = new HashSet<string>(config.Clusters.Select(c => c.ClusterId), StringComparer.OrdinalIgnoreCase);
 
             // Clean up stale routes
-            var existingRoutes = await _repository.GetAllRoutesAsync();
+            var existingRoutes = await _routeRepo.GetAllRoutesAsync();
             foreach (var existing in existingRoutes)
             {
                 if (!targetRouteIds.Contains(existing.RouteId))
                 {
-                    await _repository.DeleteRouteAsync(existing.RouteId);
+                    await _routeRepo.DeleteRouteAsync(existing.RouteId);
                     _logger.LogDebug("Deleted stale route '{RouteId}'", existing.RouteId);
                 }
             }
 
             // Save current routes
             var routeEntities = config.Routes.Select(r => r.ToEntity()).ToList();
-            await _repository.SaveRoutesAsync(routeEntities);
+            await _routeRepo.SaveRoutesAsync(routeEntities);
 
             // Clean up stale clusters + destinations
-            var existingClusters = await _repository.GetAllClustersAsync();
+            var existingClusters = await _clusterRepo.GetAllClustersAsync();
             foreach (var existing in existingClusters)
             {
                 if (!targetClusterIds.Contains(existing.ClusterId))
                 {
-                    await _repository.DeleteDestinationsAsync(existing.ClusterId);
-                    await _repository.DeleteClusterAsync(existing.ClusterId);
+                    await _clusterRepo.DeleteDestinationsAsync(existing.ClusterId);
+                    await _clusterRepo.DeleteClusterAsync(existing.ClusterId);
                     _logger.LogDebug("Deleted stale cluster '{ClusterId}'", existing.ClusterId);
                 }
             }
 
             // Save current clusters
             var clusterEntities = config.Clusters.Select(c => c.ToEntity()).ToList();
-            await _repository.SaveClustersAsync(clusterEntities);
+            await _clusterRepo.SaveClustersAsync(clusterEntities);
 
             // Save destinations for each cluster
             foreach (var cluster in config.Clusters)
             {
                 var destEntities = cluster.Destinations.Select(d => d.ToEntity(cluster.ClusterId)).ToList();
-                await _repository.SaveDestinationsAsync(cluster.ClusterId, destEntities);
+                await _clusterRepo.SaveDestinationsAsync(cluster.ClusterId, destEntities);
             }
         }
         catch (Exception ex)

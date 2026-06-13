@@ -11,7 +11,6 @@ using Aneiang.Yarp.Dashboard.Modules.Policy.Services;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Aneiang.Yarp.Services;
-using Aneiang.Yarp.Storage;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.ResponseCompression;
@@ -100,7 +99,7 @@ public static class DashboardServiceCollectionExtensions
             options.Level = System.IO.Compression.CompressionLevel.Fastest;
         });
 
-        // ── Storage backend (IGatewayRepository) ─────────────────────────────────
+        // ── Storage backend ──────────────────────────────────────────────────────
         services.AddAneiangStorage(services.BuildServiceProvider().GetRequiredService<IConfiguration>());
 
         // ── Audit log ─────────────────────────────────────────────────────────────
@@ -144,7 +143,7 @@ public static class DashboardServiceCollectionExtensions
         // ── WAF event store (in-memory ring buffer) ──────────────────────────────
         services.AddSingleton<WafEventStore>();
 
-        // ── Policy service (route + cluster policies via IGatewayRepository) ────
+        // ── Policy service (route + cluster policies via IPolicyRepository) ──────
         services.AddSingleton<IGatewayPolicyService, GatewayPolicyService>();
 
         // ── Config snapshot service ───────────────────────────────────────────────
@@ -161,9 +160,7 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<IDashboardAuthorizationService, DashboardAuthorizationService>();
 
         // ── New Unified Notification System ─────────────────────────────────────
-        // IGatewayRepository (registered by AddAneiangStorage above) already implements
-        // INotificationRepository, so we resolve it from there.
-        services.AddSingleton<INotificationRepository>(sp => sp.GetRequiredService<IGatewayRepository>());
+        // INotificationRepository is registered by AddAneiangStorage above.
         services.AddHttpClient("notification");
         services.AddSingleton<INotificationService, NotificationService>();
         services.AddHostedService<NotificationWarmupService>();
@@ -179,7 +176,7 @@ public static class DashboardServiceCollectionExtensions
         // ── Default health check service ──────────────────────────────────────────
         services.AddHostedService<DefaultHealthCheckService>();
 
-        // ── Startup warmup: initializes IGatewayRepository, MemoryCache, and query services ──
+        // ── Startup warmup: initializes repositories, MemoryCache, and query services ──
         services.AddHostedService<StartupWarmupService>();
 
         // ── Real-time traffic broadcast ───────────────────────────────────────────
