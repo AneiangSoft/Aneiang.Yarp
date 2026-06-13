@@ -16,6 +16,9 @@ internal static class DashboardClusterMapper
         ClusterConfig cluster,
         DynamicYarpConfigService dynamicConfig)
     {
+        var activeHealthConfigured = cluster.HealthCheck?.Active?.Enabled == true;
+        var passiveHealthConfigured = cluster.HealthCheck?.Passive?.Enabled == true;
+
         var destinations = cluster.Destinations?.Select(d => new DashboardDestinationResponse
         {
             Name = d.Key,
@@ -25,9 +28,13 @@ internal static class DashboardClusterMapper
             Metadata = d.Value.Metadata?.Count > 0
                 ? d.Value.Metadata.ToDictionary(kv => kv.Key, kv => kv.Value)
                 : null,
-            ActiveHealth = "Unknown",
-            PassiveHealth = "Unknown"
+            ActiveHealth = ResolveHealthStatus(d.Value.Health, activeHealthConfigured),
+            PassiveHealth = ResolveHealthStatus(d.Value.Health, passiveHealthConfigured)
         }).ToList() ?? new List<DashboardDestinationResponse>();
+
+        var healthyCount = destinations.Count(d => string.Equals(d.Health, "Healthy", StringComparison.OrdinalIgnoreCase));
+        var unhealthyCount = destinations.Count(d => string.Equals(d.Health, "Unhealthy", StringComparison.OrdinalIgnoreCase));
+        var unknownCount = destinations.Count - healthyCount - unhealthyCount;
 
         var (isEditable, source) = GetClusterEditability(cluster.ClusterId, dynamicConfig);
 
@@ -43,9 +50,9 @@ internal static class DashboardClusterMapper
                 ? cluster.Metadata.ToDictionary(kv => kv.Key, kv => kv.Value)
                 : null,
             Destinations = destinations,
-            HealthyCount = 0,
-            UnknownCount = destinations.Count,
-            UnhealthyCount = 0,
+            HealthyCount = healthyCount,
+            UnknownCount = unknownCount,
+            UnhealthyCount = unhealthyCount,
             TotalCount = destinations.Count,
             Source = source,
             IsEditable = isEditable,
@@ -174,5 +181,18 @@ internal static class DashboardClusterMapper
             HalfOpenMaxAttempts = cb.HalfOpenMaxAttempts,
             FailureStatusCodes = cb.FailureStatusCodes
         };
+    }
+
+    /// <summary>
+    /// Resolves health status string based on YARP runtime health data.
+    /// If the health check type is not configured, returns "Unknown" (not monitored).
+    /// Otherwise returns the actual health status ("Healthy"/"Unhealthy") or "Unknown" if no data yet.
+    /// </summary>
+    private static string ResolveHealthStatus(string? yarpHealth, bool healthCheckConfigured)
+    {
+        if (!healthCheckConfigured)
+            return "Unknown";
+
+        return !string.IsNullOrWhiteSpace(yarpHealth) ? yarpHealth : "Unknown";
     }
 }
