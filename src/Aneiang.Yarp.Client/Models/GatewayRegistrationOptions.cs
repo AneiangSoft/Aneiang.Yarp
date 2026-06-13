@@ -73,4 +73,17 @@ public class GatewayRegistrationOptions
     /// Default: false.
     /// </summary>
     public bool? UseIpIsolation { get; set; }
+
+    /// <summary>
+    /// Enable periodic heartbeat to keep the registration alive on the gateway.
+    /// When disabled, the service still registers on startup but won't send heartbeat.
+    /// Default: true.
+    /// </summary>
+    public bool? HeartbeatEnabled { get; set; }
+
+    /// <summary>
+    /// Heartbeat interval in seconds. Must be between 5 and 3600.
+    /// Default: 30.
+    /// </summary>
+    public int? HeartbeatIntervalSeconds { get; set; }
 }

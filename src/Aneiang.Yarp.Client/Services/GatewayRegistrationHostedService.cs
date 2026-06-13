@@ -1,5 +1,7 @@
+using Aneiang.Yarp.Models;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Aneiang.Yarp.Services;
 
@@ -11,9 +13,14 @@ internal sealed class GatewayRegistrationHostedService : IHostedService
 {
     private readonly GatewayAutoRegistrationClient _client;
     private readonly ILogger<GatewayRegistrationHostedService> _logger;
+    private readonly GatewayRegistrationOptions _options;
     private Timer? _heartbeatTimer;
 
     private const int MaxRetries = 5;
+    private const int MinHeartbeatIntervalSeconds = 5;
+    private const int MaxHeartbeatIntervalSeconds = 3600;
+    private const int DefaultHeartbeatIntervalSeconds = 30;
+
     private static readonly TimeSpan[] RetryDelays =
     {
         TimeSpan.FromSeconds(2),
@@ -23,12 +30,14 @@ internal sealed class GatewayRegistrationHostedService : IHostedService
         TimeSpan.FromSeconds(30)
     };
 
-    private static readonly TimeSpan DefaultHeartbeatInterval = TimeSpan.FromSeconds(30);
-
-    public GatewayRegistrationHostedService(GatewayAutoRegistrationClient client, ILogger<GatewayRegistrationHostedService> logger)
+    public GatewayRegistrationHostedService(
+        GatewayAutoRegistrationClient client,
+        ILogger<GatewayRegistrationHostedService> logger,
+        IOptions<GatewayRegistrationOptions> options)
     {
         _client = client;
         _logger = logger;
+        _options = options.Value;
     }
 
     public async Task StartAsync(CancellationToken ct)
@@ -42,7 +51,7 @@ internal sealed class GatewayRegistrationHostedService : IHostedService
                 if (await _client.RegisterAsync(ct).ConfigureAwait(false))
                 {
                     _logger.LogInformation("Auto-registration complete");
-                    StartHeartbeat(ct);
+                    StartHeartbeatIfEnabled(ct);
                     return;
                 }
 
@@ -108,10 +117,39 @@ internal sealed class GatewayRegistrationHostedService : IHostedService
 
     /// <summary>
     /// Start periodic heartbeat to keep the registration alive.
+    /// Respects <see cref="GatewayRegistrationOptions.HeartbeatEnabled"/> and <see cref="GatewayRegistrationOptions.HeartbeatIntervalSeconds"/>.
     /// Gateway can detect stale registrations if heartbeat stops.
     /// </summary>
-    private void StartHeartbeat(CancellationToken ct)
+    private void StartHeartbeatIfEnabled(CancellationToken ct)
     {
+        var heartbeatEnabled = _options.HeartbeatEnabled ?? true;
+
+        if (!heartbeatEnabled)
+        {
+            _logger.LogInformation("Heartbeat disabled by configuration");
+            return;
+        }
+
+        var intervalSeconds = _options.HeartbeatIntervalSeconds ?? DefaultHeartbeatIntervalSeconds;
+
+        // Clamp to valid range
+        if (intervalSeconds < MinHeartbeatIntervalSeconds)
+        {
+            _logger.LogWarning(
+                "Heartbeat interval {Configured}s is below minimum {Min}s, using {Min}s",
+                intervalSeconds, MinHeartbeatIntervalSeconds, MinHeartbeatIntervalSeconds);
+            intervalSeconds = MinHeartbeatIntervalSeconds;
+        }
+        else if (intervalSeconds > MaxHeartbeatIntervalSeconds)
+        {
+            _logger.LogWarning(
+                "Heartbeat interval {Configured}s exceeds maximum {Max}s, using {Max}s",
+                intervalSeconds, MaxHeartbeatIntervalSeconds, MaxHeartbeatIntervalSeconds);
+            intervalSeconds = MaxHeartbeatIntervalSeconds;
+        }
+
+        var interval = TimeSpan.FromSeconds(intervalSeconds);
+
         _heartbeatTimer = new Timer(async _ =>
         {
             try
@@ -127,8 +165,8 @@ internal sealed class GatewayRegistrationHostedService : IHostedService
             {
                 _logger.LogWarning(ex, "Heartbeat failed");
             }
-        }, null, DefaultHeartbeatInterval, DefaultHeartbeatInterval);
+        }, null, interval, interval);
 
-        _logger.LogInformation("Heartbeat started (interval: {Interval}s)", DefaultHeartbeatInterval.TotalSeconds);
+        _logger.LogInformation("Heartbeat started (interval: {Interval}s)", interval.TotalSeconds);
     }
 }
