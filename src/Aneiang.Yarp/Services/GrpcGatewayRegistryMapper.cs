@@ -77,7 +77,7 @@ internal static class GrpcGatewayRegistryMapper
     {
         if (request.Paths.Count > 1)
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "gRPC registration for service {ServiceId} provided {PathCount} paths. Phase 1 keeps only the first path: {PrimaryPath}",
                 BuildRouteName(request),
                 request.Paths.Count,
@@ -86,7 +86,7 @@ internal static class GrpcGatewayRegistryMapper
 
         if (request.Destinations.Count > 1)
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "gRPC registration for service {ServiceId} provided {DestinationCount} destinations. Phase 1 keeps only the first valid destination.",
                 BuildRouteName(request),
                 request.Destinations.Count);

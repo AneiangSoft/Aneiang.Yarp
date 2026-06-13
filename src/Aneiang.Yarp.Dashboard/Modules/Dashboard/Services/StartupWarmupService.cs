@@ -166,7 +166,7 @@ public sealed class StartupWarmupService : IHostedService
                     _logger.LogWarning("Default notification rule seeded but no channels configured — history will be recorded; push requires at least one channel");
             }
 
-            _logger.LogInformation("NotificationRules warmup done ({RuleCount} rules, {ChannelCount} channels)", rules.Count, channels.Count);
+            _logger.LogDebug("NotificationRules warmup done ({RuleCount} rules, {ChannelCount} channels)", rules.Count, channels.Count);
         }
         catch (Exception ex)
         {

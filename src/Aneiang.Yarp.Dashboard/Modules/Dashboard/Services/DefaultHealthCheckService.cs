@@ -32,7 +32,7 @@ internal sealed class DefaultHealthCheckService : IHostedService
     {
         if (!_options.EnablePassiveHealthCheck)
         {
-            _logger.LogInformation("Default passive health check is disabled");
+            _logger.LogDebug("Default passive health check is disabled");
             return;
         }
 

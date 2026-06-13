@@ -128,7 +128,7 @@ public class WafSettingsPersistenceService : IWafSettingsPersistenceService
 
             await _repository.SaveWafSettingsAsync(entity, ct);
             _cachedData = data;
-            _logger.LogInformation("WAF settings saved to repository");
+            _logger.LogDebug("WAF settings saved to repository");
             return true;
         }
         catch (Exception ex)

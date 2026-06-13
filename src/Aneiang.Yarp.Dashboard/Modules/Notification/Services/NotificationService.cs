@@ -47,7 +47,7 @@ public sealed class NotificationService : INotificationService
     {
         _cachedSettings = await _repository.LoadSettingsAsync(ct);
         _cacheExpiry = DateTime.UtcNow.AddMinutes(5);
-        _logger.LogInformation("NotificationService preloaded");
+        _logger.LogDebug("NotificationService preloaded");
     }
 
     private async Task<NotificationSettingsEntity> GetSettingsAsync(CancellationToken ct)
@@ -99,7 +99,7 @@ public sealed class NotificationService : INotificationService
     {
         try
         {
-            _logger.LogInformation("[Notification] NotifyAsync called: {EventType}, severity={Severity}",
+            _logger.LogDebug("[Notification] NotifyAsync called: {EventType}, severity={Severity}",
                 evt.EventType, evt.Severity);
             var settings = await GetSettingsAsync(ct);
 
@@ -278,9 +278,9 @@ public sealed class NotificationService : INotificationService
                     var ok = await SendHttpRequestAsync(channel, payload, timeout, ct);
                     if (ok)
                     {
-                        _logger.LogInformation(
-                            "[Notification] Successfully sent event {EventType} to channel {ChannelName} (attempt {Attempt})",
-                            evt.EventType, channel.Name, attempt + 1);
+            _logger.LogDebug(
+                "[Notification] Successfully sent event {EventType} to channel {ChannelName} (attempt {Attempt})",
+                evt.EventType, channel.Name, attempt + 1);
                         return true;
                     }
 
@@ -381,7 +381,7 @@ public sealed class NotificationService : INotificationService
                 // DingTalk requires signature as URL query parameters
                 var separator = url.Contains('?') ? "&" : "?";
                 url = $"{url}{separator}timestamp={timestamp}&sign={sign}";
-                _logger.LogInformation(
+                _logger.LogDebug(
                     "[DingTalk] timestamp={Timestamp} sign={Sign} secretLen={SecretLen}",
                     timestamp, sign.Length > 8 ? sign[..8] + "..." : sign, channel.Secret.Length);
             }
@@ -391,14 +391,14 @@ public sealed class NotificationService : INotificationService
             }
         }
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "[Notification] Sending to channel {ChannelName} ({ChannelType}): POST {Url}",
             channel.Name, channel.Type, url);
 
         var response = await client.PostAsync(url, content, ct);
         var bodyText = await response.Content.ReadAsStringAsync(ct);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "[Notification] Response from {ChannelName}: HTTP {StatusCode} body={Body}",
             channel.Name, (int)response.StatusCode, bodyText);
 

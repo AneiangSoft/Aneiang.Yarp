@@ -31,7 +31,7 @@ internal sealed class ConfigChangeEventDispatcher : BackgroundService
         try { await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken); }
         catch (OperationCanceledException) { return; }
 
-        _logger.LogInformation("ConfigChangeEventDispatcher started — all services initialized");
+        _logger.LogDebug("ConfigChangeEventDispatcher started — all services initialized");
 
         while (!stoppingToken.IsCancellationRequested)
         {

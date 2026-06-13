@@ -95,7 +95,7 @@ public class GatewayPolicyService : IGatewayPolicyService
             : new();
 
         await _repository.SavePolicyAsync(policy.ToEntity());
-        _logger.LogInformation("Updated route policy '{PolicyId}'", policyId);
+        _logger.LogDebug("Updated route policy '{PolicyId}'", policyId);
 
         // Re-apply policy metadata to all bound routes
         foreach (var routeId in policy.AppliedRoutes)
@@ -137,7 +137,7 @@ public class GatewayPolicyService : IGatewayPolicyService
         {
             // When policy is disabled, remove its metadata from the route instead of skip
             await RemoveRoutePolicyMetadata(routeId);
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Route policy '{PolicyId}' is disabled, removed metadata from route '{RouteId}'",
                 policyId, routeId);
             return true;
@@ -153,7 +153,7 @@ public class GatewayPolicyService : IGatewayPolicyService
                 policy.AppliedRoutes.Add(routeId);
                 await _repository.SavePolicyAsync(policy.ToEntity());
             }
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Route policy '{PolicyId}' ({Name}) applied to route '{RouteId}'",
                 policyId, policy.DisplayName, routeId);
         }
@@ -174,7 +174,7 @@ public class GatewayPolicyService : IGatewayPolicyService
             await _repository.SavePolicyAsync(policy.ToEntity());
         }
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Route policy '{PolicyId}' unapplied from route '{RouteId}'",
             policyId, routeId);
         return true;

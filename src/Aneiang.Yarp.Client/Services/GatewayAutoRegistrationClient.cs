@@ -58,7 +58,7 @@ public class GatewayAutoRegistrationClient
     {
         if (!RegistrationOptionsResolver.IsEnabled(_options))
         {
-            _logger.LogInformation("Auto-registration disabled (no GatewayUrl configured)");
+            _logger.LogDebug("Auto-registration disabled (no GatewayUrl configured)");
             return false;
         }
 
@@ -78,7 +78,7 @@ public class GatewayAutoRegistrationClient
             return false;
         }
 
-        _logger.LogInformation("Registering: Route={RouteName}, Match={MatchPath}, Dest={DestAddress}, GW={GatewayUrl}",
+        _logger.LogDebug("Registering: Route={RouteName}, Match={MatchPath}, Dest={DestAddress}, GW={GatewayUrl}",
             routeName, matchPath, destinationAddress, gatewayUrl);
 
         if (transforms != null && transforms.Count > 0)
@@ -86,7 +86,7 @@ public class GatewayAutoRegistrationClient
 
         if (useIpIsolation)
         {
-            _logger.LogInformation("IP-based isolation enabled. Gateway will route based on client IP address.");
+            _logger.LogDebug("IP-based isolation enabled. Gateway will route based on client IP address.");
         }
 
         if (RegistrationOptionsResolver.GetAutoResolveIp(_options))

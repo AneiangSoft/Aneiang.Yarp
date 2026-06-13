@@ -249,7 +249,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
             // Persist cleaned config
             PersistConfigToRepositorySync();
 
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Synced {TotalRoutes} routes and {TotalClusters} clusters. Static route IDs: [{StaticRoutes}], Static cluster IDs: [{StaticClusters}]",
                 _dynamicConfig?.Routes.Count ?? 0,
                 _dynamicConfig?.Clusters.Count ?? 0,
@@ -482,13 +482,13 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
                     Metadata = existingMetadata
                 };
                 isNew = false;
-                _logger.LogInformation("Route '{RouteName}' exists, updating", request.RouteName);
+                _logger.LogDebug("Route '{RouteName}' exists, updating", request.RouteName);
             }
             else
             {
                 newRoutes.Add(routeConfig);
                 isNew = true;
-                _logger.LogInformation("Route '{RouteName}' is new, adding", request.RouteName);
+                _logger.LogDebug("Route '{RouteName}' is new, adding", request.RouteName);
             }
 
             // Cluster: create or update
@@ -753,7 +753,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
                         }
 
                         saveNeeded = true;
-                        _logger.LogInformation(
+                        _logger.LogDebug(
                             "IP isolation: removed destination '{DestKey}' from cluster '{ClusterId}' (client IP: {ClientIp})",
                             destKey, clusterId, clientIp);
                         return new RouteOperationResult(true,
@@ -986,7 +986,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
             });
 
             saveNeeded = true;
-            _logger.LogInformation("Cluster '{ClusterId}' created with {DestCount} destinations",
+            _logger.LogDebug("Cluster '{ClusterId}' created with {DestCount} destinations",
                 request.ClusterId, request.Destinations.Count);
             _auditLog.RecordSuccess("AddCluster", request.ClusterId, createdBy, null, null,
                 new { destinations = request.Destinations, loadBalancingPolicy = request.LoadBalancingPolicy });
@@ -1190,7 +1190,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
             }
 
             saveNeeded = true;
-            _logger.LogInformation("Cluster '{ClusterId}' updated", clusterId);
+            _logger.LogDebug("Cluster '{ClusterId}' updated", clusterId);
             _auditLog.RecordSuccess("UpdateCluster", clusterId, null, null, null,
                 new { destinations = request.Destinations, loadBalancingPolicy = request.LoadBalancingPolicy });
             return new RouteOperationResult(true, $"Cluster '{clusterId}' updated successfully");
@@ -1604,7 +1604,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
 
             ApplyDynamicConfigToYarp();
 
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Updated metadata for route '{RouteId}': {Keys}",
                 routeId, string.Join(", ", metadata.Keys));
         }
@@ -1649,7 +1649,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
 
             ApplyDynamicConfigToYarp();
 
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Updated circuit breaker config for cluster '{ClusterId}': Enabled={Enabled}",
                 clusterId, config?.Enabled ?? false);
         }

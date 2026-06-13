@@ -27,7 +27,7 @@ public sealed class NotificationWarmupService : IHostedService
             using var scope = _serviceProvider.CreateScope();
             var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
             await notificationService.PreloadAsync(ct);
-            _logger.LogInformation("Notification service warmup completed");
+            _logger.LogDebug("Notification service warmup completed");
         }
         catch (Exception ex)
         {

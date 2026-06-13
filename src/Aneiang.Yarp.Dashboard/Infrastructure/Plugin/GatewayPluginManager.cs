@@ -66,7 +66,7 @@ public class GatewayPluginManager : IGatewayPluginManager
                 _enabledPlugins[plugin.PluginId] = true;
             }
 
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Plugin '{PluginName}' v{Version} ({PluginId}) registered, enabled: {Enabled}",
                 plugin.DisplayName, plugin.Version, plugin.PluginId,
                 _enabledPlugins[plugin.PluginId]);
