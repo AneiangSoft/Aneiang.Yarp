@@ -22,7 +22,7 @@ Dashboard · Dynamic Routing · WAF · Notifications · IP Isolation · Auto-Reg
 
 > **Docs**：https://yarp.aneiang.com/aneiang
 
-> **Live Demo**: http://47.97.229.51:5200/aneiang &nbsp;·&nbsp; `admin` / `demo123`
+> **Live Demo**: https://yarp-test.aneiang.com/aneiang &nbsp;·&nbsp; `admin` / `demo123`
 
 ---
 
