@@ -645,22 +645,13 @@
             value = document.getElementById(modalId + '-textarea')?.value || '';
         }
 
-        if (window.DashboardUtils?.copyToClipboard) {
-            window.DashboardUtils.copyToClipboard(value).then(function(success) {
-                if (success) {
-                    DashboardModals.showSuccess(window.__('modal.copied'));
-                } else {
-                    DashboardModals.showError(window.__('modal.copyFailed'));
-                }
-            });
-        } else {
-            // Fallback
-            navigator.clipboard.writeText(value).then(function() {
+        window.DashboardUtils.copyToClipboard(value).then(function(success) {
+            if (success) {
                 DashboardModals.showSuccess(window.__('modal.copied'));
-            }).catch(function() {
+            } else {
                 DashboardModals.showError(window.__('modal.copyFailed'));
-            });
-        }
+            }
+        });
     };
 
     // ===== Helper: Format JSON =====

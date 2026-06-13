@@ -114,8 +114,8 @@
         },
 
         copyVersionId: function(versionId) {
-            navigator.clipboard.writeText(versionId).then(() => {
-                if (window.DashboardModals) window.DashboardModals.showSuccess(__('index.copied'));
+            window.DashboardUtils.copyToClipboard(versionId).then((success) => {
+                if (success && window.DashboardModals) window.DashboardModals.showSuccess(__('index.copied'));
             });
         },
 

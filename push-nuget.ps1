@@ -61,6 +61,7 @@ if (Test-Path $ArtifactsDir) {
 # Build src projects (pack generates nupkg directly)
 $Projects = @(
     "src\Aneiang.Yarp\Aneiang.Yarp.csproj",
+    "src\Aneiang.Yarp.Client\Aneiang.Yarp.Client.csproj",
     "src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj"
 )
 

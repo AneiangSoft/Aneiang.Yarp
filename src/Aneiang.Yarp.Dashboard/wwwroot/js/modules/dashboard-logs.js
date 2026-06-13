@@ -1148,7 +1148,14 @@
         // ===== Copy Log Entry =====
         copyLogEntry: function(entry, btnElement) {
             const text = JSON.stringify(entry, null, 2);
-            navigator.clipboard.writeText(text).then(() => {
+            window.DashboardUtils.copyToClipboard(text).then((success) => {
+                if (!success) {
+                    console.error('[Logs] Failed to copy');
+                    if (window.DashboardModals) {
+                        window.DashboardModals.showError(__('index.copyFailed'));
+                    }
+                    return;
+                }
                 // Visual feedback - same pattern as clusters/routes copy button
                 if (btnElement) {
                     const icon = btnElement.querySelector('i');
@@ -1163,11 +1170,6 @@
                 }
                 if (window.DashboardModals) {
                     window.DashboardModals.showSuccess(__('index.copied'));
-                }
-            }).catch(err => {
-                console.error('[Logs] Failed to copy:', err);
-                if (window.DashboardModals) {
-                    window.DashboardModals.showError(__('index.copyFailed'));
                 }
             });
         },
