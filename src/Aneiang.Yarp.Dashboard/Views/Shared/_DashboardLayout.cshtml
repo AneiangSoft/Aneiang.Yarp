@@ -799,6 +799,7 @@
             border-radius: 12px;
             font-size: 12px;
             font-weight: 600;
+            white-space: nowrap;
         }
         .priority-badge.priority-high {
             background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
@@ -2482,8 +2483,7 @@
                         new { Key = "stats", Title = isEn ? "Statistics" : "访问统计", Icon = "bi-bar-chart-line", Path = $"/{prefix}/stats", Conditional = false },
                         new { Key = "logs", Title = isEn ? "Logs" : "日志", Icon = "bi-journal-text", Path = $"/{prefix}/logs", Conditional = true },
                         new { Key = "circuits", Title = isEn ? "Circuits" : "熔断状态", Icon = "bi-lightning-charge", Path = $"/{prefix}/circuits", Conditional = false },
-                        new { Key = "alerts", Title = isEn ? "Alerts" : "告警中心", Icon = "bi-bell", Path = $"/{prefix}/alerts", Conditional = false },
-                        new { Key = "notifications", Title = isEn ? "Notifications" : "通知设置", Icon = "bi-megaphone", Path = $"/{prefix}/notifications", Conditional = false },
+                        new { Key = "notifications", Title = isEn ? "Notification Center" : "通知中心", Icon = "bi-bell", Path = $"/{prefix}/notifications", Conditional = false },
                         new { Key = "healthcheck", Title = isEn ? "Health Check" : "健康检查", Icon = "bi-heart-pulse", Path = $"/{prefix}/healthcheck", Conditional = false }
                     }
                 },
@@ -2592,8 +2592,7 @@
                 {"stats", pgIsEn ? "Statistics" : "访问统计"},
                 {"logs", pgIsEn ? "Logs" : "日志"},
                 {"circuits", pgIsEn ? "Circuit Breaker" : "熔断状态"},
-                {"alerts", pgIsEn ? "Alert Center" : "告警中心"},
-                {"notifications", pgIsEn ? "Notification Settings" : "通知设置"},
+                {"notifications", pgIsEn ? "Notification Center" : "通知中心"},
                 {"healthcheck", pgIsEn ? "Health Check" : "健康检查"},
                 {"security", pgIsEn ? "Security Events" : "安全事件"},
                 {"waf", pgIsEn ? "WAF Firewall" : "WAF 防火墙"},
@@ -2611,8 +2610,7 @@
                 {"stats", "bi-bar-chart-line"},
                 {"logs", "bi-journal-text"},
                 {"circuits", "bi-lightning-charge"},
-                {"alerts", "bi-bell"},
-                {"notifications", "bi-megaphone"},
+                {"notifications", "bi-bell"},
                 {"healthcheck", "bi-heart-pulse"},
                 {"security", "bi-shield-lock"},
                 {"waf", "bi-shield-lock"},
@@ -2627,7 +2625,7 @@
             var parentGroup = "";
             if (new[] { "clusters", "routes" }.Contains(pgName)) parentGroup = pgIsEn ? "Gateway" : "网关管理";
             if (pgName == "overview") parentGroup = "";
-            if (new[] { "stats", "logs", "circuits", "alerts", "notifications", "healthcheck" }.Contains(pgName)) parentGroup = pgIsEn ? "Monitoring" : "监控运维";
+            if (new[] { "stats", "logs", "circuits", "notifications", "healthcheck" }.Contains(pgName)) parentGroup = pgIsEn ? "Monitoring" : "监控运维";
             if (new[] { "security", "waf", "policies", "plugins" }.Contains(pgName)) parentGroup = pgIsEn ? "Security" : "安全策略";
             if (new[] { "history", "audit", "settings" }.Contains(pgName)) parentGroup = pgIsEn ? "System" : "系统管理";
 
@@ -2880,7 +2878,6 @@
     <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-config.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-operations.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-circuits.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-alerts.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-security.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-notifications.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-healthcheck.js?v=@v"></script>

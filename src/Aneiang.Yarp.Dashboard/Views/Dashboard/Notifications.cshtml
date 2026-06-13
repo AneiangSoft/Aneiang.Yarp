@@ -1,6 +1,6 @@
 @using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
 @{
-    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Notifications" : "通知中心";
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Notification Center" : "通知中心";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
@@ -19,28 +19,6 @@
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="stat-card" id="notif-stat-error">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #ef4444, #f87171);">
-                    <i class="bi bi-exclamation-circle-fill"></i>
-                </div>
-                <div class="stat-info">
-                    <div class="stat-value text-danger" id="notif-error-count">-</div>
-                    <div class="stat-label" data-i18n="notif.errors">错误</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card" id="notif-stat-warning">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">
-                    <i class="bi bi-exclamation-triangle-fill"></i>
-                </div>
-                <div class="stat-info">
-                    <div class="stat-value text-warning" id="notif-warning-count">-</div>
-                    <div class="stat-label" data-i18n="notif.warnings">警告</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
             <div class="stat-card" id="notif-stat-channels">
                 <div class="stat-icon" style="background: linear-gradient(135deg, #10b981, #34d399);">
                     <i class="bi bi-megaphone-fill"></i>
@@ -48,6 +26,28 @@
                 <div class="stat-info">
                     <div class="stat-value" id="notif-channel-count">-</div>
                     <div class="stat-label" data-i18n="notif.channels">渠道</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card" id="notif-stat-rules">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">
+                    <i class="bi bi-filter-circle-fill"></i>
+                </div>
+                <div class="stat-info">
+                    <div class="stat-value" id="notif-rules-count">-</div>
+                    <div class="stat-label" data-i18n="notif.rules">规则</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card" id="notif-stat-last">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #8b5cf6, #a78bfa);">
+                    <i class="bi bi-clock-fill"></i>
+                </div>
+                <div class="stat-info">
+                    <div class="stat-value small" id="notif-last-event" style="font-size:13px;">-</div>
+                    <div class="stat-label" data-i18n="notif.lastEvent">最近事件</div>
                 </div>
             </div>
         </div>
@@ -79,23 +79,26 @@
             <div class="tab-content active" data-tab-content="history" role="tabpanel">
                 <div class="tab-toolbar">
                     <div class="filter-group">
-                        <select class="form-select form-select-sm" id="notif-type-filter" style="width:150px;">
+                        <select class="form-select form-select-sm" id="notif-type-filter" style="width:170px;">
                             <option value="" data-i18n="notif.filter.allTypes">所有类型</option>
-                            <option value="CircuitBreakerOpen">CircuitBreakerOpen</option>
-                            <option value="RetryExhausted">RetryExhausted</option>
-                            <option value="WafBlock">WafBlock</option>
-                            <option value="ProxyError">ProxyError</option>
-                            <option value="RateLimitExceeded">RateLimitExceeded</option>
-                            <option value="TestNotification">TestNotification</option>
                         </select>
-                        <select class="form-select form-select-sm" id="notif-severity-filter" style="width:120px;">
-                            <option value="" data-i18n="notif.filter.allLevels">所有级别</option>
-                            <option value="Error">Error</option>
-                            <option value="Warning">Warning</option>
-                            <option value="Info">Info</option>
+                        <input type="text" class="form-control form-control-sm" id="notif-keyword-filter" placeholder="搜索关键词..." style="width:180px;" onkeyup="NotificationModule.onKeywordChange(event)">
+                        <input type="date" class="form-control form-control-sm" id="notif-date-start" style="width:140px;" onchange="NotificationModule.applyFilters()" title="开始日期">
+                        <input type="date" class="form-control form-control-sm" id="notif-date-end" style="width:140px;" onchange="NotificationModule.applyFilters()" title="结束日期">
+                        <select class="form-select form-select-sm" id="notif-page-size" style="width:100px;" onchange="NotificationModule.onPageSizeChange()">
+                            <option value="25">25条/页</option>
+                            <option value="50" selected>50条/页</option>
+                            <option value="100">100条/页</option>
                         </select>
                     </div>
                     <div class="action-group">
+                        <span class="text-muted small me-2" id="notif-result-info" style="align-self:center;"></span>
+                        <button class="btn btn-sm btn-outline-success" onclick="NotificationModule.generateTestEntry()" title="生成测试记录">
+                            <i class="bi bi-lightning-fill"></i> <span data-i18n="notif.genTest">生成测试</span>
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" onclick="NotificationModule.testNotification()" title="测试通知">
+                            <i class="bi bi-send"></i> <span data-i18n="notif.test">测试通知</span>
+                        </button>
                         <button class="btn btn-sm btn-outline-danger" onclick="NotificationModule.clearHistory()" title="清空">
                             <i class="bi bi-trash"></i> <span data-i18n="notif.clear">清空</span>
                         </button>
@@ -198,86 +201,112 @@
     </div>
 </div>
 
-<!-- Rule Modal -->
+<!-- Rule Modal (Redesigned) -->
 <div class="modal fade" id="rule-modal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="rule-modal-title" data-i18n="notif.ruleModal.title">添加通知规则</h5>
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h5 class="modal-title fw-bold" id="rule-modal-title" data-i18n="notif.ruleModal.title">添加通知规则</h5>
+                    <p class="text-muted small mt-1 mb-0" data-i18n="notif.ruleModal.desc">配置事件过滤规则，决定哪些通知需要发送和记录</p>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body pt-3">
                 <input type="hidden" id="rule-id">
+
+                <!-- ── Quick Presets ── -->
+                <div class="rule-presets mb-4">
+                    <label class="form-label fw-semibold"><i class="bi bi-lightning-fill me-1" style="color:#f59e0b;"></i>快捷预设</label>
+                    <div class="preset-buttons">
+                        <button type="button" class="preset-btn" onclick="NotificationModule._applyPreset('all')" title="勾选所有事件类型">
+                            <i class="bi bi-bell-fill"></i> 全部事件
+                        </button>
+                        <button type="button" class="preset-btn" onclick="NotificationModule._applyPreset('config')" title="勾选路由/集群增删改及回滚事件">
+                            <i class="bi bi-gear-fill"></i> 配置变更
+                        </button>
+                        <button type="button" class="preset-btn" onclick="NotificationModule._applyPreset('runtime')" title="勾选熔断/WAF/限流/重试/代理错误事件">
+                            <i class="bi bi-exclamation-triangle-fill"></i> 运行时告警
+                        </button>
+                        <button type="button" class="preset-btn" onclick="NotificationModule._applyPreset('test')" title="仅勾选测试通知事件">
+                            <i class="bi bi-send-fill"></i> 测试事件
+                        </button>
+                    </div>
+                </div>
+
                 <div class="row g-3">
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label" data-i18n="notif.ruleModal.name">规则名称</label>
-                            <input type="text" class="form-control" id="rule-name" placeholder="Critical Alerts">
+                    <!-- Left Column -->
+                    <div class="col-md-7">
+                        <!-- ── Basic Info ── -->
+                        <div class="card-panel p-3 mb-3" style="background:#fff; border:1px solid #e2e8f0; border-radius:12px;">
+                            <label class="form-label fw-semibold"><i class="bi bi-info-circle-fill me-1" style="color:#6366f1;"></i>基本信息</label>
+                            <div class="mb-3">
+                                <label class="form-label small text-muted">规则名称 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="rule-name" placeholder="例如: 生产环境告警">
+                                <div class="form-text small">为规则起一个易于识别的名称</div>
+                            </div>
+                        </div>
+
+                        <!-- ── Event Types ── -->
+                        <div class="card-panel p-3 mb-3" style="background:#fff; border:1px solid #e2e8f0; border-radius:12px;">
+                            <label class="form-label fw-semibold">
+                                <i class="bi bi-tags-fill me-1" style="color:#8b5cf6;"></i>事件类型
+                                <span class="text-muted small fw-normal" data-i18n="notif.ruleModal.eventsHint">（留空 = 匹配全部，规则将对所有事件生效）</span>
+                            </label>
+                            <div class="event-types-grid" id="rule-event-types"></div>
+                            <div class="form-text small mt-2"><i class="bi bi-info-circle me-1"></i>勾选特定事件类型可精确控制规则匹配范围，未勾选任何类型表示匹配全部事件</div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label" data-i18n="notif.ruleModal.severity">最低严重级别</label>
-                            <select class="form-select" id="rule-severity">
-                                <option value="Info">Info</option>
-                                <option value="Warning">Warning</option>
-                                <option value="Error">Error</option>
-                                <option value="Critical">Critical</option>
-                            </select>
+
+                    <!-- Right Column -->
+                    <div class="col-md-5">
+                        <!-- ── Notification Channels ── -->
+                        <div class="card-panel p-3 mb-3" style="background:#fff; border:1px solid #e2e8f0; border-radius:12px;">
+                            <label class="form-label fw-semibold">
+                                <i class="bi bi-megaphone-fill me-1" style="color:#10b981;"></i>通知渠道
+                                <span class="text-danger">*</span>
+                            </label>
+                            <div id="rule-channel-select" class="channel-select-grid"></div>
+                            <div class="text-muted small mt-2" id="rule-channel-hint" data-i18n="notif.ruleModal.channelsHint">选择至少一个渠道，通知才会被推送；请先在「通知渠道」Tab 中添加渠道</div>
                         </div>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" data-i18n="notif.ruleModal.events">事件类型 (留空表示全部)</label>
-                    <div class="event-types-grid" id="rule-event-types">
-                        <label class="event-type-item">
-                            <input type="checkbox" value="CircuitBreakerOpen"> CircuitBreakerOpen
-                        </label>
-                        <label class="event-type-item">
-                            <input type="checkbox" value="RetryExhausted"> RetryExhausted
-                        </label>
-                        <label class="event-type-item">
-                            <input type="checkbox" value="WafBlock"> WafBlock
-                        </label>
-                        <label class="event-type-item">
-                            <input type="checkbox" value="ProxyError"> ProxyError
-                        </label>
-                        <label class="event-type-item">
-                            <input type="checkbox" value="RateLimitExceeded"> RateLimitExceeded
-                        </label>
-                        <label class="event-type-item">
-                            <input type="checkbox" value="ConfigChange"> ConfigChange
-                        </label>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" data-i18n="notif.ruleModal.channels">通知渠道</label>
-                    <div id="rule-channel-select" class="channel-select-grid"></div>
-                </div>
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label" data-i18n="notif.ruleModal.cooldown">冷却时间 (秒)</label>
-                            <input type="number" class="form-control" id="rule-cooldown" value="300" min="0" max="3600">
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label" data-i18n="notif.ruleModal.record">记录到历史</label>
-                            <div class="form-check form-switch">
-                                <input type="checkbox" class="form-check-input" id="rule-record" checked>
+
+                        <!-- ── Behavior Settings ── -->
+                        <div class="card-panel p-3 mb-3" style="background:#fff; border:1px solid #e2e8f0; border-radius:12px;">
+                            <label class="form-label fw-semibold"><i class="bi bi-sliders me-1" style="color:#f59e0b;"></i>行为设置</label>
+                            <div class="mb-3">
+                                <label class="form-label small text-muted">冷却时间</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="rule-cooldown" value="300" min="0" max="3600">
+                                    <span class="input-group-text">秒</span>
+                                </div>
+                                <div class="form-text small"><i class="bi bi-info-circle me-1"></i>相同事件在冷却时间内不会重复发送，0 表示无冷却。建议 60-600 秒</div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <label class="form-label small text-muted mb-0">记录到通知历史</label>
+                                    <div class="form-text small">关闭后事件仅推送，不保存历史</div>
+                                </div>
+                                <div class="form-check form-switch mb-0">
+                                    <input type="checkbox" class="form-check-input" id="rule-record" checked>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <label class="form-label small text-muted mb-0">启用规则</label>
+                                </div>
+                                <div class="form-check form-switch mb-0">
+                                    <input type="checkbox" class="form-check-input" id="rule-enabled" checked>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="form-check">
-                    <input type="checkbox" class="form-check-input" id="rule-enabled" checked>
-                    <label class="form-check-label" for="rule-enabled" data-i18n="notif.ruleModal.enabled">启用规则</label>
-                </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="notif.cancel">取消</button>
-                <button type="button" class="btn btn-primary" onclick="NotificationModule.saveRule()" data-i18n="notif.save">保存</button>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal" data-i18n="notif.cancel">取消</button>
+                <button type="button" class="btn btn-primary px-4" onclick="NotificationModule.saveRule()">
+                    <i class="bi bi-check-lg me-1"></i> <span data-i18n="notif.save">保存规则</span>
+                </button>
             </div>
         </div>
     </div>
@@ -293,6 +322,7 @@
         gap: 16px;
         border: 1px solid #e2e8f0;
         transition: transform 0.2s, box-shadow 0.2s;
+        height: 100%;
     }
     .stat-card:hover {
         transform: translateY(-2px);
@@ -648,28 +678,99 @@
 
     .event-types-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-        gap: 8px;
+        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+        gap: 6px;
     }
     .event-type-item {
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 10px 12px;
+        padding: 9px 12px;
         background: #f8fafc;
         border: 1px solid #e2e8f0;
         border-radius: 8px;
         cursor: pointer;
         font-size: 13px;
         color: #475569;
-        transition: all 0.2s;
+        transition: all 0.15s;
+        user-select: none;
     }
     .event-type-item:hover {
-        border-color: #3b82f6;
-        background: #eff6ff;
+        border-color: #818cf8;
+        background: #eef2ff;
+        transform: translateY(-1px);
+    }
+    .event-type-item:has(input:checked) {
+        border-color: #6366f1;
+        background: #eef2ff;
+        color: #4338ca;
+        font-weight: 500;
+        box-shadow: 0 0 0 1px rgba(99,102,241,0.2);
     }
     .event-type-item input {
         margin: 0;
+        accent-color: #6366f1;
+    }
+    .event-type-select-all {
+        grid-column: 1 / -1;
+        background: #f1f5f9;
+        font-weight: 600;
+        border-style: dashed;
+    }
+    .event-type-select-all:hover {
+        background: #e2e8f0;
+        border-color: #6366f1;
+    }
+    .event-type-group-label {
+        grid-column: 1 / -1;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: #94a3b8;
+        padding: 6px 4px 2px;
+        margin-top: 4px;
+        letter-spacing: 0.5px;
+    }
+    .event-type-group-label:first-of-type {
+        margin-top: 0;
+    }
+
+    /* ── Preset Buttons ── */
+    .rule-presets {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 14px 16px;
+    }
+    .preset-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+    }
+    .preset-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 14px;
+        border: 1px solid #cbd5e1;
+        background: #fff;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 500;
+        color: #475569;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .preset-btn:hover {
+        border-color: #6366f1;
+        color: #4338ca;
+        background: #eef2ff;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(99,102,241,0.15);
+    }
+    .preset-btn i {
+        font-size: 14px;
     }
     .channel-select-grid {
         display: grid;
@@ -690,6 +791,11 @@
     .channel-select-item:hover {
         border-color: #3b82f6;
         background: #eff6ff;
+    }
+
+    /* History result info */
+    #notif-result-info {
+        white-space: nowrap;
     }
 </style>
 

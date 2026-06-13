@@ -6,7 +6,7 @@ namespace Aneiang.Yarp.Storage;
 /// </summary>
 public interface IGatewayRepository : IRouteRepository, IClusterRepository,
     IConfigHistoryRepository, IPolicyRepository, IAuditLogRepository,
-    IWebhookSettingsRepository, IWafSettingsRepository, IProxyLogRepository, INotificationRepository, IAsyncDisposable, IDisposable
+    IWafSettingsRepository, IProxyLogRepository, INotificationRepository, IAsyncDisposable, IDisposable
 {
     /// <summary>Initialize database schema (create tables, indexes, etc.).</summary>
     Task InitializeAsync(CancellationToken ct = default);

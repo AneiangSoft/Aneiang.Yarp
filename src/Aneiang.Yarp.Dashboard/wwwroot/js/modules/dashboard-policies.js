@@ -103,30 +103,47 @@
                 return;
             }
 
+            // Sort newest first
+            policies.sort(function(a, b) {
+                return (b.createdAt || '').localeCompare(a.createdAt || '');
+            });
+
             var rows = policies.map(function(policy) {
                 var enabledBadge = policy.enabled
                     ? '<span class="badge bg-success">' + __('policy.enabled') + '</span>'
                     : '<span class="badge bg-secondary">' + __('policy.disabled') + '</span>';
-                var features = [];
-                if (policy.retry && policy.retry.enabled) features.push(__('policy.retry'));
-                if (policy.rateLimit && policy.rateLimit.enabled) features.push(__('policy.rateLimit'));
-                if (policy.wafEnabled === true) features.push(__('policy.wafOn'));
-                else if (policy.wafEnabled === false) features.push(__('policy.wafOff'));
-                var featureBadges = features.length > 0
-                    ? features.map(function(f) { return '<span class="badge bg-light text-dark border me-1">' + window.DashboardUtils.escapeHtml(f) + '</span>'; }).join('')
-                    : '<span class="text-muted">-</span>';
+                // Enhanced features with detail
+                var featureParts = [];
+                var retry = policy.retry || {};
+                if (retry.enabled) featureParts.push('<span class="badge bg-warning text-dark me-1" title="' + __('policy.retry') + '">&#x21BA; ' + (retry.maxRetries || 0) + '</span>');
+                var rl = policy.rateLimit || {};
+                if (rl.enabled) {
+                    var rlLabel = rl.permitLimit ? (rl.permitLimit + '/' + (rl.window || '1s')) : __('policy.rateLimit');
+                    featureParts.push('<span class="badge bg-info text-dark me-1" title="' + __('policy.rateLimit') + '">&#x23F3; ' + window.DashboardUtils.escapeHtml(rlLabel) + '</span>');
+                }
+                var wafLabel, wafClass;
+                if (policy.wafEnabled === true) { wafLabel = __('policy.wafOn'); wafClass = 'bg-danger'; }
+                else if (policy.wafEnabled === false) { wafLabel = __('policy.wafOff'); wafClass = 'bg-secondary'; }
+                else { wafLabel = __('policy.wafAuto'); wafClass = 'bg-light text-dark border'; }
+                featureParts.push('<span class="badge ' + wafClass + ' me-1">&#x1F6E1; ' + window.DashboardUtils.escapeHtml(wafLabel) + '</span>');
+
+                var featureHtml = featureParts.join('');
                 var createdAt = policy.createdAt ? window.DashboardI18n.formatDate(policy.createdAt) : '-';
                 var routeCount = (policy.appliedRoutes && policy.appliedRoutes.length) || 0;
-                var toggleIcon = policy.enabled ? 'bi-toggle-on text-success' : 'bi-toggle-off text-secondary';
+                // Truncated description with tooltip
+                var desc = policy.description || '';
+                var descDisplay = desc.length > 40 ? desc.substring(0, 40) + '...' : (desc || '-');
+                var descAttr = desc ? ' title="' + window.DashboardUtils.escapeHtml(desc) + '"' : '';
 
-                return '<tr class="align-middle">' +
+                return '<tr class="align-middle policy-row">' +
                     '<td><code>' + window.DashboardUtils.escapeHtml(policy.policyId) + '</code></td>' +
-                    '<td>' + window.DashboardUtils.escapeHtml(policy.displayName || '-') + '</td>' +
+                    '<td><strong>' + window.DashboardUtils.escapeHtml(policy.displayName || '-') + '</strong></td>' +
+                    '<td class="text-muted small" style="max-width:180px"' + descAttr + '>' + window.DashboardUtils.escapeHtml(descDisplay) + '</td>' +
                     '<td>' + enabledBadge + '</td>' +
-                    '<td><div class="d-flex flex-wrap gap-1">' + featureBadges + '</div></td>' +
+                    '<td><div class="d-flex flex-wrap gap-1">' + featureHtml + '</div></td>' +
                     '<td class="text-center"><span class="badge bg-info">' + routeCount + '</span></td>' +
-                    '<td class="text-muted small">' + createdAt + '</td>' +
-                    '<td>' +
+                    '<td class="text-muted small" style="white-space:nowrap">' + createdAt + '</td>' +
+                    '<td style="white-space:nowrap">' +
                         '<button class="btn btn-sm btn-outline-secondary me-1" onclick="PolicyModule.openApplyModal(\'route\',\'' + window.DashboardUtils.escapeHtml(policy.policyId) + '\')" title="' + __('policy.apply') + '"><i class="bi bi-link-45deg"></i></button>' +
                         '<button class="btn btn-sm btn-outline-primary me-1" onclick="PolicyModule.openEditModal(\'route\',\'' + window.DashboardUtils.escapeHtml(policy.policyId) + '\')" title="' + __('policy.edit') + '"><i class="bi bi-pencil"></i></button>' +
                         '<button class="btn btn-sm btn-outline-danger" onclick="PolicyModule.deletePolicy(\'route\',\'' + window.DashboardUtils.escapeHtml(policy.policyId) + '\')" title="' + __('policy.delete') + '"><i class="bi bi-trash"></i></button>' +
@@ -136,10 +153,11 @@
 
             container.innerHTML =
                 '<div class="table-responsive">' +
-                    '<table class="table table-hover align-middle">' +
-                        '<thead><tr>' +
+                    '<table class="table table-hover align-middle policy-table">' +
+                        '<thead class="table-light"><tr>' +
                             '<th>' + __('policy.name') + '</th>' +
                             '<th>' + __('policy.displayName') + '</th>' +
+                            '<th>' + __('policy.description') + '</th>' +
                             '<th>' + __('policy.status') + '</th>' +
                             '<th>' + __('policy.features') + '</th>' +
                             '<th class="text-center">' + __('policy.appliedRoutes') + '</th>' +
@@ -166,25 +184,41 @@
                 return;
             }
 
+            // Sort newest first
+            policies.sort(function(a, b) {
+                return (b.createdAt || '').localeCompare(a.createdAt || '');
+            });
+
             var rows = policies.map(function(policy) {
                 var enabledBadge = policy.enabled
                     ? '<span class="badge bg-success">' + __('policy.enabled') + '</span>'
                     : '<span class="badge bg-secondary">' + __('policy.disabled') + '</span>';
                 var cb = policy.circuitBreaker || {};
-                var cbSummary = cb.enabled !== false
-                    ? (cb.failureThreshold || 5) + '/' + (cb.recoveryTimeoutSeconds || 30) + 's'
-                    : __('policy.disabled');
+                var cbEnabled = cb.enabled !== false;
+                var cbSummary;
+                if (cbEnabled) {
+                    var threshold = cb.failureThreshold || 5;
+                    var recovery = cb.recoveryTimeoutSeconds || 30;
+                    cbSummary = '<span class="badge bg-warning text-dark" title="' + __('policy.circuitBreaker') + '">&#x26A1; ' + threshold + '次 / ' + recovery + 's恢复</span>';
+                } else {
+                    cbSummary = '<span class="badge bg-light text-muted border">' + __('policy.disabled') + '</span>';
+                }
                 var createdAt = policy.createdAt ? window.DashboardI18n.formatDate(policy.createdAt) : '-';
                 var clusterCount = (policy.appliedClusters && policy.appliedClusters.length) || 0;
+                // Truncated description with tooltip
+                var desc = policy.description || '';
+                var descDisplay = desc.length > 40 ? desc.substring(0, 40) + '...' : (desc || '-');
+                var descAttr = desc ? ' title="' + window.DashboardUtils.escapeHtml(desc) + '"' : '';
 
-                return '<tr class="align-middle">' +
+                return '<tr class="align-middle policy-row">' +
                     '<td><code>' + window.DashboardUtils.escapeHtml(policy.policyId) + '</code></td>' +
-                    '<td>' + window.DashboardUtils.escapeHtml(policy.displayName || '-') + '</td>' +
+                    '<td><strong>' + window.DashboardUtils.escapeHtml(policy.displayName || '-') + '</strong></td>' +
+                    '<td class="text-muted small" style="max-width:180px"' + descAttr + '>' + window.DashboardUtils.escapeHtml(descDisplay) + '</td>' +
                     '<td>' + enabledBadge + '</td>' +
-                    '<td><code>' + window.DashboardUtils.escapeHtml(cbSummary) + '</code></td>' +
+                    '<td>' + cbSummary + '</td>' +
                     '<td class="text-center"><span class="badge bg-info">' + clusterCount + '</span></td>' +
-                    '<td class="text-muted small">' + createdAt + '</td>' +
-                    '<td>' +
+                    '<td class="text-muted small" style="white-space:nowrap">' + createdAt + '</td>' +
+                    '<td style="white-space:nowrap">' +
                         '<button class="btn btn-sm btn-outline-secondary me-1" onclick="PolicyModule.openApplyModal(\'cluster\',\'' + window.DashboardUtils.escapeHtml(policy.policyId) + '\')" title="' + __('policy.apply') + '"><i class="bi bi-link-45deg"></i></button>' +
                         '<button class="btn btn-sm btn-outline-primary me-1" onclick="PolicyModule.openEditModal(\'cluster\',\'' + window.DashboardUtils.escapeHtml(policy.policyId) + '\')" title="' + __('policy.edit') + '"><i class="bi bi-pencil"></i></button>' +
                         '<button class="btn btn-sm btn-outline-danger" onclick="PolicyModule.deletePolicy(\'cluster\',\'' + window.DashboardUtils.escapeHtml(policy.policyId) + '\')" title="' + __('policy.delete') + '"><i class="bi bi-trash"></i></button>' +
@@ -194,10 +228,11 @@
 
             container.innerHTML =
                 '<div class="table-responsive">' +
-                    '<table class="table table-hover align-middle">' +
-                        '<thead><tr>' +
+                    '<table class="table table-hover align-middle policy-table">' +
+                        '<thead class="table-light"><tr>' +
                             '<th>' + __('policy.name') + '</th>' +
                             '<th>' + __('policy.displayName') + '</th>' +
+                            '<th>' + __('policy.description') + '</th>' +
                             '<th>' + __('policy.status') + '</th>' +
                             '<th>' + __('policy.circuitBreaker') + '</th>' +
                             '<th class="text-center">' + __('policy.appliedClusters') + '</th>' +

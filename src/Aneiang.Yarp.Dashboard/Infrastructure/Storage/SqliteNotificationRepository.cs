@@ -338,6 +338,8 @@ public sealed class SqliteNotificationRepository : INotificationRepository
         int pageSize = 100,
         string? eventType = null,
         string? severity = null,
+        string? dateStart = null,
+        string? dateEnd = null,
         CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
@@ -346,9 +348,9 @@ public sealed class SqliteNotificationRepository : INotificationRepository
 
         // Count total
         await using var countCmd = conn.CreateCommand();
-        var where = BuildWhereClause(eventType, severity);
+        var where = BuildWhereClause(eventType, severity, dateStart, dateEnd);
         countCmd.CommandText = $"SELECT COUNT(*) FROM notification_history{where}";
-        AddWhereParams(countCmd, eventType, severity);
+        AddWhereParams(countCmd, eventType, severity, dateStart, dateEnd);
         var total = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct));
 
         // Get page
@@ -361,7 +363,7 @@ public sealed class SqliteNotificationRepository : INotificationRepository
             """;
         cmd.Parameters.AddWithValue("@limit", pageSize);
         cmd.Parameters.AddWithValue("@offset", offset);
-        AddWhereParams(cmd, eventType, severity);
+        AddWhereParams(cmd, eventType, severity, dateStart, dateEnd);
 
         var records = new List<NotificationHistory>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -385,25 +387,31 @@ public sealed class SqliteNotificationRepository : INotificationRepository
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    private static string BuildWhereClause(string? eventType, string? severity)
+    private static bool IsRealFilterValue(string? value)
+        => !string.IsNullOrEmpty(value)
+        && !string.Equals(value, "undefined", StringComparison.OrdinalIgnoreCase)
+        && !string.Equals(value, "null", StringComparison.OrdinalIgnoreCase);
+
+    private static string BuildWhereClause(string? eventType, string? severity, string? dateStart, string? dateEnd)
     {
         var conditions = new List<string>();
-        if (!string.IsNullOrEmpty(eventType)) conditions.Add("event_type = @type");
+        if (IsRealFilterValue(eventType)) conditions.Add("event_type = @type");
         // Only add severity condition if it parses as a valid enum value
         // (so SQL never references @sev without the parameter being added).
-        if (!string.IsNullOrEmpty(severity) && Enum.TryParse<NotificationSeverity>(severity, true, out _))
+        if (IsRealFilterValue(severity) && Enum.TryParse<NotificationSeverity>(severity, true, out _))
             conditions.Add("severity = @sev");
+        if (IsRealFilterValue(dateStart)) conditions.Add("timestamp >= @dateStart");
+        if (IsRealFilterValue(dateEnd)) conditions.Add("timestamp <= @dateEnd");
         return conditions.Count > 0 ? " WHERE " + string.Join(" AND ", conditions) : "";
     }
 
-    private static void AddWhereParams(SqliteCommand cmd, string? eventType, string? severity)
+    private static void AddWhereParams(SqliteCommand cmd, string? eventType, string? severity, string? dateStart, string? dateEnd)
     {
-        if (!string.IsNullOrEmpty(eventType)) cmd.Parameters.AddWithValue("@type", eventType);
-        if (!string.IsNullOrEmpty(severity))
-        {
-            if (Enum.TryParse<NotificationSeverity>(severity, true, out var sev))
-                cmd.Parameters.AddWithValue("@sev", (int)sev);
-        }
+        if (IsRealFilterValue(eventType)) cmd.Parameters.AddWithValue("@type", eventType);
+        if (IsRealFilterValue(severity) && Enum.TryParse<NotificationSeverity>(severity, true, out var sev))
+            cmd.Parameters.AddWithValue("@sev", (int)sev);
+        if (IsRealFilterValue(dateStart)) cmd.Parameters.AddWithValue("@dateStart", dateStart);
+        if (IsRealFilterValue(dateEnd)) cmd.Parameters.AddWithValue("@dateEnd", dateEnd + "T23:59:59");
     }
 
     private static NotificationHistory MapNotificationHistory(SqliteDataReader r)

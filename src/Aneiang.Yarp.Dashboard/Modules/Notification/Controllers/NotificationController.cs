@@ -54,7 +54,6 @@ public class NotificationController : ControllerBase
             Id = r.Id,
             Name = r.Name,
             EventTypes = r.EventTypes,
-            MinSeverity = r.MinSeverity.ToString(),
             ChannelIds = r.ChannelIds,
             Enabled = r.Enabled,
             CooldownSeconds = r.CooldownSeconds,
@@ -133,8 +132,7 @@ public class NotificationController : ControllerBase
                         Id = ruleReq.Id ?? Guid.NewGuid().ToString("N")[..12],
                         Name = ruleReq.Name,
                         EventTypes = ruleReq.EventTypes ?? [],
-                        MinSeverity = Enum.TryParse<NotificationSeverity>(ruleReq.MinSeverity, true, out var s)
-                            ? s : NotificationSeverity.Info,
+                        MinSeverity = NotificationSeverity.Info,
                         ChannelIds = ruleReq.ChannelIds,
                         Enabled = ruleReq.Enabled,
                         CooldownSeconds = ruleReq.CooldownSeconds > 0 ? ruleReq.CooldownSeconds : 300,
@@ -253,6 +251,17 @@ public class NotificationController : ControllerBase
             return BadRequest(new { code = 400, message = "Failed to send test notification. Check channel URL and configuration." });
     }
 
+    /// <summary>Send a test notification through all matching rules (for testing purposes).</summary>
+    [HttpPost("test")]
+    public IActionResult TestNotification()
+    {
+        _notificationService.NotifyCustom(
+            "TestNotification",
+            "Test Notification",
+            "This is a test notification from the notification center.");
+        return Ok(new { code = 200, message = "Test notification fired" });
+    }
+
     // ─── Rules ─────────────────────────────────────────────────────────────
 
     /// <summary>Create a new rule.</summary>
@@ -264,8 +273,7 @@ public class NotificationController : ControllerBase
             Id = Guid.NewGuid().ToString("N")[..12],
             Name = request.Name,
             EventTypes = request.EventTypes ?? [],
-            MinSeverity = Enum.TryParse<NotificationSeverity>(request.MinSeverity, true, out var s)
-                ? s : NotificationSeverity.Info,
+            MinSeverity = NotificationSeverity.Info,
             ChannelIds = request.ChannelIds,
             Enabled = request.Enabled,
             CooldownSeconds = request.CooldownSeconds > 0 ? request.CooldownSeconds : 300,
@@ -285,7 +293,6 @@ public class NotificationController : ControllerBase
                 Id = rule.Id,
                 Name = rule.Name,
                 EventTypes = rule.EventTypes,
-                MinSeverity = rule.MinSeverity.ToString(),
                 ChannelIds = rule.ChannelIds,
                 Enabled = rule.Enabled,
                 CooldownSeconds = rule.CooldownSeconds,
@@ -306,8 +313,7 @@ public class NotificationController : ControllerBase
 
         existing.Name = request.Name;
         existing.EventTypes = request.EventTypes ?? [];
-        existing.MinSeverity = Enum.TryParse<NotificationSeverity>(request.MinSeverity, true, out var s)
-            ? s : existing.MinSeverity;
+        existing.MinSeverity = NotificationSeverity.Info;
         existing.ChannelIds = request.ChannelIds;
         existing.Enabled = request.Enabled;
         existing.CooldownSeconds = request.CooldownSeconds > 0 ? request.CooldownSeconds : 300;
@@ -338,10 +344,6 @@ public class NotificationController : ControllerBase
         var channels = await _repository.GetChannelsAsync();
         var rules = await _repository.GetRulesAsync();
 
-        var bySeverity = records
-            .GroupBy(r => r.Severity.ToString())
-            .ToDictionary(g => g.Key, g => g.Count());
-
         var byEventType = records
             .GroupBy(r => r.EventType)
             .OrderByDescending(g => g.Count())
@@ -355,7 +357,6 @@ public class NotificationController : ControllerBase
             {
                 Total = total,
                 Unread = 0,
-                BySeverity = bySeverity,
                 ByEventType = byEventType,
                 LastEvent = records.FirstOrDefault(),
                 ChannelsConfigured = channels.Count,
@@ -364,7 +365,134 @@ public class NotificationController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Diagnostics endpoint — returns the full internal state of the notification system
+    /// to help debug why notifications are not firing.
+    /// </summary>
+    [HttpGet("diagnostics")]
+    public async Task<IActionResult> GetDiagnostics()
+    {
+        var settings = await _repository.LoadSettingsAsync();
+        var channels = await _repository.GetChannelsAsync();
+        var rules = await _repository.GetRulesAsync();
+        var globalSettings = await _repository.GetGlobalSettingsAsync();
+
+        return Ok(new
+        {
+            code = 200,
+            data = new
+            {
+                databaseRowExists = settings != null,
+                settingsEnabled = settings?.Enabled ?? false,
+                globalSettingsEnabled = globalSettings.Enabled,
+                locale = globalSettings.Locale,
+                defaultTimeoutSeconds = globalSettings.DefaultTimeoutSeconds,
+                defaultRetryCount = globalSettings.DefaultRetryCount,
+                channelCount = channels.Count,
+                ruleCount = rules.Count,
+                channels = channels.Select(c => new
+                {
+                    c.Id, c.Name, c.Type, c.Enabled,
+                    hasUrl = !string.IsNullOrEmpty(c.Url),
+                    hasSecret = !string.IsNullOrEmpty(c.Secret)
+                }),
+                rules = rules.Select(r => new
+                {
+                    r.Id, r.Name, r.Enabled,
+                    r.EventTypes,
+                    r.ChannelIds,
+                    r.CooldownSeconds,
+                    r.RecordToHistory,
+                    targetRoutes = r.TargetRouteIds ?? new List<string>(),
+                    targetClusters = r.TargetClusterIds ?? new List<string>()
+                }),
+                potentialProblems = GetPotentialProblems(settings, channels, rules)
+            }
+        });
+    }
+
+    private static List<string> GetPotentialProblems(
+        NotificationSettingsEntity? settings,
+        List<NotificationChannel> channels,
+        List<NotificationRule> rules)
+    {
+        var problems = new List<string>();
+
+        if (settings == null)
+            problems.Add("notification_settings 表行不存在 — DB 未初始化");
+        else if (!settings.Enabled)
+            problems.Add("通知总开关已关闭 (notification_settings.enabled = 0)");
+
+        if (channels.Count == 0)
+            problems.Add("没有配置任何通知渠道 (Channel) — 即使有匹配规则也无法发送消息");
+
+        if (rules.Count == 0)
+            problems.Add("没有配置任何通知规则 (Rule) — 事件不会有匹配规则");
+
+        foreach (var rule in rules)
+        {
+            if (!rule.Enabled)
+                problems.Add($"规则 '{rule.Name}' 已禁用");
+            if (rule.ChannelIds.Count == 0)
+                problems.Add($"规则 '{rule.Name}' 未关联任何渠道");
+            else
+            {
+                foreach (var cid in rule.ChannelIds)
+                {
+                    var ch = channels.FirstOrDefault(c => c.Id == cid);
+                    if (ch == null)
+                        problems.Add($"规则 '{rule.Name}' 引用了不存在的渠道 ID '{cid}'");
+                    else if (!ch.Enabled)
+                        problems.Add($"规则 '{rule.Name}' 关联的渠道 '{ch.Name}' 已禁用");
+                    else if (string.IsNullOrEmpty(ch.Url))
+                        problems.Add($"规则 '{rule.Name}' 关联的渠道 '{ch.Name}' URL 为空");
+                }
+            }
+        }
+
+        if (problems.Count == 0)
+            problems.Add("系统状态正常 — 如通知仍不触发，请查看服务器日志中的 [Notification] 前缀记录");
+
+        return problems;
+    }
+
     // ─── History ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Generate a test notification history entry directly (bypasses the rule/event pipeline).
+    /// Useful for debugging notification history display issues.
+    /// </summary>
+    [HttpPost("test-entry")]
+    public async Task<IActionResult> GenerateTestEntry()
+    {
+        try
+        {
+            var entry = new NotificationHistory
+            {
+                Id = Guid.NewGuid().ToString("N")[..16],
+                EventType = "UpdateRoute",
+                Severity = NotificationSeverity.Info,
+                Title = "测试通知记录",
+                Message = $"这是一条直接生成的测试记录，生成时间: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC",
+                Timestamp = DateTime.UtcNow,
+                ClusterId = "test-cluster",
+                RouteId = "test-route",
+                ClientIp = "127.0.0.1",
+                NotifiedChannels = new List<string> { "测试渠道" },
+                DeliverySuccess = true
+            };
+
+            await _repository.RecordNotificationAsync(entry);
+            _logger.LogInformation("[Notification] Test history entry generated: {Id}", entry.Id);
+
+            return Ok(new { code = 200, ok = true, message = "Test entry created", entry });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[Notification] Failed to create test history entry");
+            return StatusCode(500, new { code = 500, ok = false, error = "Failed to create test entry: " + ex.Message });
+        }
+    }
 
     /// <summary>Get notification history.</summary>
     [HttpGet("history")]
@@ -372,13 +500,15 @@ public class NotificationController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 100,
         [FromQuery] string? eventType = null,
-        [FromQuery] string? severity = null)
+        [FromQuery] string? severity = null,
+        [FromQuery] string? dateStart = null,
+        [FromQuery] string? dateEnd = null)
     {
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 100;
         if (pageSize > 1000) pageSize = 1000;
 
-        var (records, total) = await _repository.GetHistoryAsync(page, pageSize, eventType, severity);
+        var (records, total) = await _repository.GetHistoryAsync(page, pageSize, eventType, severity, dateStart, dateEnd);
 
         return Ok(new
         {

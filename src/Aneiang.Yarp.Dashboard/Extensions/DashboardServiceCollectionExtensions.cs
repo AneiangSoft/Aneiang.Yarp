@@ -8,10 +8,7 @@ using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 using Aneiang.Yarp.Dashboard.Modules.Policy.Services;
-using Aneiang.Yarp.Dashboard.Modules.Alert.Services;
-using Aneiang.Yarp.Dashboard.Modules.Alert.Models;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
-using Aneiang.Yarp.Dashboard.Modules.Webhook.Services;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
@@ -108,6 +105,8 @@ public static class DashboardServiceCollectionExtensions
 
         // ── Audit log ─────────────────────────────────────────────────────────────
         services.AddSingleton<IConfigChangeAuditLog, ConfigChangeAuditLog>();
+        services.AddSingleton<ConfigChangeAuditLog>(sp => (ConfigChangeAuditLog)sp.GetRequiredService<IConfigChangeAuditLog>());
+        services.AddHostedService<ConfigChangeEventDispatcher>();
 
         // ── Rate limiting ─────────────────────────────────────────────────────────
         services.AddSingleton<RateLimitConfigProvider>();
@@ -142,13 +141,8 @@ public static class DashboardServiceCollectionExtensions
         // ── Editable policy ───────────────────────────────────────────────────────
         services.AddSingleton<IEditablePolicy, DashboardEditablePolicy>();
 
-        // ── Alert service ─────────────────────────────────────────────────────────
-        services.AddSingleton<IGatewayAlertService, GatewayAlertService>();
-        services.AddSingleton<GatewayAlertService>(sp => (GatewayAlertService)sp.GetRequiredService<IGatewayAlertService>());
-        services.AddSingleton<AlertHistoryStore>(sp =>
-            new AlertHistoryStore(sp.GetRequiredService<IOptions<DashboardOptions>>().Value.AlertMaxRecords));
-        services.AddSingleton<WafEventStore>(sp =>
-            new WafEventStore(sp.GetRequiredService<IOptions<DashboardOptions>>().Value.WafMaxEvents));
+        // ── WAF event store (in-memory ring buffer) ──────────────────────────────
+        services.AddSingleton<WafEventStore>();
 
         // ── Policy service (route + cluster policies via IGatewayRepository) ────
         services.AddSingleton<IGatewayPolicyService, GatewayPolicyService>();
@@ -174,63 +168,9 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<INotificationService, NotificationService>();
         services.AddHostedService<NotificationWarmupService>();
 
-        // ── Webhook settings persistence ─────────────────────────────────────────
-        services.AddSingleton<WebhookSettingsPersistenceService>();
-        services.AddSingleton<IWebhookSettingsPersistenceService>(sp => sp.GetRequiredService<WebhookSettingsPersistenceService>());
-
         // ── WAF settings persistence ──────────────────────────────────────────
         services.AddSingleton<WafSettingsPersistenceService>();
         services.AddSingleton<IWafSettingsPersistenceService>(sp => sp.GetRequiredService<WafSettingsPersistenceService>());
-
-        // ── Webhook notification service ──────────────────────────────────────────
-        services.AddHttpClient("webhook");
-        services.AddSingleton<IWebhookProvider, DingTalkWebhookProvider>();
-        services.AddSingleton<IWebhookProvider, GenericWebhookProvider>();
-        services.AddSingleton<WebhookNotificationService>(sp =>
-        {
-            var options = sp.GetRequiredService<IOptions<DashboardOptions>>();
-            var webhook = new WebhookNotificationService(
-                options,
-                sp.GetRequiredService<ILogger<WebhookNotificationService>>(),
-                sp.GetRequiredService<IHttpClientFactory>(),
-                sp.GetServices<IWebhookProvider>());
-            webhook.Subscribe(sp.GetRequiredService<IConfigChangeAuditLog>());
-
-            var persistence = sp.GetRequiredService<WebhookSettingsPersistenceService>();
-            var data = persistence.Load() ?? new WebhookSettingsData();
-            var opts = options.Value;
-            var allUrls = new List<string>();
-            allUrls.AddRange(data.DingTalkEndpoints.Select(e => e.Url));
-            allUrls.AddRange(data.GenericEndpoints.Select(e => e.Url));
-            opts.WebhookUrls = allUrls;
-            opts.WebhookSecrets = new Dictionary<string, string?>();
-            foreach (var ep in data.DingTalkEndpoints) opts.WebhookSecrets[ep.Url] = ep.Secret;
-            foreach (var ep in data.GenericEndpoints) opts.WebhookSecrets[ep.Url] = ep.Secret;
-            opts.WebhookEnabledEvents = data.EnabledEvents;
-            opts.WebhookTimeoutSeconds = data.TimeoutSeconds > 0 ? data.TimeoutSeconds : 10;
-            opts.WebhookRetryCount = data.RetryCount >= 0 ? data.RetryCount : 1;
-
-            // Apply persisted alert config to DashboardOptions
-            try
-            {
-                if (!string.IsNullOrEmpty(data.AlertConfig))
-                {
-                    using var doc = System.Text.Json.JsonDocument.Parse(data.AlertConfig);
-                    var root = doc.RootElement;
-                    if (root.TryGetProperty("alertEnabled", out var ae)) opts.AlertEnabled = ae.GetBoolean();
-                    if (root.TryGetProperty("alertCircuitBreakerOpen", out var acb)) opts.AlertCircuitBreakerOpen = acb.GetBoolean();
-                    if (root.TryGetProperty("alertRetryExhausted", out var are)) opts.AlertRetryExhausted = are.GetBoolean();
-                    if (root.TryGetProperty("alertWafBlocks", out var awb)) opts.AlertWafBlocks = awb.GetBoolean();
-                    if (root.TryGetProperty("alertProxyErrors", out var ape)) opts.AlertProxyErrors = ape.GetBoolean();
-                    if (root.TryGetProperty("alertRateLimitExceeded", out var arle)) opts.AlertRateLimitExceeded = arle.GetBoolean();
-                    if (root.TryGetProperty("alertMaxRecords", out var amr) && amr.TryGetInt32(out var amrVal)) opts.AlertMaxRecords = amrVal > 0 ? amrVal : 500;
-                    if (root.TryGetProperty("wafMaxEvents", out var wme) && wme.TryGetInt32(out var wmeVal)) opts.WafMaxEvents = wmeVal > 0 ? wmeVal : 1000;
-                }
-            }
-            catch { /* alert config is optional */ }
-
-            return webhook;
-        });
 
         // ── Config persistence service ────────────────────────────────────────────
         services.AddSingleton<ConfigPersistenceService>();

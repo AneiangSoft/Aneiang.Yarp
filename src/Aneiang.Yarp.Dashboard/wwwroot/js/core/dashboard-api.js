@@ -125,7 +125,15 @@
     // ===== HTTP Method Helpers =====
     window.DashboardApi.get = function(url, params, options = {}) {
         if (params) {
-            const queryString = new URLSearchParams(params).toString();
+            // Strip null/undefined values so they never become the string "undefined"/"null" in the query string.
+            const cleaned = {};
+            for (const key of Object.keys(params)) {
+                const v = params[key];
+                if (v != null && v !== undefined && v !== '') {
+                    cleaned[key] = v;
+                }
+            }
+            const queryString = new URLSearchParams(cleaned).toString();
             url = queryString ? `${url}?${queryString}` : url;
         }
         return this.request(url, { method: 'GET', ...options });
@@ -250,12 +258,6 @@
         getCircuitBreakerStatus: () => DashboardApi.get('/api/circuit-breaker/status'),
         resetCircuitBreakers: () => DashboardApi.post('/api/circuit-breaker/reset', {}),
 
-        // Alerts
-        getAlerts: (count) => DashboardApi.get('/api/alerts', { count: count || 100 }),
-        clearAlerts: () => DashboardApi.delete('/api/alerts'),
-        testAlert: (data) => DashboardApi.post('/api/alerts/test', data),
-        getAlertSummary: () => DashboardApi.get('/api/alerts/summary'),
-
         // Security Events
         getSecurityEvents: (count) => DashboardApi.get('/api/security-events', { count: count || 100 }),
         clearSecurityEvents: () => DashboardApi.delete('/api/security-events'),
@@ -331,8 +333,6 @@
     // Aliases: expose top-level convenience methods (used by page-level JS)
     window.DashboardApi.getRoutes = () => DashboardApi.endpoints.getRoutes();
     window.DashboardApi.getClusters = () => DashboardApi.endpoints.getClusters();
-    window.DashboardApi.getAlerts = (count) => DashboardApi.endpoints.getAlerts(count);
-    window.DashboardApi.clearAlerts = () => DashboardApi.endpoints.clearAlerts();
     window.DashboardApi.getCircuitBreakerStatus = () => DashboardApi.endpoints.getCircuitBreakerStatus();
     window.DashboardApi.resetCircuitBreakers = () => DashboardApi.endpoints.resetCircuitBreakers();
     window.DashboardApi.getSecurityEvents = (count) => DashboardApi.endpoints.getSecurityEvents(count);

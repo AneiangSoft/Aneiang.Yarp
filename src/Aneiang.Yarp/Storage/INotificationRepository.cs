@@ -60,6 +60,8 @@ public interface INotificationRepository
         int pageSize = 100,
         string? eventType = null,
         string? severity = null,
+        string? dateStart = null,
+        string? dateEnd = null,
         CancellationToken ct = default);
 
     /// <summary>Clear notification history.</summary>
@@ -75,4 +77,6 @@ public class NotificationGlobalSettings
     public int MaxHistoryRecords { get; set; } = 500;
     public int DefaultTimeoutSeconds { get; set; } = 10;
     public int DefaultRetryCount { get; set; } = 1;
+    /// <summary>Notification message locale: "zh-CN" or "en-US". Defaults to "zh-CN".</summary>
+    public string Locale { get; set; } = "zh-CN";
 }

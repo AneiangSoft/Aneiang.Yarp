@@ -1004,6 +1004,118 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
         }
     }
 
+    // ── TryRenameRoute ──────────────────────────────────────────────────
+
+    public async Task<RouteOperationResult> TryRenameRoute(
+        string oldRouteId,
+        string newRouteId,
+        RegisterRouteRequest request,
+        string source = "dashboard",
+        string? createdBy = "dashboard-user")
+    {
+        if (string.IsNullOrWhiteSpace(oldRouteId) || string.IsNullOrWhiteSpace(newRouteId))
+        {
+            _auditLog.RecordFailure("RenameRoute", oldRouteId ?? "", "Route ID cannot be empty");
+            return new RouteOperationResult(false, "Route ID cannot be empty");
+        }
+
+        if (string.Equals(oldRouteId, newRouteId, StringComparison.OrdinalIgnoreCase))
+        {
+            return new RouteOperationResult(false, "Old and new route IDs are the same");
+        }
+
+        bool saveNeeded = false;
+        await _semaphore.WaitAsync();
+        try
+        {
+            var config = _configProvider.GetConfig();
+            var newRoutes = new List<RouteConfig>(config.Routes ?? []);
+            var clusters = config.Clusters ?? [];
+
+            var oldRoute = newRoutes.FirstOrDefault(r =>
+                string.Equals(r.RouteId, oldRouteId, StringComparison.OrdinalIgnoreCase));
+            if (oldRoute == null)
+            {
+                _auditLog.RecordFailure("UpdateRoute", oldRouteId, $"Route '{oldRouteId}' not found");
+                return new RouteOperationResult(false, $"Route '{oldRouteId}' not found");
+            }
+
+            if (newRoutes.Any(r =>
+                string.Equals(r.RouteId, newRouteId, StringComparison.OrdinalIgnoreCase)))
+            {
+                _auditLog.RecordFailure("UpdateRoute", oldRouteId,
+                    $"Target route '{newRouteId}' already exists");
+                return new RouteOperationResult(false, $"Target route '{newRouteId}' already exists");
+            }
+
+            // Create the new route config preserving all settings from the old route
+            var newRoute = new RouteConfig
+            {
+                RouteId = newRouteId,
+                ClusterId = request.ClusterName ?? oldRoute.ClusterId,
+                Match = new RouteMatch { Path = request.MatchPath ?? (oldRoute.Match?.Path ?? string.Empty) },
+                Order = request.Order ?? oldRoute.Order,
+                Transforms = request.Transforms?.Select(t => (IReadOnlyDictionary<string, string>)t).ToList()
+                    ?? oldRoute.Transforms,
+                AuthorizationPolicy = oldRoute.AuthorizationPolicy,
+                CorsPolicy = oldRoute.CorsPolicy,
+                Metadata = oldRoute.Metadata
+            };
+            newRoutes.Add(newRoute);
+
+            // Remove the old route
+            newRoutes.RemoveAll(r =>
+                string.Equals(r.RouteId, oldRouteId, StringComparison.OrdinalIgnoreCase));
+
+            _configProvider.Update(newRoutes, SanitizeClusters(clusters));
+
+            EnsureDynamicConfigInitialized();
+
+            // Update _dynamicConfig
+            var dynRoute = _dynamicConfig!.Routes.FirstOrDefault(r =>
+                string.Equals(r.RouteId, oldRouteId, StringComparison.OrdinalIgnoreCase));
+            if (dynRoute != null)
+            {
+                var renamedDynRoute = new DynamicRouteConfig
+                {
+                    RouteId = newRouteId,
+                    ClusterId = request.ClusterName ?? dynRoute.ClusterId,
+                    MatchPath = request.MatchPath ?? dynRoute.MatchPath,
+                    Order = request.Order ?? dynRoute.Order,
+                    Transforms = request.Transforms ?? dynRoute.Transforms,
+                    Source = source,
+                    CreatedAt = dynRoute.CreatedAt,
+                    CreatedBy = createdBy,
+                    Metadata = new Dictionary<string, string>(dynRoute.Metadata)
+                };
+                _dynamicConfig.Routes.RemoveAll(r =>
+                    string.Equals(r.RouteId, oldRouteId, StringComparison.OrdinalIgnoreCase));
+                _dynamicConfig.Routes.Add(renamedDynRoute);
+            }
+
+            saveNeeded = true;
+
+            _logger.LogInformation(
+                "Route '{OldRouteId}' renamed to '{NewRouteId}'",
+                oldRouteId, newRouteId);
+            _auditLog.RecordSuccess("UpdateRoute", $"{oldRouteId} → {newRouteId}", createdBy, null,
+                new { oldRouteId, action = "rename" },
+                new { newRouteId, clusterId = request.ClusterName, matchPath = request.MatchPath, action = "rename" });
+            return new RouteOperationResult(true,
+                $"Route '{oldRouteId}' renamed to '{newRouteId}'");
+        }
+        finally
+        {
+            if (saveNeeded)
+            {
+                Interlocked.Increment(ref _configVersion);
+                _dynamicConfig!.Version = _configVersion;
+                await PersistConfigToRepositoryAsync("UpdateRoute", oldRouteId);
+            }
+            _semaphore.Release();
+        }
+    }
+
     // ── TryUpdateCluster ─────────────────────────────────────────────────
 
     public async Task<RouteOperationResult> TryUpdateCluster(string clusterId, UpdateClusterRequest request)
@@ -1170,13 +1282,13 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
     {
         if (string.IsNullOrWhiteSpace(oldClusterId) || string.IsNullOrWhiteSpace(newClusterId))
         {
-            _auditLog.RecordFailure("RenameCluster", oldClusterId ?? "", "Cluster ID cannot be empty");
+            _auditLog.RecordFailure("UpdateCluster", oldClusterId ?? "", "Cluster ID cannot be empty");
             return new RouteOperationResult(false, "Cluster ID cannot be empty");
         }
 
         if (string.Equals(oldClusterId, newClusterId, StringComparison.OrdinalIgnoreCase))
         {
-            _auditLog.RecordFailure("RenameCluster", oldClusterId, "Old and new cluster IDs are the same");
+            _auditLog.RecordFailure("UpdateCluster", oldClusterId, "Old and new cluster IDs are the same");
             return new RouteOperationResult(false, "Old and new cluster IDs are the same");
         }
 
@@ -1192,14 +1304,14 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
                 string.Equals(c.ClusterId, oldClusterId, StringComparison.OrdinalIgnoreCase));
             if (oldCluster == null)
             {
-                _auditLog.RecordFailure("RenameCluster", oldClusterId, $"Cluster '{oldClusterId}' not found");
+                _auditLog.RecordFailure("UpdateCluster", oldClusterId, $"Cluster '{oldClusterId}' not found");
                 return new RouteOperationResult(false, $"Cluster '{oldClusterId}' not found");
             }
 
             if (newClusters.Any(c =>
                 string.Equals(c.ClusterId, newClusterId, StringComparison.OrdinalIgnoreCase)))
             {
-                _auditLog.RecordFailure("RenameCluster", oldClusterId, $"Cluster '{newClusterId}' already exists");
+                _auditLog.RecordFailure("UpdateCluster", oldClusterId, $"Cluster '{newClusterId}' already exists");
                 return new RouteOperationResult(false, $"Cluster '{newClusterId}' already exists");
             }
 
@@ -1263,9 +1375,9 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
             _logger.LogInformation(
                 "Cluster '{OldClusterId}' renamed to '{NewClusterId}', updated {RouteCount} referencing routes",
                 oldClusterId, newClusterId, updatedRouteCount);
-            _auditLog.RecordSuccess("RenameCluster", $"{oldClusterId} → {newClusterId}", createdBy, null,
-                new { oldClusterId, routesUpdated = updatedRouteCount },
-                new { newClusterId, destinations, loadBalancingPolicy });
+            _auditLog.RecordSuccess("UpdateCluster", $"{oldClusterId} → {newClusterId}", createdBy, null,
+                new { oldClusterId, routesUpdated = updatedRouteCount, action = "rename" },
+                new { newClusterId, destinations, loadBalancingPolicy, action = "rename" });
             return new RouteOperationResult(true,
                 $"Cluster '{oldClusterId}' renamed to '{newClusterId}', {updatedRouteCount} route(s) updated");
         }
@@ -1275,7 +1387,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
             {
                 Interlocked.Increment(ref _configVersion);
                 _dynamicConfig!.Version = _configVersion;
-                await PersistConfigToRepositoryAsync("RenameCluster", oldClusterId);
+                await PersistConfigToRepositoryAsync("UpdateCluster", oldClusterId);
             }
             _semaphore.Release();
         }

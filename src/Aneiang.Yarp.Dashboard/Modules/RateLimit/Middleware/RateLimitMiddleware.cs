@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
-using Aneiang.Yarp.Dashboard.Modules.Alert.Services;
 using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
 using System.Threading.RateLimiting;
 using Yarp.ReverseProxy.Model;
@@ -22,9 +21,8 @@ public sealed class RateLimitMiddleware
     private readonly ILogger<RateLimitMiddleware> _logger;
     private readonly RateLimitOptions _globalOptions;
     private readonly IGatewayPluginManager _pluginManager;
-    private readonly IGatewayAlertService _alertService;
     private readonly string _dashPrefix;
-    private readonly INotificationService? _notificationService;
+    private readonly INotificationService _notificationService;
 
     private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
 
@@ -39,16 +37,14 @@ public sealed class RateLimitMiddleware
         IOptions<RateLimitOptions> options,
         IOptions<DashboardOptions> dashOptions,
         IGatewayPluginManager pluginManager,
-        IGatewayAlertService alertService,
         INotificationService? notificationService = null)
     {
         _next = next;
         _logger = logger;
         _globalOptions = options.Value;
         _pluginManager = pluginManager;
-        _alertService = alertService;
         _dashPrefix = "/" + dashOptions.Value.RoutePrefix.Trim('/');
-        _notificationService = notificationService;
+        _notificationService = notificationService ?? NullNotificationService.Instance;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -96,8 +92,7 @@ public sealed class RateLimitMiddleware
                 "Rate limit exceeded for {LimiterKey} (algorithm={Algorithm}, limit={PermitLimit}, window={Window})",
                 limiterKey, config.Algorithm, config.PermitLimit, config.Window);
 
-            _alertService.AlertRateLimitExceeded(clientIp, routeId);
-            _notificationService?.NotifyRateLimitExceeded(clientIp, routeId);
+            _notificationService.NotifyRateLimitExceeded(clientIp, routeId);
 
             context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
             context.Response.ContentType = "application/json";

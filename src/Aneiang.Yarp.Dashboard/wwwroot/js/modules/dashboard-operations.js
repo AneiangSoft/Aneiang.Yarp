@@ -73,14 +73,43 @@
             if (!data) return;
             renderTrafficChart(data);
             
-            // Update current QPS badge
+            // Update current QPS badge (traffic chart header)
             var qpsEl = document.getElementById('current-qps');
             if (qpsEl) {
-                qpsEl.textContent = data.currentQps + ' req/s';
+                var qpsValue = (data.currentQps != null && !isNaN(data.currentQps)) ? data.currentQps : 0;
+                qpsEl.textContent = qpsValue + ' req/s';
+            }
+
+            // Update stat card QPS value (overview page)
+            var statQpsEl = document.getElementById('stat-qps');
+            if (statQpsEl) {
+                var qpsVal = (data.currentQps != null && !isNaN(data.currentQps)) ? data.currentQps : 0;
+                statQpsEl.textContent = qpsVal;
+            }
+
+            // Update QPS trend indicator
+            var trendEl = document.getElementById('trend-qps');
+            if (trendEl) {
+                var trend = getQpsTrend(data);
+                trendEl.innerHTML = trend;
             }
         } catch (e) {
             console.error('[OpsModule] Failed to load traffic data:', e);
         }
+    }
+
+    /**
+     * Determine QPS trend direction from data
+     */
+    function getQpsTrend(data) {
+        var qps = (data && data.qps) || [];
+        if (qps.length < 3) return '<i class="bi bi-dash"></i> --';
+        var last = qps[qps.length - 1];
+        var prev = qps[qps.length - 2];
+        if (last == null || prev == null) return '<i class="bi bi-dash"></i> --';
+        if (last > prev * 1.1) return '<i class="bi bi-arrow-up text-danger"></i> ↑';
+        if (last < prev * 0.9) return '<i class="bi bi-arrow-down text-success"></i> ↓';
+        return '<i class="bi bi-arrow-right text-muted"></i> →';
     }
 
     /**

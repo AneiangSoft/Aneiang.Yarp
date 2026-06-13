@@ -195,66 +195,6 @@ public class DashboardOptions
     /// <summary>Custom auth delegate. If set, takes precedence over all other auth modes.</summary>
     public Func<HttpContext, Task<bool>>? AuthorizeRequest { get; set; }
 
-    // ─── Webhook Notifications ──────────────────────────
-
-    /// <summary>
-    /// List of webhook URLs to notify on configuration changes.
-    /// Each URL will receive a POST request with the change details.
-    /// Platform is auto-detected from the URL host.
-    /// </summary>
-    public List<string>? WebhookUrls { get; set; }
-
-    /// <summary>
-    /// Optional secret for HMAC-SHA256 webhook payload signature (generic fallback).
-    /// If set, an X-Webhook-Signature header will be included.
-    /// </summary>
-    public string? WebhookSecret { get; set; }
-
-    /// <summary>
-    /// Per-platform webhook signing secrets.
-    /// Key: platform identifier (e.g. "dingtalk", "feishu", "wecom").
-    /// Value: platform-specific signing secret.
-    /// </summary>
-    public Dictionary<string, string?>? WebhookSecrets { get; set; }
-
-    /// <summary>
-    /// List of enabled webhook event types. When null or empty, all events trigger notifications.
-    /// Supported values: AddRoute, UpdateRoute, RemoveRoute, AddCluster, UpdateCluster, RemoveCluster, RenameCluster, RollbackConfig.
-    /// </summary>
-    public List<string>? WebhookEnabledEvents { get; set; }
-
-    /// <summary>Webhook HTTP request timeout in seconds. Default 10.</summary>
-    public int WebhookTimeoutSeconds { get; set; } = 10;
-
-    /// <summary>Number of retry attempts on webhook failure. Default 1. Set 0 to disable retries.</summary>
-    public int WebhookRetryCount { get; set; } = 1;
-
-    // ─── Alerts ────────────────────────────────────────
-
-    /// <summary>Enable gateway alert notifications. Default: false.</summary>
-    public bool AlertEnabled { get; set; } = false;
-
-    /// <summary>Send alerts when circuit breaker opens. Default: true.</summary>
-    public bool AlertCircuitBreakerOpen { get; set; } = true;
-
-    /// <summary>Send alerts when all retry attempts are exhausted. Default: true.</summary>
-    public bool AlertRetryExhausted { get; set; } = true;
-
-    /// <summary>Send alerts when WAF blocks a request. Default: false.</summary>
-    public bool AlertWafBlocks { get; set; } = false;
-
-    /// <summary>Send alerts on proxy errors. Default: true.</summary>
-    public bool AlertProxyErrors { get; set; } = true;
-
-    /// <summary>Send alerts when rate limit is exceeded. Default: false.</summary>
-    public bool AlertRateLimitExceeded { get; set; } = false;
-
-    /// <summary>Maximum number of alert records to keep in history. Default: 500.</summary>
-    public int AlertMaxRecords { get; set; } = 500;
-
-    /// <summary>Maximum number of WAF security events to keep in history. Default: 1000.</summary>
-    public int WafMaxEvents { get; set; } = 1000;
-
     // ─── Health Check ──────────────────────────────────
 
     /// <summary>
