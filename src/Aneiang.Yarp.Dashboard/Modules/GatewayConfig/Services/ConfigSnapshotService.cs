@@ -4,7 +4,7 @@ using Aneiang.Yarp.Storage;
 
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 
-/// <summary>Service for managing configuration snapshots and diffs using gateway repository.</summary>
+/// <summary>Service for managing configuration snapshots and diffs using config history repository.</summary>
 public interface IConfigSnapshotService
 {
     Task<ConfigDiffSnapshot> CreateSnapshotAsync(string? createdBy = null, string? source = null, string? description = null);
@@ -17,12 +17,12 @@ public interface IConfigSnapshotService
 
 public class ConfigSnapshotService : IConfigSnapshotService
 {
-    private readonly IGatewayRepository _repository;
+    private readonly IConfigHistoryRepository _historyRepo;
     private readonly DynamicYarpConfigService _yarpConfig;
 
-    public ConfigSnapshotService(IGatewayRepository repository, DynamicYarpConfigService yarpConfig)
+    public ConfigSnapshotService(IConfigHistoryRepository historyRepo, DynamicYarpConfigService yarpConfig)
     {
-        _repository = repository;
+        _historyRepo = historyRepo;
         _yarpConfig = yarpConfig;
     }
 
@@ -57,21 +57,21 @@ public class ConfigSnapshotService : IConfigSnapshotService
             CreatedAt = snapshot.CreatedAt,
             ConfigData = System.Text.Json.JsonSerializer.Serialize(snapshot)
         };
-        await _repository.SaveConfigHistoryAsync(entity);
+        await _historyRepo.SaveConfigHistoryAsync(entity);
 
         return snapshot;
     }
 
     public async Task<ConfigDiffSnapshot?> GetSnapshotAsync(string id)
     {
-        var entity = await _repository.GetConfigHistoryAsync(id);
+        var entity = await _historyRepo.GetConfigHistoryAsync(id);
         if (entity == null) return null;
         return System.Text.Json.JsonSerializer.Deserialize<ConfigDiffSnapshot>(entity.ConfigData);
     }
 
     public async Task<List<ConfigDiffSnapshot>> GetSnapshotsAsync(int limit = 50)
     {
-        var entities = await _repository.GetConfigHistoryListAsync(limit);
+        var entities = await _historyRepo.GetConfigHistoryListAsync(limit);
         var snapshots = new List<ConfigDiffSnapshot>();
         foreach (var entity in entities)
         {
@@ -105,12 +105,12 @@ public class ConfigSnapshotService : IConfigSnapshotService
 
     public async Task<int> CleanupOldSnapshotsAsync(int keepCount = 100)
     {
-        var all = await _repository.GetConfigHistoryListAsync(int.MaxValue);
+        var all = await _historyRepo.GetConfigHistoryListAsync(int.MaxValue);
         if (all.Count <= keepCount) return 0;
 
         var toDelete = all.Skip(keepCount).ToList();
         foreach (var entity in toDelete)
-            await _repository.DeleteConfigHistoryAsync(entity.VersionId);
+            await _historyRepo.DeleteConfigHistoryAsync(entity.VersionId);
 
         return toDelete.Count;
     }

@@ -3,14 +3,14 @@ using Aneiang.Yarp.Dashboard.Infrastructure.Storage;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Models;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
-using IGatewayRepository = Aneiang.Yarp.Storage.IGatewayRepository;
+using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.Logging;
 using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 
 /// <summary>
-/// Service for managing configuration snapshots, import/export, and version history using gateway repository.
+/// Service for managing configuration snapshots, import/export, and version history using dedicated repositories.
 /// </summary>
 public class ConfigPersistenceService : IConfigPersistenceService
 {
@@ -23,7 +23,9 @@ public class ConfigPersistenceService : IConfigPersistenceService
     private const int MaxHistorySize = 50;
 
     private readonly DynamicYarpConfigService? _dynamicConfig;
-    private readonly IGatewayRepository _repository;
+    private readonly IConfigHistoryRepository _historyRepo;
+    private readonly IRouteRepository _routeRepo;
+    private readonly IClusterRepository _clusterRepo;
     private readonly ILogger<ConfigPersistenceService> _logger;
     private readonly List<ConfigSnapshot> _history = new();
     private readonly object _historyLock = new();
@@ -31,10 +33,14 @@ public class ConfigPersistenceService : IConfigPersistenceService
 
     public ConfigPersistenceService(
         ILogger<ConfigPersistenceService> logger,
-        IGatewayRepository repository,
+        IConfigHistoryRepository historyRepo,
+        IRouteRepository routeRepo,
+        IClusterRepository clusterRepo,
         DynamicYarpConfigService? dynamicConfig = null)
     {
-        _repository = repository;
+        _historyRepo = historyRepo;
+        _routeRepo = routeRepo;
+        _clusterRepo = clusterRepo;
         _logger = logger;
         _dynamicConfig = dynamicConfig;
     }
@@ -47,7 +53,7 @@ public class ConfigPersistenceService : IConfigPersistenceService
 
         try
         {
-            var entities = await _repository.GetConfigHistoryListAsync(MaxHistorySize);
+            var entities = await _historyRepo.GetConfigHistoryListAsync(MaxHistorySize);
             lock (_historyLock)
             {
                 foreach (var entity in entities)
@@ -248,7 +254,7 @@ public class ConfigPersistenceService : IConfigPersistenceService
         }
 
         var entity = snapshot.ToEntity("dashboard-user");
-        _ = _repository.SaveConfigHistoryAsync(entity);
+        _ = _historyRepo.SaveConfigHistoryAsync(entity);
 
         _logger.LogInformation("Snapshot saved: {VersionId}, Description: {Description}", snapshot.VersionId, snapshot.Description);
         return snapshot;
@@ -276,7 +282,7 @@ public class ConfigPersistenceService : IConfigPersistenceService
 
         if (snapshot == null)
         {
-            var entity = await _repository.GetConfigHistoryAsync(versionId);
+            var entity = await _historyRepo.GetConfigHistoryAsync(versionId);
             if (entity != null) snapshot = entity.ToConfigSnapshot();
         }
 
@@ -395,16 +401,16 @@ public class ConfigPersistenceService : IConfigPersistenceService
     {
         try
         {
-            var routeEntities = await _repository.GetAllRoutesAsync();
-            var clusterEntities = await _repository.GetAllClustersAsync();
+            var routeEntities = await _routeRepo.GetAllRoutesAsync();
+            var clusterEntities = await _clusterRepo.GetAllClustersAsync();
 
-            var config = new GatewayDynamicConfig { Routes = routeEntities.ToRouteConfigs() };
+            var config = new GatewayDynamicConfig { Routes = EntityMapper.ToRouteConfigs(routeEntities) };
 
             foreach (var ce in clusterEntities)
             {
-                var dynCluster = ce.ToClusterConfig();
-                var destEntities = await _repository.GetDestinationsAsync(ce.ClusterId);
-                dynCluster.Destinations = destEntities.ToDestinations();
+                var dynCluster = EntityMapper.ToClusterConfig(ce);
+                var destEntities = await _clusterRepo.GetDestinationsAsync(ce.ClusterId);
+                dynCluster.Destinations = EntityMapper.ToDestinations(destEntities);
                 config.Clusters.Add(dynCluster);
             }
 

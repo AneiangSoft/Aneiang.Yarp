@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 
 /// <summary>
-/// Persists WAF settings via <see cref="IGatewayRepository"/>.
+/// Persists WAF settings via <see cref="IWafSettingsRepository"/>.
 /// </summary>
 public class WafSettingsPersistenceService : IWafSettingsPersistenceService
 {
@@ -15,15 +15,15 @@ public class WafSettingsPersistenceService : IWafSettingsPersistenceService
         WriteIndented = false
     };
 
-    private readonly IGatewayRepository _repository;
+    private readonly IWafSettingsRepository _wafRepo;
     private readonly ILogger<WafSettingsPersistenceService> _logger;
     private WafSettingsData? _cachedData;
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
     private bool _initialized;
 
-    public WafSettingsPersistenceService(IGatewayRepository repository, ILogger<WafSettingsPersistenceService> logger)
+    public WafSettingsPersistenceService(IWafSettingsRepository wafRepo, ILogger<WafSettingsPersistenceService> logger)
     {
-        _repository = repository;
+        _wafRepo = wafRepo;
         _logger = logger;
     }
 
@@ -44,7 +44,7 @@ public class WafSettingsPersistenceService : IWafSettingsPersistenceService
     {
         try
         {
-            var entity = await _repository.GetWafSettingsAsync(ct);
+            var entity = await _wafRepo.GetWafSettingsAsync(ct);
             if (entity == null) return null;
 
             return new WafSettingsData
@@ -126,7 +126,7 @@ public class WafSettingsPersistenceService : IWafSettingsPersistenceService
                 UpdatedAt = DateTime.UtcNow
             };
 
-            await _repository.SaveWafSettingsAsync(entity, ct);
+            await _wafRepo.SaveWafSettingsAsync(entity, ct);
             _cachedData = data;
             _logger.LogDebug("WAF settings saved to repository");
             return true;

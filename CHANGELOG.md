@@ -5,9 +5,7 @@
 
 ### 新增
 
-- 添加 `IGatewayRepository` 统一仓储抽象及子接口（`IRouteRepository`、`IClusterRepository`、`IConfigHistoryRepository`、`IPolicyRepository`、`IAuditLogRepository`、`IWebhookSettingsRepository`、`IProxyLogRepository`）
-- 添加 `SqliteGatewayRepository` 作为默认 SQLite 仓储实现
-- 添加 `RedisGatewayRepositoryPlaceholder` 骨架作 Redis 扩展预留
+- 添加独立仓储接口（`IRouteRepository`、`IClusterRepository`、`IConfigHistoryRepository`、`IPolicyRepository`、`IAuditLogRepository`、`IWafSettingsRepository`、`IProxyLogRepository`、`INotificationRepository`）——接口隔离，按领域职责拆分
 - 添加 `IConfigChangeNotifier` 接口，从 `IConfigChangeAuditLog` 中拆出事件通知职责
 - 添加 `ConfigEntityMapper` 核心映射器（供 `DynamicYarpConfigService` 使用）
 - 将实体类拆分为独立文件（`RouteEntity`、`ClusterEntity`、`DestinationEntity`、`ConfigHistoryEntity`、`PolicyEntity`、`AuditLogEntity`、`WebhookSettingsEntity`、`ProxyLogEntity`）
@@ -15,17 +13,38 @@
 
 ### 变更
 
-- `DynamicYarpConfigService`：依赖从 `IDynamicConfigPersistenceService` 改为 `IGatewayRepository`；修复 `ReaderWriterLockSlim` → `SemaphoreSlim(1,1)` 解决 await 线程亲和性问题；修复 `TrySetRouteDisabled`/`TrySetClusterDisabled` 使用 `_dynamicConfig` 保持元数据同步
-- `ConfigPersistenceService`：依赖从 `IStructuredDataStore` + `IDynamicConfigPersistenceService` 改为 `IGatewayRepository`
-- `ConfigChangeAuditLog`：依赖从 `IStructuredDataStore` 改为 `IGatewayRepository`
-- `GatewayPolicyService`、`GatewayPolicyPersistenceService`：依赖从 `IStructuredDataStore` 改为 `IGatewayRepository`
-- `WebhookSettingsPersistenceService`：依赖从 `IStructuredDataStore` 改为 `IGatewayRepository`
-- `ConfigSnapshotService`：依赖从 `IStructuredDataStore` 改为 `IGatewayRepository`
-- `StorageServiceCollectionExtensions`：移除 `IStructuredDataStore` 遗留注册
-- `DashboardServiceCollectionExtensions`：移除 `IDynamicConfigPersistenceService`、`DynamicConfigPreloadService`、`WebhookSettingsPreloadService` 的注册
+- `DynamicYarpConfigService`：依赖从 `IDynamicConfigPersistenceService` 改为 `IRouteRepository` + `IClusterRepository`；修复 `ReaderWriterLockSlim` → `SemaphoreSlim(1,1)` 解决 await 线程亲和性问题；修复 `TrySetRouteDisabled`/`TrySetClusterDisabled` 使用 `_dynamicConfig` 保持元数据同步
+- `ConfigPersistenceService`：依赖从 `IStructuredDataStore` + `IDynamicConfigPersistenceService` 改为 `IConfigHistoryRepository` + `IRouteRepository` + `IClusterRepository`
+- `ConfigChangeAuditLog`：依赖从 `IStructuredDataStore` 改为 `IAuditLogRepository`
+- `GatewayPolicyService`：依赖从 `IStructuredDataStore` 改为 `IPolicyRepository`
+- `WafSettingsPersistenceService`：依赖从 `IStructuredDataStore` 改为 `IWafSettingsRepository`
+- `ConfigSnapshotService`：依赖从 `IStructuredDataStore` 改为 `IConfigHistoryRepository`
+- `StorageServiceCollectionExtensions`：移除 `IStructuredDataStore` 遗留注册；直接注册 8 个独立仓储 + `SqliteConnectionFactory`
+- `DashboardServiceCollectionExtensions`：移除 `IDynamicConfigPersistenceService`、`DynamicConfigPreloadService`、`WebhookSettingsPreloadService` 和 `INotificationRepository` 的 `IGatewayRepository` 转发注册
+
+### 重构：Storage 模块接口隔离（上帝接口/上帝类消除）
+
+- **新增** `SqliteConnectionFactory`：共享 SQLite 连接工厂，所有仓储复用同一个连接池，避免重复初始化 provider
+- **新增** 8 个独立 SQLite 仓储：`SqliteRouteRepository`、`SqliteClusterRepository`、`SqliteConfigHistoryRepository`、`SqlitePolicyRepository`、`SqliteAuditLogRepository`、`SqliteWafSettingsRepository`、`SqliteProxyLogRepository`、`SqliteNotificationRepository`
+- **新增** 各仓储懒加载建表机制：`EnsureInitializedAsync()` 双检锁确保每个仓储首次使用时自行建表
+- **变更** 所有消费方服务从 `IGatewayRepository` 改为依赖具体子接口：
+  - `DynamicYarpConfigService` → `IRouteRepository` + `IClusterRepository`
+  - `ConfigPersistenceService` → `IConfigHistoryRepository` + `IRouteRepository` + `IClusterRepository`
+  - `ConfigChangeAuditLog` → `IAuditLogRepository`
+  - `GatewayPolicyService` → `IPolicyRepository`
+  - `WafSettingsPersistenceService` → `IWafSettingsRepository`
+  - `ConfigSnapshotService` → `IConfigHistoryRepository`
+- **变更** `StartupWarmupService`：逐个预热子仓储触发建表；`INotificationRepository` 独立解析
+- **变更** `StorageServiceCollectionExtensions`：直接注册 8 个子仓储 + `SqliteConnectionFactory` 单例
+- **变更** `DashboardServiceCollectionExtensions`：移除 `INotificationRepository` 的 `IGatewayRepository` 转发注册
+- **变更** `ConfigPersistenceService`：`EntityMapper` 显式调用消解与 `ConfigEntityMapper` 的 CS0121 二义性
+- **变更** `SqliteConnectionFactory`：修正 `StorageOptions` 命名空间引用
 
 ### 移除
 
+- 删除 `IGatewayRepository.cs`（上帝接口，聚合 9 个子接口 + `IAsyncDisposable`）
+- 删除 `SqliteGatewayRepository.cs`（970 行上帝类）
+- 删除 `RedisGatewayRepositoryPlaceholder.cs`（所有方法均抛 `NotImplementedException` 的死代码）
 - 删除 `IDataStore.cs`（无实际使用者）
 - 删除 `IStructuredDataStore.cs` 遗留接口
 - 删除 `IDynamicConfigPersistenceService.cs` 及其实现 `DynamicConfigPersistenceService.cs`

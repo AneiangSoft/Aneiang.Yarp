@@ -2,18 +2,16 @@ using Aneiang.Yarp.Dashboard.Infrastructure.Storage;
 using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Dashboard.Extensions;
 
 /// <summary>
-/// Extension methods for registering storage services based on <see cref="StorageOptions"/>.
+/// Extension methods for registering SQLite storage services.
 /// </summary>
 public static class StorageServiceCollectionExtensions
 {
     /// <summary>
-    /// Register storage services based on <c>Gateway:Storage</c> configuration section.
-    /// Defaults to <see cref="StorageProvider.Sqlite"/> with structured schema.
+    /// Register SQLite storage repositories based on <c>Gateway:Storage</c> configuration section.
     /// </summary>
     public static IServiceCollection AddAneiangStorage(
         this IServiceCollection services,
@@ -22,21 +20,18 @@ public static class StorageServiceCollectionExtensions
         services.AddOptions<StorageOptions>()
             .BindConfiguration(StorageOptions.SectionName);
 
-        var storageOptions = new StorageOptions();
-        configuration.GetSection(StorageOptions.SectionName).Bind(storageOptions);
+        // Shared connection factory
+        services.AddSingleton<SqliteConnectionFactory>();
 
-        // Register IGatewayRepository — the primary storage abstraction
-        services.AddSingleton<IGatewayRepository>(sp =>
-        {
-            var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-
-            return storageOptions.Provider switch
-            {
-                StorageProvider.Redis => new RedisGatewayRepositoryPlaceholder(storageOptions,
-                    loggerFactory.CreateLogger<RedisGatewayRepositoryPlaceholder>()),
-                _ => new SqliteGatewayRepository(storageOptions, loggerFactory)
-            };
-        });
+        // Individual repositories
+        services.AddSingleton<IRouteRepository, SqliteRouteRepository>();
+        services.AddSingleton<IClusterRepository, SqliteClusterRepository>();
+        services.AddSingleton<IPolicyRepository, SqlitePolicyRepository>();
+        services.AddSingleton<IConfigHistoryRepository, SqliteConfigHistoryRepository>();
+        services.AddSingleton<IAuditLogRepository, SqliteAuditLogRepository>();
+        services.AddSingleton<IWafSettingsRepository, SqliteWafSettingsRepository>();
+        services.AddSingleton<IProxyLogRepository, SqliteProxyLogRepository>();
+        services.AddSingleton<INotificationRepository, SqliteNotificationRepository>();
 
         return services;
     }

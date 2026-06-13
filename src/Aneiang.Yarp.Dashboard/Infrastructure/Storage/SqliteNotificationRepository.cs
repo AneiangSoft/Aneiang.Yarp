@@ -5,9 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Storage;
 
-/// <summary>
-/// SQLite implementation of <see cref="INotificationRepository"/>.
-/// </summary>
+/// <summary>SQLite implementation of <see cref="INotificationRepository"/>.</summary>
 public sealed class SqliteNotificationRepository : INotificationRepository
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -16,35 +14,18 @@ public sealed class SqliteNotificationRepository : INotificationRepository
         WriteIndented = false
     };
 
-    private readonly string _connectionString;
+    private readonly SqliteConnectionFactory _connections;
     private readonly ILogger<SqliteNotificationRepository> _logger;
     private bool _initialized;
     private readonly SemaphoreSlim _initLock = new(1, 1);
-    private static bool _providerSet;
 
-    public SqliteNotificationRepository(StorageOptions options, ILogger<SqliteNotificationRepository> logger)
+    public SqliteNotificationRepository(SqliteConnectionFactory connections, ILogger<SqliteNotificationRepository> logger)
     {
-        _connectionString = EnsurePoolingEnabled(options.Sqlite.ConnectionString);
+        _connections = connections;
         _logger = logger;
-        EnsureProvider();
     }
 
-    private static void EnsureProvider()
-    {
-        if (_providerSet) return;
-        SQLitePCL.Batteries_V2.Init();
-        _providerSet = true;
-    }
-
-    private static string EnsurePoolingEnabled(string cs)
-    {
-        if (string.IsNullOrWhiteSpace(cs)) return "Data Source=gateway-store.db;Pooling=true";
-        return cs.Contains("Pooling=", StringComparison.OrdinalIgnoreCase) ? cs : cs.TrimEnd(';') + ";Pooling=true";
-    }
-
-    private SqliteConnection CreateConnection() => new(_connectionString);
-
-    private async Task EnsureInitializedAsync(CancellationToken ct)
+    private async ValueTask EnsureInitializedAsync(CancellationToken ct)
     {
         if (_initialized) return;
         await _initLock.WaitAsync(ct);
@@ -53,19 +34,15 @@ public sealed class SqliteNotificationRepository : INotificationRepository
             if (_initialized) return;
             await InitializeAsync(ct);
         }
-        finally
-        {
-            _initLock.Release();
-        }
+        finally { _initLock.Release(); }
     }
 
     private async Task InitializeAsync(CancellationToken ct)
     {
-        await using var conn = CreateConnection();
+        await using var conn = _connections.CreateConnection();
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            -- Notification channels and rules (single row for settings)
             CREATE TABLE IF NOT EXISTS notification_settings (
                 id TEXT PRIMARY KEY DEFAULT 'notification_settings',
                 enabled INTEGER DEFAULT 1,
@@ -74,8 +51,6 @@ public sealed class SqliteNotificationRepository : INotificationRepository
                 global_settings TEXT,
                 updated_at TEXT NOT NULL
             );
-
-            -- Notification history
             CREATE TABLE IF NOT EXISTS notification_history (
                 id TEXT PRIMARY KEY,
                 event_type TEXT NOT NULL,
@@ -120,7 +95,7 @@ public sealed class SqliteNotificationRepository : INotificationRepository
     public async Task<NotificationSettingsEntity?> LoadSettingsAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var conn = CreateConnection();
+        await using var conn = _connections.CreateConnection();
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT * FROM notification_settings WHERE id = 'notification_settings'";
@@ -141,7 +116,7 @@ public sealed class SqliteNotificationRepository : INotificationRepository
     public async Task SaveSettingsAsync(NotificationSettingsEntity settings, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var conn = CreateConnection();
+        await using var conn = _connections.CreateConnection();
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
@@ -163,21 +138,15 @@ public sealed class SqliteNotificationRepository : INotificationRepository
     public async Task<List<NotificationChannel>> GetChannelsAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var conn = CreateConnection();
+        await using var conn = _connections.CreateConnection();
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT channels FROM notification_settings WHERE id = 'notification_settings'";
         var result = await cmd.ExecuteScalarAsync(ct);
         if (result is not string json || string.IsNullOrEmpty(json)) return [];
 
-        try
-        {
-            return JsonSerializer.Deserialize<List<NotificationChannel>>(json, JsonOptions) ?? [];
-        }
-        catch
-        {
-            return [];
-        }
+        try { return JsonSerializer.Deserialize<List<NotificationChannel>>(json, JsonOptions) ?? []; }
+        catch { return []; }
     }
 
     public async Task<NotificationChannel?> GetChannelAsync(string channelId, CancellationToken ct = default)
@@ -193,10 +162,8 @@ public sealed class SqliteNotificationRepository : INotificationRepository
 
         var channels = await GetChannelsAsync(ct);
         var existing = channels.FindIndex(c => c.Id == channel.Id);
-        if (existing >= 0)
-            channels[existing] = channel;
-        else
-            channels.Add(channel);
+        if (existing >= 0) channels[existing] = channel;
+        else channels.Add(channel);
 
         var settings = await LoadSettingsAsync(ct) ?? new NotificationSettingsEntity();
         settings.Channels = JsonSerializer.Serialize(channels, JsonOptions);
@@ -219,21 +186,15 @@ public sealed class SqliteNotificationRepository : INotificationRepository
     public async Task<List<NotificationRule>> GetRulesAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var conn = CreateConnection();
+        await using var conn = _connections.CreateConnection();
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT rules FROM notification_settings WHERE id = 'notification_settings'";
         var result = await cmd.ExecuteScalarAsync(ct);
         if (result is not string json || string.IsNullOrEmpty(json)) return [];
 
-        try
-        {
-            return JsonSerializer.Deserialize<List<NotificationRule>>(json, JsonOptions) ?? [];
-        }
-        catch
-        {
-            return [];
-        }
+        try { return JsonSerializer.Deserialize<List<NotificationRule>>(json, JsonOptions) ?? []; }
+        catch { return []; }
     }
 
     public async Task<NotificationRule?> GetRuleAsync(string ruleId, CancellationToken ct = default)
@@ -249,10 +210,8 @@ public sealed class SqliteNotificationRepository : INotificationRepository
 
         var rules = await GetRulesAsync(ct);
         var existing = rules.FindIndex(r => r.Id == rule.Id);
-        if (existing >= 0)
-            rules[existing] = rule;
-        else
-            rules.Add(rule);
+        if (existing >= 0) rules[existing] = rule;
+        else rules.Add(rule);
 
         var settings = await LoadSettingsAsync(ct) ?? new NotificationSettingsEntity();
         settings.Rules = JsonSerializer.Serialize(rules, JsonOptions);
@@ -275,21 +234,15 @@ public sealed class SqliteNotificationRepository : INotificationRepository
     public async Task<NotificationGlobalSettings> GetGlobalSettingsAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var conn = CreateConnection();
+        await using var conn = _connections.CreateConnection();
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT global_settings FROM notification_settings WHERE id = 'notification_settings'";
         var result = await cmd.ExecuteScalarAsync(ct);
         if (result is not string json || string.IsNullOrEmpty(json)) return new NotificationGlobalSettings();
 
-        try
-        {
-            return JsonSerializer.Deserialize<NotificationGlobalSettings>(json, JsonOptions) ?? new NotificationGlobalSettings();
-        }
-        catch
-        {
-            return new NotificationGlobalSettings();
-        }
+        try { return JsonSerializer.Deserialize<NotificationGlobalSettings>(json, JsonOptions) ?? new NotificationGlobalSettings(); }
+        catch { return new NotificationGlobalSettings(); }
     }
 
     public async Task SaveGlobalSettingsAsync(NotificationGlobalSettings settings, CancellationToken ct = default)
@@ -305,7 +258,7 @@ public sealed class SqliteNotificationRepository : INotificationRepository
     public async Task RecordNotificationAsync(NotificationHistory record, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var conn = CreateConnection();
+        await using var conn = _connections.CreateConnection();
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
@@ -334,26 +287,19 @@ public sealed class SqliteNotificationRepository : INotificationRepository
     }
 
     public async Task<(List<NotificationHistory> Records, int Total)> GetHistoryAsync(
-        int page = 1,
-        int pageSize = 100,
-        string? eventType = null,
-        string? severity = null,
-        string? dateStart = null,
-        string? dateEnd = null,
-        CancellationToken ct = default)
+        int page = 1, int pageSize = 100, string? eventType = null, string? severity = null,
+        string? dateStart = null, string? dateEnd = null, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var conn = CreateConnection();
+        await using var conn = _connections.CreateConnection();
         await conn.OpenAsync(ct);
 
-        // Count total
         await using var countCmd = conn.CreateCommand();
         var where = BuildWhereClause(eventType, severity, dateStart, dateEnd);
         countCmd.CommandText = $"SELECT COUNT(*) FROM notification_history{where}";
         AddWhereParams(countCmd, eventType, severity, dateStart, dateEnd);
         var total = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct));
 
-        // Get page
         await using var cmd = conn.CreateCommand();
         var offset = (page - 1) * pageSize;
         cmd.CommandText = $"""
@@ -367,10 +313,7 @@ public sealed class SqliteNotificationRepository : INotificationRepository
 
         var records = new List<NotificationHistory>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            records.Add(MapNotificationHistory(reader));
-        }
+        while (await reader.ReadAsync(ct)) records.Add(MapHistory(reader));
 
         return (records, total);
     }
@@ -378,7 +321,7 @@ public sealed class SqliteNotificationRepository : INotificationRepository
     public async Task ClearHistoryAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        await using var conn = CreateConnection();
+        await using var conn = _connections.CreateConnection();
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "DELETE FROM notification_history";
@@ -396,8 +339,6 @@ public sealed class SqliteNotificationRepository : INotificationRepository
     {
         var conditions = new List<string>();
         if (IsRealFilterValue(eventType)) conditions.Add("event_type = @type");
-        // Only add severity condition if it parses as a valid enum value
-        // (so SQL never references @sev without the parameter being added).
         if (IsRealFilterValue(severity) && Enum.TryParse<NotificationSeverity>(severity, true, out _))
             conditions.Add("severity = @sev");
         if (IsRealFilterValue(dateStart)) conditions.Add("timestamp >= @dateStart");
@@ -414,13 +355,13 @@ public sealed class SqliteNotificationRepository : INotificationRepository
         if (IsRealFilterValue(dateEnd)) cmd.Parameters.AddWithValue("@dateEnd", dateEnd + "T23:59:59");
     }
 
-    private static NotificationHistory MapNotificationHistory(SqliteDataReader r)
+    private static NotificationHistory MapHistory(SqliteDataReader r)
     {
-        var notifiedChannelsJson = r.IsDBNull(r.GetOrdinal("notified_channels")) ? null : r.GetString(r.GetOrdinal("notified_channels"));
+        var ncJson = r.IsDBNull(r.GetOrdinal("notified_channels")) ? null : r.GetString(r.GetOrdinal("notified_channels"));
         List<string> notifiedChannels = [];
-        if (!string.IsNullOrEmpty(notifiedChannelsJson))
+        if (!string.IsNullOrEmpty(ncJson))
         {
-            try { notifiedChannels = JsonSerializer.Deserialize<List<string>>(notifiedChannelsJson, JsonOptions) ?? []; }
+            try { notifiedChannels = JsonSerializer.Deserialize<List<string>>(ncJson, JsonOptions) ?? []; }
             catch { }
         }
 

@@ -11,7 +11,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 
 /// <summary>
 /// Warmup service that runs during application startup to eliminate cold-start latency.
-/// Initializes: IGatewayRepository (SQLite tables), MemoryCache entries, route/cluster query results,
+/// Initializes: repositories (SQLite tables via lazy-init), MemoryCache entries, route/cluster query results,
 /// and any other lazily-initialized resources.
 /// </summary>
 public sealed class StartupWarmupService : IHostedService
@@ -50,12 +50,27 @@ public sealed class StartupWarmupService : IHostedService
         {
             using var scope = _serviceProvider.CreateScope();
 
-            // Initialize IGatewayRepository (creates SQLite tables)
-            if (scope.ServiceProvider.GetService<IGatewayRepository>() is IGatewayRepository repo)
-            {
-                await repo.InitializeAsync(ct);
-                _logger.LogDebug("IGatewayRepository warmup done");
-            }
+            // Trigger lazy initialization for key repositories (table creation happens on first query)
+            var notificationRepo = scope.ServiceProvider.GetRequiredService<INotificationRepository>();
+            var routeRepo = scope.ServiceProvider.GetRequiredService<IRouteRepository>();
+            var clusterRepo = scope.ServiceProvider.GetRequiredService<IClusterRepository>();
+            var policyRepo = scope.ServiceProvider.GetRequiredService<IPolicyRepository>();
+            var historyRepo = scope.ServiceProvider.GetRequiredService<IConfigHistoryRepository>();
+            var auditRepo = scope.ServiceProvider.GetRequiredService<IAuditLogRepository>();
+            var wafRepo = scope.ServiceProvider.GetRequiredService<IWafSettingsRepository>();
+            var proxyLogRepo = scope.ServiceProvider.GetRequiredService<IProxyLogRepository>();
+
+            await Task.WhenAll(
+                notificationRepo.GetRulesAsync(ct),
+                routeRepo.GetAllRoutesAsync(),
+                clusterRepo.GetAllClustersAsync(),
+                policyRepo.GetAllPoliciesAsync(),
+                historyRepo.GetConfigHistoryListAsync(1),
+                auditRepo.GetAuditLogsAsync(1),
+                wafRepo.GetWafSettingsAsync(ct),
+                proxyLogRepo.GetRecentProxyLogsAsync(1, ct)
+            );
+            _logger.LogDebug("Repository warmup done");
         }
         catch (Exception ex)
         {
@@ -109,8 +124,7 @@ public sealed class StartupWarmupService : IHostedService
         try
         {
             using var scope = _serviceProvider.CreateScope();
-            var repo = scope.ServiceProvider.GetService<IGatewayRepository>();
-            if (repo == null) return;
+            var repo = scope.ServiceProvider.GetRequiredService<INotificationRepository>();
 
             // ── 1. Ensure notification global settings are explicitly enabled ──
             try

@@ -35,16 +35,16 @@ public interface IGatewayPolicyService
 /// <inheritdoc />
 public class GatewayPolicyService : IGatewayPolicyService
 {
-    private readonly IGatewayRepository _repository;
+    private readonly IPolicyRepository _policyRepo;
     private readonly DynamicYarpConfigService _yarpConfig;
     private readonly ILogger<GatewayPolicyService> _logger;
 
     public GatewayPolicyService(
-        IGatewayRepository repository,
+        IPolicyRepository policyRepo,
         DynamicYarpConfigService yarpConfig,
         ILogger<GatewayPolicyService> logger)
     {
-        _repository = repository;
+        _policyRepo = policyRepo;
         _yarpConfig = yarpConfig;
         _logger = logger;
     }
@@ -54,14 +54,14 @@ public class GatewayPolicyService : IGatewayPolicyService
     /// <inheritdoc />
     public async Task<IReadOnlyList<RoutePolicy>> GetAllRoutePoliciesAsync()
     {
-        var entities = await _repository.GetAllPoliciesAsync();
+        var entities = await _policyRepo.GetAllPoliciesAsync();
         return entities.ToRoutePolicies().AsReadOnly();
     }
 
     /// <inheritdoc />
     public async Task<RoutePolicy?> GetRoutePolicyAsync(string policyId)
     {
-        var entity = await _repository.GetPolicyAsync(policyId);
+        var entity = await _policyRepo.GetPolicyAsync(policyId);
         return entity?.PolicyType == "route" ? entity.ToRoutePolicy() : null;
     }
 
@@ -71,12 +71,12 @@ public class GatewayPolicyService : IGatewayPolicyService
         if (string.IsNullOrWhiteSpace(policy.PolicyId))
             policy.PolicyId = Guid.NewGuid().ToString("N")[..12];
 
-        var existing = await _repository.GetPolicyAsync(policy.PolicyId);
+        var existing = await _policyRepo.GetPolicyAsync(policy.PolicyId);
         if (existing != null)
             throw new InvalidOperationException($"Policy with ID '{policy.PolicyId}' already exists");
 
         policy.CreatedAt = DateTime.UtcNow;
-        await _repository.SavePolicyAsync(policy.ToEntity());
+        await _policyRepo.SavePolicyAsync(policy.ToEntity());
 
         _logger.LogInformation("Created route policy '{PolicyId}' ({Name})", policy.PolicyId, policy.DisplayName);
         return policy;
@@ -85,7 +85,7 @@ public class GatewayPolicyService : IGatewayPolicyService
     /// <inheritdoc />
     public async Task<RoutePolicy?> UpdateRoutePolicyAsync(string policyId, RoutePolicy policy)
     {
-        var existing = await _repository.GetPolicyAsync(policyId);
+        var existing = await _policyRepo.GetPolicyAsync(policyId);
         if (existing == null || existing.PolicyType != "route") return null;
 
         policy.PolicyId = policyId;
@@ -94,7 +94,7 @@ public class GatewayPolicyService : IGatewayPolicyService
             ? System.Text.Json.JsonSerializer.Deserialize<List<string>>(existing.AppliedTargets) ?? new()
             : new();
 
-        await _repository.SavePolicyAsync(policy.ToEntity());
+        await _policyRepo.SavePolicyAsync(policy.ToEntity());
         _logger.LogDebug("Updated route policy '{PolicyId}'", policyId);
 
         // Re-apply policy metadata to all bound routes
@@ -109,7 +109,7 @@ public class GatewayPolicyService : IGatewayPolicyService
     /// <inheritdoc />
     public async Task<bool> DeleteRoutePolicyAsync(string policyId)
     {
-        var existing = await _repository.GetPolicyAsync(policyId);
+        var existing = await _policyRepo.GetPolicyAsync(policyId);
         if (existing == null || existing.PolicyType != "route") return false;
 
         var policy = existing.ToRoutePolicy();
@@ -118,7 +118,7 @@ public class GatewayPolicyService : IGatewayPolicyService
             await RemoveRoutePolicyMetadata(routeId);
         }
 
-        await _repository.DeletePolicyAsync(policyId);
+        await _policyRepo.DeletePolicyAsync(policyId);
         _logger.LogInformation("Deleted route policy '{PolicyId}'", policyId);
         return true;
     }
@@ -151,7 +151,7 @@ public class GatewayPolicyService : IGatewayPolicyService
             if (!policy.AppliedRoutes.Contains(routeId))
             {
                 policy.AppliedRoutes.Add(routeId);
-                await _repository.SavePolicyAsync(policy.ToEntity());
+                await _policyRepo.SavePolicyAsync(policy.ToEntity());
             }
             _logger.LogDebug(
                 "Route policy '{PolicyId}' ({Name}) applied to route '{RouteId}'",
@@ -171,7 +171,7 @@ public class GatewayPolicyService : IGatewayPolicyService
 
         if (policy.AppliedRoutes.Remove(routeId))
         {
-            await _repository.SavePolicyAsync(policy.ToEntity());
+            await _policyRepo.SavePolicyAsync(policy.ToEntity());
         }
 
         _logger.LogDebug(
@@ -185,14 +185,14 @@ public class GatewayPolicyService : IGatewayPolicyService
     /// <inheritdoc />
     public async Task<IReadOnlyList<ClusterPolicy>> GetAllClusterPoliciesAsync()
     {
-        var entities = await _repository.GetAllPoliciesAsync();
+        var entities = await _policyRepo.GetAllPoliciesAsync();
         return entities.ToClusterPolicies().AsReadOnly();
     }
 
     /// <inheritdoc />
     public async Task<ClusterPolicy?> GetClusterPolicyAsync(string policyId)
     {
-        var entity = await _repository.GetPolicyAsync(policyId);
+        var entity = await _policyRepo.GetPolicyAsync(policyId);
         return entity?.PolicyType == "cluster" ? entity.ToClusterPolicy() : null;
     }
 
@@ -202,12 +202,12 @@ public class GatewayPolicyService : IGatewayPolicyService
         if (string.IsNullOrWhiteSpace(policy.PolicyId))
             policy.PolicyId = Guid.NewGuid().ToString("N")[..12];
 
-        var existing = await _repository.GetPolicyAsync(policy.PolicyId);
+        var existing = await _policyRepo.GetPolicyAsync(policy.PolicyId);
         if (existing != null)
             throw new InvalidOperationException($"Policy with ID '{policy.PolicyId}' already exists");
 
         policy.CreatedAt = DateTime.UtcNow;
-        await _repository.SavePolicyAsync(policy.ToEntity());
+        await _policyRepo.SavePolicyAsync(policy.ToEntity());
 
         _logger.LogInformation("Created cluster policy '{PolicyId}' ({Name})", policy.PolicyId, policy.DisplayName);
         return policy;
@@ -216,7 +216,7 @@ public class GatewayPolicyService : IGatewayPolicyService
     /// <inheritdoc />
     public async Task<ClusterPolicy?> UpdateClusterPolicyAsync(string policyId, ClusterPolicy policy)
     {
-        var existing = await _repository.GetPolicyAsync(policyId);
+        var existing = await _policyRepo.GetPolicyAsync(policyId);
         if (existing == null || existing.PolicyType != "cluster") return null;
 
         policy.PolicyId = policyId;
@@ -225,7 +225,7 @@ public class GatewayPolicyService : IGatewayPolicyService
             ? System.Text.Json.JsonSerializer.Deserialize<List<string>>(existing.AppliedTargets) ?? new()
             : new();
 
-        await _repository.SavePolicyAsync(policy.ToEntity());
+        await _policyRepo.SavePolicyAsync(policy.ToEntity());
         _logger.LogInformation("Updated cluster policy '{PolicyId}'", policyId);
 
         // Re-apply policy to all bound clusters
@@ -240,7 +240,7 @@ public class GatewayPolicyService : IGatewayPolicyService
     /// <inheritdoc />
     public async Task<bool> DeleteClusterPolicyAsync(string policyId)
     {
-        var existing = await _repository.GetPolicyAsync(policyId);
+        var existing = await _policyRepo.GetPolicyAsync(policyId);
         if (existing == null || existing.PolicyType != "cluster") return false;
 
         var policy = existing.ToClusterPolicy();
@@ -249,7 +249,7 @@ public class GatewayPolicyService : IGatewayPolicyService
             await _yarpConfig.UpdateClusterCircuitBreakerAsync(clusterId, null);
         }
 
-        await _repository.DeletePolicyAsync(policyId);
+        await _policyRepo.DeletePolicyAsync(policyId);
         _logger.LogInformation("Deleted cluster policy '{PolicyId}'", policyId);
         return true;
     }
@@ -282,7 +282,7 @@ public class GatewayPolicyService : IGatewayPolicyService
             if (!policy.AppliedClusters.Contains(clusterId))
             {
                 policy.AppliedClusters.Add(clusterId);
-                await _repository.SavePolicyAsync(policy.ToEntity());
+                await _policyRepo.SavePolicyAsync(policy.ToEntity());
             }
             _logger.LogInformation(
                 "Cluster policy '{PolicyId}' ({Name}) applied to cluster '{ClusterId}'",
@@ -302,7 +302,7 @@ public class GatewayPolicyService : IGatewayPolicyService
 
         if (policy.AppliedClusters.Remove(clusterId))
         {
-            await _repository.SavePolicyAsync(policy.ToEntity());
+            await _policyRepo.SavePolicyAsync(policy.ToEntity());
         }
 
         _logger.LogInformation(
