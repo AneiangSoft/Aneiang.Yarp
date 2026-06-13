@@ -69,6 +69,12 @@ public static class KestrelExtensions
     }
 
     /// <summary>
+    /// Config key for explicit gRPC port override on the gateway.
+    /// When not set, defaults to <c>mainPort + 1</c> in HTTP mode.
+    /// </summary>
+    private const string GrpcPortConfigKey = "Gateway:Grpc:Port";
+
+    /// <summary>
     /// 从所有配置源读取并配置 Kestrel 端点
     /// </summary>
     private static void ConfigureFromAllSources(
@@ -103,6 +109,20 @@ public static class KestrelExtensions
     }
 
     /// <summary>
+    /// Resolves the gRPC port from config (<c>Gateway:Grpc:Port</c>) or falls back to <c>mainPort + 1</c>.
+    /// </summary>
+    private static int ResolveGrpcPort(IConfiguration? configuration, int mainPort)
+    {
+        if (configuration != null)
+        {
+            var configuredPort = configuration.GetValue<int?>(GrpcPortConfigKey);
+            if (configuredPort.HasValue)
+                return configuredPort.Value;
+        }
+        return mainPort + 1;
+    }
+
+    /// <summary>
     /// 从 "Kestrel:EndPoints" 配置节读取并配置
     /// </summary>
     private static bool ConfigureFromKestrelSection(
@@ -125,7 +145,7 @@ public static class KestrelExtensions
                 continue;
             }
 
-            if (TryParseAndConfigure(url, options, forceAnyIP))
+            if (TryParseAndConfigure(url, options, forceAnyIP, configuration))
             {
                 configured = true;
             }
@@ -151,7 +171,7 @@ public static class KestrelExtensions
         var configured = false;
         foreach (var url in urls.Split(';', StringSplitOptions.RemoveEmptyEntries))
         {
-            if (TryParseAndConfigure(url.Trim(), options, forceAnyIP))
+            if (TryParseAndConfigure(url.Trim(), options, forceAnyIP, configuration))
             {
                 configured = true;
             }
@@ -176,7 +196,7 @@ public static class KestrelExtensions
         var configured = false;
         foreach (var url in urls.Split(';', StringSplitOptions.RemoveEmptyEntries))
         {
-            if (TryParseAndConfigure(url.Trim(), options, forceAnyIP))
+            if (TryParseAndConfigure(url.Trim(), options, forceAnyIP, configuration: null))
             {
                 configured = true;
             }
@@ -186,14 +206,16 @@ public static class KestrelExtensions
     }
 
     /// <summary>
-    /// 解析 URL 并配置 Kestrel 监听。HTTP 端点自动启用 Http1AndHttp2 以支持 gRPC。
-    /// 对于纯 HTTP（非 TLS）端点，额外在 port+1 上开启 HTTP/2 only 端口给 gRPC
+    /// 解析 URL 并配置 Kestrel 监听。
+    /// 对于纯 HTTP（非 TLS）端点，额外开启 HTTP/2 only 端口给 gRPC
     /// （.NET 9 Kestrel 不支持在无 TLS 的端点上同时协商 HTTP/1.1 和 HTTP/2）。
+    /// gRPC 端口可通过 <c>Gateway:Grpc:Port</c> 显式指定，否则默认为主端口+1。
     /// </summary>
     private static bool TryParseAndConfigure(
         string url,
         KestrelServerOptions options,
-        bool forceAnyIP)
+        bool forceAnyIP,
+        IConfiguration? configuration)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
         {
@@ -216,10 +238,11 @@ public static class KestrelExtensions
             }
             else
             {
+                var grpcPort = ResolveGrpcPort(configuration, port);
                 // Main port: HTTP/1.1 only (Dashboard, YARP proxy, REST API)
                 options.ListenAnyIP(port, o => o.Protocols = HttpProtocols.Http1);
                 // gRPC port: HTTP/2 only (h2c) — .NET 9 requires separate port for cleartext HTTP/2
-                options.ListenAnyIP(port + 1, o => o.Protocols = HttpProtocols.Http2);
+                options.ListenAnyIP(grpcPort, o => o.Protocols = HttpProtocols.Http2);
             }
             return true;
         }
@@ -233,8 +256,9 @@ public static class KestrelExtensions
             }
             else
             {
+                var grpcPort = ResolveGrpcPort(configuration, port);
                 options.Listen(ipAddress, port, o => o.Protocols = HttpProtocols.Http1);
-                options.Listen(ipAddress, port + 1, o => o.Protocols = HttpProtocols.Http2);
+                options.Listen(ipAddress, grpcPort, o => o.Protocols = HttpProtocols.Http2);
             }
             return true;
         }

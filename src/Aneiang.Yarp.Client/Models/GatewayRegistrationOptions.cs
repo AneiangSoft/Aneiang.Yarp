@@ -57,6 +57,13 @@ public class GatewayRegistrationOptions
     public bool? UseGrpcRegistration { get; set; }
 
     /// <summary>
+    /// Explicit gRPC port on the gateway (HTTP/2 cleartext).
+    /// When not set, defaults to <c>GatewayUrl.Port + 1</c> in HTTP mode.
+    /// Ignored in HTTPS mode (gRPC uses the same port via ALPN negotiation).
+    /// </summary>
+    public int? GrpcPort { get; set; }
+
+    /// <summary>
     /// Override downstream path prefix. If set, requests will be forwarded to this path prefix.
     /// </summary>
     public string? DownstreamPathPrefix { get; set; }
