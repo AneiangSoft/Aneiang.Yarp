@@ -62,7 +62,8 @@ if (Test-Path $ArtifactsDir) {
 $Projects = @(
     "src\Aneiang.Yarp\Aneiang.Yarp.csproj",
     "src\Aneiang.Yarp.Client\Aneiang.Yarp.Client.csproj",
-    "src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj"
+    "src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj",
+    "src\Aneiang.Yarp.Grpc\Aneiang.Yarp.Grpc.csproj"
 )
 
 foreach ($proj in $Projects) {
