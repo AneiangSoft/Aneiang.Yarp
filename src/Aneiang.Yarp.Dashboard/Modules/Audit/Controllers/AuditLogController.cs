@@ -48,20 +48,4 @@ public class AuditLogController : Controller
             }
         });
     }
-
-    /// <summary>
-    /// Get available action types for filtering.
-    /// </summary>
-    [HttpGet("actions")]
-    public IActionResult GetActionTypes()
-    {
-        var entries = _auditLog.GetRecent(200);
-        var actionTypes = entries
-            .Select(e => e.Action)
-            .Distinct()
-            .OrderBy(a => a)
-            .ToList();
-
-        return Json(new { code = 200, data = actionTypes });
-    }
 }

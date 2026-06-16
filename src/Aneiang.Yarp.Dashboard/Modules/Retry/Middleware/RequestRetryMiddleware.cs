@@ -88,12 +88,12 @@ public sealed class RequestRetryMiddleware
             return;
         }
 
+        // Read and buffer the request body once - this allows multiple retries without re-consuming the stream
         context.Request.EnableBuffering();
         var requestBody = await ReadRequestBodyAsync(context.Request);
 
         int attempt = 0;
         int? lastStatusCode = null;
-        var triedDestinations = new HashSet<string>();
 
         while (attempt <= maxRetries)
         {
@@ -107,9 +107,12 @@ public sealed class RequestRetryMiddleware
                 }
             }
 
-            if (context.Request.Body.CanSeek)
+            // Restore request body from buffered bytes for each retry attempt
+            // This avoids issues with non-seekable streams (e.g., PushStreamContent)
+            if (requestBody != null)
             {
-                context.Request.Body.Seek(0, SeekOrigin.Begin);
+                context.Request.Body = new MemoryStream(requestBody);
+                context.Request.ContentLength = requestBody.Length;
             }
 
             var originalResponseBody = context.Response.Body;
@@ -183,7 +186,7 @@ public sealed class RequestRetryMiddleware
             return null;
         }
 
-        request.Body.Seek(0, SeekOrigin.Begin);
+        request.Body.Position = 0;
         var pool = ArrayPool<byte>.Shared;
         var buffer = pool.Rent((int)request.ContentLength);
         try
@@ -193,10 +196,10 @@ public sealed class RequestRetryMiddleware
             while ((bytesRead = await request.Body.ReadAsync(buffer.AsMemory(read, (int)request.ContentLength - read))) > 0)
             {
                 read += bytesRead;
-                // Safety check: if we somehow read more than ContentLength suggested
                 if (read > MaxRetryBodySizeBytes) break;
             }
-            request.Body.Seek(0, SeekOrigin.Begin);
+            // Reset position for downstream middleware
+            request.Body.Position = 0;
             return buffer.AsSpan(0, read).ToArray();
         }
         finally

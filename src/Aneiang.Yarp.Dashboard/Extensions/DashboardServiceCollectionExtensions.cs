@@ -100,7 +100,7 @@ public static class DashboardServiceCollectionExtensions
         });
 
         // ── Storage backend ──────────────────────────────────────────────────────
-        services.AddAneiangStorage(services.BuildServiceProvider().GetRequiredService<IConfiguration>());
+        services.AddAneiangStorage();
 
         // ── Audit log ─────────────────────────────────────────────────────────────
         services.AddSingleton<IConfigChangeAuditLog, ConfigChangeAuditLog>();
@@ -145,9 +145,6 @@ public static class DashboardServiceCollectionExtensions
 
         // ── Policy service (route + cluster policies via IPolicyRepository) ──────
         services.AddSingleton<IGatewayPolicyService, GatewayPolicyService>();
-
-        // ── Config snapshot service ───────────────────────────────────────────────
-        services.AddSingleton<IConfigSnapshotService, ConfigSnapshotService>();
 
         // ── Plugin system ─────────────────────────────────────────────────────────
         services.AddSingleton<IGatewayPlugin, CircuitBreakerPlugin>();
