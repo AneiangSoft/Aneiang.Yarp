@@ -121,9 +121,8 @@
 
         showDiff: async function(versionId) {
             try {
-                if (window.DashboardModals) window.DashboardModals.showLoading(__('diff.loading'));
+                if (window.DashboardModals) window.DashboardModals.showInfo(__('diff.loading'));
                 var data = await window.DashboardApi.endpoints.configDiff(versionId);
-                if (window.DashboardModals) window.DashboardModals.hideModal();
 
                 if (window.DashboardDiffPanel) {
                     window.DashboardDiffPanel.showStructured(data, {
@@ -136,7 +135,6 @@
             } catch (error) {
                 console.error('[History] Diff failed:', error);
                 if (window.DashboardModals) {
-                    window.DashboardModals.hideModal();
                     window.DashboardModals.showError(__('diff.loadFailed') + ': ' + (error.message || ''));
                 }
             }
