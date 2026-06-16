@@ -26,25 +26,6 @@ Dashboard · 动态路由 · WAF 防火墙 · 通知告警 · IP 隔离 · 自�
 
 ---
 
-<div align="center" style="display: flex; justify-content: center; align-items: center; gap: 20px; 
-            background: #f6f8fa; padding: 20px 30px; border-radius: 12px; 
-            border: 1px solid #e1e4e8; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-  <img src="docs/wechat_qrcode.jpg" alt="公众号二维码" 
-       style="width: 140px; height: 140px; border-radius: 8px; border: 2px solid #d0d7de;" />
-  <div style="text-align: left;">
-    <h3 style="margin: 0 0 4px 0; font-size: 22px; font-weight: 600; color: #24292e;">
-      递归不爆炸
-    </h3>
-    <p style="margin: 0; font-size: 16px; color: #586069; max-width: 280px;">
-      扫码关注，获取更多精彩内容
-    </p>
-    <!-- 如果还想加一个徽章（可选） -->
-    <p style="margin-top: 8px;">
-      <img src="https://img.shields.io/badge/微信-递归不爆炸-brightgreen?style=flat-square&logo=wechat" alt="微信" />
-    </p>
-  </div>
-</div>
-
 ## 包结构
 
 | 包 | 用途 | 依赖 YARP |
@@ -589,7 +570,24 @@ Dashboard：`/apigateway` · 登录：`admin` / `demo123`
 [MIT](LICENSE)
 
 ---
-
+<div align="center" style="display: flex; justify-content: center; align-items: center; gap: 20px; 
+            background: #f6f8fa; padding: 20px 30px; border-radius: 12px; 
+            border: 1px solid #e1e4e8; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+  <img src="docs/wechat_qrcode.jpg" alt="公众号二维码" 
+       style="width: 140px; height: 140px; border-radius: 8px; border: 2px solid #d0d7de;" />
+  <div style="text-align: left;">
+    <h3 style="margin: 0 0 4px 0; font-size: 22px; font-weight: 600; color: #24292e;">
+      递归不爆炸
+    </h3>
+    <p style="margin: 0; font-size: 16px; color: #586069; max-width: 280px;">
+      扫码关注，获取更多精彩内容
+    </p>
+    <!-- 如果还想加一个徽章（可选） -->
+    <p style="margin-top: 8px;">
+      <img src="https://img.shields.io/badge/微信-递归不爆炸-brightgreen?style=flat-square&logo=wechat" alt="微信" />
+    </p>
+  </div>
+</div>
 <div align="center">
 
 觉得有用？[⭐ Star 一下](https://github.com/aneiang/Aneiang.Yarp) 支持项目发展
