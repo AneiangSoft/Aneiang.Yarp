@@ -280,18 +280,9 @@
         togglePlugin: (id, enabled) => DashboardApi.post('/api/plugins/' + id + '/toggle', { enabled }),
         resetPlugins: () => DashboardApi.post('/api/plugins/reset'),
 
-        // Webhook Settings
-        getWebhookSettings: () => DashboardApi.get('/api/config/webhook'),
-        saveWebhookSettings: (data) => DashboardApi.put('/api/config/webhook', data),
-        testWebhook: (data) => DashboardApi.post('/api/config/webhook/test', data),
-
         // WAF Settings
         getWafSettings: () => DashboardApi.get('/api/config/waf'),
         saveWafSettings: (data) => DashboardApi.put('/api/config/waf', data),
-
-        // Alert Settings (/api/config/alert-settings)
-        getAlertSettings: () => DashboardApi.get('/api/config/alert-settings'),
-        saveAlertSettings: (data) => DashboardApi.put('/api/config/alert-settings', data),
 
         // Health Check
         getHealthCheckStatus: () => DashboardApi.get('/api/health-check/status'),
@@ -304,11 +295,7 @@
         getTopIssues: (count) => DashboardApi.get('/api/operations/top-issues', { count }),
         exportSnapshot: () => DashboardApi.get('/api/operations/snapshot'),
 
-        // Config Snapshot & Diff (Stage 2)
-        getSnapshots: (limit) => DashboardApi.get('/api/dashboard/config/snapshots', { limit: limit || 50 }),
-        getSnapshot: (id) => DashboardApi.get('/api/dashboard/config/snapshots/' + id),
-        compareSnapshots: (fromId, toId) => DashboardApi.get('/api/dashboard/config/diff', { fromId, toId: toId || 'current' }),
-        compareWithCurrent: (fromId) => DashboardApi.get('/api/dashboard/config/diff/' + fromId + '/current'),
+        // Config Snapshot & Diff
         configDiff: (versionId) => DashboardApi.get('/api/config/diff/' + versionId),
 
         // Database Download
@@ -351,9 +338,6 @@
     window.DashboardApi.getPlugin = (id) => DashboardApi.endpoints.getPlugin(id);
     window.DashboardApi.togglePlugin = (id, enabled) => DashboardApi.endpoints.togglePlugin(id, enabled);
     window.DashboardApi.resetPlugins = () => DashboardApi.endpoints.resetPlugins();
-    window.DashboardApi.getWebhookSettings = () => DashboardApi.endpoints.getWebhookSettings();
-    window.DashboardApi.saveWebhookSettings = (data) => DashboardApi.endpoints.saveWebhookSettings(data);
-    window.DashboardApi.testWebhook = (data) => DashboardApi.endpoints.testWebhook(data);
 
     // Notifications (New Unified System)
     window.DashboardApi.getNotificationSettings = () => DashboardApi.endpoints.getNotificationSettings();

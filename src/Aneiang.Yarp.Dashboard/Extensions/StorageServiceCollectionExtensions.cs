@@ -1,6 +1,5 @@
 using Aneiang.Yarp.Dashboard.Infrastructure.Storage;
 using Aneiang.Yarp.Storage;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Aneiang.Yarp.Dashboard.Extensions;
@@ -13,9 +12,7 @@ public static class StorageServiceCollectionExtensions
     /// <summary>
     /// Register SQLite storage repositories based on <c>Gateway:Storage</c> configuration section.
     /// </summary>
-    public static IServiceCollection AddAneiangStorage(
-        this IServiceCollection services,
-        IConfiguration configuration)
+    public static IServiceCollection AddAneiangStorage(this IServiceCollection services)
     {
         services.AddOptions<StorageOptions>()
             .BindConfiguration(StorageOptions.SectionName);

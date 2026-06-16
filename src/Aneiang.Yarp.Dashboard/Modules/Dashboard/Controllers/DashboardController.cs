@@ -121,13 +121,6 @@ public class DashboardController : Controller
         return View();
     }
 
-    [HttpGet("alerts")]
-    public IActionResult Alerts()
-    {
-        SetCommonViewBag("alerts");
-        return View();
-    }
-
     [HttpGet("notifications")]
     public IActionResult Notifications()
     {
