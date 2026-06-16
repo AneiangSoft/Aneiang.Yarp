@@ -487,18 +487,18 @@ Dashboard: `/apigateway` · Login: `admin` / `demo123`
 <div align="center" style="display: flex; justify-content: center; align-items: center; gap: 20px; 
             background: #f6f8fa; padding: 20px 30px; border-radius: 12px; 
             border: 1px solid #e1e4e8; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-  <img src="https://your-image-link/qrcode.jpg" alt="Official Account QR Code" 
+  <img src="docs/wechat_qrcode.jpg" alt="Official Account QR Code" 
        style="width: 140px; height: 140px; border-radius: 8px; border: 2px solid #d0d7de;" />
   <div style="text-align: left;">
     <h3 style="margin: 0 0 4px 0; font-size: 22px; font-weight: 600; color: #24292e;">
-      Your Official Account Name
+      递归不爆炸
     </h3>
     <p style="margin: 0; font-size: 16px; color: #586069; max-width: 280px;">
       Scan to follow and get more great content
     </p>
     <!-- Optional: add a WeChat badge -->
     <p style="margin-top: 8px;">
-      <img src="https://img.shields.io/badge/WeChat-YourAccountName-brightgreen?style=flat-square&logo=wechat" alt="WeChat" />
+      <img src="https://img.shields.io/badge/WeChat-递归不爆炸-brightgreen?style=flat-square&logo=wechat" alt="WeChat" />
     </p>
   </div>
 </div>
