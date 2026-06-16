@@ -29,7 +29,7 @@ Dashboard · 动态路由 · WAF 防火墙 · 通知告警 · IP 隔离 · 自�
 <div align="center" style="display: flex; justify-content: center; align-items: center; gap: 20px; 
             background: #f6f8fa; padding: 20px 30px; border-radius: 12px; 
             border: 1px solid #e1e4e8; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-  <img src="wechat_qrcode.jpg" alt="公众号二维码" 
+  <img src="docs/wechat_qrcode.jpg" alt="公众号二维码" 
        style="width: 140px; height: 140px; border-radius: 8px; border: 2px solid #d0d7de;" />
   <div style="text-align: left;">
     <h3 style="margin: 0 0 4px 0; font-size: 22px; font-weight: 600; color: #24292e;">
