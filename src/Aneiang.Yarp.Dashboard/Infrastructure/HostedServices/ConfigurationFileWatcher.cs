@@ -33,6 +33,7 @@ public class ConfigurationFileWatcher : IHostedService, IAsyncDisposable
         IOptions<DeploymentOptions> options,
         IConfigSnapshotStore snapshotStore,
         IGatewayAlertService alertService,
+        IHostEnvironment hostEnvironment,
         ILogger<ConfigurationFileWatcher> logger)
     {
         _configRoot = config as IConfigurationRoot
@@ -41,8 +42,8 @@ public class ConfigurationFileWatcher : IHostedService, IAsyncDisposable
         _snapshotStore = snapshotStore;
         _alertService = alertService;
         _logger = logger;
-        _basePath = AppContext.BaseDirectory;
-        _env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+        _basePath = hostEnvironment.ContentRootPath;
+        _env = hostEnvironment.EnvironmentName;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)

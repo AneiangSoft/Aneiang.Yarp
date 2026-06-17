@@ -553,27 +553,59 @@ public class ConfigManagementController : ControllerBase
     {
         try
         {
-            var history = await _persistenceService.GetHistoryAsync();
-            
-            var result = history.Select(s => new
+            var history = (await _persistenceService.GetHistoryAsync())
+                .OrderByDescending(s => s.Timestamp)
+                .ToList();
+
+            var latestVersionId = history.FirstOrDefault()?.VersionId;
+            var result = history.Select(s =>
             {
-                s.VersionId,
-                s.Timestamp,
-                s.Description,
-                s.ClientIp
+                var routeCount = ParseSnapshotRoutes(s.Config).Count;
+                var clusterCount = ParseSnapshotClusters(s.Config).Count;
+                return new
+                {
+                    s.VersionId,
+                    s.Timestamp,
+                    s.Description,
+                    s.ClientIp,
+                    RouteCount = routeCount,
+                    ClusterCount = clusterCount,
+                    TotalItems = routeCount + clusterCount,
+                    ConfigSize = s.Config.ValueKind == JsonValueKind.Undefined ? 0 : s.Config.GetRawText().Length,
+                    IsLatest = string.Equals(s.VersionId, latestVersionId, StringComparison.OrdinalIgnoreCase),
+                    ChangeType = ResolveHistoryChangeType(s.Description)
+                };
             }).ToList();
 
-            return Ok(new 
-            { 
-                code = 200, 
+            return Ok(new
+            {
+                code = 200,
                 data = result,
-                count = result.Count 
+                count = result.Count
             });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get configuration history");
             return StatusCode(500, new { code = 500, message = $"Failed to get history: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Clear all configuration history snapshots.
+    /// </summary>
+    [HttpDelete("history")]
+    public async Task<IActionResult> ClearConfigHistory()
+    {
+        try
+        {
+            await _persistenceService.ClearHistoryAsync();
+            return Ok(new { code = 200, message = "Configuration history cleared" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to clear configuration history");
+            return StatusCode(500, new { code = 500, message = $"Failed to clear history: {ex.Message}" });
         }
     }
 
@@ -701,102 +733,120 @@ public class ConfigManagementController : ControllerBase
 
     // ── Diff Helpers ──
 
+    private static string ResolveHistoryChangeType(string? description)
+    {
+        if (string.IsNullOrWhiteSpace(description)) return "manual";
+        var text = description.ToLowerInvariant();
+        if (text.Contains("rollback")) return "rollback";
+        if (text.Contains("import")) return "import";
+        if (text.Contains("deleted") || text.Contains("remove")) return "delete";
+        if (text.Contains("renamed")) return "rename";
+        if (text.Contains("saved") || text.Contains("update")) return "update";
+        return "manual";
+    }
+
+    private static JsonElement GetReverseProxySection(JsonElement config)
+    {
+        if (config.ValueKind == JsonValueKind.Object &&
+            (config.TryGetProperty("reverseProxy", out var rp) || config.TryGetProperty("ReverseProxy", out rp)))
+        {
+            return rp;
+        }
+
+        return default;
+    }
+
     private static List<SnapshotRoute> ParseSnapshotRoutes(JsonElement config)
     {
         var routes = new List<SnapshotRoute>();
+        var reverseProxy = GetReverseProxySection(config);
+        if (reverseProxy.ValueKind != JsonValueKind.Object) return routes;
+        if (!(reverseProxy.TryGetProperty("routes", out var routesElement) || reverseProxy.TryGetProperty("Routes", out routesElement)))
+            return routes;
 
-        // Try to find routes in the YARP-standard nested structure
-        JsonElement routesArray = default;
-        if (config.TryGetProperty("reverseProxy", out var rp) || config.TryGetProperty("ReverseProxy", out rp))
+        if (routesElement.ValueKind == JsonValueKind.Array)
         {
-            if (rp.TryGetProperty("routes", out var r) || rp.TryGetProperty("Routes", out r))
-            {
-                routesArray = r;
-            }
+            foreach (var route in routesElement.EnumerateArray())
+                routes.Add(ParseSnapshotRoute(route, null));
+        }
+        else if (routesElement.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var route in routesElement.EnumerateObject())
+                routes.Add(ParseSnapshotRoute(route.Value, route.Name));
         }
 
-        if (routesArray.ValueKind != JsonValueKind.Array) return routes;
+        return routes.Where(r => !string.IsNullOrWhiteSpace(r.RouteId)).ToList();
+    }
 
-        foreach (var route in routesArray.EnumerateArray())
+    private static SnapshotRoute ParseSnapshotRoute(JsonElement route, string? fallbackRouteId)
+    {
+        var routeId = route.TryGetProperty("routeId", out var rid) ? rid.GetString() ?? string.Empty :
+            route.TryGetProperty("RouteId", out var ridp) ? ridp.GetString() ?? string.Empty : fallbackRouteId ?? string.Empty;
+
+        var clusterId = route.TryGetProperty("clusterId", out var cid) ? cid.GetString() ?? string.Empty :
+            route.TryGetProperty("ClusterId", out var cidp) ? cidp.GetString() ?? string.Empty : string.Empty;
+
+        string matchPath = string.Empty;
+        if (route.TryGetProperty("match", out var match) || route.TryGetProperty("Match", out match))
         {
-            var routeId = route.TryGetProperty("routeId", out var rid) ? rid.GetString() ?? string.Empty :
-                route.TryGetProperty("RouteId", out var ridp) ? ridp.GetString() ?? string.Empty : string.Empty;
-
-            var clusterId = route.TryGetProperty("clusterId", out var cid) ? cid.GetString() ?? string.Empty :
-                route.TryGetProperty("ClusterId", out var cidp) ? cidp.GetString() ?? string.Empty : string.Empty;
-
-            string matchPath = string.Empty;
-            if (route.TryGetProperty("match", out var match) || route.TryGetProperty("Match", out match))
-            {
-                if (match.TryGetProperty("path", out var path) || match.TryGetProperty("Path", out path))
-                {
-                    matchPath = path.GetString() ?? string.Empty;
-                }
-            }
-
-            var order = route.TryGetProperty("order", out var ord) ? ord.GetInt32() :
-                route.TryGetProperty("Order", out var ordp) ? ordp.GetInt32() : 0;
-
-            routes.Add(new SnapshotRoute
-            {
-                RouteId = routeId,
-                ClusterId = clusterId,
-                MatchPath = matchPath,
-                Order = order
-            });
+            if (match.TryGetProperty("path", out var path) || match.TryGetProperty("Path", out path))
+                matchPath = path.GetString() ?? string.Empty;
         }
 
-        return routes;
+        var order = route.TryGetProperty("order", out var ord) ? ord.GetInt32() :
+            route.TryGetProperty("Order", out var ordp) ? ordp.GetInt32() : 0;
+
+        return new SnapshotRoute
+        {
+            RouteId = routeId,
+            ClusterId = clusterId,
+            MatchPath = matchPath,
+            Order = order
+        };
     }
 
     private static List<SnapshotCluster> ParseSnapshotClusters(JsonElement config)
     {
         var clusters = new List<SnapshotCluster>();
+        var reverseProxy = GetReverseProxySection(config);
+        if (reverseProxy.ValueKind != JsonValueKind.Object) return clusters;
+        if (!(reverseProxy.TryGetProperty("clusters", out var clustersElement) || reverseProxy.TryGetProperty("Clusters", out clustersElement)))
+            return clusters;
 
-        JsonElement clustersObj = default;
-        if (config.TryGetProperty("reverseProxy", out var rp) || config.TryGetProperty("ReverseProxy", out rp))
+        if (clustersElement.ValueKind != JsonValueKind.Object) return clusters;
+
+        foreach (var kvp in clustersElement.EnumerateObject())
         {
-            if (rp.TryGetProperty("clusters", out var c) || rp.TryGetProperty("Clusters", out c))
+            var clusterId = kvp.Name;
+            var cluster = kvp.Value;
+
+            var lbPolicy = (cluster.TryGetProperty("loadBalancingPolicy", out var lbp)
+                ? lbp.GetString() : null)
+                ?? (cluster.TryGetProperty("LoadBalancingPolicy", out var lbpp)
+                ? lbpp.GetString() : null);
+
+            var dests = new Dictionary<string, string>();
+            if (cluster.TryGetProperty("destinations", out var d) || cluster.TryGetProperty("Destinations", out d))
             {
-                clustersObj = c;
-            }
-        }
-
-        if (clustersObj.ValueKind == JsonValueKind.Object)
-        {
-            foreach (var kvp in clustersObj.EnumerateObject())
-            {
-                var clusterId = kvp.Name;
-                var cluster = kvp.Value;
-
-                var lbPolicy = (cluster.TryGetProperty("loadBalancingPolicy", out var lbp)
-                    ? lbp.GetString() : null)
-                    ?? (cluster.TryGetProperty("LoadBalancingPolicy", out var lbpp)
-                    ? lbpp.GetString() : null);
-
-                var dests = new Dictionary<string, string>();
-                if (cluster.TryGetProperty("destinations", out var d) || cluster.TryGetProperty("Destinations", out d))
+                if (d.ValueKind == JsonValueKind.Object)
                 {
-                    if (d.ValueKind == JsonValueKind.Object)
+                    foreach (var dest in d.EnumerateObject())
                     {
-                        foreach (var dest in d.EnumerateObject())
-                        {
-                            var addr = dest.Value.ValueKind == JsonValueKind.String
-                                ? dest.Value.GetString() ?? string.Empty
-                                : dest.Value.TryGetProperty("address", out var a) ? a.GetString() ?? string.Empty :
-                                  dest.Value.TryGetProperty("Address", out var ap) ? ap.GetString() ?? string.Empty : string.Empty;
-                            dests[dest.Name] = addr;
-                        }
+                        var addr = dest.Value.ValueKind == JsonValueKind.String
+                            ? dest.Value.GetString() ?? string.Empty
+                            : dest.Value.TryGetProperty("address", out var a) ? a.GetString() ?? string.Empty :
+                              dest.Value.TryGetProperty("Address", out var ap) ? ap.GetString() ?? string.Empty : string.Empty;
+                        dests[dest.Name] = addr;
                     }
                 }
-
-                clusters.Add(new SnapshotCluster
-                {
-                    ClusterId = clusterId,
-                    LoadBalancingPolicy = lbPolicy,
-                    Destinations = dests
-                });
             }
+
+            clusters.Add(new SnapshotCluster
+            {
+                ClusterId = clusterId,
+                LoadBalancingPolicy = lbPolicy,
+                Destinations = dests
+            });
         }
 
         return clusters;

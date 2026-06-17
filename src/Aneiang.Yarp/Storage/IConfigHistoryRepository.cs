@@ -10,4 +10,5 @@ public interface IConfigHistoryRepository
     Task SaveConfigHistoryAsync(ConfigHistoryEntity history, CancellationToken ct = default);
     Task DeleteConfigHistoryAsync(string versionId, CancellationToken ct = default);
     Task DeleteOldConfigHistoryAsync(int keepCount, CancellationToken ct = default);
+    Task ClearConfigHistoryAsync(CancellationToken ct = default);
 }

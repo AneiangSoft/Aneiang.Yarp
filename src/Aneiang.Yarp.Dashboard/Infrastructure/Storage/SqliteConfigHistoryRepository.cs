@@ -118,6 +118,16 @@ public sealed class SqliteConfigHistoryRepository : IConfigHistoryRepository
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
+    public async Task ClearConfigHistoryAsync(CancellationToken ct = default)
+    {
+        await EnsureInitializedAsync(ct);
+        await using var conn = _connections.CreateConnection();
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM yarp_config_history";
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
     private static ConfigHistoryEntity Map(SqliteDataReader r) => new()
     {
         VersionId = r.GetString(0),

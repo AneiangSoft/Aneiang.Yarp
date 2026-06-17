@@ -1,5 +1,6 @@
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Auth;
+using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Services;
 using Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Infrastructure.Realtime;
@@ -183,6 +184,9 @@ public static class DashboardServiceCollectionExtensions
 
         // ── Default health check service ──────────────────────────────────────────
         services.AddHostedService<DefaultHealthCheckService>();
+
+        // ── Circuit breaker warmup: restore configured circuit entries after restart ──
+        services.AddHostedService<CircuitBreakerWarmupService>();
 
         // ── Startup warmup: initializes repositories, MemoryCache, and query services ──
         services.AddHostedService<StartupWarmupService>();

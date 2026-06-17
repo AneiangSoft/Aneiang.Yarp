@@ -232,6 +232,7 @@
 
         // Config History
         getHistory: () => DashboardApi.get('/api/config/history'),
+        clearConfigHistory: () => DashboardApi.delete('/api/config/history'),
         rollback: (versionId) => DashboardApi.post(`/api/config/rollback/${versionId}`),
         createSnapshot: (description) => DashboardApi.post('/api/config/snapshot', { description }),
 

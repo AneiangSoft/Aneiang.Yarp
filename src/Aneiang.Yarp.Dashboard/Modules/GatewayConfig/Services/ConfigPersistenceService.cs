@@ -273,6 +273,18 @@ public class ConfigPersistenceService : IConfigPersistenceService
         return Array.Empty<ConfigSnapshot>();
     }
 
+    public async Task ClearHistoryAsync()
+    {
+        await EnsureHistoryLoadedAsync();
+        lock (_historyLock)
+        {
+            _history.Clear();
+        }
+
+        await _historyRepo.ClearConfigHistoryAsync();
+        _logger.LogInformation("Configuration history cleared");
+    }
+
     public async Task<bool> RollbackAsync(string versionId, string? clientIp = null)
     {
         await EnsureHistoryLoadedAsync();

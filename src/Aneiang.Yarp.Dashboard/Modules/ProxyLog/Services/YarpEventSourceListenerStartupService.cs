@@ -36,10 +36,15 @@ public sealed class YarpEventSourceListenerStartupService : IHostedService
     }
 
     /// <summary>
-    /// No cleanup needed on shutdown.
+    /// Disable EventSource subscription during host shutdown.
     /// </summary>
     public Task StopAsync(CancellationToken cancellationToken)
     {
+        if (_options.Value.EnableProxyLogging)
+        {
+            _listener.Dispose();
+        }
+
         return Task.CompletedTask;
     }
 }
