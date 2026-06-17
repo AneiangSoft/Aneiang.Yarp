@@ -1,6 +1,117 @@
 # 更新日志
 
 
+## [2.3.0.21] - 2026-06-17
+
+> 灵活端口与启动模式 + 健康检查 + 配置热更新
+
+### 🚀 新增功能
+
+#### 灵活端口与启动模式
+- **多端口监听**：通过 `Kestrel:Endpoints` 配置多个端点，每个端点绑定不同端口和 IP
+- **5 种启动模式**：`Auto` / `AllInOne` / `Split` / `ProxyOnly` / `DashboardOnly`
+- **端点角色路由**：`EndpointRouterMiddleware` 根据 `LocalPort` + 角色决定请求归属
+- **角色枚举**：`Proxy` / `Dashboard` / `Admin` / `Health` / `All`
+- **安全防护**：`RequireLoopbackForDashboard` 默认 true，公网绑定 Dashboard 启动失败
+- **命令行快捷参数**：`--deployment split --proxy-url ... --dashboard-url ...`
+- **完全向后兼容**：现有 `Urls` 配置自动生效，行为不变
+
+#### 健康检查
+- **3 个端点**：`/health`（综合）、`/ready`（就绪）、`/live`（存活）
+- **依赖检查**：可配置是否检查数据库连接、YARP 配置加载
+- **鉴权选项**：可选 IP 白名单、可选 Token 鉴权（`X-Health-Token` 头或 `?token=` 查询）
+- **K8s 友好**：返回 JSON 包含 `status` / `checks` / `uptime` / `version` / `endpoints`
+
+#### 配置热更新
+- **FileSystemWatcher 主监听**：监听 `appsettings.json` 和 `appsettings.{Env}.json`
+- **30s 兜底轮询**：防止编辑器 temp+rename 模式下事件丢失
+- **500ms 防抖**：避免编辑器多次保存触发连续重载
+- **失败自动回滚**：重载异常时恢复上次快照
+- **配置快照**：保留最近 5 个版本，支持手动回滚（`.config-snapshots/` 目录）
+- **端点变更检测**：Kestrel:Endpoints 变更时发出告警（不自动重启）
+
+### 📁 新增文件
+
+```
+src/Aneiang.Yarp.Dashboard/
+├── Infrastructure/
+│   ├── Deployment/
+│   │   ├── DeploymentOptions.cs        # 配置选项 + 5 种枚举
+│   │   ├── EndpointRoleResolver.cs     # 端口→角色映射
+│   │   ├── DeploymentConfigValidator.cs # 启动验证
+│   │   ├── ConfigSnapshot.cs           # 快照模型 + 文件存储
+│   │   └── DeploymentCli.cs            # 命令行解析
+│   ├── Middleware/
+│   │   ├── EndpointRouterMiddleware.cs # 端口路由分发
+│   │   └── HealthCheckMiddleware.cs    # 健康检查
+│   ├── HostedServices/
+│   │   ├── ConfigurationFileWatcher.cs # 文件热更新
+│   │   └── KestrelEndpointChangeDetector.cs # 端点变更检测
+│   └── Alert/
+│       ├── IGatewayAlertService.cs     # 告警接口
+│       └── NullGatewayAlertService.cs  # 默认实现
+├── Modules/Dashboard/
+│   ├── Controllers/DeploymentInfoController.cs # /api/deployment/* 接口
+│   └── Views/Dashboard/Deployment.cshtml         # 运行模式展示页
+└── wwwroot/js/modules/
+    └── dashboard-deployment.js         # 前端模块
+
+samples/SampleGateway/appsettings.examples/
+├── appsettings.AllInOne.json           # 兼容模式示例
+├── appsettings.Split.json              # 双端口拆分示例
+├── appsettings.SplitWithHealth.json    # 含健康检查示例
+├── appsettings.ProxyOnly.json          # 仅代理示例
+└── README.md                           # 使用说明
+```
+
+### 📝 使用示例
+
+```csharp
+// Program.cs 一行启用
+builder.Services.AddAneiangYarpDeployment(builder.Configuration);
+
+// 中间件挂载（在 UseAneiangYarpDashboard 之前）
+app.UseMiddleware<EndpointRouterMiddleware>();
+app.UseMiddleware<HealthCheckMiddleware>();
+app.UseAneiangYarpDashboard();
+```
+
+```json
+// appsettings.json 双端口配置
+{
+  "Kestrel": {
+    "Endpoints": {
+      "Proxy":     { "Url": "http://0.0.0.0:80" },
+      "Dashboard": { "Url": "http://127.0.0.1:5000" }
+    }
+  },
+  "Gateway": {
+    "Deployment": {
+      "Mode": "Split",
+      "EndpointRoles": { "Proxy": "Proxy", "Dashboard": "Dashboard" }
+    }
+  }
+}
+```
+
+### 🔗 相关文档
+- 设计文档：`docs/灵活端口与启动方案设计.md`
+
+#### Dashboard "运行模式" 页面
+- 新增菜单项：**系统管理 → 运行模式**（路径：`/{prefix}/deployment`）
+- 展示内容：
+  - **当前模式卡片**：Auto / AllInOne / Split / ProxyOnly / DashboardOnly 五种模式高亮
+  - **运行摘要**：进程启动时间、运行时长（实时更新）、程序版本、环境
+  - **监听端点表格**：名称/地址/端口/角色/是否公网/状态
+  - **配置热更新状态**：启用状态、监听文件、防抖时间、兜底轮询间隔、失败回滚
+  - **健康检查状态**：启用状态、端点路径（`/health` `/ready` `/live`）、鉴权方式、检查项
+  - **安全告警卡片**：Dashboard/Admin/Health 端口暴露公网时红色高亮
+  - **配置快照表格**：时间/触发/文件/查看详情
+  - **手动操作区**：重新加载配置、创建快照、健康检查
+- 后端 API：`GET /api/deployment/summary` 聚合所有运行时信息
+- 数据来源：`DeploymentOptions` + `EndpointRoleResolver` + `IConfigSnapshotStore`
+
+
 ## [2.3.0.20] - 2026-06-13
 
 > 里程碑版本：完整 WAF 防火墙、通知告警系统、健康检查面板、熔断/限流/重试 Dashboard、Storage 模块架构重构（上帝接口消除）、SQLCipher 数据库加密、数据库下载。README 中英文版大幅扩容，新增技术栈总览、中间件管道、插件系统、策略引擎、性能优化等章节。

@@ -1,3 +1,4 @@
+using Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
 using Aneiang.Yarp.Dashboard.Infrastructure.Realtime;
 using Aneiang.Yarp.Dashboard.Infrastructure.Yarp;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Aneiang.Yarp.Dashboard.Extensions;
 
@@ -21,80 +23,87 @@ public static class DashboardApplicationBuilderExtensions
 
     /// <summary>
     /// Register Dashboard middleware and map the YARP proxy endpoint with core middleware
-    /// in the correct pipeline order.
-    /// <para>
-    /// This method sets up request capture middleware on the main pipeline and maps
-    /// the YARP proxy branch with core middleware inside it
-    /// (which require <c>IReverseProxyFeature</c>).
-    /// </para>
-    /// <para>
-    /// <b>Important:</b> Do NOT call <c>MapReverseProxy()</c> separately — this method
-    /// handles it internally. Usage pattern:
-    /// </para>
-    /// <code>
-    /// app.UseRouting();
-    /// app.UseAneiangYarpDashboard();
-    /// app.MapControllers();
-    /// </code>
+    /// in the correct pipeline order. When <see cref="DeploymentOptions.Mode"/> is set,
+    /// this method intelligently mounts only the components needed for the current mode
+    /// (AllInOne / Split / ProxyOnly / DashboardOnly).
     /// </summary>
     public static IApplicationBuilder UseAneiangYarpDashboard(
         this IApplicationBuilder app,
         Action<IReverseProxyApplicationBuilder>? configureProxyPipeline = null)
     {
-        // Guard: prevent double registration that would cause duplicate
-        // middleware, duplicate MapReverseProxy, and double counting of requests.
         if (app.Properties.TryGetValue(DashboardConfiguredKey, out _))
         {
             return app;
         }
         app.Properties[DashboardConfiguredKey] = true;
 
-        // Response compression must be FIRST — before any middleware that reads/writes the body.
-        // This compresses static files, API JSON responses, and Razor HTML output.
-        app.UseResponseCompression();
+        var mode = DeploymentMode.AllInOne;
+        try
+        {
+            var options = app.ApplicationServices.GetService<IOptions<DeploymentOptions>>();
+            if (options != null)
+                mode = options.Value.Mode;
+        }
+        catch
+        {
+            // Fall back to AllInOne if DeploymentOptions is not registered (backward compat)
+        }
 
-        app.UseStaticFiles();
+        var dashboardActive = mode != DeploymentMode.ProxyOnly;
+        var proxyActive = mode != DeploymentMode.DashboardOnly;
 
-        // Request capture runs on the main pipeline (before endpoint routing)
-        app.UseMiddleware<YarpRequestCaptureMiddleware>();
+        if (dashboardActive)
+        {
+            app.UseResponseCompression();
+            app.UseStaticFiles();
+        }
 
-        // WAF middleware runs on the main pipeline before proxy routing
+        if (proxyActive)
+        {
+            app.UseMiddleware<YarpRequestCaptureMiddleware>();
+        }
+
         app.UseMiddleware<WafMiddleware>();
 
         if (app is IEndpointRouteBuilder endpoints)
         {
-            endpoints.Map("/_content/Aneiang.Yarp.Dashboard/{**path}", async context =>
+            if (dashboardActive)
             {
-                var path = context.Request.RouteValues["path"]?.ToString() ?? "";
-                var filePath = $"_content/Aneiang.Yarp.Dashboard/{path}";
-
-                var fileInfo = context.RequestServices
-                    .GetRequiredService<IWebHostEnvironment>()
-                    .WebRootFileProvider
-                    .GetFileInfo(filePath);
-
-                if (fileInfo.Exists)
+                endpoints.Map("/_content/Aneiang.Yarp.Dashboard/{**path}", async context =>
                 {
-                    context.Response.ContentType = GetContentType(filePath);
-                    await context.Response.SendFileAsync(fileInfo);
-                }
-                else
-                {
-                    context.Response.StatusCode = StatusCodes.Status404NotFound;
-                }
-            });
+                    var path = context.Request.RouteValues["path"]?.ToString() ?? "";
+                    var filePath = $"_content/Aneiang.Yarp.Dashboard/{path}";
 
-            // Real-time traffic hub for topology page
-            endpoints.MapHub<TrafficHub>("/hubs/traffic");
+                    var fileInfo = context.RequestServices
+                        .GetRequiredService<IWebHostEnvironment>()
+                        .WebRootFileProvider
+                        .GetFileInfo(filePath);
 
-            endpoints.MapReverseProxy(proxyPipeline =>
+                    if (fileInfo.Exists)
+                    {
+                        context.Response.ContentType = GetContentType(filePath);
+                        await context.Response.SendFileAsync(fileInfo);
+                    }
+                    else
+                    {
+                        context.Response.StatusCode = StatusCodes.Status404NotFound;
+                    }
+                });
+
+                endpoints.MapHub<TrafficHub>("/hubs/traffic");
+            }
+
+            if (proxyActive)
             {
-                proxyPipeline.UseMiddleware<BuiltinTransformMiddleware>();
-                proxyPipeline.UseMiddleware<RateLimitMiddleware>();
-                proxyPipeline.UseMiddleware<CircuitBreakerMiddleware>();
-                proxyPipeline.UseMiddleware<RequestRetryMiddleware>();
-                configureProxyPipeline?.Invoke(proxyPipeline);
-            });
+                endpoints.MapReverseProxy(proxyPipeline =>
+                {
+                    proxyPipeline.UseMiddleware<BuiltinTransformMiddleware>();
+                    proxyPipeline.UseMiddleware<RateLimitMiddleware>();
+                    proxyPipeline.UseMiddleware<CircuitBreakerMiddleware>();
+                    proxyPipeline.UseMiddleware<RequestRetryMiddleware>();
+                    configureProxyPipeline?.Invoke(proxyPipeline);
+                });
+            }
         }
 
         return app;

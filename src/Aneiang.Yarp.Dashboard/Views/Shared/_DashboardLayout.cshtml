@@ -2505,6 +2505,7 @@
                     Items = new[] {
                         new { Key = "history", Title = isEn ? "History" : "配置历史", Icon = "bi-clock-history", Path = $"/{prefix}/history", Conditional = false },
                         new { Key = "audit", Title = isEn ? "Audit Log" : "审计日志", Icon = "bi-shield-check", Path = $"/{prefix}/audit", Conditional = false },
+                        new { Key = "deployment", Title = isEn ? "Deployment" : "运行模式", Icon = "bi-rocket-takeoff", Path = $"/{prefix}/deployment", Conditional = false },
                         new { Key = "settings", Title = isEn ? "Settings" : "设置", Icon = "bi-gear", Path = $"/{prefix}/settings", Conditional = false }
                     }
                 }
@@ -2600,6 +2601,7 @@
                 {"plugins", pgIsEn ? "Plugin Management" : "插件管理"},
                 {"history", pgIsEn ? "Configuration History" : "配置历史"},
                 {"audit", pgIsEn ? "Audit Log" : "审计日志"},
+                {"deployment", pgIsEn ? "Deployment" : "运行模式"},
                 {"settings", pgIsEn ? "Settings" : "设置"}
             };
             var pageIcons = new System.Collections.Generic.Dictionary<string, string>
@@ -2618,6 +2620,7 @@
                 {"plugins", "bi-puzzle"},
                 {"history", "bi-clock-history"},
                 {"audit", "bi-shield-check"},
+                {"deployment", "bi-rocket-takeoff"},
                 {"settings", "bi-gear"}
             };
             var pageTitle = pageTitles.ContainsKey(pgName) ? pageTitles[pgName] : pgName;

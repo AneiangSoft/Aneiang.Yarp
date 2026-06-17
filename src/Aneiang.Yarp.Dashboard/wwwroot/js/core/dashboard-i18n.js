@@ -32,7 +32,7 @@
     window.__ = function(key, params) {
         // Get translation
         let text = translations[key];
-        
+
         // Fallback to key if not found
         if (!text) {
             console.warn('[i18n] Missing translation:', key);
@@ -48,6 +48,10 @@
 
         return text;
     };
+
+    // Alias for module-style access: DashboardI18n.t(key)
+    window.DashboardI18n.t = window.__;
+    window.DashboardI18n.translations = translations;
 
     // ===== Locale Management =====
     window.DashboardI18n.setLocale = function(locale) {
