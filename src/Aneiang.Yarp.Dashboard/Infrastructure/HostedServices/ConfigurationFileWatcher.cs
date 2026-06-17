@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Aneiang.Yarp.Dashboard.Infrastructure.Alert;
 using Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
 using Microsoft.Extensions.Configuration;
@@ -24,7 +23,7 @@ public class ConfigurationFileWatcher : IHostedService, IAsyncDisposable
     private readonly List<FileSystemWatcher> _watchers = new();
     private readonly string _basePath;
     private readonly string _env;
-    private DateTime _lastFileWrite = DateTime.MinValue;
+    private readonly Dictionary<string, DateTime> _lastFileWrites = new(StringComparer.OrdinalIgnoreCase);
     private Timer? _debounceTimer;
     private Timer? _fallbackTimer;
     private readonly object _reloadLock = new();
@@ -89,7 +88,7 @@ public class ConfigurationFileWatcher : IHostedService, IAsyncDisposable
 
     private void OnFileEvent(string filePath, string trigger)
     {
-        try { _lastFileWrite = File.GetLastWriteTimeUtc(filePath); } catch { }
+        try { _lastFileWrites[filePath] = File.GetLastWriteTimeUtc(filePath); } catch { }
         ScheduleReload(filePath, trigger);
     }
 
@@ -103,9 +102,15 @@ public class ConfigurationFileWatcher : IHostedService, IAsyncDisposable
             try
             {
                 var lastWrite = File.GetLastWriteTimeUtc(fullPath);
-                if (lastWrite > _lastFileWrite)
+                if (!_lastFileWrites.TryGetValue(fullPath, out var previousWrite))
                 {
-                    _lastFileWrite = lastWrite;
+                    _lastFileWrites[fullPath] = lastWrite;
+                    continue;
+                }
+
+                if (lastWrite > previousWrite)
+                {
+                    _lastFileWrites[fullPath] = lastWrite;
                     ScheduleReload(fullPath, "PollingFallback");
                 }
             }
@@ -153,15 +158,21 @@ public class ConfigurationFileWatcher : IHostedService, IAsyncDisposable
         Timestamp = DateTime.UtcNow,
         Trigger = trigger,
         FilePath = filePath,
-        Data = _configRoot.GetSection("Gateway").Get<Dictionary<string, object?>>() ?? new()
+        Data = _configRoot.GetSection("Gateway").Get<Dictionary<string, object?>>() ?? new(),
+        RawContent = ReadFileContent(filePath)
     };
 
     private void RestoreSnapshot(ConfigSnapshot snapshot)
     {
         try
         {
-            var json = JsonSerializer.Serialize(snapshot.Data, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(snapshot.FilePath, json);
+            if (string.IsNullOrEmpty(snapshot.RawContent))
+            {
+                _logger.LogWarning("Snapshot has no raw content; skip rollback for {File}", snapshot.FilePath);
+                return;
+            }
+
+            File.WriteAllText(snapshot.FilePath, snapshot.RawContent);
             _configRoot.Reload();
             _logger.LogInformation("Rolled back to {Timestamp}", snapshot.Timestamp);
         }
@@ -169,6 +180,12 @@ public class ConfigurationFileWatcher : IHostedService, IAsyncDisposable
         {
             _logger.LogError(ex, "Failed to rollback config snapshot");
         }
+    }
+
+    private static string? ReadFileContent(string filePath)
+    {
+        try { return File.Exists(filePath) ? File.ReadAllText(filePath) : null; }
+        catch { return null; }
     }
 
     private string ResolveFilePattern(string pattern) =>
