@@ -1,5 +1,6 @@
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Auth;
+using Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Infrastructure.Realtime;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Controllers;
@@ -51,6 +52,16 @@ public static class DashboardServiceCollectionExtensions
         // Register WAF options (nested in DashboardOptions)
         services.AddOptions<WafOptions>()
             .BindConfiguration("Gateway:Dashboard:Waf");
+
+        // ── Deployment options ────────────────────────────────────────────────────
+        // BindConfiguration provides the raw config values. AddAneiangYarpDeployment
+        // (if called) will PostConfigure to normalize Mode (Auto→Split/AllInOne).
+        services.AddOptions<DeploymentOptions>()
+            .BindConfiguration(DeploymentOptions.SectionName);
+
+        // ── Alert service (no-op default; can be replaced by user's implementation) ──
+        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Alert.IGatewayAlertService,
+            Aneiang.Yarp.Dashboard.Infrastructure.Alert.NullGatewayAlertService>();
 
         if (configureOptions != null)
             services.Configure(configureOptions);
@@ -215,5 +226,37 @@ public static class DashboardServiceCollectionExtensions
             new DashboardAuthorizationService(Options.Create(opts),
                 Microsoft.Extensions.Logging.Abstractions.NullLogger<DashboardAuthorizationService>.Instance),
             routePrefix);
+    }
+
+    /// <summary>
+    /// Register deployment-related services (EndpointRoleResolver, config validators, snapshot store, hot-reload).
+    /// Call this from Program.cs after <see cref="AddAneiangYarpDashboard"/> when you want
+    /// to enable multi-port / split / proxy-only / dashboard-only deployment modes.
+    /// </summary>
+    public static IServiceCollection AddAneiangYarpDeployment(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddSingleton<IConfigSnapshotStore, FileConfigSnapshotStore>();
+
+        // Eagerly instantiate the EndpointRoleResolver NOW and normalize Mode.
+        // We use PostConfigure to set the resolved mode AFTER BindConfiguration runs.
+        var deploymentOptions = new DeploymentOptions();
+        configuration.GetSection(DeploymentOptions.SectionName).Bind(deploymentOptions);
+        var resolver = new EndpointRoleResolver(configuration, deploymentOptions);
+        services.AddSingleton(resolver);
+
+        // PostConfigure: override Mode with the resolver-normalized value.
+        // This runs AFTER BindConfiguration, so the resolved Mode survives.
+        var normalizedMode = deploymentOptions.Mode;
+        var resolvedEndpoints = deploymentOptions.ResolvedEndpoints.ToList();
+        services.PostConfigure<DeploymentOptions>(opts =>
+        {
+            opts.Mode = normalizedMode;
+            opts.ResolvedEndpoints = resolvedEndpoints;
+        });
+
+        services.AddHostedService<DeploymentConfigValidator>();
+        services.AddHostedService<Aneiang.Yarp.Dashboard.Infrastructure.HostedServices.ConfigurationFileWatcher>();
+        services.AddHostedService<Aneiang.Yarp.Dashboard.Infrastructure.HostedServices.KestrelEndpointChangeDetector>();
+        return services;
     }
 }

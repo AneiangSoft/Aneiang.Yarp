@@ -226,6 +226,12 @@ public static class KestrelExtensions
         var isHttps = uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
         var host = uri.Host;
 
+        // When the user has explicitly declared 2+ Kestrel:Endpoints (multi-port / split mode),
+        // we skip the auto-injected gRPC port. Each user-declared port should be honored
+        // exactly as configured, with no implicit +1 offset.
+        var skipAutoGrpc = configuration != null
+            && configuration.GetSection("Kestrel:Endpoints").GetChildren().Count() >= 2;
+
         // 判断是否需要监听 0.0.0.0
         var shouldListenAnyIP = forceAnyIP ||
                                host is "localhost" or "127.0.0.1" or "0.0.0.0" or "::1";
@@ -238,11 +244,19 @@ public static class KestrelExtensions
             }
             else
             {
-                var grpcPort = ResolveGrpcPort(configuration, port);
-                // Main port: HTTP/1.1 only (Dashboard, YARP proxy, REST API)
-                options.ListenAnyIP(port, o => o.Protocols = HttpProtocols.Http1);
-                // gRPC port: HTTP/2 only (h2c) — .NET 9 requires separate port for cleartext HTTP/2
-                options.ListenAnyIP(grpcPort, o => o.Protocols = HttpProtocols.Http2);
+                if (skipAutoGrpc)
+                {
+                    // Multi-endpoint mode: bind only the declared port, no auto gRPC.
+                    options.ListenAnyIP(port, o => o.Protocols = HttpProtocols.Http1AndHttp2);
+                }
+                else
+                {
+                    var grpcPort = ResolveGrpcPort(configuration, port);
+                    // Main port: HTTP/1.1 only (Dashboard, YARP proxy, REST API)
+                    options.ListenAnyIP(port, o => o.Protocols = HttpProtocols.Http1);
+                    // gRPC port: HTTP/2 only (h2c) — .NET 9 requires separate port for cleartext HTTP/2
+                    options.ListenAnyIP(grpcPort, o => o.Protocols = HttpProtocols.Http2);
+                }
             }
             return true;
         }
@@ -256,9 +270,17 @@ public static class KestrelExtensions
             }
             else
             {
-                var grpcPort = ResolveGrpcPort(configuration, port);
-                options.Listen(ipAddress, port, o => o.Protocols = HttpProtocols.Http1);
-                options.Listen(ipAddress, grpcPort, o => o.Protocols = HttpProtocols.Http2);
+                if (skipAutoGrpc)
+                {
+                    // Multi-endpoint mode: bind only the declared port, no auto gRPC.
+                    options.Listen(ipAddress, port, o => o.Protocols = HttpProtocols.Http1AndHttp2);
+                }
+                else
+                {
+                    var grpcPort = ResolveGrpcPort(configuration, port);
+                    options.Listen(ipAddress, port, o => o.Protocols = HttpProtocols.Http1);
+                    options.Listen(ipAddress, grpcPort, o => o.Protocols = HttpProtocols.Http2);
+                }
             }
             return true;
         }

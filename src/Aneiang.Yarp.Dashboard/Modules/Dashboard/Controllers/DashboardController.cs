@@ -184,6 +184,13 @@ public class DashboardController : Controller
         return View();
     }
 
+    [HttpGet("deployment")]
+    public IActionResult Deployment()
+    {
+        SetCommonViewBag("deployment");
+        return View();
+    }
+
     /// <summary>Download the SQLite database file for local inspection.</summary>
     [HttpGet("api/settings/database")]
     public IActionResult DownloadDatabase()
