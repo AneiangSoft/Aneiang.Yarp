@@ -20,6 +20,9 @@ public class ConfigSnapshot
 
     /// <summary>Captured configuration tree under the "Gateway" section.</summary>
     public Dictionary<string, object?> Data { get; set; } = new();
+
+    /// <summary>Raw content of the changed configuration file, used for safe rollback.</summary>
+    public string? RawContent { get; set; }
 }
 
 /// <summary>

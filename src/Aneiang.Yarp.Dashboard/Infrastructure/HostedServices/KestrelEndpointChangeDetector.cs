@@ -18,6 +18,7 @@ public class KestrelEndpointChangeDetector : IHostedService, IDisposable
     private readonly IGatewayAlertService _alertService;
     private readonly ILogger<KestrelEndpointChangeDetector> _logger;
     private readonly Dictionary<string, string> _originalEndpoints;
+    private string? _lastAlertSignature;
     private Timer? _checkTimer;
 
     public KestrelEndpointChangeDetector(
@@ -30,8 +31,10 @@ public class KestrelEndpointChangeDetector : IHostedService, IDisposable
         _resolver = resolver;
         _alertService = alertService;
         _logger = logger;
-        _originalEndpoints = resolver.GetAll()
-            .ToDictionary(m => m.EndpointName, m => $"{m.IpAddress}:{m.Port}", StringComparer.OrdinalIgnoreCase);
+        _originalEndpoints = config.GetSection("Kestrel:Endpoints").GetChildren()
+            .Select(e => new { e.Key, Endpoint = NormalizeEndpoint(e["Url"]) })
+            .Where(e => e.Endpoint != null)
+            .ToDictionary(e => e.Key, e => e.Endpoint!, StringComparer.OrdinalIgnoreCase);
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -45,8 +48,9 @@ public class KestrelEndpointChangeDetector : IHostedService, IDisposable
     {
         var currentSection = _config.GetSection("Kestrel:Endpoints");
         var currentEndpoints = currentSection.GetChildren()
-            .Where(e => !string.IsNullOrEmpty(e["Url"]))
-            .ToDictionary(e => e.Key, e => e["Url"] ?? string.Empty, StringComparer.OrdinalIgnoreCase);
+            .Select(e => new { e.Key, Endpoint = NormalizeEndpoint(e["Url"]) })
+            .Where(e => e.Endpoint != null)
+            .ToDictionary(e => e.Key, e => e.Endpoint!, StringComparer.OrdinalIgnoreCase);
 
         bool changed = false;
         if (currentEndpoints.Count != _originalEndpoints.Count)
@@ -67,11 +71,31 @@ public class KestrelEndpointChangeDetector : IHostedService, IDisposable
 
         if (changed)
         {
+            var signature = string.Join(";", currentEndpoints.OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(kvp => $"{kvp.Key}={kvp.Value}"));
+            if (string.Equals(_lastAlertSignature, signature, StringComparison.Ordinal)) return;
+
+            _lastAlertSignature = signature;
             _logger.LogWarning("Kestrel:Endpoints changed in config. Restart required for changes to take effect.");
             _alertService.AlertCustom("KestrelEndpointChange", "端点配置变更",
                 "Kestrel:Endpoints 修改需要重启进程才能生效", "Warning");
         }
     }
+
+    private static string? NormalizeEndpoint(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return url.Trim();
+
+        return $"{uri.Scheme.ToLowerInvariant()}://{NormalizeHost(uri.Host)}:{uri.Port}";
+    }
+
+    private static string NormalizeHost(string host) => host switch
+    {
+        "0.0.0.0" or "*" or "+" or "::" or "[::]" => "*",
+        "localhost" => "127.0.0.1",
+        _ => host.ToLowerInvariant()
+    };
 
     public Task StopAsync(CancellationToken cancellationToken)
     {

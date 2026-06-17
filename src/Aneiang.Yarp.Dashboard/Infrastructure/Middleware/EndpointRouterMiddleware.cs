@@ -98,8 +98,7 @@ public class EndpointRouterMiddleware
     private bool IsDashboardPath(string path) =>
         path.StartsWith(_dashPrefix, StringComparison.OrdinalIgnoreCase) ||
         path.StartsWith(ContentRoot, StringComparison.OrdinalIgnoreCase) ||
-        path.StartsWith(SignalRPrefix, StringComparison.OrdinalIgnoreCase) ||
-        path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase);
+        path.StartsWith(SignalRPrefix, StringComparison.OrdinalIgnoreCase);
 
     private bool IsHealthPath(string path) =>
         path.Equals(_options.HealthCheck.Path, StringComparison.OrdinalIgnoreCase) ||
