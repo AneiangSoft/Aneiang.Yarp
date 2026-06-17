@@ -95,6 +95,7 @@
                 return;
             }
 
+            var self = this;
             var rows = entries.map(function(entry) {
                 var key = entry[0];
                 var circuit = entry[1];
@@ -115,7 +116,7 @@
                 var lastAccessed = circuit.lastAccessedAt
                     ? window.DashboardI18n.formatDate(circuit.lastAccessedAt)
                     : '-';
-                var recoverySec = circuit.recoveryTimeout ? Math.round(circuit.recoveryTimeout / 1000) + 's' : '-';
+                var recoverySec = self.formatRecoveryTimeout(circuit);
 
                 return '<tr class="align-middle">' +
                     '<td><i class="bi ' + stateIcon + ' me-2"></i><strong>' + window.DashboardUtils.escapeHtml(clusterId) + '</strong></td>' +
@@ -145,6 +146,27 @@
                         '<tbody>' + rows + '</tbody>' +
                     '</table>' +
                 '</div>';
+        },
+
+        formatRecoveryTimeout: function(circuit) {
+            if (typeof circuit.recoveryTimeoutSeconds === 'number') {
+                return circuit.recoveryTimeoutSeconds + 's';
+            }
+
+            if (typeof circuit.recoveryTimeout === 'number') {
+                return Math.round(circuit.recoveryTimeout / 1000) + 's';
+            }
+
+            if (typeof circuit.recoveryTimeout === 'string') {
+                var parts = circuit.recoveryTimeout.split(':');
+                if (parts.length === 3) {
+                    var seconds = Math.round((parseFloat(parts[0]) || 0) * 3600 + (parseFloat(parts[1]) || 0) * 60 + (parseFloat(parts[2]) || 0));
+                    return seconds + 's';
+                }
+                return circuit.recoveryTimeout;
+            }
+
+            return '-';
         },
 
         resetAll: async function() {

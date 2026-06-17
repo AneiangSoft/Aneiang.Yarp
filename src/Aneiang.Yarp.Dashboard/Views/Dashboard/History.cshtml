@@ -4,12 +4,124 @@
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
-<!-- History panel -->
-<div id="history-panel" class="card-panel mb-4">
-    <div class="card-header">
-        <span><i class="bi bi-clock-history me-2" style="color:#6366f1;"></i><span data-i18n="history.title">配置变更历史</span></span>
+<style>
+    .history-hero {
+        background: linear-gradient(135deg, rgba(99,102,241,.12), rgba(14,165,233,.08));
+        border: 1px solid rgba(99,102,241,.16);
+        border-radius: 18px;
+        padding: 22px;
+        box-shadow: var(--shadow-sm);
+    }
+    .history-stat-card {
+        background: #fff;
+        border: 1px solid var(--border-color);
+        border-radius: 16px;
+        padding: 16px;
+        min-height: 104px;
+        box-shadow: var(--shadow-sm);
+    }
+    .history-stat-label { color: var(--text-secondary); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .history-stat-value { font-size: 26px; font-weight: 800; color: var(--text-primary); line-height: 1.2; }
+    .history-shell { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+    .history-timeline { position: relative; }
+    .history-timeline::before { content: ''; position: absolute; left: 23px; top: 12px; bottom: 12px; width: 2px; background: #e2e8f0; }
+    .history-item { position: relative; display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; margin-bottom: 14px; }
+    .history-dot { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; color: #fff; box-shadow: 0 8px 18px rgba(15,23,42,.12); z-index: 1; }
+    .history-dot.update { background: linear-gradient(135deg, #6366f1, #818cf8); }
+    .history-dot.delete { background: linear-gradient(135deg, #ef4444, #f97316); }
+    .history-dot.rollback { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+    .history-dot.import { background: linear-gradient(135deg, #0ea5e9, #38bdf8); }
+    .history-dot.rename { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
+    .history-dot.manual { background: linear-gradient(135deg, #10b981, #34d399); }
+    .history-entry-card { background: #fff; border: 1px solid var(--border-color); border-radius: 16px; padding: 16px; box-shadow: var(--shadow-sm); transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; cursor: pointer; }
+    .history-entry-card:hover, .history-entry-card.active { transform: translateY(-1px); border-color: rgba(99,102,241,.45); box-shadow: var(--shadow-md); }
+    .history-version { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; color: #475569; word-break: break-all; }
+    .history-meta { display: flex; flex-wrap: wrap; gap: 8px; color: var(--text-secondary); font-size: 12px; }
+    .history-side { position: sticky; top: 82px; }
+    .history-detail-card { background: #fff; border: 1px solid var(--border-color); border-radius: 18px; box-shadow: var(--shadow-sm); overflow: hidden; }
+    .history-detail-header { padding: 18px; background: linear-gradient(135deg, #0f172a, #1e293b); color: #fff; }
+    .history-detail-body { padding: 18px; }
+    .history-filter-card { background: #fff; border: 1px solid var(--border-color); border-radius: 16px; padding: 14px; box-shadow: var(--shadow-sm); }
+    .history-empty-state { background: #fff; border: 1px dashed var(--border-color); border-radius: 18px; padding: 46px 20px; text-align: center; }
+    .history-action-bar { display: flex; gap: 8px; flex-wrap: wrap; }
+    @@media (max-width: 1100px) { .history-shell { grid-template-columns: 1fr; } .history-side { position: static; } }
+</style>
+
+<div class="history-hero mb-4">
+    <div class="d-flex flex-wrap justify-content-between gap-3 align-items-center">
+        <div>
+            <div class="text-uppercase text-muted fw-semibold small mb-1">Configuration Timeline</div>
+            <h2 class="mb-2"><i class="bi bi-clock-history me-2" style="color:#6366f1;"></i><span data-i18n="history.title">配置变更历史</span></h2>
+            <div class="text-muted">集中查看快照、变更来源、路由/集群规模，并快速执行差异对比或回滚。</div>
+        </div>
+        <div class="history-action-bar">
+            <button class="btn btn-primary" id="history-create-snapshot">
+                <i class="bi bi-plus-circle me-1"></i>创建快照
+            </button>
+            <button class="btn btn-outline-primary" id="history-refresh">
+                <i class="bi bi-arrow-clockwise me-1"></i>刷新
+            </button>
+            <button class="btn btn-outline-danger" id="history-clear-all">
+                <i class="bi bi-trash3 me-1"></i>清空历史
+            </button>
+        </div>
     </div>
-    <div id="history-content" class="card-body"></div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-xl-3"><div class="history-stat-card"><div class="history-stat-label">快照总数</div><div id="history-stat-total" class="history-stat-value">--</div><div class="text-muted small">最多保留最近版本</div></div></div>
+    <div class="col-6 col-xl-3"><div class="history-stat-card"><div class="history-stat-label">最近变更</div><div id="history-stat-latest" class="history-stat-value">--</div><div class="text-muted small">距离当前时间</div></div></div>
+    <div class="col-6 col-xl-3"><div class="history-stat-card"><div class="history-stat-label">当前路由</div><div id="history-stat-routes" class="history-stat-value">--</div><div class="text-muted small">最新快照记录</div></div></div>
+    <div class="col-6 col-xl-3"><div class="history-stat-card"><div class="history-stat-label">当前集群</div><div id="history-stat-clusters" class="history-stat-value">--</div><div class="text-muted small">最新快照记录</div></div></div>
+</div>
+
+<div class="history-filter-card mb-4">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-6 col-xl-5">
+            <label class="form-label small text-muted">搜索版本、描述或客户端 IP</label>
+            <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input id="history-search" class="form-control" placeholder="输入关键字..." autocomplete="off" />
+            </div>
+        </div>
+        <div class="col-md-3 col-xl-3">
+            <label class="form-label small text-muted">变更类型</label>
+            <select id="history-type-filter" class="form-select">
+                <option value="">全部类型</option>
+                <option value="manual">手动快照</option>
+                <option value="update">保存/更新</option>
+                <option value="delete">删除</option>
+                <option value="rename">重命名</option>
+                <option value="import">导入</option>
+                <option value="rollback">回滚</option>
+            </select>
+        </div>
+        <div class="col-md-3 col-xl-2">
+            <label class="form-label small text-muted">排序</label>
+            <select id="history-sort" class="form-select">
+                <option value="desc">最新优先</option>
+                <option value="asc">最早优先</option>
+            </select>
+        </div>
+        <div class="col-xl-2">
+            <button id="history-clear-filter" class="btn btn-outline-secondary w-100"><i class="bi bi-x-circle me-1"></i>清空</button>
+        </div>
+    </div>
+</div>
+
+<div class="history-shell">
+    <div id="history-content"></div>
+    <aside class="history-side">
+        <div id="history-detail" class="history-detail-card">
+            <div class="history-detail-header">
+                <div class="small opacity-75">Snapshot Detail</div>
+                <h5 class="mb-0">选择一个快照</h5>
+            </div>
+            <div class="history-detail-body text-muted">
+                点击左侧时间线中的任意快照，查看版本号、规模统计、来源 IP，并执行复制、差异对比或回滚。
+            </div>
+        </div>
+    </aside>
 </div>
 
 @section Scripts {
@@ -21,6 +133,7 @@
 <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-diff-panel.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-history.js?v=@v"></script>
 

@@ -99,9 +99,16 @@ public class KestrelEndpointChangeDetector : IHostedService, IDisposable
 
     public Task StopAsync(CancellationToken cancellationToken)
     {
+        _checkTimer?.Change(Timeout.Infinite, Timeout.Infinite);
         _checkTimer?.Dispose();
+        _checkTimer = null;
         return Task.CompletedTask;
     }
 
-    public void Dispose() => _checkTimer?.Dispose();
+    public void Dispose()
+    {
+        _checkTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+        _checkTimer?.Dispose();
+        GC.SuppressFinalize(this);
+    }
 }

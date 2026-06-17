@@ -42,18 +42,13 @@ public sealed class CircuitBreakerMiddleware
     public static void EnsureCircuitExists(string clusterId, CircuitBreakerConfig cbConfig)
     {
         var circuitKey = $"{clusterId}:any";
-        if (_circuits.ContainsKey(circuitKey))
-            return;
+        var options = ToOptions(cbConfig, maxCircuitCount: 1000);
+        var state = _circuits.GetOrAdd(circuitKey, _ => new CircuitState(options));
 
-        var options = new CircuitBreakerOptions
+        lock (_stateLock)
         {
-            Enabled = cbConfig.Enabled,
-            DefaultFailureThreshold = cbConfig.FailureThreshold,
-            DefaultRecoveryTimeoutSeconds = cbConfig.RecoveryTimeoutSeconds,
-            HalfOpenMaxAttempts = cbConfig.HalfOpenMaxAttempts,
-            MaxCircuitCount = 1000
-        };
-        _circuits.TryAdd(circuitKey, new CircuitState(options));
+            state.ApplyOptions(options);
+        }
     }
 
     public CircuitBreakerMiddleware(
@@ -203,15 +198,18 @@ public sealed class CircuitBreakerMiddleware
             ?.CircuitBreaker;
     }
 
-    private CircuitBreakerOptions GetEffectiveOptions(CircuitBreakerConfig cbConfig)
+    private CircuitBreakerOptions GetEffectiveOptions(CircuitBreakerConfig cbConfig) =>
+        ToOptions(cbConfig, _options.MaxCircuitCount);
+
+    private static CircuitBreakerOptions ToOptions(CircuitBreakerConfig cbConfig, int maxCircuitCount)
     {
         return new CircuitBreakerOptions
         {
             Enabled = cbConfig.Enabled,
-            DefaultFailureThreshold = cbConfig.FailureThreshold,
-            DefaultRecoveryTimeoutSeconds = cbConfig.RecoveryTimeoutSeconds,
-            HalfOpenMaxAttempts = cbConfig.HalfOpenMaxAttempts,
-            MaxCircuitCount = _options.MaxCircuitCount
+            DefaultFailureThreshold = cbConfig.FailureThreshold > 0 ? cbConfig.FailureThreshold : 5,
+            DefaultRecoveryTimeoutSeconds = cbConfig.RecoveryTimeoutSeconds > 0 ? cbConfig.RecoveryTimeoutSeconds : 30,
+            HalfOpenMaxAttempts = cbConfig.HalfOpenMaxAttempts > 0 ? cbConfig.HalfOpenMaxAttempts : 1,
+            MaxCircuitCount = maxCircuitCount
         };
     }
 
@@ -272,6 +270,7 @@ public sealed class CircuitBreakerMiddleware
                 ConsecutiveFailures = kv.Value.ConsecutiveFailures,
                 FailureThreshold = kv.Value.FailureThreshold,
                 RecoveryTimeout = kv.Value.RecoveryTimeout,
+                RecoveryTimeoutSeconds = (int)kv.Value.RecoveryTimeout.TotalSeconds,
                 HalfOpenRequests = kv.Value.HalfOpenRequests,
                 MaxHalfOpenAttempts = kv.Value.MaxHalfOpenAttempts,
                 OpenedAt = kv.Value.OpenedAt == DateTime.MinValue ? null : kv.Value.OpenedAt,
@@ -360,10 +359,14 @@ internal class CircuitState
 
     public CircuitState(CircuitBreakerOptions? options = null)
     {
-        var opts = options ?? new CircuitBreakerOptions();
-        FailureThreshold = opts.DefaultFailureThreshold;
-        RecoveryTimeout = TimeSpan.FromSeconds(opts.DefaultRecoveryTimeoutSeconds);
-        MaxHalfOpenAttempts = opts.HalfOpenMaxAttempts;
+        ApplyOptions(options ?? new CircuitBreakerOptions());
+    }
+
+    public void ApplyOptions(CircuitBreakerOptions options)
+    {
+        FailureThreshold = options.DefaultFailureThreshold > 0 ? options.DefaultFailureThreshold : 5;
+        RecoveryTimeout = TimeSpan.FromSeconds(options.DefaultRecoveryTimeoutSeconds > 0 ? options.DefaultRecoveryTimeoutSeconds : 30);
+        MaxHalfOpenAttempts = options.HalfOpenMaxAttempts > 0 ? options.HalfOpenMaxAttempts : 1;
     }
 }
 
@@ -374,6 +377,7 @@ public class CircuitStateInfo
     public int ConsecutiveFailures { get; set; }
     public int FailureThreshold { get; set; }
     public TimeSpan RecoveryTimeout { get; set; }
+    public int RecoveryTimeoutSeconds { get; set; }
     public int HalfOpenRequests { get; set; }
     public int MaxHalfOpenAttempts { get; set; }
     public DateTime? OpenedAt { get; set; }
