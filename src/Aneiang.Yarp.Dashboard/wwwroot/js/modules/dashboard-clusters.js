@@ -573,6 +573,19 @@
             editBtn.appendChild(editIcon);
             container.appendChild(editBtn);
 
+            const renameBtn = window.DashboardDOM.create('button', {
+                className: 'btn btn-outline-secondary',
+                attributes: { title: '重命名 Cluster ID' },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        this.showRenameModal(cluster.clusterId);
+                    }
+                }
+            });
+            renameBtn.appendChild(window.DashboardDOM.create('i', { className: 'bi bi-input-cursor-text' }));
+            container.appendChild(renameBtn);
+
             // Policy button
             const policyBtn = window.DashboardDOM.create('button', {
                 className: 'btn btn-outline-info',
@@ -1268,7 +1281,8 @@
                     label: 'Cluster ID',
                     value: clusterId,
                     original: clusterId,
-                    placeholder: __('modal.clusterIdPlaceholder')
+                    placeholder: __('modal.clusterIdPlaceholder'),
+                    readOnly: true
                 },
                 onSave: function(parsedData, newId) {
                     // Validate cluster config
@@ -1299,14 +1313,37 @@
                         });
                     }
 
-                    // Handle rename: only if ID actually changed (case-sensitive comparison)
                     if (newId && newId !== clusterId) {
-                        self.renameCluster(clusterId, newId, parsedData);
-                    } else {
-                        self.saveClusterFromJson(parsedData, clusterId);
+                        window.DashboardModals.showError('Cluster ID 不能在普通编辑中修改，请使用专用重命名功能。');
+                        return false;
                     }
+
+                    self.saveClusterFromJson(parsedData, clusterId);
                     return true;
                 }
+            });
+        },
+
+        showRenameModal: function(clusterId) {
+            const newId = prompt('请输入新的 Cluster ID', clusterId);
+            if (newId === null) return;
+            const trimmed = newId.trim();
+            if (!trimmed || trimmed === clusterId) return;
+
+            const cluster = (window.DashboardState.get('data.clusters') || []).find(c => c.clusterId === clusterId);
+            if (!cluster) {
+                window.DashboardModals.showError('未找到集群配置');
+                return;
+            }
+
+            const destinations = {};
+            (cluster.destinations || []).forEach(d => {
+                destinations[d.name || 'default'] = { Address: d.address };
+            });
+
+            this.renameCluster(clusterId, trimmed, {
+                Destinations: destinations,
+                LoadBalancingPolicy: cluster.loadBalancingPolicy || 'RoundRobin'
             });
         },
 

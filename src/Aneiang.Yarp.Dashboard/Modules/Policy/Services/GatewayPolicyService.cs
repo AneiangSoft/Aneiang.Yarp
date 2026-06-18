@@ -36,15 +36,21 @@ public interface IGatewayPolicyService
 public class GatewayPolicyService : IGatewayPolicyService
 {
     private readonly IPolicyRepository _policyRepo;
+    private readonly IRouteRepository _routeRepo;
+    private readonly IClusterRepository _clusterRepo;
     private readonly DynamicYarpConfigService _yarpConfig;
     private readonly ILogger<GatewayPolicyService> _logger;
 
     public GatewayPolicyService(
         IPolicyRepository policyRepo,
+        IRouteRepository routeRepo,
+        IClusterRepository clusterRepo,
         DynamicYarpConfigService yarpConfig,
         ILogger<GatewayPolicyService> logger)
     {
         _policyRepo = policyRepo;
+        _routeRepo = routeRepo;
+        _clusterRepo = clusterRepo;
         _yarpConfig = yarpConfig;
         _logger = logger;
     }
@@ -62,7 +68,10 @@ public class GatewayPolicyService : IGatewayPolicyService
     public async Task<RoutePolicy?> GetRoutePolicyAsync(string policyId)
     {
         var entity = await _policyRepo.GetPolicyAsync(policyId);
-        return entity?.PolicyType == "route" ? entity.ToRoutePolicy() : null;
+        if (entity?.PolicyType != "route") return null;
+        var policy = entity.ToRoutePolicy();
+        policy.AppliedRoutes = await GetAppliedTargetKeysAsync(policy.PolicyId, "route");
+        return policy;
     }
 
     /// <inheritdoc />
@@ -153,6 +162,7 @@ public class GatewayPolicyService : IGatewayPolicyService
                 policy.AppliedRoutes.Add(routeId);
                 await _policyRepo.SavePolicyAsync(policy.ToEntity());
             }
+            await SavePolicyTargetAsync(policy.PolicyId, "route", routeId);
             _logger.LogDebug(
                 "Route policy '{PolicyId}' ({Name}) applied to route '{RouteId}'",
                 policyId, policy.DisplayName, routeId);
@@ -193,7 +203,10 @@ public class GatewayPolicyService : IGatewayPolicyService
     public async Task<ClusterPolicy?> GetClusterPolicyAsync(string policyId)
     {
         var entity = await _policyRepo.GetPolicyAsync(policyId);
-        return entity?.PolicyType == "cluster" ? entity.ToClusterPolicy() : null;
+        if (entity?.PolicyType != "cluster") return null;
+        var policy = entity.ToClusterPolicy();
+        policy.AppliedClusters = await GetAppliedTargetKeysAsync(policy.PolicyId, "cluster");
+        return policy;
     }
 
     /// <inheritdoc />
@@ -249,6 +262,7 @@ public class GatewayPolicyService : IGatewayPolicyService
             await _yarpConfig.UpdateClusterCircuitBreakerAsync(clusterId, null);
         }
 
+        await _policyRepo.DeletePolicyTargetsAsync(policyId);
         await _policyRepo.DeletePolicyAsync(policyId);
         _logger.LogInformation("Deleted cluster policy '{PolicyId}'", policyId);
         return true;
@@ -284,6 +298,7 @@ public class GatewayPolicyService : IGatewayPolicyService
                 policy.AppliedClusters.Add(clusterId);
                 await _policyRepo.SavePolicyAsync(policy.ToEntity());
             }
+            await SavePolicyTargetAsync(policy.PolicyId, "cluster", clusterId);
             _logger.LogInformation(
                 "Cluster policy '{PolicyId}' ({Name}) applied to cluster '{ClusterId}'",
                 policyId, policy.DisplayName, clusterId);
@@ -303,6 +318,7 @@ public class GatewayPolicyService : IGatewayPolicyService
         if (policy.AppliedClusters.Remove(clusterId))
         {
             await _policyRepo.SavePolicyAsync(policy.ToEntity());
+            await DeletePolicyTargetByKeyAsync(policy.PolicyId, "cluster", clusterId);
         }
 
         _logger.LogInformation(
@@ -312,6 +328,69 @@ public class GatewayPolicyService : IGatewayPolicyService
     }
 
     // ─── Helpers ────────────────────────────────────
+
+    private async Task<List<string>> GetAppliedTargetKeysAsync(string policyId, string targetType)
+    {
+        var targets = await _policyRepo.GetPolicyTargetsAsync(policyId, targetType);
+        if (targets.Count > 0)
+            return targets.Select(t => t.TargetKeySnapshot).ToList();
+
+        var entity = await _policyRepo.GetPolicyAsync(policyId);
+        if (string.IsNullOrWhiteSpace(entity?.AppliedTargets)) return new List<string>();
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<List<string>>(entity.AppliedTargets) ?? new List<string>();
+        }
+        catch
+        {
+            return new List<string>();
+        }
+    }
+
+    private async Task SavePolicyTargetAsync(string policyId, string targetType, string targetKey)
+    {
+        var policy = await _policyRepo.GetPolicyAsync(policyId);
+        if (policy == null) return;
+
+        var targetUid = await ResolveTargetUidAsync(targetType, targetKey);
+        await _policyRepo.SavePolicyTargetAsync(new PolicyTargetEntity
+        {
+            PolicyUid = policy.PolicyUid,
+            PolicyId = policy.PolicyId,
+            TargetType = targetType,
+            TargetUid = targetUid,
+            TargetKeySnapshot = targetKey
+        });
+    }
+
+    private async Task DeletePolicyTargetByKeyAsync(string policyId, string targetType, string targetKey)
+    {
+        var targetUid = await ResolveTargetUidAsync(targetType, targetKey);
+        await _policyRepo.DeletePolicyTargetAsync(policyId, targetType, targetUid);
+    }
+
+    private async Task<string> ResolveTargetUidAsync(string targetType, string targetKey)
+    {
+        if (string.Equals(targetType, "route", StringComparison.OrdinalIgnoreCase))
+        {
+            var route = await _routeRepo.GetRouteAsync(targetKey);
+            if (!string.IsNullOrWhiteSpace(route?.RouteUid)) return route.RouteUid;
+        }
+        else if (string.Equals(targetType, "cluster", StringComparison.OrdinalIgnoreCase))
+        {
+            var cluster = await _clusterRepo.GetClusterAsync(targetKey);
+            if (!string.IsNullOrWhiteSpace(cluster?.ClusterUid)) return cluster.ClusterUid;
+        }
+
+        return StableUidFromKey(targetType, targetKey);
+    }
+
+    private static string StableUidFromKey(string prefix, string key)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(prefix + ":" + key));
+        return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
+    }
 
     private async Task RemoveRoutePolicyMetadata(string routeId)
     {

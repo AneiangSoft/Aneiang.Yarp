@@ -40,7 +40,9 @@ public static class EntityMapper
     {
         return new DynamicRouteConfig
         {
+            RouteUid = entity.RouteUid,
             RouteId = entity.RouteId,
+            ClusterUid = entity.ClusterUid,
             ClusterId = entity.ClusterId,
             MatchPath = entity.MatchPath,
             Order = entity.Order,
@@ -79,6 +81,7 @@ public static class EntityMapper
     {
         return new DynamicClusterConfig
         {
+            ClusterUid = entity.ClusterUid,
             ClusterId = entity.ClusterId,
             LoadBalancingPolicy = entity.LoadBalancingPolicy,
             HealthCheck = string.IsNullOrEmpty(entity.HealthCheckConfig) ? null : JsonSerializer.Deserialize<HealthCheckConfig>(entity.HealthCheckConfig, _jsonOptions),
@@ -138,6 +141,7 @@ public static class EntityMapper
     {
         return new PolicyEntity
         {
+            PolicyUid = string.IsNullOrWhiteSpace(policy.PolicyId) ? Guid.NewGuid().ToString("N") : StableUidFromKey("policy", policy.PolicyId),
             PolicyId = policy.PolicyId,
             PolicyType = "cluster",
             DisplayName = policy.DisplayName,
@@ -210,6 +214,10 @@ public static class EntityMapper
             Id = audit.Id,
             Action = audit.Action,
             Target = audit.Target,
+            TargetType = audit.TargetType,
+            TargetUid = audit.TargetUid,
+            TargetKeySnapshot = audit.TargetKeySnapshot ?? audit.Target,
+            TargetDisplayNameSnapshot = audit.TargetDisplayNameSnapshot,
             Operator = audit.Operator,
             ClientIp = audit.ClientIp,
             BeforeData = audit.Before,
@@ -272,5 +280,11 @@ public static class EntityMapper
     public static List<ConfigSnapshot> ToConfigSnapshots(this IEnumerable<ConfigHistoryEntity> entities)
     {
         return entities.Select(e => e.ToConfigSnapshot()).ToList();
+    }
+
+    private static string StableUidFromKey(string prefix, string key)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(prefix + ":" + key));
+        return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
     }
 }

@@ -899,6 +899,19 @@
             editBtn.appendChild(editIcon);
             container.appendChild(editBtn);
 
+            const renameBtn = window.DashboardDOM.create('button', {
+                className: 'btn btn-outline-secondary',
+                attributes: { title: '重命名 Route ID' },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        this.showRenameModal(route.routeId);
+                    }
+                }
+            });
+            renameBtn.appendChild(window.DashboardDOM.create('i', { className: 'bi bi-input-cursor-text' }));
+            container.appendChild(renameBtn);
+
             // Policy button
             const policyBtn = window.DashboardDOM.create('button', {
                 className: 'btn btn-outline-info',
@@ -1908,14 +1921,34 @@
                         });
                     }
 
-                    // Handle rename: only if ID actually changed (case-sensitive comparison)
                     if (newId && newId !== routeId) {
-                        self.renameRoute(routeId, newId, parsedData);
-                    } else {
-                        self.saveRouteFromJson(parsedData, routeId);
+                        window.DashboardModals.showError('Route ID 不能在普通编辑中修改，请使用专用重命名功能。');
+                        return false;
                     }
+
+                    self.saveRouteFromJson(parsedData, routeId);
                     return true;
                 }
+            });
+        },
+
+        showRenameModal: function(routeId) {
+            const newId = prompt('请输入新的 Route ID', routeId);
+            if (newId === null) return;
+            const trimmed = newId.trim();
+            if (!trimmed || trimmed === routeId) return;
+
+            const route = (window.DashboardState.get('data.routes') || []).find(r => r.routeId === routeId);
+            if (!route) {
+                window.DashboardModals.showError('未找到路由配置');
+                return;
+            }
+
+            this.renameRoute(routeId, trimmed, {
+                ClusterId: route.clusterId,
+                matchPath: route.match?.path || route.matchPath || route.path,
+                Order: route.order,
+                Transforms: route.transforms
             });
         },
 

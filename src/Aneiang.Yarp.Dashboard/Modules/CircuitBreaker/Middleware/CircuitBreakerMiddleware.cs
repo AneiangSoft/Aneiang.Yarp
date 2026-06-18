@@ -292,6 +292,23 @@ public sealed class CircuitBreakerMiddleware
         }
     }
 
+    /// <summary>Rename circuit keys after a cluster key changes.</summary>
+    public static void RenameClusterKey(string oldClusterId, string newClusterId)
+    {
+        var prefix = oldClusterId + ":";
+        foreach (var kv in _circuits.ToArray())
+        {
+            if (!kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+
+            var destinationPart = kv.Key[prefix.Length..];
+            var newKey = newClusterId + ":" + destinationPart;
+            if (_circuits.TryRemove(kv.Key, out var state))
+            {
+                _circuits[newKey] = state;
+            }
+        }
+    }
+
     /// <summary>
     /// Check if a specific circuit is open for a cluster/destination.
     /// Used by retry middleware to skip unhealthy destinations.

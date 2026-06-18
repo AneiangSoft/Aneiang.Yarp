@@ -185,6 +185,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
                         _dynamicConfig.Routes.Add(new DynamicRouteConfig
                         {
                             RouteId = routeId,
+                            ClusterUid = ResolveClusterUid(route.ClusterId ?? string.Empty),
                             ClusterId = route.ClusterId ?? string.Empty,
                             MatchPath = route.Match?.Path!,
                             Order = route.Order ?? 50,
@@ -196,6 +197,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
                     }
                     else
                     {
+                        existingRoute.ClusterUid = ResolveClusterUid(route.ClusterId ?? string.Empty);
                         existingRoute.ClusterId = route.ClusterId ?? string.Empty;
                         existingRoute.MatchPath = route.Match?.Path ?? string.Empty;
                         existingRoute.Order = route.Order ?? 50;
@@ -343,6 +345,10 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
         try
         {
             var config = _dynamicConfig;
+
+            if (await TryPersistIncrementalAsync(config, operationName, targetName))
+                return;
+
             var targetRouteIds = new HashSet<string>(config.Routes.Select(r => r.RouteId), StringComparer.OrdinalIgnoreCase);
             var targetClusterIds = new HashSet<string>(config.Clusters.Select(c => c.ClusterId), StringComparer.OrdinalIgnoreCase);
 
@@ -395,6 +401,34 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
                 _dynamicConfig.Clusters.Count);
             throw;
         }
+    }
+
+    private async Task<bool> TryPersistIncrementalAsync(GatewayDynamicConfig config, string operationName, string? targetName)
+    {
+        if (string.IsNullOrWhiteSpace(targetName)) return false;
+
+        if (operationName is "AddOrUpdateRoute" or "UpdateRouteMetadata")
+        {
+            var route = config.Routes.FirstOrDefault(r => string.Equals(r.RouteId, targetName, StringComparison.OrdinalIgnoreCase));
+            if (route == null) return false;
+
+            await _routeRepo.SaveRouteAsync(route.ToEntity());
+            return true;
+        }
+
+        if (operationName is "AddCluster" or "UpdateCluster" or "CreateCluster" or "UpdateClusterCircuitBreaker")
+        {
+            var cluster = config.Clusters.FirstOrDefault(c => string.Equals(c.ClusterId, targetName, StringComparison.OrdinalIgnoreCase));
+            if (cluster == null) return false;
+
+            await _clusterRepo.SaveClusterAsync(cluster.ToEntity());
+            await _clusterRepo.SaveDestinationsAsync(
+                cluster.ClusterId,
+                cluster.Destinations.Select(d => d.ToEntity(cluster.ClusterId)).ToList());
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -593,6 +627,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
                 dynRoute = new DynamicRouteConfig
                 {
                     RouteId = request.RouteName,
+                    ClusterUid = ResolveClusterUid(request.ClusterName),
                     ClusterId = request.ClusterName,
                     MatchPath = request.MatchPath,
                     Order = request.Order ?? 50,
@@ -605,6 +640,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
             }
             else
             {
+                dynRoute.ClusterUid = ResolveClusterUid(request.ClusterName);
                 dynRoute.ClusterId = request.ClusterName;
                 dynRoute.MatchPath = request.MatchPath;
                 dynRoute.Order = request.Order ?? 50;
@@ -1081,7 +1117,9 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
             {
                 var renamedDynRoute = new DynamicRouteConfig
                 {
+                    RouteUid = dynRoute.RouteUid,
                     RouteId = newRouteId,
+                    ClusterUid = ResolveClusterUid(request.ClusterName ?? dynRoute.ClusterId),
                     ClusterId = request.ClusterName ?? dynRoute.ClusterId,
                     MatchPath = request.MatchPath ?? dynRoute.MatchPath,
                     Order = request.Order ?? dynRoute.Order,
@@ -1353,8 +1391,11 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
             _configProvider.Update(newRoutes, SanitizeClusters(newClusters));
 
             EnsureDynamicConfigInitialized();
-            _dynamicConfig!.Clusters.Add(new DynamicClusterConfig
+            var oldDynCluster = _dynamicConfig!.Clusters.FirstOrDefault(c =>
+                string.Equals(c.ClusterId, oldClusterId, StringComparison.OrdinalIgnoreCase));
+            _dynamicConfig.Clusters.Add(new DynamicClusterConfig
             {
+                ClusterUid = oldDynCluster?.ClusterUid ?? Guid.NewGuid().ToString("N"),
                 ClusterId = newClusterId,
                 Destinations = destinations,
                 LoadBalancingPolicy = loadBalancingPolicy,
@@ -1367,6 +1408,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
             foreach (var dynRoute in _dynamicConfig.Routes.Where(r =>
                 string.Equals(r.ClusterId, oldClusterId, StringComparison.OrdinalIgnoreCase)))
             {
+                dynRoute.ClusterUid = oldDynCluster?.ClusterUid ?? ResolveClusterUid(newClusterId);
                 dynRoute.ClusterId = newClusterId;
             }
 
@@ -1678,6 +1720,13 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService
         {
             _dynamicConfig = new GatewayDynamicConfig();
         }
+    }
+
+    private string? ResolveClusterUid(string? clusterId)
+    {
+        if (string.IsNullOrWhiteSpace(clusterId)) return null;
+        return _dynamicConfig?.Clusters.FirstOrDefault(c =>
+            string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase))?.ClusterUid;
     }
 
     private static global::Yarp.ReverseProxy.Configuration.HealthCheckConfig? BuildClusterHealthCheck(Models.HealthCheckConfig? config)

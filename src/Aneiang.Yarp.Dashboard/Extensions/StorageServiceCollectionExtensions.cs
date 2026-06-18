@@ -1,6 +1,7 @@
 using Aneiang.Yarp.Dashboard.Infrastructure.Storage;
 using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Aneiang.Yarp.Dashboard.Extensions;
 
@@ -17,8 +18,9 @@ public static class StorageServiceCollectionExtensions
         services.AddOptions<StorageOptions>()
             .BindConfiguration(StorageOptions.SectionName);
 
-        // Shared connection factory
+        // Shared connection factory and deterministic schema migration
         services.AddSingleton<SqliteConnectionFactory>();
+        services.AddHostedService<SqliteSchemaMigrator>();
 
         // Individual repositories
         services.AddSingleton<IRouteRepository, SqliteRouteRepository>();

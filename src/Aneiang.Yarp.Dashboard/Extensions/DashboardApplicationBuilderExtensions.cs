@@ -1,4 +1,5 @@
 using Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
+using Aneiang.Yarp.Dashboard.Infrastructure.Middleware;
 using Aneiang.Yarp.Dashboard.Infrastructure.Realtime;
 using Aneiang.Yarp.Dashboard.Infrastructure.Yarp;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
@@ -51,6 +52,8 @@ public static class DashboardApplicationBuilderExtensions
 
         var dashboardActive = mode != DeploymentMode.ProxyOnly;
         var proxyActive = mode != DeploymentMode.DashboardOnly;
+
+        UseDeploymentMiddlewareIfAvailable(app);
 
         if (dashboardActive)
         {
@@ -107,6 +110,23 @@ public static class DashboardApplicationBuilderExtensions
         }
 
         return app;
+    }
+
+    private static void UseDeploymentMiddlewareIfAvailable(IApplicationBuilder app)
+    {
+        var services = app.ApplicationServices;
+        var resolver = services.GetService<EndpointRoleResolver>();
+        var deploymentOptions = services.GetService<IOptions<DeploymentOptions>>()?.Value;
+
+        if (resolver != null && deploymentOptions != null && deploymentOptions.Mode != DeploymentMode.AllInOne)
+        {
+            app.UseMiddleware<EndpointRouterMiddleware>();
+        }
+
+        if (deploymentOptions?.HealthCheck.Enabled == true)
+        {
+            app.UseMiddleware<HealthCheckMiddleware>();
+        }
     }
 
     private static string GetContentType(string filePath)

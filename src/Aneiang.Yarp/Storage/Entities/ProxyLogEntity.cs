@@ -7,8 +7,14 @@ public class ProxyLogEntity
     public string? Method { get; set; }
     public string? Path { get; set; }
     public string? RouteId { get; set; }
+    public string? RouteUid { get; set; }
+    public string? RouteKeySnapshot { get; set; }
     public string? ClusterId { get; set; }
+    public string? ClusterUid { get; set; }
+    public string? ClusterKeySnapshot { get; set; }
     public string? DestinationId { get; set; }
+    public string? DestinationUid { get; set; }
+    public string? DestinationKeySnapshot { get; set; }
     public int StatusCode { get; set; }
     public long DurationMs { get; set; }
     public long? RequestBodySize { get; set; }
