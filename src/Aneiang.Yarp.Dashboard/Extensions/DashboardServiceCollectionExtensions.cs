@@ -18,6 +18,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Yarp.ReverseProxy.Transforms.Builder;
@@ -178,9 +180,13 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<WafSettingsPersistenceService>();
         services.AddSingleton<IWafSettingsPersistenceService>(sp => sp.GetRequiredService<WafSettingsPersistenceService>());
 
-        // ── Config persistence service ────────────────────────────────────────────
+        // ── Config persistence / identity services ───────────────────────────────
         services.AddSingleton<ConfigPersistenceService>();
         services.AddSingleton<IConfigPersistenceService>(sp => sp.GetRequiredService<ConfigPersistenceService>());
+        services.AddSingleton<ConfigSnapshotScheduler>();
+        services.AddSingleton<IConfigSnapshotScheduler>(sp => sp.GetRequiredService<ConfigSnapshotScheduler>());
+        services.AddHostedService(sp => sp.GetRequiredService<ConfigSnapshotScheduler>());
+        services.AddSingleton<IGatewayIdentityService, GatewayIdentityService>();
 
         // ── Default health check service ──────────────────────────────────────────
         services.AddHostedService<DefaultHealthCheckService>();
@@ -234,33 +240,33 @@ public static class DashboardServiceCollectionExtensions
 
     /// <summary>
     /// Register deployment-related services (EndpointRoleResolver, config validators, snapshot store, hot-reload).
-    /// Call this from Program.cs after <see cref="AddAneiangYarpDashboard"/> when you want
-    /// to enable multi-port / split / proxy-only / dashboard-only deployment modes.
+    /// Configuration is resolved from DI, so this can be called as <c>services.AddAneiangYarpDeployment()</c>.
     /// </summary>
-    public static IServiceCollection AddAneiangYarpDeployment(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddAneiangYarpDeployment(this IServiceCollection services)
     {
-        services.AddSingleton<IConfigSnapshotStore, FileConfigSnapshotStore>();
+        services.AddOptions<DeploymentOptions>()
+            .BindConfiguration(DeploymentOptions.SectionName);
 
-        // Eagerly instantiate the EndpointRoleResolver NOW and normalize Mode.
-        // We use PostConfigure to set the resolved mode AFTER BindConfiguration runs.
-        var deploymentOptions = new DeploymentOptions();
-        configuration.GetSection(DeploymentOptions.SectionName).Bind(deploymentOptions);
-        var resolver = new EndpointRoleResolver(configuration, deploymentOptions);
-        services.AddSingleton(resolver);
-
-        // PostConfigure: override Mode with the resolver-normalized value.
-        // This runs AFTER BindConfiguration, so the resolved Mode survives.
-        var normalizedMode = deploymentOptions.Mode;
-        var resolvedEndpoints = deploymentOptions.ResolvedEndpoints.ToList();
-        services.PostConfigure<DeploymentOptions>(opts =>
+        services.TryAddSingleton<IConfigSnapshotStore, FileConfigSnapshotStore>();
+        services.TryAddSingleton<EndpointRoleResolver>(sp =>
         {
-            opts.Mode = normalizedMode;
-            opts.ResolvedEndpoints = resolvedEndpoints;
+            var configuration = sp.GetRequiredService<IConfiguration>();
+            var options = sp.GetRequiredService<IOptions<DeploymentOptions>>().Value;
+            options.ResolvedEndpoints.Clear();
+            return new EndpointRoleResolver(configuration, options);
         });
 
-        services.AddHostedService<DeploymentConfigValidator>();
-        services.AddHostedService<Aneiang.Yarp.Dashboard.Infrastructure.HostedServices.ConfigurationFileWatcher>();
-        services.AddHostedService<Aneiang.Yarp.Dashboard.Infrastructure.HostedServices.KestrelEndpointChangeDetector>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, DeploymentConfigValidator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, Aneiang.Yarp.Dashboard.Infrastructure.HostedServices.ConfigurationFileWatcher>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, Aneiang.Yarp.Dashboard.Infrastructure.HostedServices.KestrelEndpointChangeDetector>());
         return services;
     }
+
+    /// <summary>
+    /// Register deployment-related services. The configuration parameter is no longer required and is ignored.
+    /// Kept for source compatibility.
+    /// </summary>
+    [Obsolete("Use AddAneiangYarpDeployment() instead. IConfiguration is resolved from DI.")]
+    public static IServiceCollection AddAneiangYarpDeployment(this IServiceCollection services, IConfiguration configuration)
+        => services.AddAneiangYarpDeployment();
 }

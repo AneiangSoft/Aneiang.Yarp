@@ -3,6 +3,7 @@ namespace Aneiang.Yarp.Storage;
 /// <summary>YARP Cluster entity for database storage.</summary>
 public class ClusterEntity
 {
+    public string ClusterUid { get; set; } = Guid.NewGuid().ToString("N");
     public string ClusterId { get; set; } = string.Empty;
     public string? LoadBalancingPolicy { get; set; }
     public string? HealthCheckConfig { get; set; } // JSON

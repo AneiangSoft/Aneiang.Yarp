@@ -58,18 +58,24 @@ public sealed class SqliteProxyLogRepository : IProxyLogRepository
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO proxy_logs (id, method, path, route_id, cluster_id, destination_id,
+            INSERT INTO proxy_logs (id, method, path, route_id, route_uid, route_key_snapshot, cluster_id, cluster_uid, cluster_key_snapshot, destination_id, destination_uid, destination_key_snapshot,
                 status_code, duration_ms, request_body_size, response_body_size, client_ip,
                 error_message, timestamp)
-            VALUES (@id, @method, @path, @rid, @cid, @did, @status, @dur, @reqsz, @respsz,
+            VALUES (@id, @method, @path, @rid, @ruid, @rkey, @cid, @cuid, @ckey, @did, @duid, @dkey, @status, @dur, @reqsz, @respsz,
                 @ip, @err, @ts)
             """;
         cmd.Parameters.AddWithValue("@id", log.Id);
         cmd.Parameters.AddWithValue("@method", log.Method ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@path", log.Path ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@rid", log.RouteId ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@ruid", log.RouteUid ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@rkey", log.RouteKeySnapshot ?? log.RouteId ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@cid", log.ClusterId ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@cuid", log.ClusterUid ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@ckey", log.ClusterKeySnapshot ?? log.ClusterId ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@did", log.DestinationId ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@duid", log.DestinationUid ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@dkey", log.DestinationKeySnapshot ?? log.DestinationId ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@status", log.StatusCode);
         cmd.Parameters.AddWithValue("@dur", log.DurationMs);
         cmd.Parameters.AddWithValue("@reqsz", log.RequestBodySize ?? (object)DBNull.Value);

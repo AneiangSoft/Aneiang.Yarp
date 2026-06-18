@@ -86,13 +86,16 @@ public sealed class SqliteAuditLogRepository : IAuditLogRepository
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO config_audit_logs (id, action, target, target_type, operator, client_ip, before_data, after_data, success, error_message, timestamp)
-            VALUES (@id, @act, @tgt, @ttype, @op, @ip, @before, @after, @succ, @err, @ts)
+            INSERT INTO config_audit_logs (id, action, target, target_type, target_uid, target_key_snapshot, target_display_name_snapshot, operator, client_ip, before_data, after_data, success, error_message, timestamp)
+            VALUES (@id, @act, @tgt, @ttype, @tuid, @tkey, @tdn, @op, @ip, @before, @after, @succ, @err, @ts)
             """;
         cmd.Parameters.AddWithValue("@id", audit.Id);
         cmd.Parameters.AddWithValue("@act", audit.Action);
         cmd.Parameters.AddWithValue("@tgt", audit.Target);
         cmd.Parameters.AddWithValue("@ttype", audit.TargetType ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@tuid", audit.TargetUid ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@tkey", audit.TargetKeySnapshot ?? audit.Target);
+        cmd.Parameters.AddWithValue("@tdn", audit.TargetDisplayNameSnapshot ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@op", audit.Operator ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@ip", audit.ClientIp ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@before", audit.BeforeData ?? (object)DBNull.Value);

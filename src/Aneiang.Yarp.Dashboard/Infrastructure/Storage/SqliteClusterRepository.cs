@@ -220,16 +220,29 @@ public sealed class SqliteClusterRepository : IClusterRepository
 
     private static ClusterEntity MapCluster(SqliteDataReader r) => new()
     {
-        ClusterId = r.GetString(r.GetOrdinal("cluster_id")),
-        LoadBalancingPolicy = r.IsDBNull(r.GetOrdinal("load_balancing_policy")) ? null : r.GetString(r.GetOrdinal("load_balancing_policy")),
-        HealthCheckConfig = r.IsDBNull(r.GetOrdinal("health_check_config")) ? null : r.GetString(r.GetOrdinal("health_check_config")),
-        CircuitBreakerConfig = r.IsDBNull(r.GetOrdinal("circuit_breaker_config")) ? null : r.GetString(r.GetOrdinal("circuit_breaker_config")),
-        Source = r.IsDBNull(r.GetOrdinal("source")) ? "dynamic" : r.GetString(r.GetOrdinal("source")),
-        CreatedBy = r.IsDBNull(r.GetOrdinal("created_by")) ? null : r.GetString(r.GetOrdinal("created_by")),
-        CreatedAt = r.IsDBNull(r.GetOrdinal("created_at")) ? DateTime.MinValue : DateTime.Parse(r.GetString(r.GetOrdinal("created_at"))),
-        UpdatedAt = r.IsDBNull(r.GetOrdinal("updated_at")) ? DateTime.MinValue : DateTime.Parse(r.GetString(r.GetOrdinal("updated_at"))),
-        LastHeartbeat = r.IsDBNull(r.GetOrdinal("last_heartbeat")) ? null : DateTime.Parse(r.GetString(r.GetOrdinal("last_heartbeat")))
+        ClusterUid = ReadString(r, "cluster_uid") ?? Guid.NewGuid().ToString("N"),
+        ClusterId = ReadString(r, "cluster_id") ?? string.Empty,
+        LoadBalancingPolicy = ReadString(r, "load_balancing_policy"),
+        HealthCheckConfig = ReadString(r, "health_check_config"),
+        CircuitBreakerConfig = ReadString(r, "circuit_breaker_config"),
+        Source = ReadString(r, "source") ?? "dynamic",
+        CreatedBy = ReadString(r, "created_by"),
+        CreatedAt = ReadDateTime(r, "created_at") ?? DateTime.MinValue,
+        UpdatedAt = ReadDateTime(r, "updated_at") ?? DateTime.MinValue,
+        LastHeartbeat = ReadDateTime(r, "last_heartbeat")
     };
+
+    private static string? ReadString(SqliteDataReader r, string name)
+    {
+        var ordinal = r.GetOrdinal(name);
+        return r.IsDBNull(ordinal) ? null : r.GetString(ordinal);
+    }
+
+    private static DateTime? ReadDateTime(SqliteDataReader r, string name)
+    {
+        var value = ReadString(r, name);
+        return string.IsNullOrEmpty(value) ? null : DateTime.Parse(value);
+    }
 
     private static DestinationEntity MapDestination(SqliteDataReader r) => new()
     {

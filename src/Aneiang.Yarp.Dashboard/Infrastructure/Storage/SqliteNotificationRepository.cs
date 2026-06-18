@@ -385,4 +385,10 @@ public sealed class SqliteNotificationRepository : INotificationRepository
             DeliverySuccess = r.GetInt32(r.GetOrdinal("delivery_success")) == 1
         };
     }
+
+    private static string? ReadString(SqliteDataReader r, string name)
+    {
+        var ordinal = r.GetOrdinal(name);
+        return r.IsDBNull(ordinal) ? null : r.GetString(ordinal);
+    }
 }

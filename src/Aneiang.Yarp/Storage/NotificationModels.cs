@@ -128,7 +128,11 @@ public class NotificationHistory
     public string Message { get; set; } = string.Empty;
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     public string? ClusterId { get; set; }
+    public string? ClusterUid { get; set; }
+    public string? ClusterKeySnapshot { get; set; }
     public string? RouteId { get; set; }
+    public string? RouteUid { get; set; }
+    public string? RouteKeySnapshot { get; set; }
     public string? ClientIp { get; set; }
     public string? BlockReason { get; set; }
     public string? RequestUri { get; set; }

@@ -3,6 +3,7 @@ namespace Aneiang.Yarp.Storage;
 /// <summary>Gateway Policy entity for database storage.</summary>
 public class PolicyEntity
 {
+    public string PolicyUid { get; set; } = Guid.NewGuid().ToString("N");
     public string PolicyId { get; set; } = string.Empty;
     /// <summary>"route" | "cluster"</summary>
     public string PolicyType { get; set; } = "route";

@@ -1,7 +1,6 @@
 using Aneiang.Yarp.Extensions;
 using Aneiang.Yarp.Dashboard.Extensions;
 using Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
-using Aneiang.Yarp.Dashboard.Infrastructure.Middleware;
 using Microsoft.Extensions.Options;
 using Serilog;
 
@@ -29,15 +28,15 @@ try
     // skipped automatically, so role-based routing keeps working.
     builder.UseYarpKestrelAutoConfig();
 
-    // Multi-port / split / proxy-only deployment support (optional, backward compatible)
-    // Wires up deployment options, endpoint role resolver, validators, hot-reload, etc.
-    builder.Services.AddAneiangYarpDeployment(builder.Configuration);
-
     // Gateway: one-liner — auto-loads ReverseProxy routes/clusters + dynamic config
     builder.Services.AddAneiangYarp();
 
     // Dashboard with JWT auth (DefaultJwt: username=admin, password from config)
     builder.Services.AddAneiangYarpDashboard();
+
+    // Multi-port / split / proxy-only deployment support (optional, backward compatible)
+    // Wires up deployment options, endpoint role resolver, validators, hot-reload, etc.
+    builder.Services.AddAneiangYarpDeployment();
 
     // Optional: enable gRPC endpoint auth (shares Dashboard credentials by default)
     // builder.Services.AddGatewayApiAuth();
@@ -46,12 +45,8 @@ try
 
     app.UseRouting();
 
-    // Deployment-aware middleware must run BEFORE UseAneiangYarpDashboard
-    // (which conditionally mounts proxy and dashboard components based on mode).
-    app.UseMiddleware<EndpointRouterMiddleware>();
-    app.UseMiddleware<HealthCheckMiddleware>();
-
-    // Register Dashboard middleware + MapReverseProxy (mode-aware)
+    // Register Dashboard middleware + MapReverseProxy (mode-aware).
+    // Deployment-aware routing and health-check middleware are mounted automatically when deployment services are registered.
     app.UseAneiangYarpDashboard();
 
     app.MapControllers();

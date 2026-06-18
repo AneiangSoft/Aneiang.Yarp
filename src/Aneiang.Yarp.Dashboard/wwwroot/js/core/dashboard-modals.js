@@ -455,7 +455,8 @@
             jsonContent = '{}';
         }
 
-        // Build editable ID input HTML if provided
+        // Build editable ID input HTML if provided. ID fields can be locked to prevent accidental rename.
+        const idReadOnly = editableId && editableId.readOnly === true;
         const idInputHtml = editableId ? `
             <div style="padding:14px 24px 0 24px;background:#fff;">
                 <div style="display:flex;align-items:center;gap:10px;">
@@ -463,10 +464,11 @@
                     <input type="text" class="form-control" id="${modalId}-id-input"
                            value="${editableId.value || ''}"
                            placeholder="${editableId.placeholder || ''}"
-                           style="border-radius:8px;padding:8px 12px;font-size:14px;border:1.5px solid #e2e8f0;transition:border-color 0.2s,box-shadow 0.2s;"
+                           ${idReadOnly ? 'readonly aria-readonly="true"' : ''}
+                           style="border-radius:8px;padding:8px 12px;font-size:14px;border:1.5px solid #e2e8f0;transition:border-color 0.2s,box-shadow 0.2s;${idReadOnly ? 'background:#f8fafc;color:#64748b;cursor:not-allowed;' : ''}"
                            onfocus="this.style.borderColor='#6366f1';this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.1)'"
                            onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
-                    ${editableId.original ? `<span style="font-size:12px;color:#94a3b8;white-space:nowrap;">${window.__('modal.renameHint')}</span>` : ''}
+                    ${idReadOnly ? `<span style="font-size:12px;color:#64748b;white-space:nowrap;"><i class="bi bi-lock"></i> ID 修改请使用专用重命名功能</span>` : (editableId.original ? `<span style="font-size:12px;color:#94a3b8;white-space:nowrap;">${window.__('modal.renameHint')}</span>` : '')}
                 </div>
             </div>
         ` : '';

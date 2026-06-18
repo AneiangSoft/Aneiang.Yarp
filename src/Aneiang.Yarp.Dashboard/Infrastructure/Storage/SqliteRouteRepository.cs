@@ -45,6 +45,46 @@ public sealed class SqliteRouteRepository : IRouteRepository
             CREATE INDEX IF NOT EXISTS ix_routes_cluster ON yarp_routes(cluster_id);
             """;
         await cmd.ExecuteNonQueryAsync(ct);
+
+        foreach (var migration in new[]
+        {
+            "ALTER TABLE yarp_routes ADD COLUMN route_uid TEXT",
+            "ALTER TABLE yarp_routes ADD COLUMN cluster_uid TEXT"
+        })
+        {
+            try
+            {
+                await using var migrationCmd = conn.CreateCommand();
+                migrationCmd.CommandText = migration;
+                await migrationCmd.ExecuteNonQueryAsync(ct);
+            }
+            catch (SqliteException ex) when (ex.SqliteErrorCode == 1) { }
+        }
+
+        await using (var backfillRouteCmd = conn.CreateCommand())
+        {
+            backfillRouteCmd.CommandText = "UPDATE yarp_routes SET route_uid = lower(hex(randomblob(16))) WHERE route_uid IS NULL OR route_uid = ''";
+            await backfillRouteCmd.ExecuteNonQueryAsync(ct);
+        }
+        await using (var backfillClusterCmd = conn.CreateCommand())
+        {
+            backfillClusterCmd.CommandText = """
+                UPDATE yarp_routes
+                SET cluster_uid = (SELECT cluster_uid FROM yarp_clusters WHERE yarp_clusters.cluster_id = yarp_routes.cluster_id)
+                WHERE cluster_uid IS NULL OR cluster_uid = ''
+                """;
+            try { await backfillClusterCmd.ExecuteNonQueryAsync(ct); }
+            catch (SqliteException) { }
+        }
+        await using (var indexCmd = conn.CreateCommand())
+        {
+            indexCmd.CommandText = """
+                CREATE UNIQUE INDEX IF NOT EXISTS ix_routes_uid ON yarp_routes(route_uid);
+                CREATE INDEX IF NOT EXISTS ix_routes_cluster_uid ON yarp_routes(cluster_uid);
+                """;
+            await indexCmd.ExecuteNonQueryAsync(ct);
+        }
+
         _initialized = true;
     }
 
@@ -95,10 +135,10 @@ public sealed class SqliteRouteRepository : IRouteRepository
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO yarp_routes (route_id, cluster_id, match_path, "order", transforms, source, created_by, created_at, updated_at, metadata)
-            VALUES (@id, @cid, @path, @order, @trans, @src, @cb, @ca, @ua, @meta)
+            INSERT INTO yarp_routes (route_uid, route_id, cluster_uid, cluster_id, match_path, "order", transforms, source, created_by, created_at, updated_at, metadata)
+            VALUES (@uid, @id, @cuid, @cid, @path, @order, @trans, @src, @cb, @ca, @ua, @meta)
             ON CONFLICT(route_id) DO UPDATE SET
-                cluster_id = @cid, match_path = @path, "order" = @order, transforms = @trans,
+                cluster_uid = @cuid, cluster_id = @cid, match_path = @path, "order" = @order, transforms = @trans,
                 source = @src, updated_at = @ua, metadata = @meta
             """;
         AddParams(cmd, route);
@@ -119,10 +159,10 @@ public sealed class SqliteRouteRepository : IRouteRepository
                 await using var cmd = conn.CreateCommand();
                 cmd.Transaction = tx;
                 cmd.CommandText = """
-                    INSERT INTO yarp_routes (route_id, cluster_id, match_path, "order", transforms, source, created_by, created_at, updated_at, metadata)
-                    VALUES (@id, @cid, @path, @order, @trans, @src, @cb, @ca, @ua, @meta)
+                    INSERT INTO yarp_routes (route_uid, route_id, cluster_uid, cluster_id, match_path, "order", transforms, source, created_by, created_at, updated_at, metadata)
+                    VALUES (@uid, @id, @cuid, @cid, @path, @order, @trans, @src, @cb, @ca, @ua, @meta)
                     ON CONFLICT(route_id) DO UPDATE SET
-                        cluster_id = @cid, match_path = @path, "order" = @order, transforms = @trans,
+                        cluster_uid = @cuid, cluster_id = @cid, match_path = @path, "order" = @order, transforms = @trans,
                         source = @src, updated_at = @ua, metadata = @meta
                     """;
                 AddParams(cmd, r);
@@ -157,7 +197,9 @@ public sealed class SqliteRouteRepository : IRouteRepository
 
     private static void AddParams(SqliteCommand cmd, RouteEntity r)
     {
+        cmd.Parameters.AddWithValue("@uid", string.IsNullOrWhiteSpace(r.RouteUid) ? Guid.NewGuid().ToString("N") : r.RouteUid);
         cmd.Parameters.AddWithValue("@id", r.RouteId);
+        cmd.Parameters.AddWithValue("@cuid", r.ClusterUid ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@cid", r.ClusterId);
         cmd.Parameters.AddWithValue("@path", r.MatchPath);
         cmd.Parameters.AddWithValue("@order", r.Order);
@@ -171,15 +213,29 @@ public sealed class SqliteRouteRepository : IRouteRepository
 
     private static RouteEntity Map(SqliteDataReader r) => new()
     {
-        RouteId = r.GetString(0),
-        ClusterId = r.GetString(1),
-        MatchPath = r.GetString(2),
-        Order = r.GetInt32(3),
-        Transforms = r.IsDBNull(4) ? null : r.GetString(4),
-        Source = r.IsDBNull(5) ? "dynamic" : r.GetString(5),
-        CreatedBy = r.IsDBNull(6) ? null : r.GetString(6),
-        CreatedAt = r.IsDBNull(7) ? DateTime.MinValue : DateTime.Parse(r.GetString(7)),
-        UpdatedAt = r.IsDBNull(8) ? DateTime.MinValue : DateTime.Parse(r.GetString(8)),
-        Metadata = r.IsDBNull(9) ? null : r.GetString(9)
+        RouteUid = ReadString(r, "route_uid") ?? Guid.NewGuid().ToString("N"),
+        RouteId = ReadString(r, "route_id") ?? string.Empty,
+        ClusterUid = ReadString(r, "cluster_uid"),
+        ClusterId = ReadString(r, "cluster_id") ?? string.Empty,
+        MatchPath = ReadString(r, "match_path") ?? string.Empty,
+        Order = r.GetInt32(r.GetOrdinal("order")),
+        Transforms = ReadString(r, "transforms"),
+        Source = ReadString(r, "source") ?? "dynamic",
+        CreatedBy = ReadString(r, "created_by"),
+        CreatedAt = ReadDateTime(r, "created_at") ?? DateTime.MinValue,
+        UpdatedAt = ReadDateTime(r, "updated_at") ?? DateTime.MinValue,
+        Metadata = ReadString(r, "metadata")
     };
+
+    private static string? ReadString(SqliteDataReader r, string name)
+    {
+        var ordinal = r.GetOrdinal(name);
+        return r.IsDBNull(ordinal) ? null : r.GetString(ordinal);
+    }
+
+    private static DateTime? ReadDateTime(SqliteDataReader r, string name)
+    {
+        var value = ReadString(r, name);
+        return string.IsNullOrEmpty(value) ? null : DateTime.Parse(value);
+    }
 }

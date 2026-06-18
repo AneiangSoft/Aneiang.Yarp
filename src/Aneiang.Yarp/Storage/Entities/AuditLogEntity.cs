@@ -7,6 +7,9 @@ public class AuditLogEntity
     public string Action { get; set; } = string.Empty;
     public string Target { get; set; } = string.Empty;
     public string? TargetType { get; set; } // Route, Cluster, Policy, etc.
+    public string? TargetUid { get; set; }
+    public string? TargetKeySnapshot { get; set; }
+    public string? TargetDisplayNameSnapshot { get; set; }
     public string? Operator { get; set; }
     public string? ClientIp { get; set; }
     public string? BeforeData { get; set; } // JSON

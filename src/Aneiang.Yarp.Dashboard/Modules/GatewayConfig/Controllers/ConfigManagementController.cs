@@ -4,6 +4,8 @@ using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
+using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
+using Aneiang.Yarp.Storage;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -21,6 +23,8 @@ public class ConfigManagementController : ControllerBase
     private readonly IDynamicYarpConfigService _dynamicConfig;
     private readonly ILogger<ConfigManagementController> _logger;
     private readonly IMemoryCache _memoryCache;
+    private readonly IGatewayIdentityService _identityService;
+    private readonly IConfigSnapshotScheduler _snapshotScheduler;
     private readonly IWafSettingsPersistenceService? _wafPersistence;
 
     public ConfigManagementController(
@@ -28,12 +32,16 @@ public class ConfigManagementController : ControllerBase
         IDynamicYarpConfigService dynamicConfig,
         ILogger<ConfigManagementController> logger,
         IMemoryCache memoryCache,
+        IGatewayIdentityService identityService,
+        IConfigSnapshotScheduler snapshotScheduler,
         IWafSettingsPersistenceService? wafPersistence = null)
     {
         _persistenceService = persistenceService;
         _dynamicConfig = dynamicConfig;
         _logger = logger;
         _memoryCache = memoryCache;
+        _identityService = identityService;
+        _snapshotScheduler = snapshotScheduler;
         _wafPersistence = wafPersistence;
     }
 
@@ -63,6 +71,21 @@ public class ConfigManagementController : ControllerBase
         if (!string.IsNullOrEmpty(ip)) return ip;
 
         return HttpContext.Connection.RemoteIpAddress?.ToString();
+    }
+
+    private static bool ContainsDifferentId(JsonElement config, string expectedId, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            if (config.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String)
+            {
+                var actualId = value.GetString();
+                if (!string.IsNullOrWhiteSpace(actualId) && !string.Equals(actualId, expectedId, StringComparison.Ordinal))
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -210,9 +233,8 @@ public class ConfigManagementController : ControllerBase
                 }
             }
 
-            // Save snapshot BEFORE modification (so rollback restores previous state)
-            await _persistenceService.SaveSnapshotAsync($"Before cluster '{clusterId}' saved via dashboard", GetClientIp());
-            
+            _snapshotScheduler.QueueSnapshot($"After cluster '{clusterId}' saved via dashboard", GetClientIp());
+
             var result = await _dynamicConfig.TryAddCluster(clusterId, destinations, loadBalancingPolicy, healthCheck, "dashboard", "dashboard-user");
 
             if (result.Success) InvalidateQueryCaches();
@@ -305,12 +327,14 @@ public class ConfigManagementController : ControllerBase
             if (config.TryGetProperty("loadBalancingPolicy", out var lbpProp))
                 loadBalancingPolicy = lbpProp.GetString();
 
-            // Save snapshot BEFORE rename
-            await _persistenceService.SaveSnapshotAsync($"Before cluster '{clusterId}' renamed to '{newClusterId}' via dashboard", GetClientIp());
-
-            var result = await _dynamicConfig.TryRenameCluster(
-                clusterId, newClusterId, destinations, loadBalancingPolicy,
-                source: "dashboard", createdBy: "dashboard-user");
+            var result = await _identityService.RenameClusterAsync(
+                clusterId,
+                newClusterId,
+                destinations,
+                loadBalancingPolicy,
+                clientIp: GetClientIp(),
+                operatorName: "dashboard-user",
+                ct: HttpContext.RequestAborted);
 
             if (result.Success) InvalidateQueryCaches();
             return result.Success
@@ -380,7 +404,11 @@ public class ConfigManagementController : ControllerBase
             var result = await _dynamicConfig.TryRenameRoute(routeId, newRouteId, request,
                 source: "dashboard", createdBy: "dashboard-user");
 
-            if (result.Success) InvalidateQueryCaches();
+            if (result.Success)
+            {
+                await _identityService.AfterRouteRenamedAsync(routeId, newRouteId, HttpContext.RequestAborted);
+                InvalidateQueryCaches();
+            }
             return result.Success
                 ? Ok(new { code = 200, message = result.Message, routeId = newRouteId })
                 : BadRequest(new { code = 400, message = result.Message });
@@ -501,9 +529,8 @@ public class ConfigManagementController : ControllerBase
                 Transforms = transforms
             };
 
-            // Save snapshot BEFORE modification
-            await _persistenceService.SaveSnapshotAsync($"Before route '{routeId}' saved via dashboard", GetClientIp());
-            
+            _snapshotScheduler.QueueSnapshot($"After route '{routeId}' saved via dashboard", GetClientIp());
+
             var result = await _dynamicConfig.TryAddRoute(request, "dashboard", "dashboard-user");
 
             if (result.Success) InvalidateQueryCaches();
