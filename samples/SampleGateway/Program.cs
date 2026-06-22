@@ -9,6 +9,8 @@ Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
     .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
     .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.Hosting.Lifetime", Serilog.Events.LogEventLevel.Information)
+    .MinimumLevel.Override("Microsoft.AspNetCore.Server.Kestrel", Serilog.Events.LogEventLevel.Information)
     .MinimumLevel.Override("Yarp.ReverseProxy", Serilog.Events.LogEventLevel.Information)
     .Enrich.FromLogContext()
     .WriteTo.Console(outputTemplate: "[Serilog] {Timestamp:HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
@@ -67,7 +69,39 @@ try
     Console.WriteLine("  gRPC:               HTTP/2 enabled");
     Console.WriteLine("======================================================");
 
-    Log.Information("Gateway started successfully");
+    // Auto-launch browser in Development (only when not already opened by IDE).
+    // Wait for ApplicationStarted so Kestrel has actually bound the ports.
+    if (app.Environment.IsDevelopment()
+        && Environment.GetEnvironmentVariable("ASPNETCORE_AUTO_BROWSER") != "0")
+    {
+        var dashboardEndpoint = depOptions.ResolvedEndpoints
+            .FirstOrDefault(e => string.Equals(e.Role, "Dashboard", StringComparison.OrdinalIgnoreCase))
+            ?? depOptions.ResolvedEndpoints.FirstOrDefault();
+        if (dashboardEndpoint != null)
+        {
+            var dashUrl = $"http://localhost:{dashboardEndpoint.Port}/aneiang/login";
+            var lifetime = app.Services.GetRequiredService<Microsoft.Extensions.Hosting.IHostApplicationLifetime>();
+            lifetime.ApplicationStarted.Register(() =>
+            {
+                try
+                {
+                    Log.Information("Opening browser at {Url}", dashUrl);
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = dashUrl,
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Failed to auto-open browser at {Url}", dashUrl);
+                }
+            });
+            Console.WriteLine($"  Browser:            will open {dashUrl} after Kestrel ready ...");
+        }
+    }
+
+    Log.Information("Gateway started successfully (waiting for Kestrel to bind ports...)");
     app.Run();
 }
 catch (Exception ex)

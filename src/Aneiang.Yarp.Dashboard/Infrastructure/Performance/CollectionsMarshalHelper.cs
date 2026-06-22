@@ -6,7 +6,7 @@ namespace Aneiang.Yarp.Dashboard.Infrastructure.Performance;
 /// <summary>
 /// Helper methods for efficient collection operations using low-level APIs.
 /// </summary>
-public static class CollectionsMarshalHelper
+internal static class CollectionsMarshalHelper
 {
     /// <summary>
     /// Gets a Span view of a List's underlying array (zero-allocation).
@@ -41,3 +41,4 @@ public static class CollectionsMarshalHelper
         return ref CollectionsMarshal.GetValueRefOrAddDefault(dict, key, out _);
     }
 }
+

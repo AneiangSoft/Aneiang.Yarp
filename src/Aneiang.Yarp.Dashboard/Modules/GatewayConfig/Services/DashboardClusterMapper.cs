@@ -37,10 +37,15 @@ internal static class DashboardClusterMapper
         var unknownCount = destinations.Count - healthyCount - unhealthyCount;
 
         var (isEditable, source) = GetClusterEditability(cluster.ClusterId, dynamicConfig);
+        var dynamicCluster = dynamicConfig.GetDynamicConfig()?.Clusters.FirstOrDefault(c =>
+            string.Equals(c.ClusterId, cluster.ClusterId, StringComparison.OrdinalIgnoreCase));
 
         return new DashboardClusterResponse
         {
             ClusterId = cluster.ClusterId,
+            ClusterUid = dynamicCluster?.ClusterUid,
+            ClusterKey = cluster.ClusterId ?? string.Empty,
+            DisplayName = dynamicCluster?.DisplayName ?? cluster.ClusterId ?? string.Empty,
             LoadBalancingPolicy = cluster.LoadBalancingPolicy ?? "Default",
             SessionAffinity = MapSessionAffinity(cluster.SessionAffinity),
             HealthCheck = MapHealthCheck(cluster.HealthCheck),
@@ -56,7 +61,7 @@ internal static class DashboardClusterMapper
             TotalCount = destinations.Count,
             Source = source,
             IsEditable = isEditable,
-            CircuitBreaker = MapCircuitBreaker(cluster.ClusterId, dynamicConfig)
+            CircuitBreaker = MapCircuitBreaker(cluster.ClusterId ?? string.Empty, dynamicConfig)
         };
     }
 

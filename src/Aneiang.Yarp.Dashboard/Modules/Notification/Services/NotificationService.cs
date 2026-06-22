@@ -1,9 +1,10 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.Logging;
 
@@ -170,6 +171,10 @@ public sealed class NotificationService : INotificationService
             }
 
             // ── Always save history with accurate delivery result ──
+            history.Message = SafeErrorMessages.Redact(history.Message);
+            history.ErrorMessage = SafeErrorMessages.Redact(history.ErrorMessage);
+            history.BlockReason = SafeErrorMessages.Redact(history.BlockReason);
+            history.RequestUri = SafeErrorMessages.Redact(history.RequestUri);
             await _repository.RecordNotificationAsync(history, ct);
             _logger.LogInformation(
                 "[Notification] History recorded: {EventType} severity={Severity} channels=[{Channels}] delivered={Delivered}",

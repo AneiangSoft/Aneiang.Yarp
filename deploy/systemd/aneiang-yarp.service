@@ -1,0 +1,24 @@
+[Unit]
+Description=Aneiang YARP Gateway
+After=network.target
+
+[Service]
+Type=notify
+WorkingDirectory=/opt/aneiang-yarp
+ExecStart=/usr/bin/dotnet /opt/aneiang-yarp/SampleGateway.dll
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+SyslogIdentifier=aneiang-yarp
+User=aneiang
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=Gateway__Deployment__Mode=Split
+Environment=Gateway__Deployment__EndpointRoles__Proxy=Proxy
+Environment=Gateway__Deployment__EndpointRoles__Dashboard=Dashboard
+Environment=Gateway__Dashboard__AuthMode=DefaultJwt
+Environment=Gateway__Dashboard__JwtPassword=CHANGE_ME_STRONG_PASSWORD
+Environment=Kestrel__Endpoints__Proxy__Url=http://0.0.0.0:80
+Environment=Kestrel__Endpoints__Dashboard__Url=http://127.0.0.1:5000
+
+[Install]
+WantedBy=multi-user.target

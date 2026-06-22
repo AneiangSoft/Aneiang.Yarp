@@ -16,6 +16,7 @@ public class DeploymentInfoController : ControllerBase
 {
     private readonly DeploymentOptions _options;
     private readonly IConfigSnapshotStore _snapshotStore;
+    private readonly DeploymentRestartState _restartState;
     private readonly ILogger<DeploymentInfoController> _logger;
 
     private static readonly DateTime _processStart = Process.GetCurrentProcess().StartTime.ToUniversalTime();
@@ -24,10 +25,12 @@ public class DeploymentInfoController : ControllerBase
     public DeploymentInfoController(
         IOptions<DeploymentOptions> options,
         IConfigSnapshotStore snapshotStore,
+        DeploymentRestartState restartState,
         ILogger<DeploymentInfoController> logger)
     {
         _options = options.Value;
         _snapshotStore = snapshotStore;
+        _restartState = restartState;
         _logger = logger;
     }
 
@@ -53,6 +56,13 @@ public class DeploymentInfoController : ControllerBase
             uptimeSeconds = (DateTime.UtcNow - _processStart).TotalSeconds,
             version = _version,
             environment = env,
+            restartRequired = _restartState.IsRestartRequired,
+            restartReasons = _restartState.GetReasons(),
+            hotReloadBoundary = new
+            {
+                hotReloadable = new[] { "ReverseProxy:Routes", "ReverseProxy:Clusters", "Gateway:Dashboard:Policies", "Gateway:Dashboard:Waf", "Gateway:Dashboard:Notifications" },
+                restartRequired = new[] { "Kestrel:Endpoints", "Kestrel:Certificates", "ASPNETCORE_URLS", "Gateway:Deployment:Mode", "Gateway:Deployment:EndpointRoles" }
+            },
             endpoints = _options.ResolvedEndpoints.Select(e => new
             {
                 name = e.EndpointName,

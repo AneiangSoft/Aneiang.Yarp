@@ -85,6 +85,7 @@
             this.setText('deployment-health-checks', checks.length ? checks.map(this._translateCheck).join(' + ') : __('deployment.checks.none'));
 
             this.renderEndpoints(data.endpoints || []);
+            this._showRestartRequired(data);
             this.renderSnapshots(data.snapshots || []);
         },
 
@@ -173,6 +174,27 @@
                     this.viewSnapshot(ts);
                 });
             });
+        },
+
+        _showRestartRequired: function (data) {
+            if (!data || !data.restartRequired) return;
+            const card = this.getEl('deployment-security-card');
+            const container = this.getEl('deployment-security-warnings');
+            if (!card || !container) return;
+
+            const reasons = data.restartReasons || [];
+            const messages = reasons.length
+                ? reasons.map(r => (r.title || 'Restart required') + ': ' + (r.message || r.configPath || r.key))
+                : ['部署配置已变更，需要重启进程才能生效'];
+
+            messages.forEach(message => {
+                const div = document.createElement('div');
+                div.className = 'd-flex align-items-start gap-2 py-2';
+                div.innerHTML = '<i class="bi bi-arrow-clockwise" style="color:#f59e0b;font-size:18px;"></i>' +
+                    '<div>' + this._escape(message) + '</div>';
+                container.appendChild(div);
+            });
+            card.style.display = '';
         },
 
         _showSecurityWarnings: function (warnings) {

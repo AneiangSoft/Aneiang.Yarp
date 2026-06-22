@@ -6,8 +6,18 @@ namespace Aneiang.Yarp.Dashboard.Modules.Policy.Models;
 /// </summary>
 public class RoutePolicy
 {
-    /// <summary>Unique identifier for this policy.</summary>
+    /// <summary>Internal immutable policy UID.</summary>
+    public string PolicyUid { get; set; } = string.Empty;
+
+    /// <summary>Unique identifier for this policy. Kept for compatibility; prefer PolicyKey for new code.</summary>
     public string PolicyId { get; set; } = string.Empty;
+
+    /// <summary>Policy key alias.</summary>
+    public string PolicyKey
+    {
+        get => PolicyId;
+        set => PolicyId = value;
+    }
 
     /// <summary>Display name of this policy.</summary>
     public string DisplayName { get; set; } = string.Empty;
@@ -68,8 +78,18 @@ public class RoutePolicy
 /// </summary>
 public class ClusterPolicy
 {
-    /// <summary>Unique identifier for this policy.</summary>
+    /// <summary>Internal immutable policy UID.</summary>
+    public string PolicyUid { get; set; } = string.Empty;
+
+    /// <summary>Unique identifier for this policy. Kept for compatibility; prefer PolicyKey for new code.</summary>
     public string PolicyId { get; set; } = string.Empty;
+
+    /// <summary>Policy key alias.</summary>
+    public string PolicyKey
+    {
+        get => PolicyId;
+        set => PolicyId = value;
+    }
 
     /// <summary>Display name of this policy.</summary>
     public string DisplayName { get; set; } = string.Empty;

@@ -311,9 +311,11 @@ public class DashboardController : Controller
 
     /// <summary>Recent YARP proxy logs.</summary>
     [HttpGet("api/logs")]
-    public IActionResult GetLogs([FromQuery] int count = 100)
+    public IActionResult GetLogs([FromQuery] int count = 100, [FromQuery] int? page = null, [FromQuery] int? pageSize = null)
     {
-        var snapshot = _logQuery.GetLogs(count);
+        var snapshot = page.HasValue || pageSize.HasValue
+            ? _logQuery.GetLogsPage(page ?? 1, pageSize ?? count)
+            : _logQuery.GetLogs(count);
         return Json(new { code = 200, data = snapshot });
     }
 

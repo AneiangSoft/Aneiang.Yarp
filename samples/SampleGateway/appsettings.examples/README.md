@@ -1,6 +1,6 @@
 # 部署场景配置示例
 
-本目录包含 4 种典型部署场景的 appsettings.json 配置文件示例。
+本目录包含 5 种典型部署场景的 appsettings.json 配置文件示例。
 
 ## 场景对比
 
@@ -10,6 +10,7 @@
 | `appsettings.Split.json` | Split | 80 + 5000 | 单进程双端口，80 代理 + 5000 Dashboard(本机) |
 | `appsettings.SplitWithHealth.json` | Split | 80 + 5000 + 5002 | 包含健康检查端点 |
 | `appsettings.ProxyOnly.json` | ProxyOnly | 80 + 5001 | 仅代理模式，无 Dashboard UI |
+| `appsettings.DashboardOnly.json` | DashboardOnly | 5000 | 仅控制面 Dashboard，无代理转发 |
 
 ## 使用方法
 
@@ -39,6 +40,36 @@ dotnet run --project samples/SampleGateway -- \
   --deployment proxyonly \
   --proxy-url http://0.0.0.0:80 \
   --admin-url http://127.0.0.1:5001
+```
+
+## Docker / systemd / Windows Service
+
+仓库提供部署模板：
+
+```text
+deploy/docker-compose.split.yml
+deploy/systemd/aneiang-yarp.service
+deploy/windows/Install-AneiangYarpService.ps1
+```
+
+Docker Compose 示例：
+
+```bash
+docker compose -f deploy/docker-compose.split.yml up -d --build
+```
+
+systemd 示例：
+
+```bash
+sudo cp deploy/systemd/aneiang-yarp.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now aneiang-yarp
+```
+
+Windows Service 示例（管理员 PowerShell）：
+
+```powershell
+.\deploy\windows\Install-AneiangYarpService.ps1 -AppDirectory C:\Services\AneiangYarp
 ```
 
 ### 方式 3：环境变量（Docker/K8s）

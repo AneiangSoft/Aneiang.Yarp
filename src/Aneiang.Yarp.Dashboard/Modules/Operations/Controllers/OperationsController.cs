@@ -291,7 +291,7 @@ public class OperationsController : ControllerBase
         // Query real circuit breaker states from CircuitBreakerMiddleware
         var allStates = CircuitBreakerMiddleware.GetAllCircuitStates();
         int openCount = 0;
-        foreach (var state in allStates.Values)
+        foreach (var state in allStates)
         {
             if (state.Status == "Open" || state.Status == "HalfOpen")
                 openCount++;

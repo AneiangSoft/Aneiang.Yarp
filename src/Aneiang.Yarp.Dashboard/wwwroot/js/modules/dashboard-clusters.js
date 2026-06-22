@@ -337,7 +337,18 @@
                 html += '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">';
                 html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#60a5fa);color:#fff;font-size:15px;flex-shrink:0;"><i class="bi bi-hdd-stack"></i></span>';
                 html += '<div style="min-width:0;flex:1;">';
-                html += '<div style="font-weight:600;font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(cluster.clusterId) : cluster.clusterId) + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(cluster.clusterId) : cluster.clusterId) + '</div>';
+                html += '<div style="font-weight:600;font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(cluster.clusterId) : cluster.clusterId) + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(cluster.displayName || cluster.clusterKey || cluster.clusterId) : (cluster.displayName || cluster.clusterKey || cluster.clusterId)) + '</div>';
+                if (cluster.displayName || cluster.clusterUid || cluster.clusterKey) {
+                    html += '<div style="font-size:11px;color:#94a3b8;margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;">';
+                    if (cluster.clusterUid) {
+                        html += '<span title="UID"><i class="bi bi-fingerprint me-1"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(cluster.clusterUid) : cluster.clusterUid) + '</span>';
+                    }
+                    html += '<span style="color:#cbd5e1;">|</span>';
+                    if (cluster.clusterKey) {
+                        html += '<span title="Key"><i class="bi bi-key me-1"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(cluster.clusterKey) : cluster.clusterKey) + '</span>';
+                    }
+                    html += '</div>';
+                }
                 html += '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;">';
                 html += '<span>' + (window.DashboardUtils ? DashboardUtils.createSourceBadge(cluster.source) : cluster.source || '-') + '</span>';
                 html += '<span style="color:#cbd5e1;">|</span>';
@@ -394,6 +405,11 @@
         renderClusterRows: function(clusters, tbody) {
             window.DashboardDOM.clear(tbody);
 
+            if (clusters.length > 300) {
+                this._renderClusterRowsBatched(clusters, tbody);
+                return;
+            }
+
             var fragment = document.createDocumentFragment();
 
             clusters.forEach(function(cluster) {
@@ -403,6 +419,33 @@
             }.bind(this));
 
             tbody.appendChild(fragment);
+        },
+
+        // ===== Batched Render (large lists) =====
+        _renderClusterRowsBatched: function(clusters, tbody) {
+            const expandedClusters = window.DashboardState.get('ui.expandedClusters') || new Set();
+            const batchSize = 80;
+            let index = 0;
+
+            const renderBatch = function() {
+                const fragment = document.createDocumentFragment();
+                const end = Math.min(index + batchSize, clusters.length);
+
+                for (; index < end; index++) {
+                    const cluster = clusters[index];
+                    const isExpanded = expandedClusters.has(cluster.clusterId);
+                    const rows = this.createClusterRows(cluster, isExpanded);
+                    rows.forEach(function(row) { fragment.appendChild(row); });
+                }
+
+                tbody.appendChild(fragment);
+
+                if (index < clusters.length) {
+                    requestAnimationFrame(renderBatch);
+                }
+            }.bind(this);
+
+            requestAnimationFrame(renderBatch);
         },
 
         // ===== Create Cluster Rows =====

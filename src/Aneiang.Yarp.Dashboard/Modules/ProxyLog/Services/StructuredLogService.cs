@@ -1,7 +1,9 @@
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
+using Aneiang.Yarp.Services;
 using System.Threading.Channels;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Data.Sqlite;
 using System.Text.Json;
 
@@ -15,7 +17,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 /// - Tiered storage: Memory -> SQLite -> File Archive
 /// - SSE streaming support for real-time log delivery
 /// </summary>
-public class StructuredLogService : IHostedService, IDisposable
+internal class StructuredLogService : IHostedService, IDisposable
 {
     // Channel for lock-free log ingestion
     private readonly Channel<LogEntry> _logChannel;
@@ -24,6 +26,7 @@ public class StructuredLogService : IHostedService, IDisposable
 
     // In-memory ring buffer for hot data
     private readonly ProxyLogStore _ringBuffer;
+    private readonly ILogger<StructuredLogService>? _logger;
 
     // Batch processing configuration
     private const int BatchSize = 100;
@@ -55,9 +58,11 @@ public class StructuredLogService : IHostedService, IDisposable
 
     public StructuredLogService(
         ProxyLogStore ringBuffer,
-        IConfiguration? configuration = null)
+        IConfiguration? configuration = null,
+        ILogger<StructuredLogService>? logger = null)
     {
         _ringBuffer = ringBuffer;
+        _logger = logger;
 
         // Bounded channel to prevent memory explosion under high load
         _logChannel = Channel.CreateBounded<LogEntry>(new BoundedChannelOptions(MaxQueueSize)
@@ -177,8 +182,7 @@ public class StructuredLogService : IHostedService, IDisposable
         }
         catch (Exception ex)
         {
-            // Log to console as last resort
-            Console.Error.WriteLine($"[StructuredLogService] Processing error: {ex}");
+            _logger?.LogError(ex, "Structured log processing loop failed");
         }
         finally
         {
@@ -215,7 +219,7 @@ public class StructuredLogService : IHostedService, IDisposable
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[StructuredLogService] Batch processing error: {ex}");
+            _logger?.LogError(ex, "Structured log batch processing failed");
         }
     }
 
@@ -299,7 +303,7 @@ public class StructuredLogService : IHostedService, IDisposable
         catch (Exception ex)
         {
             // Log but don't throw - persistence failure shouldn't break the gateway
-            Console.Error.WriteLine($"[StructuredLogService] Persistence error: {ex.Message}");
+            _logger?.LogWarning(ex, "Structured log persistence failed");
         }
         finally
         {
@@ -343,7 +347,7 @@ public class StructuredLogService : IHostedService, IDisposable
             """;
         await cmd.ExecuteNonQueryAsync(ct);
 
-        Console.WriteLine("[StructuredLogService] SQLite persistence initialized");
+        _logger?.LogInformation("Structured log SQLite persistence initialized");
     }
 
     private async Task InsertToSqliteAsync(List<LogEntry> batch, CancellationToken ct)
@@ -372,7 +376,7 @@ public class StructuredLogService : IHostedService, IDisposable
             cmd.Parameters.AddWithValue("@type", entry.EventType.ToString());
             cmd.Parameters.AddWithValue("@level", entry.Level ?? string.Empty);
             cmd.Parameters.AddWithValue("@cat", entry.Category ?? string.Empty);
-            cmd.Parameters.AddWithValue("@msg", entry.Message ?? string.Empty);
+            cmd.Parameters.AddWithValue("@msg", SafeErrorMessages.Redact(entry.Message) ?? string.Empty);
             cmd.Parameters.AddWithValue("@traceId", entry.TraceId ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@routeId", entry.RouteId ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@clusterId", entry.ClusterId ?? (object)DBNull.Value);
@@ -381,9 +385,9 @@ public class StructuredLogService : IHostedService, IDisposable
             cmd.Parameters.AddWithValue("@downstreamUrl", entry.DownstreamUrl ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@statusCode", entry.StatusCode ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@elapsedMs", entry.ElapsedMs ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@requestBody", entry.RequestBody ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@responseBody", entry.ResponseBody ?? (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("@exception", entry.Exception ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@requestBody", SafeErrorMessages.Redact(entry.RequestBody) ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@responseBody", SafeErrorMessages.Redact(entry.ResponseBody) ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@exception", SafeErrorMessages.Redact(entry.Exception) ?? (object)DBNull.Value);
 
             await cmd.ExecuteNonQueryAsync(ct);
         }
@@ -460,7 +464,7 @@ public class StructuredLogService : IHostedService, IDisposable
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[StructuredLogService] Cleanup error: {ex.Message}");
+            _logger?.LogWarning(ex, "Structured log archive cleanup failed");
         }
     }
 
@@ -472,3 +476,4 @@ public class StructuredLogService : IHostedService, IDisposable
         _persistLock.Dispose();
     }
 }
+

@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Aneiang.Yarp.Client\Aneiang.Yarp.Client.csproj" />
     <ProjectReference Include="..\Aneiang.Yarp.Grpc\Aneiang.Yarp.Grpc.csproj" />
+    <ProjectReference Include="..\Aneiang.Yarp.Storage.Abstractions\Aneiang.Yarp.Storage.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

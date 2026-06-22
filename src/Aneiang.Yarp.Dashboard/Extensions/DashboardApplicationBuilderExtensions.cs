@@ -22,6 +22,25 @@ public static class DashboardApplicationBuilderExtensions
 {
     private const string DashboardConfiguredKey = "__AneiangYarpDashboard_Configured";
 
+    /// <summary>Controls which built-in middleware is automatically mounted by <see cref="UseAneiangYarpDashboard(IApplicationBuilder, DashboardUseOptions?, Action{IReverseProxyApplicationBuilder}?)"/>.</summary>
+    public sealed class DashboardUseOptions
+    {
+        /// <summary>Override <see cref="DeploymentOptions.AutoUseMiddleware"/>. Null means use deployment configuration.</summary>
+        public bool? AutoUseMiddleware { get; set; }
+
+        /// <summary>Mount deployment endpoint-router and health-check middleware when auto-use is enabled.</summary>
+        public bool UseDeploymentMiddleware { get; set; } = true;
+
+        /// <summary>Mount proxy request/response capture middleware when auto-use is enabled.</summary>
+        public bool UseProxyRequestCapture { get; set; } = true;
+
+        /// <summary>Mount WAF middleware when auto-use is enabled.</summary>
+        public bool UseWaf { get; set; } = true;
+
+        /// <summary>Mount built-in proxy branch middleware when auto-use is enabled.</summary>
+        public bool UseBuiltInProxyPipeline { get; set; } = true;
+    }
+
     /// <summary>
     /// Register Dashboard middleware and map the YARP proxy endpoint with core middleware
     /// in the correct pipeline order. When <see cref="DeploymentOptions.Mode"/> is set,
@@ -31,6 +50,15 @@ public static class DashboardApplicationBuilderExtensions
     public static IApplicationBuilder UseAneiangYarpDashboard(
         this IApplicationBuilder app,
         Action<IReverseProxyApplicationBuilder>? configureProxyPipeline = null)
+        => app.UseAneiangYarpDashboard(useOptions: null, configureProxyPipeline);
+
+    /// <summary>
+    /// Register Dashboard middleware with explicit opt-out controls for advanced custom pipelines.
+    /// </summary>
+    public static IApplicationBuilder UseAneiangYarpDashboard(
+        this IApplicationBuilder app,
+        DashboardUseOptions? useOptions,
+        Action<IReverseProxyApplicationBuilder>? configureProxyPipeline = null)
     {
         if (app.Properties.TryGetValue(DashboardConfiguredKey, out _))
         {
@@ -38,22 +66,32 @@ public static class DashboardApplicationBuilderExtensions
         }
         app.Properties[DashboardConfiguredKey] = true;
 
+        useOptions ??= new DashboardUseOptions();
         var mode = DeploymentMode.AllInOne;
+        var autoUseMiddleware = true;
         try
         {
             var options = app.ApplicationServices.GetService<IOptions<DeploymentOptions>>();
             if (options != null)
+            {
                 mode = options.Value.Mode;
+                autoUseMiddleware = options.Value.AutoUseMiddleware;
+            }
         }
         catch
         {
             // Fall back to AllInOne if DeploymentOptions is not registered (backward compat)
         }
 
+        autoUseMiddleware = useOptions.AutoUseMiddleware ?? autoUseMiddleware;
+
         var dashboardActive = mode != DeploymentMode.ProxyOnly;
         var proxyActive = mode != DeploymentMode.DashboardOnly;
 
-        UseDeploymentMiddlewareIfAvailable(app);
+        if (autoUseMiddleware && useOptions.UseDeploymentMiddleware)
+        {
+            UseDeploymentMiddlewareIfAvailable(app);
+        }
 
         if (dashboardActive)
         {
@@ -100,10 +138,13 @@ public static class DashboardApplicationBuilderExtensions
             {
                 endpoints.MapReverseProxy(proxyPipeline =>
                 {
-                    proxyPipeline.UseMiddleware<BuiltinTransformMiddleware>();
-                    proxyPipeline.UseMiddleware<RateLimitMiddleware>();
-                    proxyPipeline.UseMiddleware<CircuitBreakerMiddleware>();
-                    proxyPipeline.UseMiddleware<RequestRetryMiddleware>();
+                    if (autoUseMiddleware && useOptions.UseBuiltInProxyPipeline)
+                    {
+                        proxyPipeline.UseMiddleware<BuiltinTransformMiddleware>();
+                        proxyPipeline.UseMiddleware<RateLimitMiddleware>();
+                        proxyPipeline.UseMiddleware<CircuitBreakerMiddleware>();
+                        proxyPipeline.UseMiddleware<RequestRetryMiddleware>();
+                    }
                     configureProxyPipeline?.Invoke(proxyPipeline);
                 });
             }

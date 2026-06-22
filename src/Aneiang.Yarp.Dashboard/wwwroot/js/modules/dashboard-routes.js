@@ -478,7 +478,18 @@
                 }
 
                 html += '<div style="min-width:0;flex:1;">';
-                html += '<div style="font-weight:600;font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '</div>';
+                html += '<div style="font-weight:600;font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.displayName || route.routeKey || route.routeId) : (route.displayName || route.routeKey || route.routeId)) + '</div>';
+                if (route.displayName || route.routeUid || route.routeKey) {
+                    html += '<div style="font-size:11px;color:#94a3b8;margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;">';
+                    if (route.routeUid) {
+                        html += '<span title="UID"><i class="bi bi-fingerprint me-1"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeUid) : route.routeUid) + '</span>';
+                    }
+                    html += '<span style="color:#cbd5e1;">|</span>';
+                    if (route.routeKey) {
+                        html += '<span title="Key"><i class="bi bi-key me-1"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeKey) : route.routeKey) + '</span>';
+                    }
+                    html += '</div>';
+                }
                 html += '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;">';
                 html += '<span>' + (window.DashboardUtils ? DashboardUtils.createSourceBadge(route.source) : route.source || '-') + '</span>';
                 if (hostText) {
@@ -546,6 +557,12 @@
                 return orderA - orderB;
             });
 
+            // Large lists are rendered in animation-frame batches to avoid blocking the UI.
+            if (sortedRoutes.length > 300) {
+                this._renderRouteRowsBatched(sortedRoutes, tbody);
+                return;
+            }
+
             // Check if this is first render or we should use diff
             const existingRowCount = tbody.querySelectorAll('tr[data-route-id]').length;
             const isFirstRender = existingRowCount === 0;
@@ -570,6 +587,35 @@
             }.bind(this));
 
             tbody.appendChild(fragment);
+        },
+
+        // ===== Batched Render (large lists) =====
+        _renderRouteRowsBatched: function(routes, tbody) {
+            window.DashboardDOM.clear(tbody);
+
+            const expandedRoutes = window.DashboardState.get('ui.expandedRoutes') || new Set();
+            const batchSize = 80;
+            let index = 0;
+
+            const renderBatch = function() {
+                const fragment = document.createDocumentFragment();
+                const end = Math.min(index + batchSize, routes.length);
+
+                for (; index < end; index++) {
+                    const route = routes[index];
+                    const isExpanded = expandedRoutes.has(route.routeId);
+                    const rows = this.createRouteRows(route, isExpanded);
+                    rows.forEach(function(row) { fragment.appendChild(row); });
+                }
+
+                tbody.appendChild(fragment);
+
+                if (index < routes.length) {
+                    requestAnimationFrame(renderBatch);
+                }
+            }.bind(this);
+
+            requestAnimationFrame(renderBatch);
         },
 
         // ===== Diff Render (only update changed rows) =====

@@ -1,0 +1,29 @@
+services:
+  aneiang-yarp:
+    build:
+      context: ..
+      dockerfile: samples/SampleGateway/Dockerfile
+    image: aneiang-yarp-sample:latest
+    container_name: aneiang-yarp-split
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Gateway__Deployment__Mode: Split
+      Gateway__Deployment__EndpointRoles__Proxy: Proxy
+      Gateway__Deployment__EndpointRoles__Dashboard: Dashboard
+      Gateway__Deployment__RequireLoopbackForDashboard: "false"
+      Gateway__Dashboard__RoutePrefix: aneiang
+      Gateway__Dashboard__AuthMode: DefaultJwt
+      Gateway__Dashboard__JwtPassword: CHANGE_ME_STRONG_PASSWORD
+      Gateway__Storage__Provider: Sqlite
+      Gateway__Storage__Sqlite__ConnectionString: Data Source=/data/gateway-store.db;Password=CHANGE_ME_DB_PASSWORD
+      Kestrel__Endpoints__Proxy__Url: http://0.0.0.0:80
+      Kestrel__Endpoints__Dashboard__Url: http://0.0.0.0:5000
+    ports:
+      - "8080:80"
+      - "5000:5000"
+    volumes:
+      - aneiang-yarp-data:/data
+
+volumes:
+  aneiang-yarp-data:

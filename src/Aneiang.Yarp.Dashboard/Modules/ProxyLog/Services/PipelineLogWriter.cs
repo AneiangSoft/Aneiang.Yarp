@@ -12,7 +12,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 /// Zero-copy log streaming using System.IO.Pipelines.
 /// Eliminates buffer copies and reduces allocations in SSE streaming.
 /// </summary>
-public sealed class PipelineLogWriter : IDisposable
+internal sealed class PipelineLogWriter : IDisposable
 {
     private readonly Pipe _pipe;
     private readonly PipeWriter _writer;
@@ -110,7 +110,7 @@ public sealed class PipelineLogWriter : IDisposable
 /// High-performance SSE stream writer using async enumerable.
 /// Zero-allocation streaming with ValueTask throughout.
 /// </summary>
-public sealed class SseStreamWriter
+internal sealed class SseStreamWriter
 {
     private readonly DashboardJsonContext _jsonContext;
     private readonly ArrayPool<byte> _bufferPool;
@@ -183,7 +183,7 @@ public sealed class SseStreamWriter
 /// ValueTask-based HTTP response streaming.
 /// Eliminates Task allocations for hot paths.
 /// </summary>
-public static class ValueTaskExtensions
+internal static class ValueTaskExtensions
 {
     /// <summary>
     /// Writes ReadOnlyMemory to response body without async state machine allocation.
@@ -249,7 +249,7 @@ public static class ValueTaskExtensions
 /// Memory-mapped file log writer for cold storage.
 /// Direct memory access without buffer copies.
 /// </summary>
-public sealed class MemoryMappedLogWriter : IDisposable
+internal sealed class MemoryMappedLogWriter : IDisposable
 {
     private readonly string _filePath;
     private readonly FileStream _fileStream;
@@ -324,3 +324,7 @@ public sealed class MemoryMappedLogWriter : IDisposable
         _fileStream?.Dispose();
     }
 }
+
+
+
+

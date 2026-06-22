@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Yarp.ReverseProxy;
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.LoadBalancing;
@@ -41,6 +43,12 @@ public static class AneiangYarpServiceCollectionExtensions
         {
             return services;
         }
+
+        services.AddGatewayApiAuth();
+        services.TryAddSingleton(new GatewayControlPlaneOptions { EnableRegistration = enableRegistration });
+        services.TryAddSingleton<GatewayApiAuthFilter>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<MvcOptions>, GatewayApiAuthMvcOptionsSetup>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, GatewayControlPlaneSecurityValidator>());
 
         var proxyBuilder = services.AddReverseProxy();
 
@@ -85,9 +93,7 @@ public static class AneiangYarpServiceCollectionExtensions
         // Remove registration API endpoints when disabled (security: no route = 404, not 401/403)
         if (!enableRegistration)
         {
-            services.AddSingleton<IConfigureOptions<MvcOptions>>(_ =>
-                new ConfigureNamedOptions<MvcOptions>(null, mvo =>
-                    mvo.Conventions.Add(new DisableRegistrationApiConvention())));
+            services.AddSingleton<IConfigureOptions<MvcOptions>, DisableRegistrationApiMvcOptionsSetup>();
         }
 
         // Registration client (gateway can itself register with an upstream gateway)
@@ -106,13 +112,31 @@ public static class AneiangYarpServiceCollectionExtensions
         this IServiceCollection services,
         Action<GatewayApiAuthOptions>? configureOptions = null)
     {
+        services.AddOptions<ControlPlaneSecurityOptions>()
+            .BindConfiguration(ControlPlaneSecurityOptions.SectionName);
+
         services.AddOptions<GatewayApiAuthOptions>()
             .Configure<IConfiguration>((options, config) =>
             {
-                // 1. Try explicit Gateway:ApiAuth section
+                // 1. Unified control-plane security config
+                var controlPlane = config.GetSection(ControlPlaneSecurityOptions.SectionName).Get<ControlPlaneSecurityOptions>();
+                if (controlPlane != null && !string.IsNullOrWhiteSpace(controlPlane.AuthMode))
+                {
+                    if (Enum.TryParse<GatewayApiAuthMode>(controlPlane.AuthMode, ignoreCase: true, out var mode))
+                    {
+                        options.Mode = mode;
+                        options.Username = controlPlane.Username;
+                        options.Password = controlPlane.Password;
+                        options.ApiKey = controlPlane.ApiKey;
+                        options.ApiKeyHeaderName = string.IsNullOrWhiteSpace(controlPlane.ApiKeyHeaderName) ? "X-Api-Key" : controlPlane.ApiKeyHeaderName;
+                        options.AllowApiKeyInQuery = controlPlane.AllowApiKeyInQuery;
+                    }
+                }
+
+                // 2. Try explicit Gateway:ApiAuth section (legacy override)
                 config.GetSection(GatewayApiAuthOptions.SectionName).Bind(options);
 
-                // 2. If still None, auto-detect from Gateway:Dashboard
+                // 3. If still None, auto-detect from Gateway:Dashboard
                 if (options.Mode == GatewayApiAuthMode.None)
                 {
                     var dash = config.GetSection("Gateway:Dashboard");

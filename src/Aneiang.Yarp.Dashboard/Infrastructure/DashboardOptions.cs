@@ -167,6 +167,22 @@ public class DashboardOptions
     public int LogMaxBodyLength { get; set; } = 8192;
 
     /// <summary>
+    /// Enable request body capture on proxy hot path. Default: false.
+    /// </summary>
+    public bool EnableProxyRequestBodyCapture { get; set; } = false;
+
+    /// <summary>
+    /// Enable response body capture on proxy hot path. Default: false.
+    /// Keep disabled for streaming, SSE, large downloads, and high-throughput production traffic.
+    /// </summary>
+    public bool EnableProxyResponseBodyCapture { get; set; } = false;
+
+    /// <summary>
+    /// Maximum body bytes to buffer for proxy body capture. Default: 65536 (64KB).
+    /// </summary>
+    public int LogMaxBodyBufferBytes { get; set; } = 64 * 1024;
+
+    /// <summary>
     /// Enable async logging via Channel for better throughput.
     /// When enabled, logs are enqueued and processed in background batches,
     /// reducing latency on the request path. Default: true.

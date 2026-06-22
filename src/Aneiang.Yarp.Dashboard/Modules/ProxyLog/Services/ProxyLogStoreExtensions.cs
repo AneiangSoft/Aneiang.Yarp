@@ -6,7 +6,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 /// <summary>
 /// Extension methods for IProxyLogStore to support real-time log streaming via WebSocket.
 /// </summary>
-public static class ProxyLogStoreExtensions
+internal static class ProxyLogStoreExtensions
 {
     private static readonly ConcurrentDictionary<IProxyLogStore, List<Action<LogEntry>>> _subscriberMap = new();
     private static readonly object _lock = new();
@@ -85,3 +85,4 @@ public static class ProxyLogStoreExtensions
         }
     }
 }
+

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
+using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Models;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
@@ -41,6 +42,7 @@ public sealed class GatewayIdentityService : IGatewayIdentityService
     private readonly IConfigPersistenceService _persistenceService;
     private readonly IDynamicYarpConfigService _dynamicConfig;
     private readonly ILogger<GatewayIdentityService> _logger;
+    private readonly SemaphoreSlim _renameLock = new(1, 1);
 
     public GatewayIdentityService(
         IPolicyRepository policyRepository,
@@ -64,23 +66,38 @@ public sealed class GatewayIdentityService : IGatewayIdentityService
         string? operatorName = "dashboard-user",
         CancellationToken ct = default)
     {
-        await _persistenceService.SaveSnapshotAsync(
-            $"Before cluster '{oldClusterId}' renamed to '{newClusterId}' via dashboard",
-            clientIp);
+        await _renameLock.WaitAsync(ct);
+        ConfigSnapshot? rollbackSnapshot = null;
+        try
+        {
+            rollbackSnapshot = await _persistenceService.SaveSnapshotAsync(
+                $"Before cluster '{oldClusterId}' renamed to '{newClusterId}' via dashboard",
+                clientIp);
 
-        var result = await _dynamicConfig.TryRenameCluster(
-            oldClusterId,
-            newClusterId,
-            destinations,
-            loadBalancingPolicy,
-            healthCheck,
-            source: "dashboard",
-            createdBy: operatorName);
+            var result = await _dynamicConfig.TryRenameCluster(
+                oldClusterId,
+                newClusterId,
+                destinations,
+                loadBalancingPolicy,
+                healthCheck,
+                source: "dashboard",
+                createdBy: operatorName);
 
-        if (result.Success)
+            if (!result.Success) return result;
+
             await AfterClusterRenamedAsync(oldClusterId, newClusterId, ct);
-
-        return result;
+            return result;
+        }
+        catch (Exception ex)
+        {
+            await TryRollbackRenameAsync(rollbackSnapshot, clientIp, ct);
+            _logger.LogError(ex, "Cluster rename failed and rollback was attempted: {OldClusterId} -> {NewClusterId}", oldClusterId, newClusterId);
+            return new RouteOperationResult(false, $"Cluster rename failed: {ex.Message}");
+        }
+        finally
+        {
+            _renameLock.Release();
+        }
     }
 
     public async Task<RouteOperationResult> RenameRouteAsync(
@@ -91,21 +108,36 @@ public sealed class GatewayIdentityService : IGatewayIdentityService
         string? operatorName = "dashboard-user",
         CancellationToken ct = default)
     {
-        await _persistenceService.SaveSnapshotAsync(
-            $"Before route '{oldRouteId}' renamed to '{newRouteId}' via dashboard",
-            clientIp);
+        await _renameLock.WaitAsync(ct);
+        ConfigSnapshot? rollbackSnapshot = null;
+        try
+        {
+            rollbackSnapshot = await _persistenceService.SaveSnapshotAsync(
+                $"Before route '{oldRouteId}' renamed to '{newRouteId}' via dashboard",
+                clientIp);
 
-        var result = await _dynamicConfig.TryRenameRoute(
-            oldRouteId,
-            newRouteId,
-            request,
-            source: "dashboard",
-            createdBy: operatorName);
+            var result = await _dynamicConfig.TryRenameRoute(
+                oldRouteId,
+                newRouteId,
+                request,
+                source: "dashboard",
+                createdBy: operatorName);
 
-        if (result.Success)
+            if (!result.Success) return result;
+
             await AfterRouteRenamedAsync(oldRouteId, newRouteId, ct);
-
-        return result;
+            return result;
+        }
+        catch (Exception ex)
+        {
+            await TryRollbackRenameAsync(rollbackSnapshot, clientIp, ct);
+            _logger.LogError(ex, "Route rename failed and rollback was attempted: {OldRouteId} -> {NewRouteId}", oldRouteId, newRouteId);
+            return new RouteOperationResult(false, $"Route rename failed: {ex.Message}");
+        }
+        finally
+        {
+            _renameLock.Release();
+        }
     }
 
     public async Task AfterClusterRenamedAsync(string oldClusterId, string newClusterId, CancellationToken ct = default)
@@ -131,44 +163,37 @@ public sealed class GatewayIdentityService : IGatewayIdentityService
         var policies = await _policyRepository.GetAllPoliciesAsync(ct);
         foreach (var policy in policies.Where(p => string.Equals(p.PolicyType, policyType, StringComparison.OrdinalIgnoreCase)))
         {
-            if (string.IsNullOrWhiteSpace(policy.AppliedTargets)) continue;
-
-            List<string>? targets;
-            try
-            {
-                targets = JsonSerializer.Deserialize<List<string>>(policy.AppliedTargets);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to parse applied targets for policy {PolicyId}", policy.PolicyId);
-                continue;
-            }
-
-            if (targets == null) continue;
             var changed = false;
-            for (var i = 0; i < targets.Count; i++)
-            {
-                if (string.Equals(targets[i], oldTargetId, StringComparison.OrdinalIgnoreCase))
-                {
-                    targets[i] = newTargetId;
-                    changed = true;
-                }
-            }
-
-            if (!changed) continue;
-            policy.AppliedTargets = targets.Count > 0 ? JsonSerializer.Serialize(targets) : null;
-            await _policyRepository.SavePolicyAsync(policy, ct);
-
             var targetRows = await _policyRepository.GetPolicyTargetsAsync(policy.PolicyId, policyType, ct);
             foreach (var targetRow in targetRows.Where(t => string.Equals(t.TargetKeySnapshot, oldTargetId, StringComparison.OrdinalIgnoreCase)))
             {
                 targetRow.TargetKeySnapshot = newTargetId;
                 await _policyRepository.SavePolicyTargetAsync(targetRow, ct);
+                changed = true;
             }
 
-            changedCount++;
+            if (changed) changedCount++;
         }
 
         return changedCount;
+    }
+
+    private async Task TryRollbackRenameAsync(ConfigSnapshot? snapshot, string? clientIp, CancellationToken ct)
+    {
+        if (snapshot == null) return;
+        try
+        {
+            await _persistenceService.RollbackAsync(snapshot.VersionId, clientIp);
+        }
+        catch (Exception rollbackEx) when (!ct.IsCancellationRequested)
+        {
+            _logger.LogError(rollbackEx, "Failed to rollback rename using snapshot {VersionId}", snapshot.VersionId);
+        }
+    }
+
+    private static string StableUidFromKey(string prefix, string key)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(prefix + ":" + key));
+        return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
     }
 }

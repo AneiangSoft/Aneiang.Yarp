@@ -47,7 +47,7 @@ internal sealed class JitReadonlyAttribute : Attribute { }
 /// Aggressively optimized hot path methods.
 /// Every method here is carefully tuned for JIT output quality.
 /// </summary>
-public static class JitOptimizedHotPaths
+internal static class JitOptimizedHotPaths
 {
     #region String Operations
 
@@ -322,7 +322,7 @@ public static class JitOptimizedHotPaths
 /// <summary>
 /// Pre-JITs critical methods at startup to avoid cold-start latency.
 /// </summary>
-public static class JitWarmup
+internal static class JitWarmup
 {
     /// <summary>
     /// Warms up all methods marked with [PreJit] attribute.
@@ -359,7 +359,7 @@ public static class JitWarmup
 /// <summary>
 /// GC pressure reduction strategies for high-throughput scenarios.
 /// </summary>
-public static class GcOptimizations
+internal static class GcOptimizations
 {
     /// <summary>
     /// Sets GC mode optimized for server workloads.
@@ -411,9 +411,14 @@ public static class GcOptimizations
 internal static class JitOptimizationInitializer
 {
     [ModuleInitializer]
+#pragma warning disable CA2255
     public static void Initialize()
+#pragma warning restore CA2255
     {
         // Warm up critical paths on module load
         JitWarmup.WarmupCriticalMethods();
     }
 }
+
+
+

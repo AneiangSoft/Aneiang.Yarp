@@ -32,7 +32,7 @@ public sealed class CircuitBreakerWarmupService : IHostedService
         {
             if (cluster.CircuitBreaker is { Enabled: true } cbConfig)
             {
-                CircuitBreakerMiddleware.EnsureCircuitExists(cluster.ClusterId, cbConfig);
+                CircuitBreakerMiddleware.EnsureCircuitExists(cluster.ClusterId, cbConfig, cluster.ClusterUid);
                 count++;
             }
         }

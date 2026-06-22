@@ -9,7 +9,7 @@ namespace Aneiang.Yarp.Dashboard.Infrastructure.Storage;
 /// <summary>
 /// Maps between domain models and database entities.
 /// </summary>
-public static class EntityMapper
+internal static class EntityMapper
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -23,7 +23,9 @@ public static class EntityMapper
     {
         return new RouteEntity
         {
+            RouteUid = string.IsNullOrWhiteSpace(route.RouteUid) ? Guid.NewGuid().ToString("N") : route.RouteUid,
             RouteId = route.RouteId,
+            ClusterUid = route.ClusterUid,
             ClusterId = route.ClusterId,
             MatchPath = route.MatchPath,
             Order = route.Order,
@@ -65,6 +67,7 @@ public static class EntityMapper
     {
         return new ClusterEntity
         {
+            ClusterUid = string.IsNullOrWhiteSpace(cluster.ClusterUid) ? Guid.NewGuid().ToString("N") : cluster.ClusterUid,
             ClusterId = cluster.ClusterId,
             LoadBalancingPolicy = cluster.LoadBalancingPolicy,
             HealthCheckConfig = cluster.HealthCheck != null ? JsonSerializer.Serialize(cluster.HealthCheck, _jsonOptions) : null,
@@ -123,6 +126,7 @@ public static class EntityMapper
     {
         return new PolicyEntity
         {
+            PolicyUid = string.IsNullOrWhiteSpace(policy.PolicyId) ? Guid.NewGuid().ToString("N") : StableUidFromKey("policy", policy.PolicyId),
             PolicyId = policy.PolicyId,
             PolicyType = "route",
             DisplayName = policy.DisplayName,
@@ -131,7 +135,6 @@ public static class EntityMapper
             RetryConfig = policy.Retry != null ? JsonSerializer.Serialize(policy.Retry, _jsonOptions) : null,
             RateLimitConfig = policy.RateLimit != null ? JsonSerializer.Serialize(policy.RateLimit, _jsonOptions) : null,
             WafEnabled = policy.WafEnabled?.ToString().ToLowerInvariant(),
-            AppliedTargets = policy.AppliedRoutes is { Count: > 0 } ? JsonSerializer.Serialize(policy.AppliedRoutes, _jsonOptions) : null,
             CreatedAt = policy.CreatedAt,
             UpdatedAt = DateTime.UtcNow
         };
@@ -148,7 +151,6 @@ public static class EntityMapper
             Description = policy.Description,
             Enabled = policy.Enabled,
             CircuitBreakerConfig = policy.CircuitBreaker != null ? JsonSerializer.Serialize(policy.CircuitBreaker, _jsonOptions) : null,
-            AppliedTargets = policy.AppliedClusters is { Count: > 0 } ? JsonSerializer.Serialize(policy.AppliedClusters, _jsonOptions) : null,
             CreatedAt = policy.CreatedAt,
             UpdatedAt = DateTime.UtcNow
         };
@@ -170,9 +172,7 @@ public static class EntityMapper
                 "false" => false,
                 _ => null
             },
-            AppliedRoutes = string.IsNullOrEmpty(entity.AppliedTargets)
-                ? new()
-                : JsonSerializer.Deserialize<List<string>>(entity.AppliedTargets, _jsonOptions) ?? new(),
+            AppliedRoutes = new(),
             CreatedAt = entity.CreatedAt
         };
     }
@@ -181,6 +181,7 @@ public static class EntityMapper
     {
         return new ClusterPolicy
         {
+            PolicyUid = entity.PolicyUid,
             PolicyId = entity.PolicyId,
             DisplayName = entity.DisplayName,
             Description = entity.Description,
@@ -188,9 +189,7 @@ public static class EntityMapper
             CircuitBreaker = string.IsNullOrEmpty(entity.CircuitBreakerConfig)
                 ? null
                 : JsonSerializer.Deserialize<PolicyCircuitBreaker>(entity.CircuitBreakerConfig, _jsonOptions),
-            AppliedClusters = string.IsNullOrEmpty(entity.AppliedTargets)
-                ? new()
-                : JsonSerializer.Deserialize<List<string>>(entity.AppliedTargets, _jsonOptions) ?? new(),
+            AppliedClusters = new(),
             CreatedAt = entity.CreatedAt
         };
     }
@@ -288,3 +287,4 @@ public static class EntityMapper
         return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
     }
 }
+

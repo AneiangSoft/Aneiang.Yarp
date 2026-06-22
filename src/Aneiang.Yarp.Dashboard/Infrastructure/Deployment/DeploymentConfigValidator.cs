@@ -1,3 +1,4 @@
+using Aneiang.Yarp.Dashboard.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -29,6 +30,9 @@ public class DeploymentConfigValidator : IHostedService
         var kestrelSection = _config.GetSection("Kestrel:Endpoints");
         var endpoints = kestrelSection.GetChildren().ToList();
         var deployment = _config.GetSection(DeploymentOptions.SectionName).Get<DeploymentOptions>() ?? new DeploymentOptions();
+        var dashboardOptions = _config.GetSection(DashboardOptions.SectionName).Get<DashboardOptions>() ?? new DashboardOptions();
+        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? Environments.Production;
+        var isProduction = string.Equals(environment, Environments.Production, StringComparison.OrdinalIgnoreCase);
 
         // 1. URL 格式
         foreach (var ep in endpoints)
@@ -66,7 +70,13 @@ public class DeploymentConfigValidator : IHostedService
             if (string.Equals(kvp.Value, "Dashboard", StringComparison.OrdinalIgnoreCase) && isPublic && deployment.RequireLoopbackForDashboard)
                 errors.Add($"Dashboard endpoint '{kvp.Key}' is publicly bound ({uri.Host}) but RequireLoopbackForDashboard=true");
             else if (string.Equals(kvp.Value, "Dashboard", StringComparison.OrdinalIgnoreCase) && isPublic)
+            {
                 warnings.Add($"SECURITY: Dashboard endpoint '{kvp.Key}' is publicly bound to {uri.Host}. Consider binding to 127.0.0.1.");
+                if (isProduction && dashboardOptions.AuthMode == DashboardAuthMode.None && dashboardOptions.AuthorizeRequest == null)
+                {
+                    errors.Add($"Dashboard endpoint '{kvp.Key}' is publicly bound ({uri.Host}) with AuthMode=None in Production. Enable Dashboard auth or bind to loopback.");
+                }
+            }
 
             if (string.Equals(kvp.Value, "Admin", StringComparison.OrdinalIgnoreCase) && isPublic && deployment.RequireLoopbackForAdmin)
                 errors.Add($"Admin endpoint '{kvp.Key}' is publicly bound ({uri.Host}) but RequireLoopbackForAdmin=true");
@@ -83,6 +93,11 @@ public class DeploymentConfigValidator : IHostedService
             endpoints.Any(e => string.Equals(deployment.EndpointRoles.GetValueOrDefault(e.Key), "Proxy", StringComparison.OrdinalIgnoreCase)))
         {
             warnings.Add("DashboardOnly mode is set but Proxy endpoint is configured. It will be ignored.");
+        }
+
+        if (!deployment.AutoUseMiddleware)
+        {
+            warnings.Add("Gateway:Deployment:AutoUseMiddleware=false. Built-in middleware will not be mounted automatically; ensure custom pipeline order mounts required middleware explicitly.");
         }
 
         // 输出
