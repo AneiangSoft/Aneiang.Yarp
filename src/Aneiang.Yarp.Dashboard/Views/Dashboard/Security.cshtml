@@ -8,12 +8,12 @@
     <div class="card-panel mb-4">
         <div class="card-header">
             <span><i class="bi bi-shield-lock me-2" style="color:#ef4444;"></i><span data-i18n="security.title">WAF 安全事件</span></span>
-            <div>
+            <div class="card-header-actions">
                 <span id="security-refresh-time" class="refresh-badge"></span>
                 <button class="btn btn-sm btn-outline-danger" onclick="SecurityModule.clearAll()" title="清空">
                     <i class="bi bi-trash"></i> <span data-i18n="security.clear">清空</span>
                 </button>
-                <button class="btn btn-sm btn-outline-primary" onclick="SecurityModule.load()" title="刷新">
+                <button class="btn btn-sm btn-outline-secondary btn-icon-only" onclick="SecurityModule.load()" title="刷新">
                     <i class="bi bi-arrow-clockwise"></i>
                 </button>
             </div>

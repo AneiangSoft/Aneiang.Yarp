@@ -16,8 +16,8 @@
                 <span><i class="bi bi-memory"></i><span data-i18n="index.label.memory">内存：</span><strong id="info-memory">-</strong></span>
                 <span><i class="bi bi-pc-display"></i><span data-i18n="index.label.host">主机：</span><strong id="info-machine">-</strong></span>
             </div>
-            <div class="info-bar-actions">
-                <button class="btn btn-icon btn-outline-primary" onclick="manualRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
+            <div class="info-bar-actions card-header-actions">
+                <button class="btn btn-sm btn-outline-secondary btn-icon-only" onclick="manualRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
                     <i class="bi bi-arrow-clockwise"></i>
                 </button>
             </div>
@@ -88,8 +88,8 @@
             <i class="bi bi-signpost-split"></i>
             <span data-i18n="index.serviceTab.routes">路由规则</span>
         </button>
-        <div class="service-tab-actions">
-            <button class="btn btn-icon btn-outline-primary" id="service-refresh-btn" onclick="ServiceTabs.refresh()" data-i18n-title="index.btn.refresh" title="刷新">
+        <div class="service-tab-actions card-header-actions">
+            <button class="btn btn-sm btn-outline-secondary btn-icon-only" id="service-refresh-btn" onclick="ServiceTabs.refresh()" data-i18n-title="index.btn.refresh" title="刷新">
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
         </div>

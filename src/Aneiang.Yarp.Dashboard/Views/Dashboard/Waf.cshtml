@@ -7,9 +7,11 @@
 <div class="card-panel mb-4">
     <div class="card-header">
         <span><i class="bi bi-shield-lock me-2" style="color:#ef4444;"></i><span data-i18n="waf.title">WAF 防火墙设置</span></span>
-        <button class="btn btn-sm btn-outline-primary" onclick="DashboardWafSettings.save()">
-            <i class="bi bi-check-lg"></i> <span data-i18n="waf.save">保存设置</span>
-        </button>
+        <div class="card-header-actions">
+            <button class="btn btn-sm btn-primary" onclick="DashboardWafSettings.save()">
+                <i class="bi bi-check-lg"></i> <span data-i18n="waf.save">保存设置</span>
+            </button>
+        </div>
     </div>
     <div class="card-body" id="waf-settings-body">
         <div class="loading-state">

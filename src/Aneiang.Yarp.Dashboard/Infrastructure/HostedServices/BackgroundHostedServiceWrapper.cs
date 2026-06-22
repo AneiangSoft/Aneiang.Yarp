@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -25,19 +24,15 @@ internal sealed class BackgroundHostedServiceWrapper : IHostedService
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("[HostedService] {ServiceName} starting in background...", _innerName);
-        var sw = Stopwatch.StartNew();
-
         _backgroundTask = Task.Run(async () =>
         {
             try
             {
                 await _inner.StartAsync(cancellationToken).ConfigureAwait(false);
-                _logger.LogInformation("[HostedService] {ServiceName} background start completed in {ElapsedMs}ms", _innerName, sw.ElapsedMilliseconds);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "[HostedService] {ServiceName} background startup failed after {ElapsedMs}ms", _innerName, sw.ElapsedMilliseconds);
+                _logger.LogWarning(ex, "{ServiceName} background startup failed", _innerName);
             }
         }, cancellationToken);
 
@@ -46,8 +41,6 @@ internal sealed class BackgroundHostedServiceWrapper : IHostedService
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("[HostedService] {ServiceName} stopping...", _innerName);
-        var sw = Stopwatch.StartNew();
         try
         {
             await _inner.StopAsync(cancellationToken).ConfigureAwait(false);
@@ -56,11 +49,10 @@ internal sealed class BackgroundHostedServiceWrapper : IHostedService
                 try { await _backgroundTask.WaitAsync(cancellationToken).ConfigureAwait(false); }
                 catch (OperationCanceledException) { }
             }
-            _logger.LogInformation("[HostedService] {ServiceName} stopped in {ElapsedMs}ms", _innerName, sw.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "[HostedService] {ServiceName} stop failed after {ElapsedMs}ms", _innerName, sw.ElapsedMilliseconds);
+            _logger.LogWarning(ex, "{ServiceName} stop failed", _innerName);
         }
     }
 }

@@ -1,6 +1,5 @@
 using Aneiang.Yarp.Storage;
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
@@ -8,15 +7,10 @@ namespace Aneiang.Yarp.Storage.Sqlite;
 public sealed class SqliteClusterRepository : IClusterRepository
 {
     private readonly SqliteConnectionFactory _connections;
-    private readonly ILogger<SqliteClusterRepository>? _logger;
     private bool _initialized;
     private readonly SemaphoreSlim _initLock = new(1, 1);
 
-    public SqliteClusterRepository(SqliteConnectionFactory connections, ILogger<SqliteClusterRepository>? logger = null)
-    {
-        _connections = connections;
-        _logger = logger;
-    }
+    public SqliteClusterRepository(SqliteConnectionFactory connections) => _connections = connections;
 
     private async ValueTask EnsureInitializedAsync(CancellationToken ct)
     {
@@ -111,20 +105,12 @@ public sealed class SqliteClusterRepository : IClusterRepository
         var list = new List<DestinationEntity>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct)) list.Add(MapDestination(reader));
-        _logger?.LogInformation(
-            "[SqliteClusterRepository] GetDestinationsAsync for cluster '{ClusterId}': {Count} rows",
-            clusterId, list.Count);
         return list.AsReadOnly();
     }
 
     public async Task SaveDestinationsAsync(string clusterId, IEnumerable<DestinationEntity> destinations, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        var destList = destinations.ToList();
-        _logger?.LogInformation(
-            "[SqliteClusterRepository] SaveDestinationsAsync for cluster '{ClusterId}': {Count} destinations",
-            clusterId, destList.Count);
-
         await using var conn = _connections.CreateConnection();
         await conn.OpenAsync(ct);
         await using var tx = conn.BeginTransaction();
@@ -135,10 +121,9 @@ public sealed class SqliteClusterRepository : IClusterRepository
                 delCmd.Transaction = tx;
                 delCmd.CommandText = "DELETE FROM yarp_destinations WHERE cluster_id = @cid";
                 delCmd.Parameters.AddWithValue("@cid", clusterId);
-                var deleted = await delCmd.ExecuteNonQueryAsync(ct);
-                _logger?.LogDebug("[SqliteClusterRepository] Deleted {Deleted} old destinations for cluster '{ClusterId}'", deleted, clusterId);
+                await delCmd.ExecuteNonQueryAsync(ct);
             }
-            foreach (var d in destList)
+            foreach (var d in destinations)
             {
                 await using var cmd = conn.CreateCommand();
                 cmd.Transaction = tx;
@@ -154,34 +139,11 @@ public sealed class SqliteClusterRepository : IClusterRepository
                 cmd.Parameters.AddWithValue("@host", d.Host ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@health", d.Healthy ? 1 : 0);
                 cmd.Parameters.AddWithValue("@meta", d.Metadata ?? (object)DBNull.Value);
-                _logger?.LogInformation(
-                    "[SqliteClusterRepository] Inserting destination '{DestinationId}' -> {Address} for cluster '{ClusterId}' (param cid={ParamCid})",
-                    d.DestinationId, d.Address, d.ClusterId, clusterId);
                 await cmd.ExecuteNonQueryAsync(ct);
             }
             await tx.CommitAsync(ct);
-
-            // Verify within the same connection immediately after commit
-            await using (var verifyCmd = conn.CreateCommand())
-            {
-                verifyCmd.CommandText = "SELECT COUNT(*) FROM yarp_destinations WHERE cluster_id = @cid";
-                verifyCmd.Parameters.AddWithValue("@cid", clusterId);
-                var count = Convert.ToInt64(await verifyCmd.ExecuteScalarAsync(ct));
-                _logger?.LogInformation(
-                    "[SqliteClusterRepository] Same-connection verify for cluster '{ClusterId}': {Count} destinations",
-                    clusterId, count);
-            }
-
-            _logger?.LogInformation(
-                "[SqliteClusterRepository] Committed {Count} destinations for cluster '{ClusterId}'",
-                destList.Count, clusterId);
         }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "[SqliteClusterRepository] Failed to save destinations for cluster '{ClusterId}'", clusterId);
-            try { await tx.RollbackAsync(ct); } catch { }
-            throw;
-        }
+        catch { await tx.RollbackAsync(ct); throw; }
     }
 
     public async Task DeleteDestinationsAsync(string clusterId, CancellationToken ct = default)

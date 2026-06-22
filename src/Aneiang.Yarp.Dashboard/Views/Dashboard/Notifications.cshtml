@@ -91,7 +91,7 @@
                             <option value="100">100条/页</option>
                         </select>
                     </div>
-                    <div class="action-group">
+                    <div class="action-group card-header-actions">
                         <span class="text-muted small me-2" id="notif-result-info" style="align-self:center;"></span>
                         <button class="btn btn-sm btn-outline-success" onclick="NotificationModule.generateTestEntry()" title="生成测试记录">
                             <i class="bi bi-lightning-fill"></i> <span data-i18n="notif.genTest">生成测试</span>
@@ -102,7 +102,7 @@
                         <button class="btn btn-sm btn-outline-danger" onclick="NotificationModule.clearHistory()" title="清空">
                             <i class="bi bi-trash"></i> <span data-i18n="notif.clear">清空</span>
                         </button>
-                        <button class="btn btn-sm btn-outline-secondary" onclick="NotificationModule.loadHistory()" title="刷新">
+                        <button class="btn btn-sm btn-outline-secondary btn-icon-only" onclick="NotificationModule.loadHistory()" title="刷新">
                             <i class="bi bi-arrow-clockwise"></i>
                         </button>
                     </div>

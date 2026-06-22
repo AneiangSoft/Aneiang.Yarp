@@ -93,13 +93,13 @@
             if (!container) return;
 
             if (this.entries.length === 0) {
-                container.innerHTML = this.renderEmpty('还没有配置快照', '点击右上角“创建快照”保存当前配置。');
+                container.innerHTML = this.renderEmpty(__('history.noSnapshot'), __('history.noSnapshotHint'));
                 this.renderDetail(null);
                 return;
             }
 
             if (this.filtered.length === 0) {
-                container.innerHTML = this.renderEmpty('没有匹配的快照', '调整搜索关键字或筛选条件后重试。');
+                container.innerHTML = this.renderEmpty(__('history.noMatch'), __('history.noMatchHint'));
                 this.renderDetail(null);
                 return;
             }
@@ -149,10 +149,10 @@
             if (!entry) {
                 detail.innerHTML = `
                     <div class="history-detail-header">
-                        <div class="small opacity-75">Snapshot Detail</div>
-                        <h5 class="mb-0">选择一个快照</h5>
+                        <div class="small opacity-75">${__('history.detail.title')}</div>
+                        <h5 class="mb-0">${__('history.detail.select')}</h5>
                     </div>
-                    <div class="history-detail-body text-muted">点击左侧时间线中的任意快照，查看版本号、规模统计、来源 IP，并执行复制、差异对比或回滚。</div>`;
+                    <div class="history-detail-body text-muted">${__('history.detail.empty')}</div>`;
                 return;
             }
 
