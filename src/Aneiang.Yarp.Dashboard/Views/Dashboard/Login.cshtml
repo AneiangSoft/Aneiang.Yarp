@@ -36,7 +36,6 @@
         @@keyframes floatOrb1 { from { transform: translate(0, 0); } to { transform: translate(-30px, 40px); } }
         @@keyframes floatOrb2 { from { transform: translate(0, 0); } to { transform: translate(20px, -30px); } }
 
-        /* Animated Grid Background */
         .login-grid {
             position: absolute; inset: 0;
             background-image:
@@ -46,22 +45,10 @@
             animation: gridPulse 4s ease-in-out infinite;
             pointer-events: none; z-index: 0;
         }
-        @@keyframes gridPulse {
-            0%, 100% { opacity: 0.4; }
-            50% { opacity: 0.8; }
-        }
+        @@keyframes gridPulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
 
-        /* Floating Particles */
-        .login-particles {
-            position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0;
-        }
-        .particle {
-            position: absolute;
-            width: 3px; height: 3px;
-            background: rgba(99,102,241,0.4);
-            border-radius: 50%;
-            animation: particleFloat linear infinite;
-        }
+        .login-particles { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+        .particle { position: absolute; width: 3px; height: 3px; background: rgba(99,102,241,0.4); border-radius: 50%; animation: particleFloat linear infinite; }
         @@keyframes particleFloat {
             0% { transform: translateY(100vh) scale(0); opacity: 0; }
             10% { opacity: 1; }
@@ -69,31 +56,75 @@
             100% { transform: translateY(-20vh) scale(1); opacity: 0; }
         }
 
-        .login-card {
-            background: rgba(255,255,255,0.98); border-radius: 24px; padding: 44px 40px;
-            width: 100%; max-width: 430px;
-            box-shadow: 0 25px 60px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,0.1);
-            position: relative; overflow: hidden; z-index: 1;
-            backdrop-filter: blur(20px);
+        .login-wrapper {
+            display: flex; align-items: stretch; gap: 0;
+            position: relative; z-index: 1;
             animation: cardEnter 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
         @@keyframes cardEnter {
             from { opacity: 0; transform: translateY(30px) scale(0.95); }
             to { opacity: 1; transform: translateY(0) scale(1); }
         }
-        .login-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #6366f1, #0ea5e9, #8b5cf6); }
-        .login-card .brand { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 36px; display: flex; align-items: center; justify-content: center; gap: 10px; }
-        .login-card .brand-icon {
+
+        /* Left panel - branding */
+        .login-brand-panel {
+            width: 380px;
+            background: linear-gradient(160deg, #1e293b 0%, #0f172a 100%);
+            border-radius: 24px 0 0 24px;
+            padding: 44px 36px;
+            display: flex; flex-direction: column; justify-content: space-between;
+            position: relative; overflow: hidden;
+            border: 1px solid rgba(99,102,241,0.15);
+            border-right: none;
+        }
+        .login-brand-panel::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+            background: linear-gradient(90deg, #6366f1, #0ea5e9, #8b5cf6);
+        }
+        .login-brand-panel::after {
+            content: ''; position: absolute; bottom: -60px; right: -60px;
+            width: 200px; height: 200px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(99,102,241,0.1), transparent 70%);
+        }
+        .brand-logo {
+            display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+        }
+        .brand-logo-icon {
             display: inline-flex; align-items: center; justify-content: center;
-            width: 44px; height: 44px; border-radius: 12px;
-            background: linear-gradient(135deg, #6366f1, #818cf8); color: #fff; font-size: 22px;
-            box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+            width: 48px; height: 48px; border-radius: 14px;
+            background: linear-gradient(135deg, #6366f1, #818cf8); color: #fff; font-size: 24px;
+            box-shadow: 0 4px 16px rgba(99,102,241,0.4);
             animation: iconPulse 2s ease-in-out infinite;
         }
         @@keyframes iconPulse {
-            0%, 100% { box-shadow: 0 4px 12px rgba(99,102,241,0.3); }
-            50% { box-shadow: 0 4px 20px rgba(99,102,241,0.5); }
+            0%, 100% { box-shadow: 0 4px 16px rgba(99,102,241,0.4); }
+            50% { box-shadow: 0 4px 24px rgba(99,102,241,0.6); }
         }
+        .brand-logo-text { color: #fff; font-size: 22px; font-weight: 700; }
+        .brand-tagline { color: #94a3b8; font-size: 13px; line-height: 1.6; margin-top: 4px; }
+
+        .brand-features { margin-top: 36px; }
+        .brand-feature { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 18px; }
+        .brand-feature-icon {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+            background: rgba(99,102,241,0.15); color: #818cf8; font-size: 16px;
+        }
+        .brand-feature-text { color: #cbd5e1; font-size: 13px; line-height: 1.5; }
+        .brand-feature-text strong { color: #fff; font-size: 14px; font-weight: 600; display: block; margin-bottom: 2px; }
+
+        .brand-footer { color: #64748b; font-size: 11px; margin-top: auto; padding-top: 24px; border-top: 1px solid rgba(148,163,184,0.1); }
+
+        /* Right panel - form */
+        .login-card {
+            background: rgba(255,255,255,0.98); border-radius: 0 24px 24px 0; padding: 44px 40px;
+            width: 430px;
+            box-shadow: 0 25px 60px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,0.1);
+            position: relative; overflow: hidden;
+            backdrop-filter: blur(20px);
+            display: flex; flex-direction: column; justify-content: center;
+        }
+        .login-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #6366f1, #0ea5e9, #8b5cf6); }
         .login-card .form-label { font-weight: 600; color: #475569; font-size: 13px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
         .login-card .form-control { border-radius: 12px; padding: 11px 14px; border: 1.5px solid #e2e8f0; font-size: 14px; transition: border-color 0.2s, box-shadow 0.2s; }
         .login-card .form-control:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
@@ -105,52 +136,107 @@
         }
         .login-card .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(99,102,241,0.35); }
         .login-card .btn-primary:active { transform: translateY(0); box-shadow: 0 2px 6px rgba(99,102,241,0.2); }
-        .login-card .btn-primary .ripple {
-            position: absolute; border-radius: 50%;
-            background: rgba(255,255,255,0.3);
-            transform: scale(0);
-            animation: ripple 0.6s linear;
-            pointer-events: none;
-        }
+        .login-card .btn-primary .ripple { position: absolute; border-radius: 50%; background: rgba(255,255,255,0.3); transform: scale(0); animation: ripple 0.6s linear; pointer-events: none; }
         @@keyframes ripple { to { transform: scale(4); opacity: 0; } }
         .login-card .alert { border-radius: 12px; font-size: 14px; margin-bottom: 16px; display: none; animation: alertShake 0.4s ease; }
-        @@keyframes alertShake {
-            0%, 100% { transform: translateX(0); }
-            20%, 60% { transform: translateX(-6px); }
-            40%, 80% { transform: translateX(6px); }
-        }
+        @@keyframes alertShake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
         .login-card .input-icon { color: #6366f1; font-size: 14px; }
+        .login-card .login-title { font-size: 24px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+        .login-card .login-subtitle { font-size: 14px; color: #64748b; margin-bottom: 28px; }
+
+        .login-divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: #94a3b8; font-size: 12px; }
+        .login-divider::before, .login-divider::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+
+        .login-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 16px; }
+        .login-meta-item { display: flex; align-items: center; gap: 6px; color: #94a3b8; font-size: 12px; }
+        .login-meta-item i { font-size: 13px; }
+        .login-meta-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: dotPulse 2s ease-in-out infinite; }
+        @@keyframes dotPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        @@media (max-width: 860px) {
+            .login-wrapper { flex-direction: column; }
+            .login-brand-panel { width: 430px; border-radius: 24px 24px 0 0; border-right: 1px solid rgba(99,102,241,0.15); border-bottom: none; padding: 32px 36px; }
+            .login-card { border-radius: 0 0 24px 24px; }
+            .brand-features { display: none; }
+        }
+        @@media (max-width: 480px) {
+            .login-brand-panel, .login-card { width: 100%; }
+            .login-wrapper { width: 100%; }
+            body { padding: 16px; }
+        }
     </style>
 </head>
 <body>
-    <!-- Animated Background -->
     <div class="login-grid"></div>
     <div class="login-particles" id="login-particles"></div>
 
-    <div class="login-card">
-        <div class="brand">
-            <span class="brand-icon"><i class="bi bi-hdd-rack"></i></span>
-            <span data-i18n="login.brand">网关仪表盘</span>
+    <div class="login-wrapper">
+        <!-- Left: Brand Panel -->
+        <div class="login-brand-panel">
+            <div>
+                <div class="brand-logo">
+                    <span class="brand-logo-icon"><i class="bi bi-hdd-rack"></i></span>
+                    <span class="brand-logo-text" data-i18n="login.brand">网关仪表盘</span>
+                </div>
+                <div class="brand-tagline" data-i18n="login.tagline">企业级 API 网关运维管理平台</div>
+
+                <div class="brand-features">
+                    <div class="brand-feature">
+                        <span class="brand-feature-icon"><i class="bi bi-shield-check"></i></span>
+                        <div class="brand-feature-text">
+                            <strong data-i18n="login.feature.security">安全防护</strong>
+                            <span data-i18n="login.feature.securityDesc">WAF、熔断、限流、IP 黑白名单一体化</span>
+                        </div>
+                    </div>
+                    <div class="brand-feature">
+                        <span class="brand-feature-icon"><i class="bi bi-diagram-3"></i></span>
+                        <div class="brand-feature-text">
+                            <strong data-i18n="login.feature.routing">动态路由</strong>
+                            <span data-i18n="login.feature.routingDesc">运行时路由/集群管理，配置热更新</span>
+                        </div>
+                    </div>
+                    <div class="brand-feature">
+                        <span class="brand-feature-icon"><i class="bi bi-graph-up-arrow"></i></span>
+                        <div class="brand-feature-text">
+                            <strong data-i18n="login.feature.monitoring">实时监控</strong>
+                            <span data-i18n="login.feature.monitoringDesc">流量可视化、日志追踪、告警通知</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="brand-footer">
+                <i class="bi bi-shield-lock me-1"></i><span data-i18n="login.secure">Secure Gateway Control Plane</span>
+            </div>
         </div>
-        <div class="alert alert-danger" id="error-msg" role="alert"></div>
-        <form id="login-form">
-            <div class="mb-3">
-                <label class="form-label"><i class="bi bi-person input-icon"></i><span data-i18n="login.username">用户名</span></label>
-                <input type="text" class="form-control" id="username" data-i18n-placeholder="login.username.placeholder" placeholder="请输入用户名" required autofocus />
+
+        <!-- Right: Login Form -->
+        <div class="login-card">
+            <div class="login-title" data-i18n="login.welcome">欢迎回来</div>
+            <div class="login-subtitle" data-i18n="login.subtitle">请登录以继续管理您的网关</div>
+            <div class="alert alert-danger" id="error-msg" role="alert"></div>
+            <form id="login-form">
+                <div class="mb-3">
+                    <label class="form-label"><i class="bi bi-person input-icon"></i><span data-i18n="login.username">用户名</span></label>
+                    <input type="text" class="form-control" id="username" data-i18n-placeholder="login.username.placeholder" placeholder="请输入用户名" required autofocus />
+                </div>
+                <div class="mb-4">
+                    <label class="form-label"><i class="bi bi-lock input-icon"></i><span data-i18n="login.password">密码</span></label>
+                    <input type="password" class="form-control" id="password" data-i18n-placeholder="login.password.placeholder" placeholder="请输入密码" required />
+                </div>
+                <button type="submit" class="btn btn-primary w-100" id="login-btn">
+                    <span id="btn-text" data-i18n="login.submit">登 录</span>
+                    <span id="btn-spinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                </button>
+            </form>
+            <div class="login-meta">
+                <div class="login-meta-item">
+                    <span class="login-meta-dot"></span>
+                    <span data-i18n="login.systemOnline">系统在线</span>
+                </div>
+                <a href="#" onclick="switchLocale();return false;" class="login-meta-item" style="text-decoration:none;cursor:pointer;" title="@(isEn ? "切换到中文" : "Switch to English")">
+                    <i class="bi bi-translate"></i><span data-i18n="layout.lang.switch">@(isEn ? "中文" : "English")</span>
+                </a>
             </div>
-            <div class="mb-4">
-                <label class="form-label"><i class="bi bi-lock input-icon"></i><span data-i18n="login.password">密码</span></label>
-                <input type="password" class="form-control" id="password" data-i18n-placeholder="login.password.placeholder" placeholder="请输入密码" required />
-            </div>
-            <button type="submit" class="btn btn-primary w-100" id="login-btn">
-                <span id="btn-text" data-i18n="login.submit">登 录</span>
-                <span id="btn-spinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
-            </button>
-        </form>
-        <div class="text-center mt-3">
-            <a href="#" onclick="switchLocale();return false;" class="text-muted" style="font-size:13px;text-decoration:none;" title="@(isEn ? "切换到中文" : "Switch to English")">
-                <i class="bi bi-translate me-1"></i><span data-i18n="layout.lang.switch">@(isEn ? "中文" : "English")</span>
-            </a>
         </div>
     </div>
 
@@ -165,7 +251,6 @@
             location.reload();
         }
 
-        // Generate floating particles
         (function() {
             var container = document.getElementById('login-particles');
             if (!container) return;
@@ -210,7 +295,6 @@
             spinner.classList.remove('d-none');
             errorMsg.style.display = 'none';
 
-            // Ripple effect on button
             btn.querySelectorAll('.ripple').forEach(r => r.remove());
 
             try {

@@ -61,7 +61,7 @@
         toast.innerHTML = `
             <i class="bi ${config.icon}" style="font-size:18px;"></i>
             <span style="flex:1;">${window.DashboardUtils?.escapeHtml?.(message) || message}</span>
-            <button onclick="this.parentElement.remove()" style="background:none;border:none;color:#fff;cursor:pointer;padding:0;margin-left:8px;">
+            <button onclick="this.parentElement.remove()" class="toast-close-btn">
                 <i class="bi bi-x"></i>
             </button>
         `;
@@ -134,10 +134,10 @@
                             ${window.DashboardUtils?.escapeHtml?.(message) || message}
                         </div>
                         <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
-                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
+                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
                                 ${cancelText}
                             </button>
-                            <button type="button" class="btn ${danger ? 'btn-danger' : 'btn-primary'} btn-sm" id="confirm-btn" style="min-width:70px;">
+                            <button type="button" class="btn ${danger ? 'btn-danger' : 'btn-primary'} btn-sm" id="confirm-btn">
                                 ${confirmText}
                             </button>
                         </div>
@@ -264,10 +264,10 @@
                                 ${config.jsonModeCallback ? `<button type="button" class="btn btn-outline-secondary btn-sm" id="${modalId}-json-switch" style="font-size:12px;"><i class="bi bi-braces me-1"></i>${window.__('modal.jsonMode') || 'JSON'}</button>` : ''}
                             </div>
                             <div style="display:flex;gap:8px;">
-                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
+                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
                                     ${window.__('modal.cancelBtn')}
                                 </button>
-                                <button type="button" class="btn btn-primary btn-sm" id="${modalId}-save" style="min-width:80px;">
+                                <button type="button" class="btn btn-primary btn-sm" id="${modalId}-save">
                                     <i class="bi bi-check-lg me-1"></i>${window.__('modal.saveBtn')}
                                 </button>
                             </div>
@@ -510,7 +510,7 @@
                                     ${window.__('modal.cancelBtn')}
                                 </button>
                                 ${readOnly ? '' : `
-                                <button type="button" class="btn btn-primary btn-sm" id="${modalId}-save" style="min-width:80px;">
+                                <button type="button" class="btn btn-primary btn-sm" id="${modalId}-save">
                                     <i class="bi bi-check-lg me-1"></i>${window.__('modal.saveBtn')}
                                 </button>
                                 `}
