@@ -50,61 +50,61 @@
 <div class="history-hero mb-4">
     <div class="d-flex flex-wrap justify-content-between gap-3 align-items-center">
         <div>
-            <div class="text-uppercase text-muted fw-semibold small mb-1">Configuration Timeline</div>
+            <div class="text-uppercase text-muted fw-semibold small mb-1" data-i18n="history.subtitle">Configuration Timeline</div>
             <h2 class="mb-2"><i class="bi bi-clock-history me-2" style="color:#6366f1;"></i><span data-i18n="history.title">配置变更历史</span></h2>
-            <div class="text-muted">集中查看快照、变更来源、路由/集群规模，并快速执行差异对比或回滚。</div>
+            <div class="text-muted" data-i18n="history.description">集中查看快照、变更来源、路由/集群规模，并快速执行差异对比或回滚。</div>
         </div>
         <div class="history-action-bar">
             <button class="btn btn-primary" id="history-create-snapshot">
-                <i class="bi bi-plus-circle me-1"></i>创建快照
+                <i class="bi bi-plus-circle me-1"></i><span data-i18n="history.createSnapshot">创建快照</span>
             </button>
             <button class="btn btn-outline-primary" id="history-refresh">
-                <i class="bi bi-arrow-clockwise me-1"></i>刷新
+                <i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="history.refresh">刷新</span>
             </button>
             <button class="btn btn-outline-danger" id="history-clear-all">
-                <i class="bi bi-trash3 me-1"></i>清空历史
+                <i class="bi bi-trash3 me-1"></i><span data-i18n="history.clearAll">清空历史</span>
             </button>
         </div>
     </div>
 </div>
 
 <div class="row g-3 mb-4">
-    <div class="col-6 col-xl-3"><div class="history-stat-card"><div class="history-stat-label">快照总数</div><div id="history-stat-total" class="history-stat-value">--</div><div class="text-muted small">最多保留最近版本</div></div></div>
-    <div class="col-6 col-xl-3"><div class="history-stat-card"><div class="history-stat-label">最近变更</div><div id="history-stat-latest" class="history-stat-value">--</div><div class="text-muted small">距离当前时间</div></div></div>
-    <div class="col-6 col-xl-3"><div class="history-stat-card"><div class="history-stat-label">当前路由</div><div id="history-stat-routes" class="history-stat-value">--</div><div class="text-muted small">最新快照记录</div></div></div>
-    <div class="col-6 col-xl-3"><div class="history-stat-card"><div class="history-stat-label">当前集群</div><div id="history-stat-clusters" class="history-stat-value">--</div><div class="text-muted small">最新快照记录</div></div></div>
+    <div class="col-6 col-xl-3"><div class="history-stat-card"><div class="history-stat-label" data-i18n="history.stat.total">快照总数</div><div id="history-stat-total" class="history-stat-value">--</div><div class="text-muted small" data-i18n="history.stat.totalHint">最多保留最近版本</div></div></div>
+    <div class="col-6 col-xl-3"><div class="history-stat-card"><div class="history-stat-label" data-i18n="history.stat.latest">最近变更</div><div id="history-stat-latest" class="history-stat-value">--</div><div class="text-muted small" data-i18n="history.stat.latestHint">距离当前时间</div></div></div>
+    <div class="col-6 col-xl-3"><div class="history-stat-card"><div class="history-stat-label" data-i18n="history.stat.routes">当前路由</div><div id="history-stat-routes" class="history-stat-value">--</div><div class="text-muted small" data-i18n="history.stat.routesHint">最新快照记录</div></div></div>
+    <div class="col-6 col-xl-3"><div class="history-stat-card"><div class="history-stat-label" data-i18n="history.stat.clusters">当前集群</div><div id="history-stat-clusters" class="history-stat-value">--</div><div class="text-muted small" data-i18n="history.stat.clustersHint">最新快照记录</div></div></div>
 </div>
 
 <div class="history-filter-card mb-4">
     <div class="row g-3 align-items-end">
         <div class="col-md-6 col-xl-5">
-            <label class="form-label small text-muted">搜索版本、描述或客户端 IP</label>
+            <label class="form-label small text-muted" data-i18n="history.search.label">搜索版本、描述或客户端 IP</label>
             <div class="input-group">
                 <span class="input-group-text"><i class="bi bi-search"></i></span>
-                <input id="history-search" class="form-control" placeholder="输入关键字..." autocomplete="off" />
+                <input id="history-search" class="form-control" data-i18n-placeholder="history.search.placeholder" placeholder="输入关键字..." autocomplete="off" />
             </div>
         </div>
         <div class="col-md-3 col-xl-3">
-            <label class="form-label small text-muted">变更类型</label>
+            <label class="form-label small text-muted" data-i18n="history.type.label">变更类型</label>
             <select id="history-type-filter" class="form-select">
-                <option value="">全部类型</option>
-                <option value="manual">手动快照</option>
-                <option value="update">保存/更新</option>
-                <option value="delete">删除</option>
-                <option value="rename">重命名</option>
-                <option value="import">导入</option>
-                <option value="rollback">回滚</option>
+                <option value="" data-i18n="history.type.all">全部类型</option>
+                <option value="manual" data-i18n="history.type.manual">手动快照</option>
+                <option value="update" data-i18n="history.type.update">保存/更新</option>
+                <option value="delete" data-i18n="history.type.delete">删除</option>
+                <option value="rename" data-i18n="history.type.rename">重命名</option>
+                <option value="import" data-i18n="history.type.import">导入</option>
+                <option value="rollback" data-i18n="history.type.rollback">回滚</option>
             </select>
         </div>
         <div class="col-md-3 col-xl-2">
-            <label class="form-label small text-muted">排序</label>
+            <label class="form-label small text-muted" data-i18n="history.sort.label">排序</label>
             <select id="history-sort" class="form-select">
-                <option value="desc">最新优先</option>
-                <option value="asc">最早优先</option>
+                <option value="desc" data-i18n="history.sort.desc">最新优先</option>
+                <option value="asc" data-i18n="history.sort.asc">最早优先</option>
             </select>
         </div>
         <div class="col-xl-2">
-            <button id="history-clear-filter" class="btn btn-outline-secondary w-100"><i class="bi bi-x-circle me-1"></i>清空</button>
+            <button id="history-clear-filter" class="btn btn-outline-secondary w-100"><i class="bi bi-x-circle me-1"></i><span data-i18n="history.clearFilter">清空</span></button>
         </div>
     </div>
 </div>
@@ -114,10 +114,10 @@
     <aside class="history-side">
         <div id="history-detail" class="history-detail-card">
             <div class="history-detail-header">
-                <div class="small opacity-75">Snapshot Detail</div>
-                <h5 class="mb-0">选择一个快照</h5>
+                <div class="small opacity-75" data-i18n="history.detail.title">Snapshot Detail</div>
+                <h5 class="mb-0" data-i18n="history.detail.select">选择一个快照</h5>
             </div>
-            <div class="history-detail-body text-muted">
+            <div class="history-detail-body text-muted" data-i18n="history.detail.empty">
                 点击左侧时间线中的任意快照，查看版本号、规模统计、来源 IP，并执行复制、差异对比或回滚。
             </div>
         </div>

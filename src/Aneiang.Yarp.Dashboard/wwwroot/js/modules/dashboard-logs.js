@@ -1177,16 +1177,21 @@
         // ===== Update Log Counts =====
         updateLogCounts: function(entries) {
             const allLogs = window.DashboardState.get('data.logs') || [];
-            const meta = window.DashboardState.get('data.logMeta') || {};
-            
+
+            // Count actual rendered items (paired entries are merged into one row)
+            const container = window.DashboardDOM.safe('#log-entries');
+            let renderedCount = entries.length;
+            if (container) {
+                const items = container.querySelectorAll('.log-item');
+                if (items.length > 0) renderedCount = items.length;
+            }
+
             const displayEl = window.DashboardDOM.safe('#log-display-count');
-            if (displayEl) displayEl.textContent = entries.length;
+            if (displayEl) displayEl.textContent = renderedCount;
 
             const totalEl = window.DashboardDOM.safe('#log-total-count');
             if (totalEl) {
-                let text = `${allLogs.length}/${meta.bufferCapacity || '?'}`;
-                if (meta.evictedCount > 0) text += ` (${meta.evictedCount} evicted)`;
-                totalEl.textContent = text;
+                totalEl.textContent = allLogs.length;
             }
 
             const timeEl = window.DashboardDOM.safe('#log-refresh-time');

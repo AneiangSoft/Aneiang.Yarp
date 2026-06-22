@@ -505,8 +505,8 @@
 
                 // Action buttons
                 html += '<div style="display:flex;gap:4px;flex-shrink:0;" onclick="event.stopPropagation()">';
-                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--primary-color);transition:background 0.15s;" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.showEditModal(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.edit")) + '"><i class="bi bi-pencil"></i></button>';
-                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:#ef4444;transition:background 0.15s;" onmouseover="this.style.background=\'#fef2f2\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.deleteRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.delete")) + '"><i class="bi bi-trash"></i></button>';
+                html += '<button class="btn-action btn-action-edit" onclick="event.stopPropagation();window.DashboardApp.modules.routes.showEditModal(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.edit")) + '"><i class="bi bi-pencil"></i></button>';
+                html += '<button class="btn-action btn-action-danger" onclick="event.stopPropagation();window.DashboardApp.modules.routes.deleteRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.delete")) + '"><i class="bi bi-trash"></i></button>';
                 html += '</div></div>';
 
                 // Card body
@@ -1816,8 +1816,8 @@
                                     </div>
                                 </div>
                                 <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
-                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">${__('modal.cancelBtn')}</button>
-                                    <button type="button" class="btn btn-primary btn-sm" id="${modalId}-confirm" style="min-width:70px;">${__('modal.confirmBtn')}</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">${__('modal.cancelBtn')}</button>
+                                    <button type="button" class="btn btn-primary btn-sm" id="${modalId}-confirm">${__('modal.confirmBtn')}</button>
                                 </div>
                             </div>
                         </div>

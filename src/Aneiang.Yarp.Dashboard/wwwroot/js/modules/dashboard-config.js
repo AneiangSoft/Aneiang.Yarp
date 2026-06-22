@@ -83,10 +83,10 @@
                             </div>
                         </div>
                         <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
-                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
+                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
                                 ${__('modal.cancelBtn')}
                             </button>
-                            <button type="button" class="btn btn-primary btn-sm" id="import-btn" disabled style="min-width:80px;">
+                            <button type="button" class="btn btn-primary btn-sm" id="import-btn" disabled>
                                 <i class="bi bi-upload me-1"></i>${__('config.import')}
                             </button>
                         </div>
@@ -246,7 +246,7 @@
                             </div>
                         </div>
                         <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
-                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
+                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
                                 ${__('config.close')}
                             </button>
                         </div>
@@ -474,8 +474,8 @@
             html += '<div><div style="font-weight:600;font-size:15px;color:#1e293b;">' + (__('webhook.events.title') || '通知事件') + '</div>';
             html += '<small style="color:#64748b;font-size:12px;">' + (__('webhook.events.help') || '选择需要推送通知的事件类型') + '</small></div>';
             html += '<div style="margin-left:auto;display:flex;gap:6px;">';
-            html += '<button type="button" id="webhook-events-select-all" style="padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:11px;cursor:pointer;font-weight:500;">' + (__('notif.selectAll') || '全选') + '</button>';
-            html += '<button type="button" id="webhook-events-deselect-all" style="padding:4px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:11px;cursor:pointer;font-weight:500;">' + (__('webhook.events.deselectAll') || '全不选') + '</button>';
+            html += '<button type="button" id="webhook-events-select-all" class="btn btn-sm btn-light">' + (__('notif.selectAll') || '全选') + '</button>';
+            html += '<button type="button" id="webhook-events-deselect-all" class="btn btn-sm btn-light">' + (__('webhook.events.deselectAll') || '全不选') + '</button>';
             html += '</div></div>';
 
             eventGroups.forEach(function(eg) {
@@ -519,10 +519,10 @@
                             </div>
                         </div>
                         <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
-                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
+                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
                                 ${__('modal.cancelBtn')}
                             </button>
-                            <button type="button" class="btn btn-primary btn-sm" id="webhook-save-btn" style="min-width:100px;">
+                            <button type="button" class="btn btn-primary btn-sm" id="webhook-save-btn">
                                 <i class="bi bi-check-lg me-1"></i>${__('notif.save')}
                             </button>
                         </div>
