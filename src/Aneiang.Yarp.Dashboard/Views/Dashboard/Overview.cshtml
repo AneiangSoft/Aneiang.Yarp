@@ -16,8 +16,8 @@
                 <span><i class="bi bi-memory"></i><span data-i18n="index.label.memory">内存：</span><strong id="info-memory">-</strong></span>
                 <span><i class="bi bi-pc-display"></i><span data-i18n="index.label.host">主机：</span><strong id="info-machine">-</strong></span>
             </div>
-            <div class="info-bar-actions">
-                <button class="btn btn-icon btn-outline-primary" onclick="overviewRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
+            <div class="info-bar-actions card-header-actions">
+                <button class="btn btn-sm btn-outline-secondary btn-icon-only" onclick="overviewRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
                     <i class="bi bi-arrow-clockwise"></i>
                 </button>
             </div>
@@ -81,7 +81,7 @@
 <div class="card-panel mb-4">
     <div class="card-header">
         <span><i class="bi bi-graph-up-arrow me-2"></i><span data-i18n="overview.chart.traffic">实时流量趋势 (QPS)</span></span>
-        <div class="d-flex align-items-center gap-2">
+        <div class="card-header-actions">
             <span class="pulse-dot me-1"></span>
             <span class="badge bg-success" id="current-qps">0 req/s</span>
             <select class="form-select form-select-sm" id="chart-time-range" style="width:110px;" onchange="OpsModule.changeTimeRange(this.value)">

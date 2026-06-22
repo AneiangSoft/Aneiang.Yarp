@@ -22,18 +22,4 @@ internal static class BackgroundHostedServiceExtensions
             sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<BackgroundHostedServiceWrapper>>()));
         return services;
     }
-
-    /// <summary>
-    /// Registers a hosted service wrapped with startup timing diagnostics.
-    /// Use this to identify which service is hanging during host startup.
-    /// </summary>
-    public static IServiceCollection AddTimedHostedService<TService>(this IServiceCollection services)
-        where TService : class, IHostedService
-    {
-        services.AddSingleton<TService>();
-        services.AddHostedService(sp => new TimedHostedService(
-            sp.GetRequiredService<TService>(),
-            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<TimedHostedService>>()));
-        return services;
-    }
 }

@@ -157,17 +157,13 @@ public static class DashboardServiceCollectionExtensions
 
         // Register DynamicYarpConfigService as HostedService AFTER SqliteSchemaMigrator
         // so that SQLite tables exist when it loads config from repository.
-        services.AddHostedService(sp => new TimedHostedService(
-            sp.GetRequiredService<Aneiang.Yarp.Services.DynamicYarpConfigService>(),
-            sp.GetRequiredService<ILogger<TimedHostedService>>()));
+        services.AddHostedService(sp => sp.GetRequiredService<Aneiang.Yarp.Services.DynamicYarpConfigService>());
 
         // ── Audit log ─────────────────────────────────────────────────────────────
         services.AddSingleton<IConfigChangeAuditLog, ConfigChangeAuditLog>();
         services.AddSingleton<ConfigChangeAuditLog>(sp => (ConfigChangeAuditLog)sp.GetRequiredService<IConfigChangeAuditLog>());
         services.AddSingleton<ConfigChangeEventDispatcher>();
-        services.AddHostedService(sp => new TimedHostedService(
-            sp.GetRequiredService<ConfigChangeEventDispatcher>(),
-            sp.GetRequiredService<ILogger<TimedHostedService>>()));
+        services.AddHostedService(sp => sp.GetRequiredService<ConfigChangeEventDispatcher>());
 
         // ── Rate limiting ─────────────────────────────────────────────────────────
         services.AddSingleton<RateLimitConfigProvider>();
@@ -188,9 +184,7 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<LogSanitizer>();
         services.AddSingleton<YarpEventSourceListener>();
         services.AddSingleton<YarpEventSourceListenerStartupService>();
-        services.AddHostedService(sp => new TimedHostedService(
-            sp.GetRequiredService<YarpEventSourceListenerStartupService>(),
-            sp.GetRequiredService<ILogger<TimedHostedService>>()));
+        services.AddHostedService<YarpEventSourceListenerStartupService>();
 
         // ── Downstream capture transform ──────────────────────────────────────────
         services.AddSingleton<ITransformProvider, DownstreamCaptureTransformProvider>();
@@ -235,9 +229,7 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<IConfigPersistenceService>(sp => sp.GetRequiredService<ConfigPersistenceService>());
         services.AddSingleton<ConfigSnapshotScheduler>();
         services.AddSingleton<IConfigSnapshotScheduler>(sp => sp.GetRequiredService<ConfigSnapshotScheduler>());
-        services.AddHostedService(sp => new TimedHostedService(
-            sp.GetRequiredService<ConfigSnapshotScheduler>(),
-            sp.GetRequiredService<ILogger<TimedHostedService>>()));
+        services.AddHostedService(sp => sp.GetRequiredService<ConfigSnapshotScheduler>());
         services.AddSingleton<IGatewayIdentityService, GatewayIdentityService>();
 
         // ── Default health check service (background — non-blocking) ──────────────
@@ -251,9 +243,7 @@ public static class DashboardServiceCollectionExtensions
 
         // ── Real-time traffic broadcast ───────────────────────────────────────────
         services.AddSingleton<TrafficBroadcastService>();
-        services.AddHostedService(sp => new TimedHostedService(
-            sp.GetRequiredService<TrafficBroadcastService>(),
-            sp.GetRequiredService<ILogger<TimedHostedService>>()));
+        services.AddHostedService<TrafficBroadcastService>();
 
         // ── JWT secret provider ───────────────────────────────────────────────────
         services.AddSingleton<JwtSecretProvider>();

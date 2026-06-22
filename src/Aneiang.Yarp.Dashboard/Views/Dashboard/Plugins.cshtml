@@ -8,12 +8,12 @@
     <div class="card-panel mb-4">
         <div class="card-header">
             <span><i class="bi bi-puzzle me-2" style="color:#8b5cf6;"></i><span data-i18n="plugin.title">插件管理</span></span>
-            <div>
+            <div class="card-header-actions">
                 <span id="plugin-refresh-time" class="refresh-badge"></span>
                 <button class="btn btn-sm btn-outline-secondary" onclick="PluginModule.resetAll()" title="全部启用">
                     <i class="bi bi-check-all"></i> <span data-i18n="plugin.resetAll">全部启用</span>
                 </button>
-                <button class="btn btn-sm btn-outline-primary" onclick="PluginModule.load()" title="刷新">
+                <button class="btn btn-sm btn-outline-secondary btn-icon-only" onclick="PluginModule.load()" title="刷新">
                     <i class="bi bi-arrow-clockwise"></i>
                 </button>
             </div>

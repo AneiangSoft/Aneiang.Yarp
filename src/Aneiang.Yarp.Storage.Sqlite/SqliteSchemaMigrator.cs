@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -25,24 +24,20 @@ public sealed class SqliteSchemaMigrator : IHostedService
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        var sw = Stopwatch.StartNew();
-        try
-        {
-            await using var conn = _connections.CreateConnection();
-            _logger.LogInformation("[SqliteSchemaMigrator] Using SQLite database: {ConnectionString}", conn.ConnectionString);
-            await conn.OpenAsync(cancellationToken);
+        await using var conn = _connections.CreateConnection();
+        await conn.OpenAsync(cancellationToken);
 
-            // Reduce "database is locked" stalls during concurrent access / recovery.
-            await ExecuteAsync(conn, "PRAGMA busy_timeout=30000;", cancellationToken);
+        // Reduce "database is locked" stalls during concurrent access / recovery.
+        await ExecuteAsync(conn, "PRAGMA busy_timeout=30000;", cancellationToken);
 
-            await EnsureMigrationTableAsync(conn, cancellationToken);
+        await EnsureMigrationTableAsync(conn, cancellationToken);
 
-            // Phase 1: schema (tables, columns, indexes) — must succeed.
-            await RunSchemaMigrationAsync(
-                conn,
-                "20260618_001_enterprise_identity_and_history_schema",
-                "Enterprise identity UID, policy targets and history snapshots",
-                cancellationToken);
+        // Phase 1: schema (tables, columns, indexes) — must succeed.
+        await RunSchemaMigrationAsync(
+            conn,
+            "20260618_001_enterprise_identity_and_history_schema",
+            "Enterprise identity UID, policy targets and history snapshots",
+            cancellationToken);
 
         await RunSchemaMigrationAsync(
             conn,
@@ -56,29 +51,17 @@ public sealed class SqliteSchemaMigrator : IHostedService
             "Change yarp_destinations primary key to (cluster_id, destination_id) so destinations are unique per cluster",
             cancellationToken);
 
-            // Phase 2: data backfill — best-effort, time-boxed so startup doesn't hang.
-            var backfillSw = Stopwatch.StartNew();
-            var backfillCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            backfillCts.CancelAfter(TimeSpan.FromSeconds(30));
-            try
-            {
-                await RunDataBackfillAsync(conn, backfillCts.Token);
-                _logger.LogInformation("SQLite data backfill completed in {ElapsedMs}ms", backfillSw.ElapsedMilliseconds);
-            }
-            catch (OperationCanceledException) when (backfillCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
-            {
-                _logger.LogWarning(
-                    "SQLite data backfill exceeded {TimeoutSeconds}s time limit after {ElapsedMs}ms; " +
-                    "remaining rows will be backfilled on next startup",
-                    30, backfillSw.ElapsedMilliseconds);
-            }
-
-            _logger.LogInformation("SQLite schema migration completed in {ElapsedMs}ms", sw.ElapsedMilliseconds);
-        }
-        catch (Exception ex)
+        // Phase 2: data backfill — best-effort, time-boxed so startup doesn't hang.
+        var backfillCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        backfillCts.CancelAfter(TimeSpan.FromSeconds(30));
+        try
         {
-            _logger.LogError(ex, "SQLite schema migration failed after {ElapsedMs}ms", sw.ElapsedMilliseconds);
-            throw;
+            await RunDataBackfillAsync(conn, backfillCts.Token);
+        }
+        catch (OperationCanceledException) when (backfillCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(
+                "SQLite data backfill exceeded 30s time limit; remaining rows will be backfilled on next startup");
         }
     }
 
@@ -87,13 +70,9 @@ public sealed class SqliteSchemaMigrator : IHostedService
     private async Task RunSchemaMigrationAsync(SqliteConnection conn, string migrationId, string description, CancellationToken ct)
     {
         if (await IsMigrationAppliedAsync(conn, migrationId, ct))
-        {
-            _logger.LogDebug("SQLite schema migration {MigrationId} already applied", migrationId);
             return;
-        }
 
         _logger.LogInformation("SQLite schema migration running: {MigrationId}", migrationId);
-        var sw = Stopwatch.StartNew();
         await using var transaction = (SqliteTransaction)await conn.BeginTransactionAsync(ct);
         try
         {
@@ -106,34 +85,24 @@ public sealed class SqliteSchemaMigrator : IHostedService
                 await RebuildDestinationsTableAsync(conn, transaction, ct);
             }
 
-            // Indexes are created before backfill so that subsequent backfill queries can use them.
             await CreateIndexesAsync(conn, transaction, ct);
             await MarkMigrationAppliedAsync(conn, transaction, migrationId, description, ct);
             await transaction.CommitAsync(ct);
         }
         catch (Exception ex)
         {
-            try
-            {
-                await transaction.RollbackAsync(CancellationToken.None);
-            }
-            catch (Exception rollbackEx)
-            {
-                _logger.LogWarning(rollbackEx, "Failed to roll back SQLite schema migration transaction");
-            }
+            try { await transaction.RollbackAsync(CancellationToken.None); }
+            catch (Exception rollbackEx) { _logger.LogWarning(rollbackEx, "Failed to roll back SQLite schema migration transaction"); }
 
             _logger.LogError(ex, "SQLite schema migration failed and was rolled back: {MigrationId}", migrationId);
             throw;
         }
 
-        _logger.LogInformation("SQLite schema migration completed: {MigrationId} in {ElapsedMs}ms", migrationId, sw.ElapsedMilliseconds);
+        _logger.LogInformation("SQLite schema migration completed: {MigrationId}", migrationId);
     }
 
     private async Task RunDataBackfillAsync(SqliteConnection conn, CancellationToken ct)
     {
-        _logger.LogInformation("SQLite data backfill starting...");
-        var sw = Stopwatch.StartNew();
-
         await BackfillInBatchesAsync(conn, "yarp_clusters",
             "cluster_uid = lower(hex(randomblob(16)))",
             "cluster_uid IS NULL OR cluster_uid = ''", ct);
@@ -174,7 +143,7 @@ public sealed class SqliteSchemaMigrator : IHostedService
             await transaction.CommitAsync(ct);
         }
 
-        _logger.LogInformation("SQLite data backfill finished in {ElapsedMs}ms", sw.ElapsedMilliseconds);
+        _logger.LogInformation("SQLite data backfill completed");
     }
 
     private static async Task EnsureMigrationTableAsync(SqliteConnection conn, CancellationToken ct)
@@ -537,22 +506,14 @@ public sealed class SqliteSchemaMigrator : IHostedService
         string whereClause,
         CancellationToken ct)
     {
-        // Fast path: skip the table entirely if no rows need updating.
         var countSql = $"SELECT COUNT(*) FROM {table} WHERE {whereClause}";
         var rowsToFix = await ExecuteScalarAsync(conn, countSql, ct);
-        if (rowsToFix <= 0)
-        {
-            _logger.LogDebug("SQLite backfill skipped for {Table}: no rows need updating", table);
-            return;
-        }
+        if (rowsToFix <= 0) return;
 
-        _logger.LogInformation(
-            "SQLite backfill starting for {Table}: {RowsToFix} rows need updating",
-            table, rowsToFix);
+        _logger.LogInformation("SQLite backfill starting for {Table}: {RowsToFix} rows", table, rowsToFix);
 
         const int BatchSize = 1000;
         const int MaxBatches = 100000;
-        var sw = Stopwatch.StartNew();
         long totalAffected = 0;
         int batch = 0;
 
@@ -579,31 +540,23 @@ public sealed class SqliteSchemaMigrator : IHostedService
                 throw;
             }
 
-            if (affected <= 0)
-                break;
+            if (affected <= 0) break;
 
             totalAffected += affected;
             batch++;
-            if (batch % 10 == 0)
-            {
-                _logger.LogInformation(
-                    "SQLite backfill progress for {Table}: {TotalAffected}/{RowsToFix} rows updated in {ElapsedMs}ms",
-                    table, totalAffected, rowsToFix, sw.ElapsedMilliseconds);
-            }
         }
 
         if (batch >= MaxBatches)
         {
             _logger.LogWarning(
-                "SQLite backfill for {Table} stopped after {MaxBatches} batches ({TotalAffected} rows); " +
-                "remaining rows may require manual inspection",
+                "SQLite backfill for {Table} stopped after {MaxBatches} batches ({TotalAffected} rows)",
                 table, MaxBatches, totalAffected);
         }
         else
         {
             _logger.LogInformation(
-                "SQLite backfill completed for {Table}: {TotalAffected} rows updated in {ElapsedMs}ms",
-                table, totalAffected, sw.ElapsedMilliseconds);
+                "SQLite backfill completed for {Table}: {TotalAffected} rows",
+                table, totalAffected);
         }
     }
 
@@ -653,38 +606,5 @@ public sealed class SqliteSchemaMigrator : IHostedService
         return result is DBNull or null ? 0 : Convert.ToInt64(result);
     }
 
-    /// <summary>
-    /// Deletes orphaned WAL/SHM files left by a previous crash.
-    /// SQLite will recreate them on next connection open.
-    /// </summary>
-    private void CleanOrphanedWalFiles()
-    {
-        try
-        {
-            // Extract db path from connection string without creating a connection
-            var cs = _connections.CreateConnection().ConnectionString;
-            var match = System.Text.RegularExpressions.Regex.Match(cs, @"Data\s*Source\s*=\s*([^;]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            if (!match.Success) return;
-            var dbPath = match.Groups[1].Value.Trim();
-            if (string.IsNullOrEmpty(dbPath)) return;
-
-            var walPath = dbPath + "-wal";
-            var shmPath = dbPath + "-shm";
-
-            if (File.Exists(walPath))
-            {
-                File.Delete(walPath);
-                _logger.LogDebug("Cleaned orphaned WAL file: {Path}", walPath);
-            }
-            if (File.Exists(shmPath))
-            {
-                File.Delete(shmPath);
-                _logger.LogDebug("Cleaned orphaned SHM file: {Path}", shmPath);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Failed to clean orphaned WAL files (non-fatal)");
-        }
-    }
 }
+

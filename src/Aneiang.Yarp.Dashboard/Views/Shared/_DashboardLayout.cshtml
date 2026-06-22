@@ -558,10 +558,43 @@
         .card-panel .card-header > span:last-child:not(:first-child) {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
             flex-shrink: 0;
             white-space: nowrap;
             min-width: fit-content;
+        }
+
+        /* Unified card header actions */
+        .card-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .card-header-actions .btn-sm {
+            padding: 5px 12px;
+            font-size: 13px;
+            border-radius: 6px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+        }
+
+        .card-header-actions .btn-icon-only {
+            padding: 5px 10px;
+        }
+
+        .card-header-actions .btn-group-sm .btn {
+            padding: 5px 12px;
+            font-size: 13px;
+        }
+
+        .card-header-actions .refresh-badge {
+            font-size: 12px;
+            color: var(--text-muted);
         }
         
         .card-panel .card-header i {

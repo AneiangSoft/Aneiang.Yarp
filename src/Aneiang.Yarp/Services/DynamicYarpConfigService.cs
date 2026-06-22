@@ -68,8 +68,6 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
     /// </summary>
     private void LoadDynamicConfig()
     {
-        _logger.LogInformation("[DynamicYarpConfigService] LoadDynamicConfig starting...");
-        var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             _dynamicConfig = LoadConfigFromRepository();
@@ -77,32 +75,22 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
             // Apply dynamic config to YARP
             if (_dynamicConfig != null && (_dynamicConfig.Routes.Count > 0 || _dynamicConfig.Clusters.Count > 0))
             {
-                _logger.LogInformation("[DynamicYarpConfigService] Applying {RouteCount} routes and {ClusterCount} clusters to YARP...",
-                    _dynamicConfig.Routes.Count, _dynamicConfig.Clusters.Count);
                 ApplyDynamicConfigToYarp();
                 _logger.LogInformation(
                     "Loaded {RouteCount} dynamic routes and {ClusterCount} dynamic clusters from repository",
                     _dynamicConfig.Routes.Count,
                     _dynamicConfig.Clusters.Count);
             }
-            else
-            {
-                _logger.LogInformation("[DynamicYarpConfigService] No dynamic routes/clusters to apply");
-            }
 
             // Mark static config from appsettings.json as "config" source
-            _logger.LogInformation("[DynamicYarpConfigService] Marking static config...");
             MarkStaticConfig();
 
             // Startup consistency check
-            _logger.LogInformation("[DynamicYarpConfigService] Validating consistency...");
             ValidateConsistency();
-
-            _logger.LogInformation("[DynamicYarpConfigService] LoadDynamicConfig completed in {ElapsedMs}ms", sw.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[DynamicYarpConfigService] Failed to load dynamic config on startup after {ElapsedMs}ms", sw.ElapsedMilliseconds);
+            _logger.LogError(ex, "Failed to load dynamic config on startup");
             _dynamicConfig = new GatewayDynamicConfig();
         }
     }
@@ -112,18 +100,10 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
     /// </summary>
     private GatewayDynamicConfig LoadConfigFromRepository()
     {
-        _logger.LogInformation("[DynamicYarpConfigService] LoadConfigFromRepository starting...");
-        var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
-            _logger.LogInformation("[DynamicYarpConfigService] Loading routes...");
             var routeEntities = _routeRepo.GetAllRoutesAsync().GetAwaiter().GetResult();
-            _logger.LogInformation("[DynamicYarpConfigService] Loaded {Count} routes in {ElapsedMs}ms", routeEntities.Count, sw.ElapsedMilliseconds);
-
-            sw.Restart();
-            _logger.LogInformation("[DynamicYarpConfigService] Loading clusters...");
             var clusterEntities = _clusterRepo.GetAllClustersAsync().GetAwaiter().GetResult();
-            _logger.LogInformation("[DynamicYarpConfigService] Loaded {Count} clusters in {ElapsedMs}ms", clusterEntities.Count, sw.ElapsedMilliseconds);
 
             var config = new GatewayDynamicConfig
             {
@@ -138,12 +118,11 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
                 config.Clusters.Add(cluster);
             }
 
-            _logger.LogInformation("[DynamicYarpConfigService] LoadConfigFromRepository completed in {ElapsedMs}ms", sw.ElapsedMilliseconds);
             return config;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "[DynamicYarpConfigService] Failed to load config from repository after {ElapsedMs}ms, starting with empty config", sw.ElapsedMilliseconds);
+            _logger.LogWarning(ex, "Failed to load config from repository, starting with empty config");
             return new GatewayDynamicConfig();
         }
     }
@@ -421,15 +400,8 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
             foreach (var cluster in config.Clusters)
             {
                 var destEntities = cluster.Destinations.Select(d => d.ToEntity(cluster.ClusterId)).ToList();
-                _logger.LogDebug(
-                    "Full persist: saving cluster '{ClusterId}' with {DestinationCount} destinations",
-                    cluster.ClusterId, destEntities.Count);
                 await _clusterRepo.SaveDestinationsAsync(cluster.ClusterId, destEntities);
             }
-
-            _logger.LogInformation(
-                "Full dynamic config persisted: {RouteCount} routes, {ClusterCount} clusters",
-                config.Routes.Count, config.Clusters.Count);
         }
         catch (Exception ex)
         {
@@ -460,26 +432,12 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
         if (operationName is "AddCluster" or "UpdateCluster" or "CreateCluster" or "UpdateClusterCircuitBreaker")
         {
             var cluster = config.Clusters.FirstOrDefault(c => string.Equals(c.ClusterId, targetName, StringComparison.OrdinalIgnoreCase));
-            if (cluster == null)
-            {
-                _logger.LogWarning("Incremental cluster persist skipped: cluster '{ClusterId}' not found in dynamic config", targetName);
-                return false;
-            }
-
-            var destEntities = cluster.Destinations.Select(d => d.ToEntity(cluster.ClusterId)).ToList();
-            _logger.LogDebug(
-                "Incrementally persisting cluster '{ClusterId}' with {DestinationCount} destinations",
-                cluster.ClusterId, destEntities.Count);
+            if (cluster == null) return false;
 
             await _clusterRepo.SaveClusterAsync(cluster.ToEntity());
-            await _clusterRepo.SaveDestinationsAsync(cluster.ClusterId, destEntities);
-
-            // Verify destinations were actually persisted
-            var savedDestinations = await _clusterRepo.GetDestinationsAsync(cluster.ClusterId, CancellationToken.None);
-            _logger.LogInformation(
-                "Incrementally persisted cluster '{ClusterId}': requested {RequestedCount}, verified {VerifiedCount} destinations in DB",
-                cluster.ClusterId, destEntities.Count, savedDestinations.Count);
-
+            await _clusterRepo.SaveDestinationsAsync(
+                cluster.ClusterId,
+                cluster.Destinations.Select(d => d.ToEntity(cluster.ClusterId)).ToList());
             return true;
         }
 
