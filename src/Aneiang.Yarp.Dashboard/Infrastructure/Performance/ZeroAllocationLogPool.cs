@@ -160,7 +160,7 @@ public readonly struct InlineStringBuffer
 /// High-performance object pool for LogEntryStruct arrays.
 /// Uses ArrayPool for minimal GC pressure.
 /// </summary>
-public sealed class LogEntryPool : IDisposable
+internal sealed class LogEntryPool : IDisposable
 {
     private readonly ArrayPool<LogEntryStruct> _structPool;
     private readonly ArrayPool<byte> _bytePool;
@@ -243,7 +243,7 @@ public sealed class LogEntryPool : IDisposable
 /// <summary>
 /// Reusable log batch container with pooled arrays.
 /// </summary>
-public sealed class LogBatch
+internal sealed class LogBatch
 {
     private readonly LogEntryPool _pool;
     public LogEntryStruct[] Entries { get; private set; }
@@ -321,3 +321,5 @@ internal sealed class DefaultObjectProvider<T> where T : class
         }
     }
 }
+
+

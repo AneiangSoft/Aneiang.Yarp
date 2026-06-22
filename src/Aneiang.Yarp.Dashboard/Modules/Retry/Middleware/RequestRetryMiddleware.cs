@@ -5,6 +5,7 @@ using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using System.Buffers;
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
+using Aneiang.Yarp.Services;
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Model;
 
@@ -21,6 +22,7 @@ public sealed class RequestRetryMiddleware
     private readonly ILogger<RequestRetryMiddleware> _logger;
     private readonly RetryOptions _options;
     private readonly IGatewayPluginManager _pluginManager;
+    private readonly IDynamicYarpConfigService? _yarpConfig;
     private readonly string _dashPrefix;
     /// <summary>
     /// Content root path for the Dashboard static files. Used to skip logging for frontend resources.
@@ -38,12 +40,14 @@ public sealed class RequestRetryMiddleware
         ILogger<RequestRetryMiddleware> logger,
         IOptions<RetryOptions> options,
         IOptions<DashboardOptions> dashOptions,
-        IGatewayPluginManager pluginManager)
+        IGatewayPluginManager pluginManager,
+        IDynamicYarpConfigService? yarpConfig = null)
     {
         _next = next;
         _logger = logger;
         _options = options.Value;
         _pluginManager = pluginManager;
+        _yarpConfig = yarpConfig;
         _dashPrefix = "/" + dashOptions.Value.RoutePrefix.Trim('/');
     }
 
@@ -100,7 +104,7 @@ public sealed class RequestRetryMiddleware
             // Check circuit breaker before retry
             if (attempt > 0 && !string.IsNullOrEmpty(clusterId))
             {
-                if (CircuitBreakerMiddleware.IsCircuitOpen(clusterId))
+                if (CircuitBreakerMiddleware.IsCircuitOpen(clusterId, clusterUid: ResolveClusterUid(clusterId)))
                 {
                     _logger.LogDebug("Circuit breaker is open, skipping retry");
                     break;
@@ -172,6 +176,12 @@ public sealed class RequestRetryMiddleware
 
     /// <summary>Maximum request body size for retry buffering. Prevents OOM from large uploads.</summary>
     private const int MaxRetryBodySizeBytes = 1024 * 1024; // 1MB hard limit
+
+    private string? ResolveClusterUid(string clusterId)
+    {
+        return _yarpConfig?.GetDynamicConfig()?.Clusters.FirstOrDefault(c =>
+            string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase))?.ClusterUid;
+    }
 
     private async Task<byte[]?> ReadRequestBodyAsync(HttpRequest request)
     {

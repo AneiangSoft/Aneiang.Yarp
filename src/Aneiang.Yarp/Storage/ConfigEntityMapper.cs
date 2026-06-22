@@ -53,7 +53,7 @@ public static class ConfigEntityMapper
 
     public static ClusterEntity ToEntity(this DynamicClusterConfig cluster) => new()
     {
-        ClusterUid = string.IsNullOrWhiteSpace(cluster.ClusterId) ? Guid.NewGuid().ToString("N") : StableUidFromKey("cluster", cluster.ClusterId),
+        ClusterUid = string.IsNullOrWhiteSpace(cluster.ClusterUid) ? StableUidFromKey("cluster", cluster.ClusterId) : cluster.ClusterUid,
         ClusterId = cluster.ClusterId,
         LoadBalancingPolicy = cluster.LoadBalancingPolicy,
         HealthCheckConfig = cluster.HealthCheck != null ? JsonSerializer.Serialize(cluster.HealthCheck, _jsonOptions) : null,
@@ -67,6 +67,7 @@ public static class ConfigEntityMapper
 
     public static DynamicClusterConfig ToClusterConfig(this ClusterEntity entity) => new()
     {
+        ClusterUid = entity.ClusterUid,
         ClusterId = entity.ClusterId,
         LoadBalancingPolicy = entity.LoadBalancingPolicy,
         HealthCheck = string.IsNullOrEmpty(entity.HealthCheckConfig) ? null : JsonSerializer.Deserialize<HealthCheckConfig>(entity.HealthCheckConfig, _jsonOptions),

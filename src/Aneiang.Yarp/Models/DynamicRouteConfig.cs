@@ -11,6 +11,16 @@ public class DynamicRouteConfig
     /// <summary>Route key used as YARP RouteId.</summary>
     public string RouteId { get; set; } = string.Empty;
 
+    /// <summary>Route key alias. Prefer this for internal semantics; RouteId is kept for compatibility.</summary>
+    public string RouteKey
+    {
+        get => RouteId;
+        set => RouteId = value;
+    }
+
+    /// <summary>Display name for UI. Defaults to RouteKey when empty.</summary>
+    public string? DisplayName { get; set; }
+
     /// <summary>Internal immutable cluster UID this route belongs to.</summary>
     public string? ClusterUid { get; set; }
 

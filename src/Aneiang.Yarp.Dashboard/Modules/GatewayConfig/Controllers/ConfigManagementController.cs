@@ -1,4 +1,5 @@
-using System.Text.Json;
+﻿using System.Text.Json;
+using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Models;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
@@ -9,6 +10,7 @@ using Aneiang.Yarp.Storage;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Controllers;
 
@@ -25,6 +27,7 @@ public class ConfigManagementController : ControllerBase
     private readonly IMemoryCache _memoryCache;
     private readonly IGatewayIdentityService _identityService;
     private readonly IConfigSnapshotScheduler _snapshotScheduler;
+    private readonly IOptionsMonitor<ConfigHistoryOptions> _configHistoryOptions;
     private readonly IWafSettingsPersistenceService? _wafPersistence;
 
     public ConfigManagementController(
@@ -34,6 +37,7 @@ public class ConfigManagementController : ControllerBase
         IMemoryCache memoryCache,
         IGatewayIdentityService identityService,
         IConfigSnapshotScheduler snapshotScheduler,
+        IOptionsMonitor<ConfigHistoryOptions> configHistoryOptions,
         IWafSettingsPersistenceService? wafPersistence = null)
     {
         _persistenceService = persistenceService;
@@ -42,6 +46,7 @@ public class ConfigManagementController : ControllerBase
         _memoryCache = memoryCache;
         _identityService = identityService;
         _snapshotScheduler = snapshotScheduler;
+        _configHistoryOptions = configHistoryOptions;
         _wafPersistence = wafPersistence;
     }
 
@@ -53,6 +58,24 @@ public class ConfigManagementController : ControllerBase
     {
         _memoryCache.Remove("dashboard:routes:query");
         _memoryCache.Remove("dashboard:clusters:query");
+    }
+
+    private async Task SnapshotLowRiskMutationAsync(string description)
+    {
+        var options = _configHistoryOptions.CurrentValue;
+        if (!options.AutoSnapshotBeforeMutation)
+        {
+            return;
+        }
+
+        var clientIp = GetClientIp();
+        if (options.AsyncSnapshotForLowRiskMutation)
+        {
+            _snapshotScheduler.QueueSnapshot(description, clientIp);
+            return;
+        }
+
+        await _persistenceService.SaveSnapshotAsync(description, clientIp);
     }
 
     /// <summary>
@@ -109,7 +132,7 @@ public class ConfigManagementController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to export configuration");
-            return StatusCode(500, new { code = 500, message = $"Export failed: {ex.Message}" });
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Export failed", ex) });
         }
     }
 
@@ -143,7 +166,7 @@ public class ConfigManagementController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to import configuration");
-            return BadRequest(new { code = 400, message = $"Import failed: {ex.Message}" });
+            return BadRequest(new { code = 400, message = SafeErrorMessages.Create(HttpContext, "Import failed", ex) });
         }
     }
 
@@ -245,7 +268,7 @@ public class ConfigManagementController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to save cluster: {ClusterId}", clusterId);
-            return StatusCode(500, new { code = 500, message = $"Save failed: {ex.Message}" });
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Save failed", ex) });
         }
     }
 
@@ -272,7 +295,7 @@ public class ConfigManagementController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete cluster: {ClusterId}", clusterId);
-            return StatusCode(500, new { code = 500, message = $"Delete failed: {ex.Message}" });
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Delete failed", ex) });
         }
     }
 
@@ -344,7 +367,7 @@ public class ConfigManagementController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to rename cluster: {ClusterId}", clusterId);
-            return StatusCode(500, new { code = 500, message = $"Rename failed: {ex.Message}" });
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Rename failed", ex) });
         }
     }
 
@@ -398,15 +421,16 @@ public class ConfigManagementController : ControllerBase
                 Transforms = transforms
             };
 
-            await _persistenceService.SaveSnapshotAsync(
-                $"Before route '{routeId}' renamed to '{newRouteId}' via dashboard", GetClientIp());
-
-            var result = await _dynamicConfig.TryRenameRoute(routeId, newRouteId, request,
-                source: "dashboard", createdBy: "dashboard-user");
+            var result = await _identityService.RenameRouteAsync(
+                routeId,
+                newRouteId,
+                request,
+                clientIp: GetClientIp(),
+                operatorName: "dashboard-user",
+                ct: HttpContext.RequestAborted);
 
             if (result.Success)
             {
-                await _identityService.AfterRouteRenamedAsync(routeId, newRouteId, HttpContext.RequestAborted);
                 InvalidateQueryCaches();
             }
             return result.Success
@@ -416,7 +440,7 @@ public class ConfigManagementController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to rename route: {RouteId}", routeId);
-            return StatusCode(500, new { code = 500, message = $"Rename failed: {ex.Message}" });
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Rename failed", ex) });
         }
     }
 
@@ -529,7 +553,7 @@ public class ConfigManagementController : ControllerBase
                 Transforms = transforms
             };
 
-            _snapshotScheduler.QueueSnapshot($"After route '{routeId}' saved via dashboard", GetClientIp());
+            await SnapshotLowRiskMutationAsync($"After route '{routeId}' saved via dashboard");
 
             var result = await _dynamicConfig.TryAddRoute(request, "dashboard", "dashboard-user");
 
@@ -541,7 +565,7 @@ public class ConfigManagementController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to save route: {RouteId}", routeId);
-            return StatusCode(500, new { code = 500, message = $"Save failed: {ex.Message}" });
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Save failed", ex) });
         }
     }
 
@@ -568,7 +592,7 @@ public class ConfigManagementController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete route: {RouteId}", routeId);
-            return StatusCode(500, new { code = 500, message = $"Delete failed: {ex.Message}" });
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Delete failed", ex) });
         }
     }
 
@@ -576,19 +600,27 @@ public class ConfigManagementController : ControllerBase
     /// Get configuration history snapshots.
     /// </summary>
     [HttpGet("history")]
-    public async Task<IActionResult> GetConfigHistory()
+    public async Task<IActionResult> GetConfigHistory(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string? q = null,
+        [FromQuery] string? changeType = null)
     {
         try
         {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 200);
+
             var history = (await _persistenceService.GetHistoryAsync())
                 .OrderByDescending(s => s.Timestamp)
                 .ToList();
 
             var latestVersionId = history.FirstOrDefault()?.VersionId;
-            var result = history.Select(s =>
+            var allItems = history.Select(s =>
             {
                 var routeCount = ParseSnapshotRoutes(s.Config).Count;
                 var clusterCount = ParseSnapshotClusters(s.Config).Count;
+                var resolvedChangeType = ResolveHistoryChangeType(s.Description);
                 return new
                 {
                     s.VersionId,
@@ -600,21 +632,47 @@ public class ConfigManagementController : ControllerBase
                     TotalItems = routeCount + clusterCount,
                     ConfigSize = s.Config.ValueKind == JsonValueKind.Undefined ? 0 : s.Config.GetRawText().Length,
                     IsLatest = string.Equals(s.VersionId, latestVersionId, StringComparison.OrdinalIgnoreCase),
-                    ChangeType = ResolveHistoryChangeType(s.Description)
+                    ChangeType = resolvedChangeType
                 };
-            }).ToList();
+            });
+
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                allItems = allItems.Where(s =>
+                    (s.Description?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    s.VersionId.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    (s.ClientIp?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false));
+            }
+
+            if (!string.IsNullOrWhiteSpace(changeType))
+            {
+                allItems = allItems.Where(s => string.Equals(s.ChangeType, changeType, StringComparison.OrdinalIgnoreCase));
+            }
+
+            var total = allItems.Count();
+            var result = allItems
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
 
             return Ok(new
             {
                 code = 200,
                 data = result,
-                count = result.Count
+                count = result.Count,
+                pagination = new
+                {
+                    page,
+                    pageSize,
+                    total,
+                    totalPages = total == 0 ? 0 : (int)Math.Ceiling(total / (double)pageSize)
+                }
             });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get configuration history");
-            return StatusCode(500, new { code = 500, message = $"Failed to get history: {ex.Message}" });
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Failed to get history", ex) });
         }
     }
 
@@ -632,7 +690,7 @@ public class ConfigManagementController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to clear configuration history");
-            return StatusCode(500, new { code = 500, message = $"Failed to clear history: {ex.Message}" });
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Failed to clear history", ex) });
         }
     }
 
@@ -654,7 +712,7 @@ public class ConfigManagementController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to rollback to version: {VersionId}", versionId);
-            return StatusCode(500, new { code = 500, message = $"Rollback failed: {ex.Message}" });
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Rollback failed", ex) });
         }
     }
 
@@ -673,8 +731,34 @@ public class ConfigManagementController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to create snapshot");
-            return StatusCode(500, new { code = 500, message = $"Snapshot failed: {ex.Message}" });
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Snapshot failed", ex) });
         }
+    }
+
+    /// <summary>
+    /// Gets runtime metrics for the asynchronous configuration snapshot queue.
+    /// </summary>
+    [HttpGet("snapshot/metrics")]
+    public IActionResult GetSnapshotMetrics()
+    {
+        var metrics = _snapshotScheduler.GetMetrics();
+        var options = _configHistoryOptions.CurrentValue;
+        return Ok(new
+        {
+            code = 200,
+            data = new
+            {
+                metrics.QueueLength,
+                metrics.EnqueuedCount,
+                metrics.ProcessedCount,
+                metrics.FailedCount,
+                metrics.DroppedCount,
+                options.AutoSnapshotBeforeMutation,
+                options.AsyncSnapshotForLowRiskMutation,
+                options.MaxSnapshots,
+                options.SnapshotQueueCapacity
+            }
+        });
     }
 
     /// <summary>
@@ -729,7 +813,7 @@ public class ConfigManagementController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to diff config for version: {VersionId}", versionId);
-            return StatusCode(500, new { code = 500, message = $"Diff failed: {ex.Message}" });
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Diff failed", ex) });
         }
     }
 
@@ -754,7 +838,7 @@ public class ConfigManagementController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to validate configuration");
-            return StatusCode(500, new { code = 500, message = $"Validation failed: {ex.Message}" });
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Validation failed", ex) });
         }
     }
 
@@ -1029,7 +1113,7 @@ public class ConfigManagementController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get WAF settings");
-            return StatusCode(500, new { code = 500, message = $"Failed: {ex.Message}" });
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Operation failed", ex) });
         }
     }
 
@@ -1060,7 +1144,7 @@ public class ConfigManagementController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to update WAF settings");
-            return StatusCode(500, new { code = 500, message = $"Failed: {ex.Message}" });
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Operation failed", ex) });
         }
     }
 }

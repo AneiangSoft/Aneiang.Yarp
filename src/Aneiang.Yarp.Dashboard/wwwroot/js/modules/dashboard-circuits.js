@@ -54,10 +54,12 @@
         render: function(data, container) {
             window.DashboardDOM.clear(container);
 
-            var entries = Object.entries(data || {});
+            // API returns an array of CircuitStateInfo objects
+            var entries = Array.isArray(data) ? data : [];
+
             var closedCount = 0, openCount = 0, halfOpenCount = 0;
-            entries.forEach(function(entry) {
-                var state = entry[1].status;
+            entries.forEach(function(circuit) {
+                var state = circuit.status;
                 if (state === 'Closed') closedCount++;
                 else if (state === 'Open') openCount++;
                 else if (state === 'HalfOpen') halfOpenCount++;
@@ -96,12 +98,11 @@
             }
 
             var self = this;
-            var rows = entries.map(function(entry) {
-                var key = entry[0];
-                var circuit = entry[1];
-                var parts = key.split(':');
-                var clusterId = parts[0] || key;
-                var destinationId = parts[1] || null;
+            var rows = entries.map(function(circuit) {
+                var clusterName = circuit.clusterName || circuit.clusterKeySnapshot || circuit.key || '-';
+                var destinationId = circuit.destinationKeySnapshot && circuit.destinationKeySnapshot !== 'any'
+                    ? circuit.destinationKeySnapshot
+                    : null;
 
                 var statusClass = circuit.status === 'Closed' ? 'bg-success' :
                                  circuit.status === 'Open' ? 'bg-danger' : 'bg-warning';
@@ -119,7 +120,11 @@
                 var recoverySec = self.formatRecoveryTimeout(circuit);
 
                 return '<tr class="align-middle">' +
-                    '<td><i class="bi ' + stateIcon + ' me-2"></i><strong>' + window.DashboardUtils.escapeHtml(clusterId) + '</strong></td>' +
+                    '<td><i class="bi ' + stateIcon + ' me-2"></i><strong>' + window.DashboardUtils.escapeHtml(clusterName) + '</strong>' +
+                        (circuit.clusterKeySnapshot && circuit.clusterKeySnapshot !== clusterName
+                            ? '<br><small class="text-muted">ID: ' + window.DashboardUtils.escapeHtml(circuit.clusterKeySnapshot) + '</small>'
+                            : '') +
+                    '</td>' +
                     '<td><code>' + (destinationId ? window.DashboardUtils.escapeHtml(destinationId) : '-') + '</code></td>' +
                     '<td><span class="badge ' + statusClass + '">' + statusText + '</span></td>' +
                     '<td>' + circuit.consecutiveFailures + ' / ' + circuit.failureThreshold + '</td>' +

@@ -9,7 +9,7 @@ namespace Aneiang.Yarp.Dashboard.Infrastructure.Yarp;
 /// Adds common headers, removes security-sensitive headers, and applies global transforms.
 /// Runs before YARP proxy pipeline.
 /// </summary>
-public sealed class BuiltinTransformMiddleware
+internal sealed class BuiltinTransformMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly BuiltinTransformOptions _options;
@@ -97,3 +97,4 @@ public sealed class BuiltinTransformMiddleware
         }
     }
 }
+

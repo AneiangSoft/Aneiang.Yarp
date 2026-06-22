@@ -7,9 +7,21 @@ namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Models;
 /// </summary>
 public class DashboardClusterResponse
 {
-    /// <summary>Cluster identifier.</summary>
+    /// <summary>Cluster identifier. Kept for compatibility; prefer clusterKey for new clients.</summary>
     [JsonPropertyName("clusterId")]
     public string ClusterId { get; set; } = string.Empty;
+
+    /// <summary>Internal immutable cluster UID.</summary>
+    [JsonPropertyName("clusterUid")]
+    public string? ClusterUid { get; set; }
+
+    /// <summary>Cluster key used as YARP ClusterId.</summary>
+    [JsonPropertyName("clusterKey")]
+    public string ClusterKey { get; set; } = string.Empty;
+
+    /// <summary>Display name for UI.</summary>
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
 
     /// <summary>Load balancing policy.</summary>
     [JsonPropertyName("loadBalancingPolicy")]

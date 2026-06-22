@@ -42,6 +42,12 @@ public class DeploymentOptions
     /// <summary>When true, endpoints with role "Dashboard" must bind to 127.0.0.1; otherwise startup fails. Default: true.</summary>
     public bool RequireLoopbackForDashboard { get; set; } = true;
 
+    /// <summary>
+    /// Automatically mount built-in dashboard/proxy middleware when <c>UseAneiangYarpDashboard()</c> is called.
+    /// Set to false for advanced custom pipeline ordering. Default: true.
+    /// </summary>
+    public bool AutoUseMiddleware { get; set; } = true;
+
     /// <summary>Health check configuration.</summary>
     public HealthCheckDeploymentOptions HealthCheck { get; set; } = new();
 

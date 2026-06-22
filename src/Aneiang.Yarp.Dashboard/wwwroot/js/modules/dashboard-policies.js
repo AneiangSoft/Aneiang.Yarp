@@ -211,7 +211,7 @@
                 var descAttr = desc ? ' title="' + window.DashboardUtils.escapeHtml(desc) + '"' : '';
 
                 return '<tr class="align-middle policy-row">' +
-                    '<td><code>' + window.DashboardUtils.escapeHtml(policy.policyId) + '</code></td>' +
+                    '<td><code>' + window.DashboardUtils.escapeHtml(policy.policyKey || policy.policyId) + '</code><div class="text-muted small" style="font-size:10px;"><i class="bi bi-fingerprint"></i> ' + window.DashboardUtils.escapeHtml(policy.policyUid || '-') + '</div></td>' +
                     '<td><strong>' + window.DashboardUtils.escapeHtml(policy.displayName || '-') + '</strong></td>' +
                     '<td class="text-muted small" style="max-width:180px"' + descAttr + '>' + window.DashboardUtils.escapeHtml(descDisplay) + '</td>' +
                     '<td>' + enabledBadge + '</td>' +

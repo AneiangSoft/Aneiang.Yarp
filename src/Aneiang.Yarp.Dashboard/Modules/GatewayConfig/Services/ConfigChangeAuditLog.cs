@@ -109,7 +109,14 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
         // Persist to repository (fire-and-forget)
         _ = Task.Run(async () =>
         {
-            try { await _auditRepo.SaveAuditLogAsync(entry.ToEntity()); }
+            try
+            {
+                var entity = entry.ToEntity();
+                entity.BeforeData = SafeErrorMessages.Redact(entity.BeforeData);
+                entity.AfterData = SafeErrorMessages.Redact(entity.AfterData);
+                entity.ErrorMessage = SafeErrorMessages.Redact(entity.ErrorMessage);
+                await _auditRepo.SaveAuditLogAsync(entity);
+            }
             catch (Exception ex) { _logger.LogWarning(ex, "Failed to persist audit entry"); }
         });
 
@@ -167,6 +174,32 @@ public class ConfigChangeAuditLog : IConfigChangeAuditLog
 
         Array.Sort(entries, (a, b) => b.Timestamp.CompareTo(a.Timestamp));
         return entries.Take(count).ToList();
+    }
+
+    /// <inheritdoc />
+    public (IReadOnlyList<ConfigChangeAudit> Entries, int Total) GetPage(int page = 1, int pageSize = 50, string? action = null)
+    {
+        EnsureLoaded();
+
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, MaxCapacity);
+
+        IEnumerable<ConfigChangeAudit> query = _entries.ToArray()
+            .OrderByDescending(e => e.Timestamp);
+
+        if (!string.IsNullOrWhiteSpace(action))
+        {
+            query = query.Where(e => e.Action.Equals(action, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var list = query.ToList();
+        var total = list.Count;
+        var entries = list
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        return (entries, total);
     }
 
     /// <inheritdoc />

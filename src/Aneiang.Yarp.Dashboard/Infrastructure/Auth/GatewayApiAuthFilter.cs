@@ -62,6 +62,8 @@ internal sealed class GatewayApiAuthFilter : IAsyncAuthorizationFilter
             && hv.Any(v => v == _opts.ApiKey))
             return true;
 
-        return req.Query.TryGetValue("api-key", out var qv) && qv.Any(v => v == _opts.ApiKey);
+        return _opts.AllowApiKeyInQuery
+            && req.Query.TryGetValue("api-key", out var qv)
+            && qv.Any(v => v == _opts.ApiKey);
     }
 }

@@ -28,7 +28,9 @@ public sealed class YarpRequestCaptureMiddleware
     private readonly bool _enableSampling;
     private readonly double _samplingRate;
     private readonly bool _logErrorsOnly;
-    private readonly int _maxBodyLength;
+    private readonly bool _enableRequestBodyCapture;
+    private readonly bool _enableResponseBodyCapture;
+    private readonly int _maxBodyBufferBytes;
 
     // Cached collections for fast filtering (avoid property access)
     private readonly HashSet<string>? _routeWhitelist;
@@ -82,7 +84,9 @@ public sealed class YarpRequestCaptureMiddleware
         _enableSampling = opt.EnableLogSampling;
         _samplingRate = opt.LogSamplingRate;
         _logErrorsOnly = opt.LogErrorsOnly;
-        _maxBodyLength = opt.LogMaxBodyLength;
+        _enableRequestBodyCapture = opt.EnableProxyRequestBodyCapture;
+        _enableResponseBodyCapture = opt.EnableProxyResponseBodyCapture;
+        _maxBodyBufferBytes = Math.Max(0, opt.LogMaxBodyBufferBytes);
 
         // Pre-convert route lists to HashSets for O(1) lookup
         if (opt.LogRouteWhitelist?.Count > 0)
@@ -131,23 +135,26 @@ public sealed class YarpRequestCaptureMiddleware
         // Reuse string from Activity or create minimal allocation Guid
         var traceId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N");
 
-        // Enable request body buffering for capture
-        context.Request.EnableBuffering();
+        var captureRequestBody = _enableRequestBodyCapture && IsRequestBodyCaptureSafe(context.Request);
+        var requestBody = string.Empty;
+        if (captureRequestBody)
+        {
+            context.Request.EnableBuffering();
+            requestBody = await ReadBodyAsync(context.Request, _maxBodyBufferBytes);
+        }
 
-        // Read request body (non-consuming)
-        string requestBody = await ReadBodyAsync(context.Request);
-
-        // Capture response body by replacing Response.Body and IHttpResponseBodyFeature.
-        // Note: YARP internally manages the response transport stream and may bypass
-        // our MemoryStream in proxy scenarios. We capture what we can.
+        var captureResponseBody = _enableResponseBodyCapture && IsResponseBodyCaptureCandidate(context.Request);
         var originalResponseBody = context.Response.Body;
         var originalBodyFeature = context.Features.Get<IHttpResponseBodyFeature>();
-        // Use pooled MemoryStream for reduced GC pressure
-        using var responseBodyStream = new MemoryStream(4096); // Pre-allocate 4KB buffer
-        var captureFeature = new StreamResponseBodyFeature(responseBodyStream, originalBodyFeature);
+        TeeResponseCaptureStream? responseBodyStream = null;
 
-        context.Response.Body = responseBodyStream;
-        context.Features.Set<IHttpResponseBodyFeature>(captureFeature);
+        if (captureResponseBody && originalBodyFeature != null && _maxBodyBufferBytes > 0)
+        {
+            responseBodyStream = new TeeResponseCaptureStream(originalResponseBody, _maxBodyBufferBytes);
+            var captureFeature = new StreamResponseBodyFeature(responseBodyStream, originalBodyFeature);
+            context.Response.Body = responseBodyStream;
+            context.Features.Set<IHttpResponseBodyFeature>(captureFeature);
+        }
 
         await _next(context);
         stopwatch.Stop();
@@ -161,21 +168,28 @@ public sealed class YarpRequestCaptureMiddleware
         // Check if should log before expensive body processing operations
         if (!ShouldLog(context, routeId))
         {
-            // Still need to restore stream even if not logging
-            await RestoreResponseStreamAsync(responseBodyStream, originalResponseBody, originalBodyFeature, context);
+            if (responseBodyStream != null)
+            {
+                RestoreResponseStream(originalResponseBody, originalBodyFeature!, context);
+                await responseBodyStream.DisposeAsync();
+            }
             return;
         }
 
-        // Read response body from the captured stream
-        string responseBodyText = await ReadStreamAsync(responseBodyStream);
+        var responseBodyText = responseBodyStream != null && IsResponseBodyCaptureSafe(context.Response)
+            ? await ReadStreamAsync(responseBodyStream.CapturedBody, _maxBodyBufferBytes)
+            : string.Empty;
 
         // Get captured downstream request data (after transforms like encryption)
         var downstreamBody = GetDownstreamBody(context);
         var downstreamMethod = GetDownstreamMethod(context);
         var downstreamUrlCaptured = GetDownstreamUrl(context) ?? downstreamUrl;
 
-        // Restore original response stream and copy back
-        await RestoreResponseStreamAsync(responseBodyStream, originalResponseBody, originalBodyFeature, context);
+        if (responseBodyStream != null)
+        {
+            RestoreResponseStream(originalResponseBody, originalBodyFeature!, context);
+            await responseBodyStream.DisposeAsync();
+        }
 
         // Sanitize and truncate request body
         var sanitizedRequestBody = _sanitizer.SanitizeJsonBody(requestBody);
@@ -241,14 +255,11 @@ public sealed class YarpRequestCaptureMiddleware
     /// <summary>
     /// Restores the original response stream.
     /// </summary>
-    private static async Task RestoreResponseStreamAsync(
-        MemoryStream responseBodyStream,
+    private static void RestoreResponseStream(
         Stream originalResponseBody,
         IHttpResponseBodyFeature originalBodyFeature,
         HttpContext context)
     {
-        responseBodyStream.Seek(0, SeekOrigin.Begin);
-        await responseBodyStream.CopyToAsync(originalResponseBody);
         context.Response.Body = originalResponseBody;
         context.Features.Set(originalBodyFeature);
     }
@@ -353,6 +364,47 @@ public sealed class YarpRequestCaptureMiddleware
         return null;
     }
 
+    private static bool IsRequestBodyCaptureSafe(HttpRequest request)
+    {
+        if (request.ContentLength is null or 0)
+            return false;
+
+        if (request.ContentLength > 0 && IsStreamingRequest(request))
+            return false;
+
+        return request.HasJsonContentType() || IsTextLikeContentType(request.ContentType);
+    }
+
+    private static bool IsResponseBodyCaptureCandidate(HttpRequest request)
+    {
+        return !IsStreamingRequest(request) && !request.Headers.ContainsKey("Range");
+    }
+
+    private static bool IsResponseBodyCaptureSafe(HttpResponse response)
+    {
+        return !IsTextEventStream(response.ContentType) && IsTextLikeContentType(response.ContentType);
+    }
+
+    private static bool IsStreamingRequest(HttpRequest request)
+    {
+        return request.Headers.Connection.Any(v => v != null && v.Contains("Upgrade", StringComparison.OrdinalIgnoreCase)) ||
+               request.Headers.Accept.Any(v => v != null && v.Contains("text/event-stream", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsTextEventStream(string? contentType)
+    {
+        return contentType != null && contentType.Contains("text/event-stream", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsTextLikeContentType(string? contentType)
+    {
+        return contentType != null &&
+               (contentType.StartsWith("text/", StringComparison.OrdinalIgnoreCase) ||
+                contentType.Contains("json", StringComparison.OrdinalIgnoreCase) ||
+                contentType.Contains("xml", StringComparison.OrdinalIgnoreCase) ||
+                contentType.Contains("form", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static string? BuildDownstreamUrl(IReverseProxyFeature? proxy, HttpRequest request)
     {
         if (proxy?.ProxiedDestination?.Model?.Config?.Address is not { } baseUrl)
@@ -426,9 +478,6 @@ public sealed class YarpRequestCaptureMiddleware
         return null;
     }
 
-    // Max body size to read (64KB) - prevents memory issues with large uploads/downloads
-    private const int MaxBodySizeBytes = 64 * 1024;
-
     /// <summary>
     /// Detects gRPC requests by content type.
     /// gRPC requests use <c>application/grpc</c> (optionally with <c>+proto</c> or <c>+json</c>
@@ -441,17 +490,13 @@ public sealed class YarpRequestCaptureMiddleware
                request.ContentType.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static async Task<string> ReadBodyAsync(HttpRequest request)
+    private static async Task<string> ReadBodyAsync(HttpRequest request, int maxBodyBytes)
     {
-        if (request.ContentLength == null || request.ContentLength == 0)
+        if (request.ContentLength == null || request.ContentLength == 0 || maxBodyBytes <= 0)
             return string.Empty;
 
-        // Skip large request bodies to avoid memory pressure
-        if (request.ContentLength > MaxBodySizeBytes)
+        if (request.ContentLength > maxBodyBytes)
             return $"[{request.ContentType}] ({request.ContentLength} bytes) - too large to log";
-
-        if (!request.HasJsonContentType())
-            return $"[{request.ContentType}] ({request.ContentLength} bytes)";
 
         request.Body.Seek(0, SeekOrigin.Begin);
         using var reader = new StreamReader(request.Body, leaveOpen: true);
@@ -460,19 +505,20 @@ public sealed class YarpRequestCaptureMiddleware
         return body;
     }
 
-    private static async Task<string> ReadStreamAsync(Stream stream)
+    private static async Task<string> ReadStreamAsync(Stream stream, int maxBodyBytes)
     {
+        if (maxBodyBytes <= 0)
+            return string.Empty;
+
         stream.Seek(0, SeekOrigin.Begin);
 
-        // Limit response body reading to prevent memory issues
-        if (stream.Length > MaxBodySizeBytes)
+        if (stream.Length > maxBodyBytes)
         {
-            // Use ArrayPool to reduce char[] allocations
-            var buffer = ArrayPool<char>.Shared.Rent(MaxBodySizeBytes);
+            var buffer = ArrayPool<char>.Shared.Rent(maxBodyBytes);
             try
             {
                 using var reader = new StreamReader(stream, leaveOpen: true);
-                var read = await reader.ReadAsync(buffer, 0, MaxBodySizeBytes);
+                var read = await reader.ReadAsync(buffer, 0, maxBodyBytes);
                 return new string(buffer, 0, read) + "\n... [TRUNCATED - response too large]";
             }
             finally
@@ -483,5 +529,77 @@ public sealed class YarpRequestCaptureMiddleware
 
         using var readerFull = new StreamReader(stream, leaveOpen: true);
         return await readerFull.ReadToEndAsync();
+    }
+
+    private sealed class TeeResponseCaptureStream : Stream
+    {
+        private readonly Stream _inner;
+        private readonly int _limitBytes;
+        private int _capturedBytes;
+
+        public TeeResponseCaptureStream(Stream inner, int limitBytes)
+        {
+            _inner = inner;
+            _limitBytes = Math.Max(0, limitBytes);
+            CapturedBody = new MemoryStream(Math.Min(_limitBytes, 64 * 1024));
+        }
+
+        public MemoryStream CapturedBody { get; }
+
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => _inner.CanWrite;
+        public override long Length => _inner.Length;
+        public override long Position { get => _inner.Position; set => throw new NotSupportedException(); }
+
+        public override void Flush() => _inner.Flush();
+        public override Task FlushAsync(CancellationToken cancellationToken) => _inner.FlushAsync(cancellationToken);
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => _inner.SetLength(value);
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            Capture(buffer.AsSpan(offset, count));
+            _inner.Write(buffer, offset, count);
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            Capture(buffer);
+            _inner.Write(buffer);
+        }
+
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            Capture(buffer.Span);
+            await _inner.WriteAsync(buffer, cancellationToken);
+        }
+
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            Capture(buffer.AsSpan(offset, count));
+            return _inner.WriteAsync(buffer, offset, count, cancellationToken);
+        }
+
+        private void Capture(ReadOnlySpan<byte> buffer)
+        {
+            if (_capturedBytes >= _limitBytes || buffer.Length == 0)
+                return;
+
+            var remaining = _limitBytes - _capturedBytes;
+            var bytesToCapture = Math.Min(remaining, buffer.Length);
+            CapturedBody.Write(buffer[..bytesToCapture]);
+            _capturedBytes += bytesToCapture;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                CapturedBody.Dispose();
+            }
+            base.Dispose(disposing);
+        }
     }
 }

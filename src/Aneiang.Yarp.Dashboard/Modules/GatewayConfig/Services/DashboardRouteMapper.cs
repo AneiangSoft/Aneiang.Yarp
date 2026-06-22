@@ -1,4 +1,5 @@
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Models;
+using Aneiang.Yarp.Models;
 using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
@@ -17,7 +18,9 @@ internal static class DashboardRouteMapper
         RouteConfig route,
         IReadOnlyDictionary<string, List<DestinationInfoEntry>> clusterDestinations,
         IReadOnlyDictionary<string, List<Dictionary<string, string>>>? configTransforms,
-        IReadOnlyDictionary<string, string>? routeSources)
+        IReadOnlyDictionary<string, string>? routeSources,
+        IReadOnlyDictionary<string, DynamicRouteConfig>? dynamicRoutes = null,
+        IReadOnlyDictionary<string, DynamicClusterConfig>? dynamicClusters = null)
     {
         var match = route.Match;
 
@@ -52,6 +55,11 @@ internal static class DashboardRouteMapper
         }
 
         var (isEditable, source) = GetRouteEditability(route.RouteId, routeSources);
+        DynamicRouteConfig? dynamicRoute = null;
+        dynamicRoutes?.TryGetValue(route.RouteId ?? string.Empty, out dynamicRoute);
+        DynamicClusterConfig? dynamicCluster = null;
+        if (!string.IsNullOrWhiteSpace(route.ClusterId))
+            dynamicClusters?.TryGetValue(route.ClusterId, out dynamicCluster);
 
         // Pre-calculate metadata dictionary if needed
         Dictionary<string, string>? metadataDict = null;
@@ -66,7 +74,12 @@ internal static class DashboardRouteMapper
 
         return new DashboardRouteResponse
         {
-            RouteId = route.RouteId,
+            RouteId = route.RouteId ?? string.Empty,
+            RouteUid = dynamicRoute?.RouteUid,
+            RouteKey = route.RouteId ?? string.Empty,
+            DisplayName = dynamicRoute?.DisplayName ?? route.RouteId ?? string.Empty,
+            ClusterUid = dynamicRoute?.ClusterUid ?? dynamicCluster?.ClusterUid,
+            ClusterKey = route.ClusterId,
             ClusterId = route.ClusterId,
             Match = new RouteMatchInfo
             {

@@ -39,15 +39,19 @@ public sealed class CircuitBreakerMiddleware
     /// Ensure a circuit entry exists for clusters that have CB enabled,
     /// so that the dashboard can show them even before any traffic arrives.
     /// </summary>
-    public static void EnsureCircuitExists(string clusterId, CircuitBreakerConfig cbConfig)
+    public static void EnsureCircuitExists(string clusterId, CircuitBreakerConfig cbConfig, string? clusterUid = null)
     {
-        var circuitKey = $"{clusterId}:any";
+        var circuitKey = BuildCircuitKey(clusterUid, clusterId, null);
         var options = ToOptions(cbConfig, maxCircuitCount: 1000);
         var state = _circuits.GetOrAdd(circuitKey, _ => new CircuitState(options));
 
         lock (_stateLock)
         {
             state.ApplyOptions(options);
+            state.ClusterUid = clusterUid ?? StableUidFromKey("cluster", clusterId);
+            state.ClusterKeySnapshot = clusterId;
+            state.DestinationUid = "any";
+            state.DestinationKeySnapshot = "any";
         }
     }
 
@@ -95,7 +99,8 @@ public sealed class CircuitBreakerMiddleware
             return;
         }
 
-        var circuitKey = $"{clusterId}:{destinationId ?? "any"}";
+        var clusterUid = ResolveClusterUid(clusterId);
+        var circuitKey = BuildCircuitKey(clusterUid, clusterId, destinationId);
 
         var cbConfig = GetClusterCircuitBreakerConfig(clusterId);
         if (cbConfig == null || !cbConfig.Enabled)
@@ -115,6 +120,13 @@ public sealed class CircuitBreakerMiddleware
         }
 
         var state = _circuits.GetOrAdd(circuitKey, _ => new CircuitState(effectiveOptions));
+        lock (_stateLock)
+        {
+            state.ClusterUid = clusterUid ?? StableUidFromKey("cluster", clusterId);
+            state.ClusterKeySnapshot = clusterId;
+            state.DestinationUid = ResolveDestinationUid(destinationId);
+            state.DestinationKeySnapshot = destinationId ?? "any";
+        }
         state.LastAccessedAt = DateTime.Now;
 
         TryCleanupStaleCircuits();
@@ -198,6 +210,14 @@ public sealed class CircuitBreakerMiddleware
             ?.CircuitBreaker;
     }
 
+    private string? ResolveClusterUid(string clusterId)
+    {
+        var dynConfig = _yarpConfig.GetDynamicConfig();
+        return dynConfig?.Clusters.FirstOrDefault(c =>
+            string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase))
+            ?.ClusterUid;
+    }
+
     private CircuitBreakerOptions GetEffectiveOptions(CircuitBreakerConfig cbConfig) =>
         ToOptions(cbConfig, _options.MaxCircuitCount);
 
@@ -238,8 +258,7 @@ public sealed class CircuitBreakerMiddleware
                     state.Status = CircuitStatus.Open;
                     state.OpenedAt = DateTime.Now;
                     _logger.LogWarning("Circuit OPENED for {CircuitKey} after {Failures} failures", circuitKey, state.ConsecutiveFailures);
-                    var (cbCluster, cbDest) = ParseCircuitKey(circuitKey);
-                    _notificationService.NotifyCircuitBreakerOpen(cbCluster, cbDest);
+                    _notificationService.NotifyCircuitBreakerOpen(state.ClusterKeySnapshot, state.DestinationKeySnapshot);
                 }
             }
             else
@@ -259,23 +278,42 @@ public sealed class CircuitBreakerMiddleware
     }
 
     /// <summary>Get circuit breaker state for all circuits (for dashboard).</summary>
-    public static IReadOnlyDictionary<string, CircuitStateInfo> GetAllCircuitStates()
+    public static IReadOnlyList<CircuitStateInfo> GetAllCircuitStates()
     {
-        return _circuits.ToDictionary(
-            kv => kv.Key,
-            kv => new CircuitStateInfo
-            {
-                Key = kv.Key,
-                Status = kv.Value.Status.ToString(),
-                ConsecutiveFailures = kv.Value.ConsecutiveFailures,
-                FailureThreshold = kv.Value.FailureThreshold,
-                RecoveryTimeout = kv.Value.RecoveryTimeout,
-                RecoveryTimeoutSeconds = (int)kv.Value.RecoveryTimeout.TotalSeconds,
-                HalfOpenRequests = kv.Value.HalfOpenRequests,
-                MaxHalfOpenAttempts = kv.Value.MaxHalfOpenAttempts,
-                OpenedAt = kv.Value.OpenedAt == DateTime.MinValue ? null : kv.Value.OpenedAt,
-                LastAccessedAt = kv.Value.LastAccessedAt
-            });
+        return _circuits.Select(kv => new CircuitStateInfo
+        {
+            Key = kv.Key,
+            ClusterUid = kv.Value.ClusterUid,
+            ClusterKeySnapshot = kv.Value.ClusterKeySnapshot,
+            DestinationUid = kv.Value.DestinationUid,
+            DestinationKeySnapshot = kv.Value.DestinationKeySnapshot,
+            Status = kv.Value.Status.ToString(),
+            ConsecutiveFailures = kv.Value.ConsecutiveFailures,
+            FailureThreshold = kv.Value.FailureThreshold,
+            RecoveryTimeout = kv.Value.RecoveryTimeout,
+            RecoveryTimeoutSeconds = (int)kv.Value.RecoveryTimeout.TotalSeconds,
+            HalfOpenRequests = kv.Value.HalfOpenRequests,
+            MaxHalfOpenAttempts = kv.Value.MaxHalfOpenAttempts,
+            OpenedAt = kv.Value.OpenedAt == DateTime.MinValue ? null : kv.Value.OpenedAt,
+            LastAccessedAt = kv.Value.LastAccessedAt
+        }).ToList();
+    }
+
+    /// <summary>Remove circuit entries for a cluster (used when policy is unapplied).</summary>
+    public static void RemoveCircuitsForCluster(string clusterId, string? clusterUid = null)
+    {
+        var keysToRemove = _circuits
+            .Where(kv =>
+                string.Equals(kv.Value.ClusterKeySnapshot, clusterId, StringComparison.OrdinalIgnoreCase)
+                || (!string.IsNullOrWhiteSpace(clusterUid)
+                    && string.Equals(kv.Value.ClusterUid, clusterUid, StringComparison.OrdinalIgnoreCase)))
+            .Select(kv => kv.Key)
+            .ToList();
+
+        foreach (var key in keysToRemove)
+        {
+            _circuits.TryRemove(key, out _);
+        }
     }
 
     /// <summary>Reset all circuits.</summary>
@@ -292,19 +330,15 @@ public sealed class CircuitBreakerMiddleware
         }
     }
 
-    /// <summary>Rename circuit keys after a cluster key changes.</summary>
+    /// <summary>Update cluster key snapshots after a cluster key changes. UID-based keys remain stable.</summary>
     public static void RenameClusterKey(string oldClusterId, string newClusterId)
     {
-        var prefix = oldClusterId + ":";
-        foreach (var kv in _circuits.ToArray())
+        foreach (var state in _circuits.Values)
         {
-            if (!kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
-
-            var destinationPart = kv.Key[prefix.Length..];
-            var newKey = newClusterId + ":" + destinationPart;
-            if (_circuits.TryRemove(kv.Key, out var state))
+            if (!string.Equals(state.ClusterKeySnapshot, oldClusterId, StringComparison.OrdinalIgnoreCase)) continue;
+            lock (_stateLock)
             {
-                _circuits[newKey] = state;
+                state.ClusterKeySnapshot = newClusterId;
             }
         }
     }
@@ -313,17 +347,35 @@ public sealed class CircuitBreakerMiddleware
     /// Check if a specific circuit is open for a cluster/destination.
     /// Used by retry middleware to skip unhealthy destinations.
     /// </summary>
-    public static bool IsCircuitOpen(string clusterId, string? destinationId = null)
+    public static bool IsCircuitOpen(string clusterId, string? destinationId = null, string? clusterUid = null)
     {
-        var key = $"{clusterId}:{destinationId ?? "any"}";
-        if (_circuits.TryGetValue(key, out var state))
+        var key = BuildCircuitKey(clusterUid, clusterId, destinationId);
+        if (!_circuits.TryGetValue(key, out var state))
         {
-            lock (_stateLock)
-            {
-                return state.Status == CircuitStatus.Open;
-            }
+            var legacyKey = $"{clusterId}:{destinationId ?? "any"}";
+            _circuits.TryGetValue(legacyKey, out state);
         }
-        return false;
+
+        if (state == null) return false;
+        lock (_stateLock)
+        {
+            return state.Status == CircuitStatus.Open;
+        }
+    }
+
+    private static string BuildCircuitKey(string? clusterUid, string clusterKey, string? destinationKey)
+    {
+        var resolvedClusterUid = string.IsNullOrWhiteSpace(clusterUid) ? StableUidFromKey("cluster", clusterKey) : clusterUid;
+        return $"{resolvedClusterUid}:{ResolveDestinationUid(destinationKey)}";
+    }
+
+    private static string ResolveDestinationUid(string? destinationKey)
+        => string.IsNullOrWhiteSpace(destinationKey) ? "any" : StableUidFromKey("destination", destinationKey);
+
+    private static string StableUidFromKey(string prefix, string key)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(prefix + ":" + key));
+        return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
     }
 
     private static (string ClusterId, string? DestinationId) ParseCircuitKey(string key)
@@ -365,6 +417,10 @@ internal enum CircuitStatus { Closed, Open, HalfOpen }
 
 internal class CircuitState
 {
+    public string ClusterUid { get; set; } = string.Empty;
+    public string ClusterKeySnapshot { get; set; } = string.Empty;
+    public string DestinationUid { get; set; } = "any";
+    public string DestinationKeySnapshot { get; set; } = "any";
     public CircuitStatus Status { get; set; } = CircuitStatus.Closed;
     public int ConsecutiveFailures { get; set; }
     public int FailureThreshold { get; set; }
@@ -390,6 +446,11 @@ internal class CircuitState
 public class CircuitStateInfo
 {
     public string Key { get; set; } = string.Empty;
+    public string ClusterUid { get; set; } = string.Empty;
+    public string ClusterKeySnapshot { get; set; } = string.Empty;
+    public string ClusterName { get; set; } = string.Empty;
+    public string DestinationUid { get; set; } = "any";
+    public string DestinationKeySnapshot { get; set; } = "any";
     public string Status { get; set; } = "Closed";
     public int ConsecutiveFailures { get; set; }
     public int FailureThreshold { get; set; }
