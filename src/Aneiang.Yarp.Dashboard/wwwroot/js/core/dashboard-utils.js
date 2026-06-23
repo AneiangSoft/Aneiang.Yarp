@@ -303,6 +303,27 @@
         }
     };
 
+    // ===== CSV Export =====
+    window.DashboardUtils.exportCsv = function(filename, headers, rows) {
+        var csv = headers.join(',') + '\n';
+        rows.forEach(function(row) {
+            csv += row.map(function(cell) {
+                var val = cell == null ? '' : String(cell);
+                if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+                    return '"' + val.replace(/"/g, '""') + '"';
+                }
+                return val;
+            }).join(',') + '\n';
+        });
+        var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     // ===== Performance Utilities =====
     
     /**

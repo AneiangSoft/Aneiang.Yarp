@@ -175,7 +175,13 @@
         },
 
         resetAll: async function() {
-            if (!confirm(__('circuit.resetConfirm'))) return;
+            window.DashboardModals.showConfirm(__('circuit.resetConfirm'), async function() {
+                try {
+                    await window.DashboardApi.resetCircuitBreakers();
+                    window.DashboardModals.showSuccess(__('circuit.resetSuccess'));
+                    await self.load();
+                } catch (e) { window.DashboardModals.showError(__('circuit.resetFailed')); }
+            }, null, { danger: true });
             try {
                 await window.DashboardApi.resetCircuitBreakers();
                 if (window.DashboardModals) {

@@ -1567,6 +1567,82 @@
 
     // Expose to window
     window.ClustersModule = ClustersModule;
+
+    // Batch operations
+    ClustersModule._selectedClusters = new Set();
+
+    ClustersModule.toggleSelectAll = function(checked) {
+        var checkboxes = document.querySelectorAll('.cluster-row-checkbox');
+        checkboxes.forEach(function(cb) {
+            cb.checked = checked;
+            var id = cb.value;
+            if (checked) ClustersModule._selectedClusters.add(id);
+            else ClustersModule._selectedClusters.delete(id);
+        });
+        ClustersModule._updateBatchBar();
+    };
+
+    ClustersModule.toggleSelect = function(id, checked) {
+        if (checked) ClustersModule._selectedClusters.add(id);
+        else ClustersModule._selectedClusters.delete(id);
+        ClustersModule._updateBatchBar();
+    };
+
+    ClustersModule._updateBatchBar = function() {
+        var bar = document.getElementById('cluster-batch-bar');
+        var countEl = document.getElementById('cluster-batch-count');
+        if (bar) bar.classList.toggle('active', ClustersModule._selectedClusters.size > 0);
+        if (countEl) countEl.textContent = ClustersModule._selectedClusters.size;
+    };
+
+    ClustersModule.clearBatch = function() {
+        ClustersModule._selectedClusters.clear();
+        document.querySelectorAll('.cluster-row-checkbox').forEach(function(cb) { cb.checked = false; });
+        var selectAll = document.getElementById('cluster-select-all');
+        if (selectAll) selectAll.checked = false;
+        ClustersModule._updateBatchBar();
+    };
+
+    ClustersModule.batchDelete = function() {
+        var ids = Array.from(ClustersModule._selectedClusters);
+        if (ids.length === 0) return;
+        window.DashboardModals.showConfirm(
+            __('index.batchDeleteConfirm').replace('{count}', ids.length),
+            async function() {
+                var errors = [];
+                for (var i = 0; i < ids.length; i++) {
+                    try {
+                        await window.DashboardApi.endpoints.deleteClusterConfig(ids[i]);
+                    } catch (e) { errors.push(ids[i]); }
+                }
+                ClustersModule.clearBatch();
+                if (errors.length > 0) {
+                    window.DashboardModals.showError(__('index.batchDeletePartial').replace('{failed}', errors.length).replace('{total}', ids.length));
+                } else {
+                    window.DashboardModals.showSuccess(__('index.batchDeleteSuccess'));
+                }
+                await ClustersModule.loadClusters(true);
+            }, null, { danger: true }
+        );
+    };
+
+    ClustersModule.exportCsv = function() {
+        var clusters = window.DashboardState.get('data.clusters') || [];
+        if (clusters.length === 0) { window.DashboardModals.showWarning(__('index.noDataExport')); return; }
+        var headers = ['Cluster ID', 'Display Name', 'Load Balancing', 'Destinations', 'Healthy', 'Source'];
+        var rows = clusters.map(function(c) {
+            return [
+                c.clusterId || '',
+                c.displayName || c.clusterId || '',
+                c.loadBalancingPolicy || 'RoundRobin',
+                (c.destinations || []).length,
+                c.healthyCount || 0,
+                c.source || 'dynamic'
+            ];
+        });
+        window.DashboardUtils.exportCsv('clusters-' + Date.now() + '.csv', headers, rows);
+        window.DashboardModals.showSuccess(__('index.exportSuccess'));
+    };
     
     // Global functions for onclick handlers
     window.manualRefresh = async function(btn) {

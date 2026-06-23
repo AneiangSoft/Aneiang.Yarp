@@ -294,7 +294,7 @@
             // Trigger health check refresh
             var result = await DashboardApi.get('/api/health-check/clusters');
             if (result.code === 200) {
-                alert(__('overview.quickActions.healthRefreshed') || '健康状态已刷新');
+                window.DashboardModals.showSuccess(__('overview.quickActions.healthRefreshed') || '健康状态已刷新');
                 loadAlertSummary();
             }
         } catch (e) {
@@ -323,6 +323,36 @@
             }
         } catch (e) {
             console.error('[OpsModule] Export snapshot failed:', e);
+        }
+    }
+
+    /**
+     * Load system health metrics
+     */
+    async function loadSystemHealth() {
+        try {
+            var info = await window.DashboardApi.getInfo();
+            if (!info) return;
+
+            // Memory
+            var memMB = info.memoryWorkingSet || info.memory || 0;
+            var memMBVal = Math.round(memMB / (1024 * 1024));
+            updateElement('sys-mem-value', memMBVal + ' MB');
+            var memPct = Math.min(100, Math.round((memMB / (info.totalMemory || 1)) * 100));
+            var memBar = document.getElementById('sys-mem-bar');
+            if (memBar) memBar.style.width = memPct + '%';
+
+            // CPU (approximate from process CPU time)
+            var cpuPct = info.cpuUsage || 0;
+            updateElement('sys-cpu-value', cpuPct + '%');
+            var cpuBar = document.getElementById('sys-cpu-bar');
+            if (cpuBar) cpuBar.style.width = Math.min(100, cpuPct) + '%';
+
+            // GC + Threads
+            updateElement('sys-gc-value', info.gcCount || info.gcTotalCount || '--');
+            updateElement('sys-thread-value', info.threadCount || '--');
+        } catch (e) {
+            console.error('[OpsModule] System health load failed:', e);
         }
     }
 
@@ -363,6 +393,7 @@
         loadAlertSummary: loadAlertSummary,
         loadTrafficChart: loadTrafficChart,
         loadTopErrors: loadTopErrors,
+        loadSystemHealth: loadSystemHealth,
         changeTimeRange: changeTimeRange,
         refreshHealth: refreshHealth,
         exportSnapshot: exportSnapshot

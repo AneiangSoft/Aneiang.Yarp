@@ -268,8 +268,7 @@
         }
 
         function checkDestination(clusterId, destinationId) {
-            alert(__('health.checking') || '正在检查 ' + clusterId + '/' + destinationId + '...');
-            // This would trigger an actual health check
+            DashboardModals.showInfo(__('health.checking') || '正在检查 ' + clusterId + '/' + destinationId + '...');
         }
 
         function updateElement(id, value) {

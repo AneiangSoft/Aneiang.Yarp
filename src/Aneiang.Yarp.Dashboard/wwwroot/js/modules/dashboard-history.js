@@ -211,7 +211,13 @@
         rollback: async function(versionId) {
             const entry = this.entries.find(e => e.versionId === versionId);
             const label = entry ? `${entry.shortId} - ${entry.description || ''}` : versionId;
-            if (!confirm(`确认回滚到版本 ${label}？当前配置会先自动保存快照。`)) return;
+            window.DashboardModals.showConfirm(__('history.rollbackConfirm').replace('{id}', label), async function() {
+                try {
+                    await window.DashboardApi.endpoints.rollbackConfig(entry.versionId);
+                    window.DashboardModals.showSuccess(__('history.rollbackSuccess'));
+                    await self.loadHistory();
+                } catch (e) { window.DashboardModals.showError(__('history.rollbackFailed')); }
+            }, null, { danger: true, confirmText: __('history.rollback') });
 
             try {
                 await window.DashboardApi.endpoints.rollback(versionId);
@@ -243,7 +249,13 @@
                 return;
             }
 
-            if (!confirm('确认清空所有配置历史快照？此操作不会影响当前网关配置，但清空后无法回滚到旧版本。')) return;
+            window.DashboardModals.showConfirm(__('history.clearAllConfirm'), async function() {
+                try {
+                    await window.DashboardApi.endpoints.clearHistory();
+                    window.DashboardModals.showSuccess(__('history.clearAllSuccess'));
+                    await self.loadHistory();
+                } catch (e) { window.DashboardModals.showError(__('history.clearAllFailed')); }
+            }, null, { danger: true });
 
             try {
                 await window.DashboardApi.endpoints.clearConfigHistory();
