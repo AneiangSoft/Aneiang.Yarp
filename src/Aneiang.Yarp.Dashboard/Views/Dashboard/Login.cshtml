@@ -110,6 +110,7 @@
         .login-card .btn-primary:hover { background: #4338ca; }
         .login-card .btn-primary:active { background: #3730a3; }
         .login-card .alert { border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
+        .login-card .alert-info { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
         .login-card .input-icon { color: #6366f1; font-size: 14px; }
 
         .login-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 20px; }
@@ -176,14 +177,20 @@
             <div class="login-title" data-i18n="login.welcome">欢迎回来</div>
             <div class="login-subtitle" data-i18n="login.subtitle">请登录以继续管理您的网关</div>
             <div class="alert alert-danger" id="error-msg" role="alert"></div>
+            <div class="alert alert-info d-none" id="info-msg" role="alert"></div>
             <form id="login-form">
                 <div class="mb-3">
                     <label class="form-label"><i class="bi bi-person input-icon"></i><span data-i18n="login.username">用户名</span></label>
                     <input type="text" class="form-control" id="username" data-i18n-placeholder="login.username.placeholder" placeholder="请输入用户名" required autofocus />
                 </div>
-                <div class="mb-4">
+                <div class="mb-3">
                     <label class="form-label"><i class="bi bi-lock input-icon"></i><span data-i18n="login.password">密码</span></label>
                     <input type="password" class="form-control" id="password" data-i18n-placeholder="login.password.placeholder" placeholder="请输入密码" required />
+                </div>
+                <div class="mb-4 d-none" id="twofactor-group">
+                    <label class="form-label"><i class="bi bi-shield-lock input-icon"></i><span data-i18n="login.twofactor">两步验证码</span></label>
+                    <input type="text" class="form-control" id="twofactor-code" data-i18n-placeholder="login.twofactor.placeholder" placeholder="输入 6 位验证码" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" />
+                    <small class="text-muted mt-1" data-i18n="login.twofactorHint">请打开验证器应用获取 6 位验证码</small>
                 </div>
                 <button type="submit" class="btn btn-primary w-100" id="login-btn">
                     <span id="btn-text" data-i18n="login.submit">登 录</span>
@@ -237,11 +244,15 @@
             const text = document.getElementById('btn-text');
             const spinner = document.getElementById('btn-spinner');
             const errorMsg = document.getElementById('error-msg');
+            const infoMsg = document.getElementById('info-msg');
+            const twofaGroup = document.getElementById('twofactor-group');
+            const isTwofaVisible = twofaGroup && !twofaGroup.classList.contains('d-none');
 
             btn.disabled = true;
-            text.textContent = __('login.submitting');
+            text.textContent = isTwofaVisible ? __('login.verifying') : __('login.submitting');
             spinner.classList.remove('d-none');
             errorMsg.style.display = 'none';
+            infoMsg.style.display = 'none';
 
             try {
                 const res = await fetch(basePath + '/login', {
@@ -249,23 +260,42 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         username: document.getElementById('username').value.trim(),
-                        password: document.getElementById('password').value
+                        password: document.getElementById('password').value,
+                        twoFactorCode: (document.getElementById('twofactor-code') || {}).value || null
                     })
                 });
                 const json = await res.json();
                 if (json.code === 200 && json.token) {
                     localStorage.setItem('dashboard_token', json.token);
                     window.location.href = basePath + '/';
+                } else if (json.code === 202 && json.requiresTwoFactor) {
+                    // Show 2FA input — informational, not an error
+                    if (twofaGroup) {
+                        twofaGroup.classList.remove('d-none');
+                        var twofaInput = document.getElementById('twofactor-code');
+                        if (twofaInput) twofaInput.focus();
+                    }
+                    infoMsg.textContent = __('login.twofactorRequired');
+                    infoMsg.style.display = 'block';
+                    text.textContent = __('login.verify');
                 } else {
                     errorMsg.textContent = json.message || __('login.failed');
                     errorMsg.style.display = 'block';
+                    // If 2FA was visible, keep it visible for retry
+                    if (isTwofaVisible) {
+                        text.textContent = __('login.verify');
+                    }
                 }
             } catch (err) {
                 errorMsg.textContent = __('login.networkError');
                 errorMsg.style.display = 'block';
             } finally {
                 btn.disabled = false;
-                text.textContent = __('login.submit');
+                if (!isTwofaVisible && !document.getElementById('twofactor-group').classList.contains('d-none')) {
+                    text.textContent = __('login.verify');
+                } else if (document.getElementById('twofactor-group').classList.contains('d-none')) {
+                    text.textContent = __('login.submit');
+                }
                 spinner.classList.add('d-none');
             }
         });

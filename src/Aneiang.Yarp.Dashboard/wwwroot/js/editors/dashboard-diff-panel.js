@@ -204,19 +204,24 @@
             var label = labelMap[diff.type] || diff.type;
             var oldLabel = __('diff.old') || 'Old';
             var newLabel = __('diff.new') || 'New';
-            
+
+            var oldValStr = diff.oldValue !== undefined ? window.DashboardUtils.escapeHtml(JSON.stringify(diff.oldValue, null, 2)) : '<span class="text-muted">—</span>';
+            var newValStr = diff.newValue !== undefined ? window.DashboardUtils.escapeHtml(JSON.stringify(diff.newValue, null, 2)) : '<span class="text-muted">—</span>';
+
             var html = '<div class="' + className + ' p-2 mb-2 border-start border-3 rounded">';
-            html += '<div class="fw-bold">' + icon + ' ' + label + '</div>';
-            html += '<div class="text-muted small">' + window.DashboardUtils.escapeHtml(diff.path) + '</div>';
-            
-            if (diff.oldValue !== undefined) {
-                html += '<div class="text-danger small">' + oldLabel + ': ' + window.DashboardUtils.escapeHtml(JSON.stringify(diff.oldValue)) + '</div>';
-            }
-            
-            if (diff.newValue !== undefined) {
-                html += '<div class="text-success small">' + newLabel + ': ' + window.DashboardUtils.escapeHtml(JSON.stringify(diff.newValue)) + '</div>';
-            }
-            
+            html += '<div class="d-flex align-items-center justify-content-between">';
+            html += '<div><span class="fw-bold">' + icon + ' ' + label + '</span> <code class="text-muted small">' + window.DashboardUtils.escapeHtml(diff.path) + '</code></div>';
+            html += '<button class="btn btn-sm btn-outline-secondary btn-icon-only diff-toggle" onclick="this.closest(\'.diff-' + diff.type + '\').classList.toggle(\'diff-collapsed\')"><i class="bi bi-chevron-down"></i></button>';
+            html += '</div>';
+
+            // Side-by-side view
+            html += '<div class="diff-body mt-2">';
+            html += '<div class="row g-2">';
+            html += '<div class="col-6"><div class="small text-muted mb-1">' + oldLabel + '</div><pre class="diff-pre diff-old">' + oldValStr + '</pre></div>';
+            html += '<div class="col-6"><div class="small text-muted mb-1">' + newLabel + '</div><pre class="diff-pre diff-new">' + newValStr + '</pre></div>';
+            html += '</div>';
+            html += '</div>';
+
             html += '</div>';
             return html;
         },

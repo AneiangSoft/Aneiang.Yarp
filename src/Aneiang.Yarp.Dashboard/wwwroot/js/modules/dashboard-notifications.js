@@ -722,7 +722,13 @@
         },
 
         deleteChannel: async function(id) {
-            if (!confirm(__('notif.deleteChannelConfirm'))) return;
+            window.DashboardModals.showConfirm(__('notif.deleteChannelConfirm'), async function() {
+                try {
+                    await window.DashboardApi.deleteNotificationChannel(channelId);
+                    window.DashboardModals.showSuccess(__('notif.channelDeleted'));
+                    await self.loadChannels();
+                } catch (e) { window.DashboardModals.showError(__('notif.deleteFailed')); }
+            }, null, { danger: true });
             try {
                 await DashboardApi.delete('/api/notifications/channels/' + id);
                 this.loadSettings();
@@ -852,7 +858,13 @@
         },
 
         deleteRule: async function(id) {
-            if (!confirm(__('notif.deleteRuleConfirm'))) return;
+            window.DashboardModals.showConfirm(__('notif.deleteRuleConfirm'), async function() {
+                try {
+                    await window.DashboardApi.deleteNotificationRule(ruleId);
+                    window.DashboardModals.showSuccess(__('notif.ruleDeleted'));
+                    await self.loadRules();
+                } catch (e) { window.DashboardModals.showError(__('notif.deleteFailed')); }
+            }, null, { danger: true });
             try {
                 await DashboardApi.delete('/api/notifications/rules/' + id);
                 this.loadSettings();
@@ -888,7 +900,13 @@
         // ─── Actions ───────────────────────────────────────────────────────
 
         clearHistory: async function() {
-            if (!confirm(__('notif.clearHistoryConfirm'))) return;
+            window.DashboardModals.showConfirm(__('notif.clearHistoryConfirm'), async function() {
+                try {
+                    await window.DashboardApi.clearNotificationHistory();
+                    window.DashboardModals.showSuccess(__('notif.clearSuccess'));
+                    await self.loadHistory();
+                } catch (e) { window.DashboardModals.showError(__('notif.clearFailed')); }
+            }, null, { danger: true });
             try {
                 await DashboardApi.delete('/api/notifications/history');
                 this.loadHistory();

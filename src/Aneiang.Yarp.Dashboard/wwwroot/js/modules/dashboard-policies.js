@@ -475,18 +475,20 @@
 
         // ─── Delete ─────────────────────────────────────
 
-        deletePolicy: async function(type, policyId) {
+        deletePolicy: function(type, policyId) {
+            var self = this;
             var endpoint = type === 'route' ? 'routes' : 'clusters';
             var msg = __('policy.deleteConfirm').replace('{name}', policyId);
-            if (!confirm(msg)) return;
-            try {
-                await window.DashboardApi.deletePolicy(endpoint, policyId);
-                if (window.DashboardModals) window.DashboardModals.showToast(__('policy.deleteSuccess'), 'success');
-                await this.load();
-            } catch (error) {
-                console.error('[Policy] Delete failed:', error);
-                if (window.DashboardModals) window.DashboardModals.showError(__('policy.deleteFailed'));
-            }
+            window.DashboardModals.showConfirm(msg, async function() {
+                try {
+                    await window.DashboardApi.deletePolicy(endpoint, policyId);
+                    window.DashboardModals.showSuccess(__('policy.deleteSuccess'));
+                    await self.load();
+                } catch (error) {
+                    console.error('[Policy] Delete failed:', error);
+                    window.DashboardModals.showError(__('policy.deleteFailed'));
+                }
+            }, null, { danger: true });
         },
 
         // ─── Apply / Unapply ────────────────────────────

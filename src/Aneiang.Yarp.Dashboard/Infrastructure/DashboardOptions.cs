@@ -80,6 +80,27 @@ public class DashboardOptions
     /// <summary>Password for JWT login (required for both CustomJwt and DefaultJwt).</summary>
     public string? JwtPassword { get; set; }
 
+    /// <summary>
+    /// Enable Two-Factor Authentication (TOTP) for JWT login.
+    /// When enabled, users must provide a 6-digit code from an authenticator app.
+    /// The shared secret is configured via <see cref="TwoFactorSecret"/>.
+    /// Default: false.
+    /// </summary>
+    public bool EnableTwoFactor { get; set; }
+
+    /// <summary>
+    /// Base32-encoded TOTP shared secret for 2FA.
+    /// Generate with: any TOTP app or the dashboard's "Setup 2FA" page.
+    /// If null while EnableTwoFactor is true, 2FA is skipped (development mode).
+    /// </summary>
+    public string? TwoFactorSecret { get; set; }
+
+    /// <summary>
+    /// Minimum password length for JWT login. Default: 6.
+    /// Only enforced at login time (does not prevent existing config).
+    /// </summary>
+    public int MinPasswordLength { get; set; } = 6;
+
     // ─── Custom delegate (highest priority) ───────────────
 
     /// <summary>

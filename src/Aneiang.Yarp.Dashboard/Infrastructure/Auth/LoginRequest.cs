@@ -8,4 +8,7 @@ public class LoginRequest
 
     /// <summary>Password.</summary>
     public string Password { get; set; } = string.Empty;
+
+    /// <summary>TOTP 2FA code (6 digits). Required when 2FA is enabled.</summary>
+    public string? TwoFactorCode { get; set; }
 }

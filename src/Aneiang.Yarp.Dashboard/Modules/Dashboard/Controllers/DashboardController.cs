@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Auth;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
@@ -34,6 +35,13 @@ public class DashboardController : Controller
     private readonly string? _jwtSecret;
     private readonly string? _jwtPassword;
     private readonly string? _jwtUsername;
+    private readonly bool _enableTwoFactor;
+    private readonly string? _twoFactorSecret;
+    private readonly int _minPasswordLength;
+
+    // Runtime 2FA state (persisted to file)
+    private static readonly string _twoFactorStateFile = Path.Combine(AppContext.BaseDirectory, "twofactor-state.json");
+    private static readonly object _twoFactorLock = new();
 
     /// <summary>Initializes a new instance of DashboardController.</summary>
     /// <param name="infoQuery">Dashboard info query service.</param>
@@ -66,6 +74,9 @@ public class DashboardController : Controller
         _jwtSecret = opt.JwtSecret;
         _jwtPassword = opt.JwtPassword;
         _jwtUsername = opt.JwtUsername;
+        _enableTwoFactor = opt.EnableTwoFactor;
+        _twoFactorSecret = opt.TwoFactorSecret;
+        _minPasswordLength = opt.MinPasswordLength;
         _storageOptions = storageOptions.Value;
     }
 
@@ -261,6 +272,10 @@ public class DashboardController : Controller
         if (request == null || string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
             return Json(new { code = 400, message = "Username and password are required" });
 
+        // Password length check
+        if (request.Password.Length < _minPasswordLength)
+            return Json(new { code = 400, message = $"Password must be at least {_minPasswordLength} characters" });
+
         bool valid = _authMode switch
         {
             DashboardAuthMode.CustomJwt =>
@@ -272,6 +287,17 @@ public class DashboardController : Controller
 
         if (!valid)
             return Json(new { code = 401, message = "Invalid credentials" });
+
+        // 2FA verification (check both config and runtime state)
+        var (twoFactorEnabled, twoFactorSecret) = GetTwoFactorState();
+        if (twoFactorEnabled && !string.IsNullOrWhiteSpace(twoFactorSecret))
+        {
+            if (string.IsNullOrWhiteSpace(request.TwoFactorCode))
+                return Json(new { code = 202, message = "Two-factor authentication required", requiresTwoFactor = true });
+
+            if (!TotpHelper.ValidateCode(twoFactorSecret, request.TwoFactorCode))
+                return Json(new { code = 401, message = "Invalid two-factor code" });
+        }
 
         var token = DashboardJwtHelper.GenerateToken(request.Username, _jwtSecret!);
 
@@ -291,6 +317,91 @@ public class DashboardController : Controller
     {
         var info = _infoQuery.GetInfo();
         return Json(new { code = 200, data = info });
+    }
+
+    // ─── 2FA Management ──────────────────────────────────────────────
+
+    /// <summary>Get 2FA status.</summary>
+    [HttpGet("api/2fa/status")]
+    public IActionResult GetTwoFactorStatus()
+    {
+        var (enabled, _) = GetTwoFactorState();
+        return Json(new { code = 200, data = new { enabled, minPasswordLength = _minPasswordLength } });
+    }
+
+    /// <summary>Generate a new 2FA secret and QR URL.</summary>
+    [HttpGet("api/2fa/setup")]
+    public IActionResult SetupTwoFactor()
+    {
+        var secret = TotpHelper.GenerateSecret();
+        var issuer = "Gateway Dashboard";
+        var account = _jwtUsername ?? "admin";
+        var qrUrl = TotpHelper.BuildOtpAuthUri(issuer, account, secret);
+        return Json(new { code = 200, data = new { secret, qrUrl } });
+    }
+
+    /// <summary>Verify 2FA code and enable 2FA.</summary>
+    [HttpPost("api/2fa/verify")]
+    public IActionResult VerifyTwoFactor([FromBody] JsonElement body)
+    {
+        var code = body.TryGetProperty("code", out var codeEl) ? codeEl.GetString() : null;
+        var secret = body.TryGetProperty("secret", out var secretEl) ? secretEl.GetString() : null;
+
+        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(secret))
+            return Json(new { code = 400, message = "Code and secret are required" });
+
+        if (!TotpHelper.ValidateCode(secret, code))
+            return Json(new { code = 400, message = "Invalid two-factor code" });
+
+        SaveTwoFactorState(true, secret);
+        return Json(new { code = 200, message = "Two-factor authentication enabled" });
+    }
+
+    /// <summary>Disable 2FA.</summary>
+    [HttpPost("api/2fa/disable")]
+    public IActionResult DisableTwoFactor()
+    {
+        SaveTwoFactorState(false, null);
+        return Json(new { code = 200, message = "Two-factor authentication disabled" });
+    }
+
+    private (bool enabled, string? secret) GetTwoFactorState()
+    {
+        // Check runtime state file first
+        try
+        {
+            if (System.IO.File.Exists(_twoFactorStateFile))
+            {
+                var json = System.IO.File.ReadAllText(_twoFactorStateFile);
+                var state = System.Text.Json.JsonSerializer.Deserialize<TwoFactorState>(json);
+                if (state != null)
+                    return (state.Enabled, state.Secret);
+            }
+        }
+        catch { }
+
+        // Fall back to config
+        return (_enableTwoFactor, _twoFactorSecret);
+    }
+
+    private void SaveTwoFactorState(bool enabled, string? secret)
+    {
+        lock (_twoFactorLock)
+        {
+            try
+            {
+                var state = new TwoFactorState { Enabled = enabled, Secret = secret };
+                var json = System.Text.Json.JsonSerializer.Serialize(state);
+                System.IO.File.WriteAllText(_twoFactorStateFile, json);
+            }
+            catch { }
+        }
+    }
+
+    private class TwoFactorState
+    {
+        public bool Enabled { get; set; }
+        public string? Secret { get; set; }
     }
 
     /// <summary>Cluster status and config.</summary>

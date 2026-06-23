@@ -148,32 +148,36 @@
             container.innerHTML = summaryHtml + cards;
         },
 
-        togglePlugin: async function(pluginId, enable) {
+        togglePlugin: function(pluginId, enable) {
+            var self = this;
             var localizedName = __('plugin.name.' + pluginId) || pluginId;
             var action = enable ? __('plugin.toggleOn') : __('plugin.toggleOff');
             var msg = __('plugin.toggleConfirm').replace('{action}', action).replace('{name}', localizedName);
-            if (!confirm(msg)) return;
-
-            try {
-                await window.DashboardApi.togglePlugin(pluginId, enable);
-                if (window.DashboardModals) {
-                    window.DashboardModals.showToast(enable ? __('plugin.enableSuccess') : __('plugin.disableSuccess'), 'success');
-                }
-                await this.load();
-            } catch (error) {
-                console.error('[Plugin] Toggle failed:', error);
-                if (window.DashboardModals) {
+            window.DashboardModals.showConfirm(msg, async function() {
+                try {
+                    await window.DashboardApi.togglePlugin(pluginId, enable);
+                    window.DashboardModals.showSuccess(enable ? __('plugin.enableSuccess') : __('plugin.disableSuccess'));
+                    await self.load();
+                } catch (error) {
+                    console.error('[Plugin] Toggle failed:', error);
                     window.DashboardModals.showError(__('plugin.toggleFailed'));
                 }
-            }
+            }, null, { danger: !enable });
         },
 
-        resetAll: async function() {
-            if (!confirm(__('plugin.resetConfirm'))) return;
-            try {
-                await window.DashboardApi.resetPlugins();
-                if (window.DashboardModals) {
-                    window.DashboardModals.showToast(__('plugin.resetSuccess'), 'success');
+        resetAll: function() {
+            var self = this;
+            window.DashboardModals.showConfirm(__('plugin.resetConfirm'), async function() {
+                try {
+                    await window.DashboardApi.resetPlugins();
+                    window.DashboardModals.showSuccess(__('plugin.resetSuccess'));
+                    await self.load();
+                } catch (error) {
+                    console.error('[Plugin] Reset failed:', error);
+                    window.DashboardModals.showError(__('plugin.resetFailed'));
+                }
+            }, null, { danger: true });
+        },
                 }
                 await this.load();
             } catch (error) {

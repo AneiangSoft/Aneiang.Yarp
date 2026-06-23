@@ -1258,7 +1258,14 @@
 
         // ===== Clear Logs =====
         clearLogs: async function() {
-            if (!confirm(__('index.log.clearConfirm'))) return;
+            window.DashboardModals.showConfirm(__('index.log.clearConfirm'), async function() {
+                try {
+                    window.DashboardState.set('data.logs', []);
+                    window.DashboardState.set('data.logMeta', {});
+                    self.renderLogs();
+                    window.DashboardModals.showSuccess(__('index.log.cleared'));
+                } catch (e) { window.DashboardModals.showError(__('index.log.clearFailed')); }
+            }, null, { danger: true });
 
             try {
                 await window.DashboardApi.endpoints.clearLogs();

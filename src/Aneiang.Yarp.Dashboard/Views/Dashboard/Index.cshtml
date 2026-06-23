@@ -104,13 +104,22 @@
         <!-- Filter toolbar container -->
         <div id="cluster-filter-container"></div>
 
+        <!-- Batch operation bar -->
+        <div class="batch-bar" id="cluster-batch-bar">
+            <span class="batch-bar-info"><span id="cluster-batch-count">0</span> <span data-i18n="index.selected">已选择</span></span>
+            <div class="batch-bar-actions">
+                <button class="btn btn-sm btn-outline-danger" onclick="ClustersModule.batchDelete()"><i class="bi bi-trash me-1"></i><span data-i18n="index.batchDelete">批量删除</span></button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="ClustersModule.clearBatch()"><i class="bi bi-x me-1"></i><span data-i18n="index.cancelSelect">取消选择</span></button>
+            </div>
+        </div>
+
         <!-- Table view -->
         <div id="cluster-table-view">
             <div class="table-responsive">
                 <table class="table table-hover table-striped-custom align-middle mb-0">
                     <thead>
                         <tr>
-                            <th style="width:38px"></th>
+                            <th style="width:38px"><input type="checkbox" class="form-check-input" id="cluster-select-all" onchange="ClustersModule.toggleSelectAll(this.checked)"></th>
                             <th><span data-i18n="index.cluster.th.name">集群名称</span></th>
                             <th style="width:90px"><span data-i18n="index.source.filter">来源</span></th>
                             <th style="width:90px"><span data-i18n="index.cluster.health.filter">健康状态</span></th>
