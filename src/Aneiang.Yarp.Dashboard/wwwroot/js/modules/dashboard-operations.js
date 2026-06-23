@@ -331,14 +331,17 @@
      */
     async function loadSystemHealth() {
         try {
-            var info = await window.DashboardApi.getInfo();
+            // Use endpoints.getInfo (the correct API path), not DashboardApi.getInfo (doesn't exist)
+            var info = await window.DashboardApi.endpoints.getInfo();
             if (!info) return;
 
             // Memory
-            var memMB = info.memoryWorkingSet || info.memory || 0;
+            var memMB = info.memoryWorkingSet || (info.memoryMb ? info.memoryMb * 1024 * 1024 : 0);
             var memMBVal = Math.round(memMB / (1024 * 1024));
             updateElement('sys-mem-value', memMBVal + ' MB');
-            var memPct = Math.min(100, Math.round((memMB / (info.totalMemory || 1)) * 100));
+            var memPct = info.totalMemory > 0
+                ? Math.min(100, Math.round((memMB / info.totalMemory) * 100))
+                : Math.min(100, Math.round((memMB / (8 * 1024 * 1024 * 1024)) * 100)); // fallback: 8GB
             var memBar = document.getElementById('sys-mem-bar');
             if (memBar) memBar.style.width = memPct + '%';
 

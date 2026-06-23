@@ -9,6 +9,21 @@
 
     window.DashboardCore = window.DashboardCore || {};
 
+    // ===== DashboardApp: module registry =====
+    window.DashboardApp = window.DashboardApp || {
+        modules: {},
+
+        registerModule: function(name, module) {
+            this.modules[name] = module;
+            console.log('[App] Module registered:', name);
+        },
+
+        navigateTo: function(page) {
+            var basePath = (window.__dashboard && window.__dashboard.basePath) || '';
+            window.location.href = basePath + '/' + page;
+        }
+    };
+
     window.DashboardCore.init = function() {
         if (_initialized) return;
         _initialized = true;

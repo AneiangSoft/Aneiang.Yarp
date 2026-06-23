@@ -1,3 +1,4 @@
+@using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
 @{
     ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Overview" : "总览";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
@@ -233,6 +234,10 @@
 </div>
 
 @section Scripts {
+@{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-clusters.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-routes.js?v=@v"></script>
 <!-- Page config (must be available before DashboardApp.init()) -->
 <script>
     window.__dashboard = window.__dashboard || {};
@@ -246,6 +251,98 @@
 
     // Initialize i18n after setting translations (consistent with all other pages)
     if (window.DashboardI18n) { window.DashboardI18n.init(); }
+</script>
+
+<script>
+    // Core initialization — must run before ServiceTabs triggers data loading
+    (async function() {
+        try {
+            console.log('[Index] Init start');
+            if (window.DashboardUtils) DashboardUtils.init();
+            if (window.DashboardApi) { DashboardApi.init(); console.log('[Index] DashboardApi ready, basePath=', window.__dashboard?.basePath); }
+            if (window.DashboardState) DashboardState.init();
+            if (window.DashboardI18n) DashboardI18n.init();
+            if (window.DashboardStorage) DashboardStorage.init();
+            if (window.DashboardModals) DashboardModals.init();
+            if (window.DashboardEvents) DashboardEvents.setup();
+
+            console.log('[Index] Modules registered:', Object.keys(window.DashboardApp?.modules || {}));
+
+            // Initialize modules
+            if (window.DashboardApp?.modules?.home?.init) await DashboardApp.modules.home.init();
+            if (window.DashboardApp?.modules?.clusters?.init) await DashboardApp.modules.clusters.init();
+            if (window.DashboardApp?.modules?.routes?.init) await DashboardApp.modules.routes.init();
+
+            // Load gateway info and stat cards (also loads clusters + routes into state)
+            if (window.DashboardApp?.modules?.home?.loadInfo) {
+                await DashboardApp.modules.home.loadInfo();
+            } else {
+                console.warn('[Index] home.loadInfo not available, calling direct API');
+            }
+
+            // Direct fallback: always call APIs to populate stat cards and tables
+            // (in case HomeModule.loadInfo didn't complete or doesn't exist)
+            try {
+                const [info, clusters, routes] = await Promise.all([
+                    DashboardApi.endpoints.getInfo(),
+                    DashboardApi.endpoints.getClusters(),
+                    DashboardApi.endpoints.getRoutes()
+                ]);
+                console.log('[Index] Direct API results:', { info, clusters: clusters?.length, routes: routes?.length });
+
+                // Render info bar
+                if (info) {
+                    const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.textContent = val; };
+                    set('info-version', info.version);
+                    set('info-env', info.environment);
+                    set('info-start', info.startTime);
+                    set('info-uptime', info.uptime);
+                    set('info-memory', info.memoryMb != null ? info.memoryMb.toFixed(1) + ' MB' : null);
+                    set('info-machine', info.machineName);
+                }
+
+                // Render stat cards
+                const clusterCount = (clusters || []).length;
+                const routeCount = (routes || []).length;
+                const healthy = (clusters || []).reduce((s, c) => s + (c.healthyCount || 0), 0);
+                const unknown = (clusters || []).reduce((s, c) => s + (c.unknownCount || 0), 0);
+                const unhealthy = (clusters || []).reduce((s, c) => s + (c.unhealthyCount || 0), 0);
+                const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+                setText('stat-clusters', clusterCount);
+                setText('stat-healthy', healthy + ' / ' + unknown + ' / ' + unhealthy);
+                setText('stat-routes', routeCount);
+
+                // Store in state for ServiceTabs
+                DashboardState.set('data.clusters', clusters || []);
+                DashboardState.set('data.routes', routes || []);
+            } catch (err) {
+                console.error('[Index] Direct API fallback failed:', err);
+            }
+
+            // Now that data is in state, trigger ServiceTabs to render the active tab
+            if (window.ServiceTabs) window.ServiceTabs.switch(window.ServiceTabs.current);
+
+            document.dispatchEvent(new CustomEvent('dashboard:ready'));
+            console.log('[Index] Init complete');
+        } catch (err) {
+            console.error('[Index] Init failed:', err);
+        }
+    })();
+
+    window.manualRefresh = async function(btn) {
+        var original = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
+        btn.disabled = true;
+        try {
+            if (window.DashboardApp?.modules?.home?.refresh) {
+                await DashboardApp.modules.home.refresh();
+            }
+            if (window.ServiceTabs) window.ServiceTabs.switch(window.ServiceTabs.current);
+        } finally {
+            btn.innerHTML = original;
+            btn.disabled = false;
+        }
+    };
 </script>
 
 <!-- Service tabs JS -->
@@ -274,15 +371,15 @@
             // Count label
             this._updateCountLabel(tab);
 
-            // Lazy-load data
-            if (tab === 'clusters' && !this._clustersLoaded) {
-                this._clustersLoaded = true;
-                window.DashboardApp?.modules?.clusters?.init?.();
-                window.DashboardApp?.modules?.clusters?.loadClusters?.();
-            } else if (tab === 'routes' && !this._routesLoaded) {
-                this._routesLoaded = true;
-                window.DashboardApp?.modules?.routes?.init?.();
-                window.DashboardApp?.modules?.routes?.loadRoutes?.();
+            // Render from state (data already loaded by HomeModule.loadInfo)
+            if (tab === 'clusters') {
+                if (window.DashboardApp?.modules?.clusters?.renderClusters) {
+                    DashboardApp.modules.clusters.renderClusters();
+                }
+            } else if (tab === 'routes') {
+                if (window.DashboardApp?.modules?.routes?.renderRoutes) {
+                    DashboardApp.modules.routes.renderRoutes();
+                }
             }
         },
 
@@ -317,18 +414,11 @@
                 var filtered = (window.DashboardState?.getFilteredRoutes?.() || []).length;
                 label.innerHTML = '<span>' + filtered + ' / ' + total + ' entries</span>';
             }
-        },
-
-        init: function() {
-            var self = this;
-            document.addEventListener('DOMContentLoaded', function() {
-                // Restore saved tab
-                self.switch(localStorage.getItem('service_tab') || 'clusters');
-            });
         }
     };
-    window.ServiceTabs.init();
 })();
+
+
 </script>
 
 <style>

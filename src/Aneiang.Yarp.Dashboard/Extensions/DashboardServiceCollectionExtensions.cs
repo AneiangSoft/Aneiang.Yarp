@@ -140,16 +140,17 @@ public static class DashboardServiceCollectionExtensions
                 "text/plain", "text/css", "text/javascript", "text/xml",
                 "application/javascript", "application/json", "application/xml",
                 "application/xml-dtd", "application/atom+xml", "application/octet-stream",
-                "image/svg+xml",
+                "image/svg+xml", "font/woff", "font/woff2", "font/ttf",
+                "application/wasm",
             };
         });
         services.Configure<BrotliCompressionProviderOptions>(options =>
         {
-            options.Level = System.IO.Compression.CompressionLevel.Fastest;
+            options.Level = System.IO.Compression.CompressionLevel.Optimal;
         });
         services.Configure<GzipCompressionProviderOptions>(options =>
         {
-            options.Level = System.IO.Compression.CompressionLevel.Fastest;
+            options.Level = System.IO.Compression.CompressionLevel.Optimal;
         });
 
         // ── Storage backend ──────────────────────────────────────────────────────
