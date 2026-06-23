@@ -6,7 +6,6 @@
 
     window.DashboardState = window.DashboardState || {};
 
-    // ===== State Storage =====
     const state = {
         // App state
         app: {
@@ -78,12 +77,9 @@
     // Track the auto-save interval for cleanup
     let autoSaveIntervalId = null;
 
-    // ===== State Subscribers =====
     const subscribers = {};
 
-    // ===== Initialization =====
     window.DashboardState.init = function() {
-        // Restore from localStorage
         this.restoreState();
         
         // Clear any existing auto-save interval first
@@ -91,22 +87,17 @@
             clearInterval(autoSaveIntervalId);
         }
         
-        // Setup auto-save
         autoSaveIntervalId = setInterval(() => this.saveState(), 5000);
         
-        console.log('[State] Initialized');
     };
 
-    // ===== Cleanup =====
     window.DashboardState.cleanup = function() {
         if (autoSaveIntervalId) {
             clearInterval(autoSaveIntervalId);
             autoSaveIntervalId = null;
         }
-        console.log('[State] Cleaned up');
     };
 
-    // ===== Get State =====
     window.DashboardState.get = function(path) {
         if (!path) return state;
         
@@ -123,12 +114,10 @@
         return result;
     };
 
-    // ===== Set State =====
     window.DashboardState.set = function(path, value, notify = true) {
         const keys = path.split('.');
         let target = state;
         
-        // Navigate to parent object
         for (let i = 0; i < keys.length - 1; i++) {
             const key = keys[i];
             if (!target[key]) {
@@ -137,12 +126,10 @@
             target = target[key];
         }
         
-        // Set value
         const lastKey = keys[keys.length - 1];
         const oldValue = target[lastKey];
         target[lastKey] = value;
         
-        // Notify subscribers
         if (notify) {
             this.notify(path, value, oldValue);
         }
@@ -150,20 +137,17 @@
         return true;
     };
 
-    // ===== Subscribe to State Changes =====
     window.DashboardState.subscribe = function(path, callback) {
         if (!subscribers[path]) {
             subscribers[path] = [];
         }
         subscribers[path].push(callback);
         
-        // Return unsubscribe function
         return () => {
             subscribers[path] = subscribers[path].filter(cb => cb !== callback);
         };
     };
 
-    // ===== Notify Subscribers =====
     window.DashboardState.notify = function(path, newValue, oldValue) {
         if (!subscribers[path]) return;
         
@@ -176,7 +160,6 @@
         });
     };
 
-    // ===== Filter Helpers =====
     window.DashboardState.getFilteredClusters = function() {
         const { clusters } = state.data;
         const { search, health, editable, source } = state.filters.clusters;
@@ -324,7 +307,6 @@
         return filtered;
     };
 
-    // ===== Persistence =====
     window.DashboardState.saveState = function() {
         try {
             const toSave = {
@@ -356,7 +338,6 @@
                 Object.assign(state.filters, parsed.filters);
             }
             
-            // Restore UI state
             if (parsed.ui) {
                 state.ui.expandedClusters = new Set(parsed.ui.expandedClusters || []);
                 state.ui.expandedRoutes = new Set(parsed.ui.expandedRoutes || []);
@@ -367,13 +348,11 @@
                 Object.assign(state.editor, parsed.editor);
             }
             
-            console.log('[State] Restored from localStorage');
         } catch (error) {
             console.error('[State] Restore failed:', error);
         }
     };
 
-    // ===== Clear State =====
     window.DashboardState.clear = function() {
         state.data.clusters = [];
         state.data.routes = [];
@@ -382,12 +361,9 @@
         state.ui.expandedRoutes.clear();
         state.ui.expandedLogs.clear();
         
-        console.log('[State] Cleared');
     };
 
-    // ===== Refresh Data with UI Preservation =====
     window.DashboardState.refreshData = async function(preserveUI = true) {
-        // Preserve UI state before refresh
         const preservedState = preserveUI ? {
             expandedClusters: new Set(state.ui.expandedClusters),
             expandedRoutes: new Set(state.ui.expandedRoutes),
@@ -395,7 +371,6 @@
         } : null;
 
         try {
-            // Reload data from API
             if (window.DashboardApi) {
                 const [clusters, routes] = await Promise.all([
                     window.DashboardApi.endpoints.getClusters(),
@@ -406,27 +381,22 @@
                 state.data.routes = routes.data || routes || [];
             }
 
-            // Restore UI state
             if (preservedState) {
                 state.ui.expandedClusters = preservedState.expandedClusters;
                 state.ui.expandedRoutes = preservedState.expandedRoutes;
                 state.ui.expandedLogs = preservedState.expandedLogs;
                 
-                // Notify subscribers
                 this.notify('ui.expandedClusters', state.ui.expandedClusters);
                 this.notify('ui.expandedRoutes', state.ui.expandedRoutes);
             }
 
-            console.log('[State] Data refreshed');
         } catch (error) {
             console.error('[State] Refresh failed:', error);
             throw error;
         }
     };
 
-    // ===== Debug =====
     window.DashboardState.debug = function() {
-        console.log('[State] Current state:', JSON.parse(JSON.stringify(state)));
     };
 
 })();

@@ -87,8 +87,6 @@
             });
         },
 
-        // ─── Route Policies ─────────────────────────────
-
         renderRoutePolicies: function(data, container) {
             window.DashboardDOM.clear(container);
             var policies = (data && data.data) || data || [];
@@ -169,8 +167,6 @@
                 '</div>';
         },
 
-        // ─── Cluster Policies ───────────────────────────
-
         renderClusterPolicies: function(data, container) {
             window.DashboardDOM.clear(container);
             var policies = (data && data.data) || data || [];
@@ -243,8 +239,6 @@
                     '</table>' +
                 '</div>';
         },
-
-        // ─── Create / Edit ──────────────────────────────
 
         openCreateModal: function() {
             this.editingId = null;
@@ -406,8 +400,6 @@
             }
         },
 
-        // ─── Save ──────────────────────────────────────
-
         save: async function() {
             var type = document.getElementById('policy-type-input').value;
             var policyId = this.editingId || document.getElementById('policy-id-input').value.trim();
@@ -473,8 +465,6 @@
             }
         },
 
-        // ─── Delete ─────────────────────────────────────
-
         deletePolicy: function(type, policyId) {
             var self = this;
             var endpoint = type === 'route' ? 'routes' : 'clusters';
@@ -490,8 +480,6 @@
                 }
             }, null, { danger: true });
         },
-
-        // ─── Apply / Unapply ────────────────────────────
 
         openApplyModal: async function(type, policyId) {
             var endpoint = type === 'route' ? 'routes' : 'clusters';

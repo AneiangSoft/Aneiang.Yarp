@@ -416,7 +416,6 @@
                 if (type === 'error') return window.DashboardModals.showError(message);
                 return window.DashboardModals.showInfo(message);
             }
-            console.log(message);
         },
 
         el: function(id) { return document.getElementById(id); },

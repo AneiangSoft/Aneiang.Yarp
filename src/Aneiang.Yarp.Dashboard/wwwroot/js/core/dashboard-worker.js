@@ -11,7 +11,6 @@
         pending: new Map(),
         isReady: false,
 
-        // ===== Initialization =====
         init() {
             if (this.worker) return Promise.resolve();
 
@@ -49,11 +48,9 @@
             });
         },
 
-        // ===== Message Handling =====
         handleMessage(data) {
             if (data.type === 'ready') {
                 this.isReady = true;
-                console.log('[Worker] Ready');
                 return;
             }
 
@@ -74,7 +71,6 @@
             }
         },
 
-        // ===== Send Message =====
         send(type, data, timeout = 30000) {
             return new Promise((resolve, reject) => {
                 if (!this.worker || !this.isReady) {
@@ -105,7 +101,6 @@
             });
         },
 
-        // ===== Public API =====
         async filterLogs(logs, filters) {
             try {
                 await this.init();
@@ -172,7 +167,6 @@
             }
         },
 
-        // ===== Route Processing Methods =====
         async filterRoutes(routes, filters) {
             try {
                 await this.init();
@@ -195,7 +189,6 @@
             }
         },
 
-        // ===== Fallback Implementations =====
         fallbackFilter(logs, filters) {
             const { search, level, status, timeRange, gatewayOnly } = filters;
 
@@ -334,7 +327,6 @@
             };
         },
 
-        // ===== Cleanup =====
         terminate() {
             if (this.worker) {
                 this.worker.terminate();

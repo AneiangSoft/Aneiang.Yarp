@@ -304,9 +304,7 @@
 <script>
     (async function() {
         try {
-            console.log('[Overview] Init start');
             if (window.DashboardApi) DashboardApi.init();
-            console.log('[Overview] Modules:', Object.keys(window.DashboardApp?.modules || {}));
 
             // Init modules
             if (window.DashboardApp?.modules?.home?.init) await DashboardApp.modules.home.init();
@@ -321,7 +319,6 @@
                     DashboardApi.endpoints.getRoutes().catch(() => []),
                     (window.DashboardApi.endpoints.getTrafficData?.(15) || Promise.resolve(null)).catch(() => null)
                 ]);
-                console.log('[Overview] API results:', { info, clusters: clusters?.length, routes: routes?.length, traffic });
 
                 // Render info bar
                 if (info) {
@@ -365,7 +362,6 @@
             if (window.OpsModule?.loadSystemHealth) await OpsModule.loadSystemHealth();
 
             document.dispatchEvent(new CustomEvent('dashboard:ready'));
-            console.log('[Overview] Init complete');
         } catch (err) {
             console.error('[Overview] Init failed:', err);
         }

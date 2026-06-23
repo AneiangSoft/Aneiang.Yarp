@@ -60,8 +60,6 @@
             this.initialized = true;
         },
 
-        // ─── Event Type Rendering ───────────────────────────────────────────
-
         /**
          * Render the notification-type filter dropdown using the shared event metadata.
          * Preserves the first "all types" option from the Razor template.
@@ -240,8 +238,6 @@
             });
         },
 
-        // ─── Data Loading ─────────────────────────────────────────────────────
-
         loadAll: function() {
             this.loadSummary();
             this.loadHistory();
@@ -324,8 +320,6 @@
                 console.error('[Notification] Load settings failed:', e);
             }
         },
-
-        // ─── Rendering ────────────────────────────────────────────────────────
 
         renderSummary: function(data) {
             var totalCount = document.getElementById('notif-total-count');
@@ -625,13 +619,9 @@
             container.innerHTML = html;
         },
 
-        // ─── Toggle & Interactions ───────────────────────────────────────────
-
         toggleNotification: function(el) {
             el.classList.toggle('expanded');
         },
-
-        // ─── Filter Handling ───────────────────────────────────────────────
 
         applyFilters: function() {
             this.currentFilters.eventType = document.getElementById('notif-type-filter')?.value || '';
@@ -658,8 +648,6 @@
                 this.loadHistory(1);
             }
         },
-
-        // ─── Channel Management ─────────────────────────────────────────────
 
         showChannelModal: function(channel) {
             document.getElementById('channel-id').value = channel?.id || '';
@@ -748,8 +736,6 @@
                 DashboardModals.showError(__('notif.testFailed'));
             }
         },
-
-        // ─── Rule Management ───────────────────────────────────────────────
 
         showRuleModal: function(rule) {
             document.getElementById('rule-id').value = rule?.id || '';
@@ -875,8 +861,6 @@
             }
         },
 
-        // ─── Global Settings ───────────────────────────────────────────────
-
         saveGlobalSettings: async function() {
             var data = {
                 globalSettings: {
@@ -896,8 +880,6 @@
                 DashboardModals.showError(__('notif.saveFailed'));
             }
         },
-
-        // ─── Actions ───────────────────────────────────────────────────────
 
         clearHistory: async function() {
             window.DashboardModals.showConfirm(__('notif.clearHistoryConfirm'), async function() {

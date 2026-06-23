@@ -49,7 +49,6 @@
                     quickSuggestions: { other: 'on', comments: 'off', strings: 'off' }
                 }, options);
 
-                // Create editor
                 var editor = monaco.editor.create(container, config);
 
                 // Register schema if provided
@@ -57,7 +56,6 @@
                     self._registerSchema(options.schema);
                 }
 
-                // Store instance
                 self.instances.set(containerId, {
                     editor: editor,
                     options: options,

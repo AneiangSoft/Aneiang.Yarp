@@ -7,7 +7,6 @@
 
     window.DashboardModals = window.DashboardModals || {};
 
-    // ===== Toast Container =====
     let toastContainer = null;
 
     function ensureToastContainer() {
@@ -96,7 +95,6 @@
         return this.showToast(message, 'info');
     };
 
-    // ===== Confirm Modal =====
     let confirmModalId = 'dashboard-confirm-modal';
 
     /**
@@ -167,7 +165,6 @@
         return bsModal;
     };
 
-    // ===== Form Modal =====
     /**
      * Show form modal for add/edit
      * @param {object} config - {title, fields, data, onSave, onCancel, size}
@@ -358,7 +355,6 @@
         return bsModal;
     };
 
-    // ===== Schema Cache =====
     const schemaCache = {
         cluster: null,
         route: null,
@@ -387,10 +383,8 @@
                 schema: schema
             }]
         });
-        console.log('[Modals] Schema registered for type:', schemaType);
     }
 
-    // ===== Load Schema =====
     window.DashboardModals.loadSchema = function(type) {
         const self = this;
         
@@ -415,7 +409,6 @@
                         try {
                             const schema = JSON.parse(xhr.responseText);
                             schemaCache[type] = schema;
-                            console.log('[Modals] Schema loaded:', type);
                             resolve(schema);
                         } catch (e) {
                             console.error('[Modals] Schema parse failed:', e);
@@ -434,7 +427,6 @@
         });
     };
 
-    // ===== JSON Modal =====
     /**
      * Show JSON editor modal with schema validation
      * @param {object} config - {title, data, onSave, readOnly, schemaType, schemaUri}
@@ -563,10 +555,8 @@
                     quickSuggestions: { other: true, comments: 'off', strings: 'on' }
                 }; 
 
-                // Create editor
                 return window.DashboardMonacoEditor.init(modalId + '-editor', editorOptions).then(function(editorInstance) {
                     editor = editorInstance;
-                    console.log('[Modals] Editor created with schema:', schemaType);
                 });
             } else {
                 // Fallback to textarea
@@ -638,7 +628,6 @@
         return bsModal;
     };
 
-    // ===== Helper: Copy JSON from Editor =====
     window.DashboardModals.copyJsonFromEditor = function(modalId) {
         let value;
         if (window.DashboardMonacoEditor) {
@@ -656,7 +645,6 @@
         });
     };
 
-    // ===== Helper: Format JSON =====
     window.DashboardModals.formatJson = function(modalId) {
         let value;
         const editorContainerId = modalId + '-editor';
@@ -682,7 +670,6 @@
         }
     };
 
-    // ===== Helper: Validate JSON =====
     window.DashboardModals.validateJson = function(modalId) {
         let value;
         if (window.DashboardMonacoEditor) {
@@ -699,7 +686,6 @@
         }
     };
 
-    // ===== Add CSS animations =====
     const style = document.createElement('style');
     style.textContent = `
         @keyframes slideIn {
@@ -720,10 +706,8 @@
     `;
     document.head.appendChild(style);
 
-    // ===== Init (no-op, ensures guard checks pass) =====
     window.DashboardModals.init = function() {};
 
-    // ===== Global shortcuts =====
     window.showToast = window.DashboardModals.showToast;
     window.showConfirm = window.DashboardModals.showConfirm;
     window.showSuccess = window.DashboardModals.showSuccess;

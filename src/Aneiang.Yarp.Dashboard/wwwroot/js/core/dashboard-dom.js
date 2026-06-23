@@ -6,7 +6,6 @@
 
     window.DashboardDOM = window.DashboardDOM || {};
 
-    // ===== Safe Element Selection =====
     window.DashboardDOM.safe = function(selector, context) {
         context = context || document;
         const element = context.querySelector(selector);
@@ -21,7 +20,6 @@
         return Array.from(context.querySelectorAll(selector));
     };
 
-    // ===== Element Creation =====
     window.DashboardDOM.create = function(tag, options = {}) {
         const {
             className = '',
@@ -72,7 +70,6 @@
         return element;
     };
 
-    // ===== DOM Manipulation =====
     window.DashboardDOM.setText = function(selector, text) {
         const el = this.safe(selector);
         if (el) el.textContent = text;
@@ -105,7 +102,6 @@
         parent.appendChild(child);
     };
 
-    // ===== Class Manipulation =====
     window.DashboardDOM.addClass = function(element, className) {
         if (!element) return;
         if (Array.isArray(className)) {
@@ -138,7 +134,6 @@
         return element.classList.contains(className);
     };
 
-    // ===== Visibility =====
     window.DashboardDOM.show = function(element) {
         if (!element) return;
         element.style.display = '';
@@ -154,7 +149,6 @@
         return element.offsetParent !== null;
     };
 
-    // ===== Loading States =====
     window.DashboardDOM.showLoading = function(container, message) {
         if (!container) return;
         this.clear(container);
@@ -207,7 +201,6 @@
         container.appendChild(empty);
     };
 
-    // ===== Debounced Resize Handler =====
     let resizeTimeout;
     window.DashboardDOM.onResize = function(callback) {
         window.addEventListener('resize', () => {
@@ -216,7 +209,6 @@
         });
     };
 
-    // ===== Scroll Utilities =====
     window.DashboardDOM.scrollTo = function(element, behavior = 'smooth') {
         if (!element) return;
         element.scrollIntoView({ behavior, block: 'start' });

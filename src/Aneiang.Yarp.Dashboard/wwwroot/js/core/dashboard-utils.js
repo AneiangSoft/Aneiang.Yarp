@@ -6,12 +6,9 @@
 
     window.DashboardUtils = window.DashboardUtils || {};
 
-    // ===== Initialization =====
     window.DashboardUtils.init = function() {
-        console.log('[Utils] Initialized');
     };
 
-    // ===== DOM Utilities =====
     window.DashboardUtils.$ = function(selector, context) {
         context = context || document;
         return context.querySelector(selector);
@@ -47,7 +44,6 @@
         return el;
     };
 
-    // ===== Safe Access =====
     window.DashboardUtils.safeGet = function(obj, path, defaultValue) {
         if (!obj || !path) return defaultValue;
         
@@ -64,7 +60,6 @@
         return result !== undefined ? result : defaultValue;
     };
 
-    // ===== String Utilities =====
     window.DashboardUtils.escapeHtml = function(text) {
         if (!text) return '';
         const div = document.createElement('div');
@@ -91,7 +86,6 @@
         return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
     };
 
-    // ===== Time Utilities =====
     window.DashboardUtils.formatTime = function(date, locale) {
         locale = locale || window.__dashboard?.CURRENT_LOCALE || 'zh-CN';
         const d = typeof date === 'string' ? new Date(date) : date;
@@ -115,7 +109,6 @@
         return Math.floor(seconds / 86400) + ' 天前';
     };
 
-    // ===== JSON Utilities =====
     window.DashboardUtils.safeJsonParse = function(text, defaultValue) {
         try {
             return JSON.parse(text);
@@ -132,7 +125,6 @@
         }
     };
 
-    // ===== Validation =====
     window.DashboardUtils.isValidUrl = function(string) {
         try {
             new URL(string);
@@ -151,7 +143,6 @@
         }
     };
 
-    // ===== Array Utilities =====
     window.DashboardUtils.unique = function(array, key) {
         if (!key) return [...new Set(array)];
         
@@ -173,7 +164,6 @@
         }, {});
     };
 
-    // ===== Debounce & Throttle =====
     window.DashboardUtils.debounce = function(func, wait) {
         let timeout;
         return function executedFunction(...args) {
@@ -197,7 +187,6 @@
         };
     };
 
-    // ===== Toast (lightweight, non-blocking notification) =====
     window.DashboardUtils.toast = function(message, type, duration) {
         type = type || 'info';
         duration = duration || 3000;
@@ -228,7 +217,6 @@
         }, duration);
     };
 
-    // ===== Clipboard =====
     window.DashboardUtils.copyToClipboard = async function(text) {
         try {
             await navigator.clipboard.writeText(text);
@@ -252,7 +240,6 @@
         }
     };
 
-    // ===== Render JSON Block (shared across modules) =====
     window.DashboardUtils.renderJsonBlock = function(obj, title) {
         const json = JSON.stringify(obj, null, 2);
         return `<details style="margin:4px 0 0;">
@@ -261,7 +248,6 @@
         </details>`;
     };
 
-    // ===== Create Source Badge HTML (shared across modules) =====
     window.DashboardUtils.createSourceBadge = function(source) {
         const sourceMap = {
             'config': { css: 'bg-secondary', icon: 'bi-file-earmark-code', label: __('index.source.config') },
@@ -274,7 +260,6 @@
         return `<span class="badge ${cfg.css}" style="font-size:12px;display:inline-flex;align-items:center;gap:4px;"><i class="bi ${cfg.icon}"></i>${cfg.label}</span>`;
     };
 
-    // ===== LocalStorage =====
     window.DashboardUtils.storage = {
         get: function(key, defaultValue) {
             try {
@@ -303,7 +288,6 @@
         }
     };
 
-    // ===== CSV Export =====
     window.DashboardUtils.exportCsv = function(filename, headers, rows) {
         var csv = headers.join(',') + '\n';
         rows.forEach(function(row) {
@@ -324,8 +308,6 @@
         URL.revokeObjectURL(url);
     };
 
-    // ===== Performance Utilities =====
-    
     /**
      * Diff render - only update changed rows
      * @param {HTMLElement} container - Container element
@@ -398,7 +380,6 @@
         }
         
         const endTime = performance.now();
-        console.log(`[DiffRender] Updated ${items.length} items in ${(endTime - startTime).toFixed(2)}ms`);
     };
 
     /**

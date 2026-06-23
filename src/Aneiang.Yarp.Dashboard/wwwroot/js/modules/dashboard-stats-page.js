@@ -23,7 +23,6 @@
             this.startAutoRefresh();
         },
 
-        // ===== Event Bindings =====
         setupEvents: function() {
             // Time range buttons
             document.querySelectorAll('input[name="timeRange"]').forEach(radio => {
@@ -42,7 +41,6 @@
             }
         },
 
-        // ===== Load All Data =====
         loadAll: async function() {
             const setEl = (id, val) => {
                 const el = document.getElementById(id);
@@ -112,7 +110,6 @@
             }
         },
 
-        // ===== QPS Chart =====
         renderQpsChart: function(data) {
             const ctx = document.getElementById('qps-chart');
             if (!ctx) return;
@@ -175,7 +172,6 @@
             });
         },
 
-        // ===== Latency Chart (P50/P90/P99 bar chart) =====
         renderLatencyChart: function(data) {
             const ctx = document.getElementById('latency-chart');
             if (!ctx) return;
@@ -235,7 +231,6 @@
             });
         },
 
-        // ===== Error Rate Chart =====
         renderErrorChart: function(data) {
             const ctx = document.getElementById('error-chart');
             if (!ctx) return;
@@ -317,7 +312,6 @@
             });
         },
 
-        // ===== Status Code Doughnut Chart =====
         renderStatusChart: function(data) {
             const ctx = document.getElementById('status-chart');
             if (!ctx) return;
@@ -394,7 +388,6 @@
             });
         },
 
-        // ===== Top Routes List =====
         renderTopRoutes: function(routes, total) {
             const container = document.getElementById('top-routes-list');
             const countBadge = document.getElementById('top-routes-count');
@@ -421,7 +414,6 @@
             }).join('');
         },
 
-        // ===== Top Clusters List =====
         renderTopClusters: function(clusters, total) {
             const container = document.getElementById('top-clusters-list');
             const countBadge = document.getElementById('top-clusters-count');
@@ -448,7 +440,6 @@
             }).join('');
         },
 
-        // ===== Helpers =====
         escHtml: function(str) {
             const div = document.createElement('div');
             div.textContent = str;

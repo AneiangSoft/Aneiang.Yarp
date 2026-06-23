@@ -6,14 +6,12 @@
 
     window.DashboardConfig = window.DashboardConfig || {};
 
-    // ===== Export Configuration =====
     window.DashboardConfig.exportConfig = async function() {
         try {
             window.DashboardModals.showInfo(__('config.exporting'));
 
             const response = await window.DashboardApi.endpoints.exportConfig();
 
-            // Create download
             const blob = new Blob(
                 [JSON.stringify(response, null, 2)],
                 { type: 'application/json' }
@@ -34,7 +32,6 @@
         }
     };
 
-    // ===== Download Database =====
     window.DashboardConfig.downloadDatabase = async function() {
         try {
             window.DashboardModals.showInfo(__('config.downloading'));
@@ -46,7 +43,6 @@
         }
     };
 
-    // ===== Show Import Modal =====
     window.DashboardConfig.showImportModal = function() {
         const self = this;
 
@@ -217,7 +213,6 @@
         bsModal.show();
     };
 
-    // ===== Show History Modal =====
     window.DashboardConfig.showHistoryModal = async function() {
         const self = this;
 
@@ -303,7 +298,6 @@
         }
     };
 
-    // ===== Rollback to Version =====
     window.DashboardConfig.rollbackTo = async function(versionId) {
         const self = this;
 
@@ -338,7 +332,6 @@
         );
     };
 
-    // ===== Test All Webhooks =====
     window.DashboardConfig._testAllWebhooks = async function() {
         try {
             window.DashboardModals.showInfo(__('webhook.testing') || 'Testing...');
@@ -366,7 +359,6 @@
         }
     };
 
-    // ===== Webhook Settings Modal =====
     window.DashboardConfig.showWebhookModal = async function() {
         const modalId = 'dashboard-webhook-modal';
         const existing = document.getElementById(modalId);
@@ -398,7 +390,6 @@
         }
 
         const tabsHtml = platformDefs.map(tabHtml).join('');
-
 
         function sectionHtml(pd) {
             return `<div class="webhook-platform-section" data-platform="${pd.key}" style="display:none;">

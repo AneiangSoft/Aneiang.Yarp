@@ -46,7 +46,6 @@
                                 self.schema = JSON.parse(xhr.responseText);
                                 self.loaded = true;
                                 self.loading = false;
-                                console.log('[Schema] Loaded successfully');
                                 resolve(self.schema);
                             } catch (e) {
                                 console.error('[Schema] Parse failed:', e);
