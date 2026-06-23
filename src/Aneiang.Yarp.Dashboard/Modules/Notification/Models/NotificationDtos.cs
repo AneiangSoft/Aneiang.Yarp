@@ -3,8 +3,6 @@ using Aneiang.Yarp.Storage;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Notification.Models;
 
-// ─── Request DTOs ─────────────────────────────────────────────────────────────
-
 public class SaveNotificationSettingsRequest
 {
     [JsonPropertyName("channels")]
@@ -82,8 +80,6 @@ public class GlobalSettingsRequest
     [JsonPropertyName("defaultRetryCount")]
     public int DefaultRetryCount { get; set; } = 1;
 }
-
-// ─── Response DTOs ────────────────────────────────────────────────────────────
 
 public class NotificationSettingsResponse
 {

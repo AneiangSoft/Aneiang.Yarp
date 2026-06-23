@@ -5,12 +5,10 @@
 (function() {
     'use strict';
 
-    // Module state
     var trafficChart = null;
     var trafficUpdateInterval = null;
     var currentTimeRange = 15;
 
-    // API Endpoints
     var endpoints = {
         alertSummary: '/api/operations/alert-summary',
         traffic: '/api/operations/traffic',
@@ -23,7 +21,6 @@
      * Initialize the operations module
      */
     function init() {
-        console.log('[OpsModule] Initializing...');
         registerEndpoints();
     }
 
@@ -294,7 +291,7 @@
             // Trigger health check refresh
             var result = await DashboardApi.get('/api/health-check/clusters');
             if (result.code === 200) {
-                alert(__('overview.quickActions.healthRefreshed') || '健康状态已刷新');
+                window.DashboardModals.showSuccess(__('overview.quickActions.healthRefreshed') || '健康状态已刷新');
                 loadAlertSummary();
             }
         } catch (e) {
@@ -326,7 +323,39 @@
         }
     }
 
-    // Utility functions
+    /**
+     * Load system health metrics
+     */
+    async function loadSystemHealth() {
+        try {
+            // Use endpoints.getInfo (the correct API path), not DashboardApi.getInfo (doesn't exist)
+            var info = await window.DashboardApi.endpoints.getInfo();
+            if (!info) return;
+
+            // Memory
+            var memMB = info.memoryWorkingSet || (info.memoryMb ? info.memoryMb * 1024 * 1024 : 0);
+            var memMBVal = Math.round(memMB / (1024 * 1024));
+            updateElement('sys-mem-value', memMBVal + ' MB');
+            var memPct = info.totalMemory > 0
+                ? Math.min(100, Math.round((memMB / info.totalMemory) * 100))
+                : Math.min(100, Math.round((memMB / (8 * 1024 * 1024 * 1024)) * 100)); // fallback: 8GB
+            var memBar = document.getElementById('sys-mem-bar');
+            if (memBar) memBar.style.width = memPct + '%';
+
+            // CPU (approximate from process CPU time)
+            var cpuPct = info.cpuUsage || 0;
+            updateElement('sys-cpu-value', cpuPct + '%');
+            var cpuBar = document.getElementById('sys-cpu-bar');
+            if (cpuBar) cpuBar.style.width = Math.min(100, cpuPct) + '%';
+
+            // GC + Threads
+            updateElement('sys-gc-value', info.gcCount || info.gcTotalCount || '--');
+            updateElement('sys-thread-value', info.threadCount || '--');
+        } catch (e) {
+            console.error('[OpsModule] System health load failed:', e);
+        }
+    }
+
     function updateElement(id, value) {
         var el = document.getElementById(id);
         if (el) el.textContent = value;
@@ -351,24 +380,22 @@
         return div.innerHTML;
     }
 
-    // i18n helper
     function __(key) {
         if (window.I18N && I18N[key]) return I18N[key];
         return key;
     }
 
-    // Public API
     window.OpsModule = {
         init: init,
         loadAlertSummary: loadAlertSummary,
         loadTrafficChart: loadTrafficChart,
         loadTopErrors: loadTopErrors,
+        loadSystemHealth: loadSystemHealth,
         changeTimeRange: changeTimeRange,
         refreshHealth: refreshHealth,
         exportSnapshot: exportSnapshot
     };
 
-    // Auto-init if DashboardApp exists
     if (window.DashboardApp) {
         DashboardApp.registerModule('operations', window.OpsModule);
     }

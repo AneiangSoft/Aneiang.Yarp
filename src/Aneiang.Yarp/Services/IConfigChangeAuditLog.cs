@@ -21,6 +21,9 @@ public interface IConfigChangeAuditLog : IConfigChangeNotifier
     /// <summary>Get recent audit entries (newest first).</summary>
     IReadOnlyList<ConfigChangeAudit> GetRecent(int count = 50);
 
+    /// <summary>Get paged audit entries (newest first) and total matching count.</summary>
+    (IReadOnlyList<ConfigChangeAudit> Entries, int Total) GetPage(int page = 1, int pageSize = 50, string? action = null);
+
     /// <summary>Get total entries currently stored.</summary>
     int Count { get; }
 

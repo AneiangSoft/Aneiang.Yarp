@@ -35,4 +35,7 @@ public class GatewayApiAuthOptions
 
     /// <summary>Header name for ApiKey mode. Default: X-Api-Key.</summary>
     public string ApiKeyHeaderName { get; set; } = "X-Api-Key";
+
+    /// <summary>Allow API key from query string. Disabled by default to avoid leaking secrets in logs and browser history.</summary>
+    public bool AllowApiKeyInQuery { get; set; } = false;
 }

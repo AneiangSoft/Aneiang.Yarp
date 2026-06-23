@@ -6,10 +6,8 @@
 
     window.DashboardEvents = window.DashboardEvents || {};
 
-    // ===== Event Handlers Storage =====
     const handlers = {};
 
-    // ===== Named Global Handlers for Cleanup =====
     const _globalHandlers = {
         beforeunload: null,
         online: null,
@@ -19,7 +17,6 @@
         dataChanged: null
     };
 
-    // ===== Setup =====
     window.DashboardEvents.setup = function() {
         // Only setup once
         if (_globalHandlers.beforeunload) return;
@@ -28,10 +25,8 @@
         this.setupKeyboardShortcuts();
         this.setupCustomEvents();
 
-        console.log('[Events] Setup complete');
     };
 
-    // ===== Global Event Handlers =====
     window.DashboardEvents.setupGlobalHandlers = function() {
         // Prevent accidental navigation with unsaved changes
         _globalHandlers.beforeunload = function(e) {
@@ -47,7 +42,6 @@
 
         // Handle online/offline
         _globalHandlers.online = function() {
-            console.log('[Events] Connection restored');
             document.dispatchEvent(new CustomEvent('dashboard:online'));
         };
         window.addEventListener('online', _globalHandlers.online);
@@ -59,7 +53,6 @@
         window.addEventListener('offline', _globalHandlers.offline);
     };
 
-    // ===== Keyboard Shortcuts =====
     window.DashboardEvents.setupKeyboardShortcuts = function() {
         _globalHandlers.keydown = function(e) {
             // Skip shortcuts when typing in input/textarea/select or contentEditable
@@ -108,10 +101,8 @@
         document.addEventListener('keydown', _globalHandlers.keydown);
     };
 
-    // ===== Custom Events =====
     window.DashboardEvents.setupCustomEvents = function() {
         _globalHandlers.localeChange = function(e) {
-            console.log('[Events] Locale changed:', e.detail.locale);
             if (window.DashboardState) {
                 window.DashboardState.saveState();
             }
@@ -119,7 +110,6 @@
         document.addEventListener('dashboard:localeChange', _globalHandlers.localeChange);
 
         _globalHandlers.dataChanged = function(e) {
-            console.log('[Events] Data changed:', e.detail.type);
             if (window.DashboardState) {
                 window.DashboardState.saveState();
             }
@@ -127,7 +117,6 @@
         document.addEventListener('dashboard:dataChanged', _globalHandlers.dataChanged);
     };
 
-    // ===== Event Registration =====
     window.DashboardEvents.on = function(event, handler, options = {}) {
         const {
             once = false,
@@ -159,14 +148,12 @@
 
         target.addEventListener(event, wrappedHandler);
 
-        // Return unsubscribe function
         return () => {
             target.removeEventListener(event, wrappedHandler);
             handlers[event] = handlers[event].filter(h => h.handler !== wrappedHandler);
         };
     };
 
-    // ===== Event Removal =====
     window.DashboardEvents.off = function(event, handler, target = document) {
         if (handler) {
             target.removeEventListener(event, handler);
@@ -178,7 +165,6 @@
         }
     };
 
-    // ===== Event Emission =====
     window.DashboardEvents.emit = function(event, detail, target = document) {
         const customEvent = new CustomEvent(event, {
             detail: detail,
@@ -188,7 +174,6 @@
         target.dispatchEvent(customEvent);
     };
 
-    // ===== Debounce Utility =====
     window.DashboardEvents.debounce = function(func, wait) {
         let timeout;
         return function executedFunction(...args) {
@@ -201,7 +186,6 @@
         };
     };
 
-    // ===== Cleanup =====
     window.DashboardEvents.cleanup = function() {
         // Remove named global handlers
         if (_globalHandlers.beforeunload) {
@@ -237,7 +221,6 @@
         });
         Object.keys(handlers).forEach(key => delete handlers[key]);
 
-        console.log('[Events] Cleanup complete');
     };
 
 })();

@@ -54,10 +54,12 @@
         render: function(data, container) {
             window.DashboardDOM.clear(container);
 
-            var entries = Object.entries(data || {});
+            // API returns an array of CircuitStateInfo objects
+            var entries = Array.isArray(data) ? data : [];
+
             var closedCount = 0, openCount = 0, halfOpenCount = 0;
-            entries.forEach(function(entry) {
-                var state = entry[1].status;
+            entries.forEach(function(circuit) {
+                var state = circuit.status;
                 if (state === 'Closed') closedCount++;
                 else if (state === 'Open') openCount++;
                 else if (state === 'HalfOpen') halfOpenCount++;
@@ -95,12 +97,12 @@
                 return;
             }
 
-            var rows = entries.map(function(entry) {
-                var key = entry[0];
-                var circuit = entry[1];
-                var parts = key.split(':');
-                var clusterId = parts[0] || key;
-                var destinationId = parts[1] || null;
+            var self = this;
+            var rows = entries.map(function(circuit) {
+                var clusterName = circuit.clusterName || circuit.clusterKeySnapshot || circuit.key || '-';
+                var destinationId = circuit.destinationKeySnapshot && circuit.destinationKeySnapshot !== 'any'
+                    ? circuit.destinationKeySnapshot
+                    : null;
 
                 var statusClass = circuit.status === 'Closed' ? 'bg-success' :
                                  circuit.status === 'Open' ? 'bg-danger' : 'bg-warning';
@@ -115,10 +117,14 @@
                 var lastAccessed = circuit.lastAccessedAt
                     ? window.DashboardI18n.formatDate(circuit.lastAccessedAt)
                     : '-';
-                var recoverySec = circuit.recoveryTimeout ? Math.round(circuit.recoveryTimeout / 1000) + 's' : '-';
+                var recoverySec = self.formatRecoveryTimeout(circuit);
 
                 return '<tr class="align-middle">' +
-                    '<td><i class="bi ' + stateIcon + ' me-2"></i><strong>' + window.DashboardUtils.escapeHtml(clusterId) + '</strong></td>' +
+                    '<td><i class="bi ' + stateIcon + ' me-2"></i><strong>' + window.DashboardUtils.escapeHtml(clusterName) + '</strong>' +
+                        (circuit.clusterKeySnapshot && circuit.clusterKeySnapshot !== clusterName
+                            ? '<br><small class="text-muted">ID: ' + window.DashboardUtils.escapeHtml(circuit.clusterKeySnapshot) + '</small>'
+                            : '') +
+                    '</td>' +
                     '<td><code>' + (destinationId ? window.DashboardUtils.escapeHtml(destinationId) : '-') + '</code></td>' +
                     '<td><span class="badge ' + statusClass + '">' + statusText + '</span></td>' +
                     '<td>' + circuit.consecutiveFailures + ' / ' + circuit.failureThreshold + '</td>' +
@@ -147,8 +153,35 @@
                 '</div>';
         },
 
+        formatRecoveryTimeout: function(circuit) {
+            if (typeof circuit.recoveryTimeoutSeconds === 'number') {
+                return circuit.recoveryTimeoutSeconds + 's';
+            }
+
+            if (typeof circuit.recoveryTimeout === 'number') {
+                return Math.round(circuit.recoveryTimeout / 1000) + 's';
+            }
+
+            if (typeof circuit.recoveryTimeout === 'string') {
+                var parts = circuit.recoveryTimeout.split(':');
+                if (parts.length === 3) {
+                    var seconds = Math.round((parseFloat(parts[0]) || 0) * 3600 + (parseFloat(parts[1]) || 0) * 60 + (parseFloat(parts[2]) || 0));
+                    return seconds + 's';
+                }
+                return circuit.recoveryTimeout;
+            }
+
+            return '-';
+        },
+
         resetAll: async function() {
-            if (!confirm(__('circuit.resetConfirm'))) return;
+            window.DashboardModals.showConfirm(__('circuit.resetConfirm'), async function() {
+                try {
+                    await window.DashboardApi.resetCircuitBreakers();
+                    window.DashboardModals.showSuccess(__('circuit.resetSuccess'));
+                    await self.load();
+                } catch (e) { window.DashboardModals.showError(__('circuit.resetFailed')); }
+            }, null, { danger: true });
             try {
                 await window.DashboardApi.resetCircuitBreakers();
                 if (window.DashboardModals) {

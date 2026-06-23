@@ -14,6 +14,10 @@ public class WafSecurityEvent
     public string RuleName { get; set; } = string.Empty;
     public string? RequestUri { get; set; }
     public string? RequestMethod { get; set; }
+    public string? RouteUid { get; set; }
+    public string? RouteKeySnapshot { get; set; }
+    public string? ClusterUid { get; set; }
+    public string? ClusterKeySnapshot { get; set; }
     public string? MatchedValue { get; set; }
     public bool Blocked { get; set; } = true;
     public int? StatusCode { get; set; }

@@ -42,6 +42,12 @@ internal sealed class GatewayRegistrationHostedService : IHostedService
 
     public async Task StartAsync(CancellationToken ct)
     {
+        if (!RegistrationOptionsResolver.IsEnabled(_options))
+        {
+            _logger.LogDebug("Auto-registration disabled (no GatewayUrl configured), skipping");
+            return;
+        }
+
         _logger.LogDebug("Auto-registration starting...");
 
         for (int attempt = 0; attempt < MaxRetries; attempt++)

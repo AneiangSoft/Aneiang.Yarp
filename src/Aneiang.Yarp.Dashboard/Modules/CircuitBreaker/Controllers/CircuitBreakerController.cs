@@ -27,8 +27,25 @@ public class CircuitBreakerController : Controller
         // Ensure circuits exist for all clusters that have CB enabled
         SyncCircuitsFromConfig();
 
+        // Remove circuits for clusters that no longer have CB enabled
+        CleanupStaleCircuits();
+
         var states = CircuitBreakerMiddleware.GetAllCircuitStates();
-        return Json(new { code = 200, data = states });
+        var dynConfig = _yarpConfig.GetDynamicConfig();
+        var clusters = dynConfig?.Clusters;
+
+        var enriched = states.Select(s =>
+        {
+            var cluster = clusters?.FirstOrDefault(c =>
+                string.Equals(c.ClusterId, s.ClusterKeySnapshot, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(c.ClusterUid, s.ClusterUid, StringComparison.OrdinalIgnoreCase));
+            s.ClusterName = !string.IsNullOrWhiteSpace(cluster?.DisplayName)
+                ? cluster.DisplayName
+                : s.ClusterKeySnapshot;
+            return s;
+        });
+
+        return Json(new { code = 200, data = enriched });
     }
 
     /// <summary>
@@ -53,7 +70,35 @@ public class CircuitBreakerController : Controller
         {
             if (cluster.CircuitBreaker is { Enabled: true } cbConfig)
             {
-                CircuitBreakerMiddleware.EnsureCircuitExists(cluster.ClusterId, cbConfig);
+                CircuitBreakerMiddleware.EnsureCircuitExists(cluster.ClusterId, cbConfig, cluster.ClusterUid);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Remove circuit entries for clusters that no longer have CB enabled.
+    /// </summary>
+    private void CleanupStaleCircuits()
+    {
+        var dynConfig = _yarpConfig.GetDynamicConfig();
+        if (dynConfig?.Clusters == null) return;
+
+        var cbEnabledClusters = dynConfig.Clusters
+            .Where(c => c.CircuitBreaker is { Enabled: true })
+            .Select(c => new { c.ClusterId, c.ClusterUid })
+            .ToList();
+
+        var allStates = CircuitBreakerMiddleware.GetAllCircuitStates();
+        foreach (var state in allStates)
+        {
+            var stillEnabled = cbEnabledClusters.Any(c =>
+                string.Equals(c.ClusterId, state.ClusterKeySnapshot, StringComparison.OrdinalIgnoreCase)
+                || (!string.IsNullOrWhiteSpace(c.ClusterUid)
+                    && string.Equals(c.ClusterUid, state.ClusterUid, StringComparison.OrdinalIgnoreCase)));
+
+            if (!stillEnabled)
+            {
+                CircuitBreakerMiddleware.RemoveCircuitsForCluster(state.ClusterKeySnapshot, state.ClusterUid);
             }
         }
     }

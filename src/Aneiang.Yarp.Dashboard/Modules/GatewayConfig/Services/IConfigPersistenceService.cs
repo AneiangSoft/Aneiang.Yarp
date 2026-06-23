@@ -27,6 +27,9 @@ public interface IConfigPersistenceService
     /// <summary>Rollback to a specific version.</summary>
     Task<bool> RollbackAsync(string versionId, string? clientIp = null);
 
+    /// <summary>Clear all configuration history snapshots.</summary>
+    Task ClearHistoryAsync();
+
     /// <summary>Validate configuration against basic YARP structure requirements.</summary>
     ValidationResult ValidateConfig(JsonElement config);
 }

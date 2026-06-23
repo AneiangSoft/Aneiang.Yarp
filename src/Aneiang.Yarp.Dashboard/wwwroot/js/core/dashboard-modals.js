@@ -7,7 +7,6 @@
 
     window.DashboardModals = window.DashboardModals || {};
 
-    // ===== Toast Container =====
     let toastContainer = null;
 
     function ensureToastContainer() {
@@ -61,7 +60,7 @@
         toast.innerHTML = `
             <i class="bi ${config.icon}" style="font-size:18px;"></i>
             <span style="flex:1;">${window.DashboardUtils?.escapeHtml?.(message) || message}</span>
-            <button onclick="this.parentElement.remove()" style="background:none;border:none;color:#fff;cursor:pointer;padding:0;margin-left:8px;">
+            <button onclick="this.parentElement.remove()" class="toast-close-btn">
                 <i class="bi bi-x"></i>
             </button>
         `;
@@ -96,7 +95,6 @@
         return this.showToast(message, 'info');
     };
 
-    // ===== Confirm Modal =====
     let confirmModalId = 'dashboard-confirm-modal';
 
     /**
@@ -134,10 +132,10 @@
                             ${window.DashboardUtils?.escapeHtml?.(message) || message}
                         </div>
                         <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
-                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
+                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
                                 ${cancelText}
                             </button>
-                            <button type="button" class="btn ${danger ? 'btn-danger' : 'btn-primary'} btn-sm" id="confirm-btn" style="min-width:70px;">
+                            <button type="button" class="btn ${danger ? 'btn-danger' : 'btn-primary'} btn-sm" id="confirm-btn">
                                 ${confirmText}
                             </button>
                         </div>
@@ -167,7 +165,6 @@
         return bsModal;
     };
 
-    // ===== Form Modal =====
     /**
      * Show form modal for add/edit
      * @param {object} config - {title, fields, data, onSave, onCancel, size}
@@ -264,10 +261,10 @@
                                 ${config.jsonModeCallback ? `<button type="button" class="btn btn-outline-secondary btn-sm" id="${modalId}-json-switch" style="font-size:12px;"><i class="bi bi-braces me-1"></i>${window.__('modal.jsonMode') || 'JSON'}</button>` : ''}
                             </div>
                             <div style="display:flex;gap:8px;">
-                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">
+                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
                                     ${window.__('modal.cancelBtn')}
                                 </button>
-                                <button type="button" class="btn btn-primary btn-sm" id="${modalId}-save" style="min-width:80px;">
+                                <button type="button" class="btn btn-primary btn-sm" id="${modalId}-save">
                                     <i class="bi bi-check-lg me-1"></i>${window.__('modal.saveBtn')}
                                 </button>
                             </div>
@@ -358,7 +355,6 @@
         return bsModal;
     };
 
-    // ===== Schema Cache =====
     const schemaCache = {
         cluster: null,
         route: null,
@@ -387,10 +383,8 @@
                 schema: schema
             }]
         });
-        console.log('[Modals] Schema registered for type:', schemaType);
     }
 
-    // ===== Load Schema =====
     window.DashboardModals.loadSchema = function(type) {
         const self = this;
         
@@ -415,7 +409,6 @@
                         try {
                             const schema = JSON.parse(xhr.responseText);
                             schemaCache[type] = schema;
-                            console.log('[Modals] Schema loaded:', type);
                             resolve(schema);
                         } catch (e) {
                             console.error('[Modals] Schema parse failed:', e);
@@ -434,7 +427,6 @@
         });
     };
 
-    // ===== JSON Modal =====
     /**
      * Show JSON editor modal with schema validation
      * @param {object} config - {title, data, onSave, readOnly, schemaType, schemaUri}
@@ -455,7 +447,8 @@
             jsonContent = '{}';
         }
 
-        // Build editable ID input HTML if provided
+        // Build editable ID input HTML if provided. ID fields can be locked to prevent accidental rename.
+        const idReadOnly = editableId && editableId.readOnly === true;
         const idInputHtml = editableId ? `
             <div style="padding:14px 24px 0 24px;background:#fff;">
                 <div style="display:flex;align-items:center;gap:10px;">
@@ -463,10 +456,11 @@
                     <input type="text" class="form-control" id="${modalId}-id-input"
                            value="${editableId.value || ''}"
                            placeholder="${editableId.placeholder || ''}"
-                           style="border-radius:8px;padding:8px 12px;font-size:14px;border:1.5px solid #e2e8f0;transition:border-color 0.2s,box-shadow 0.2s;"
+                           ${idReadOnly ? 'readonly aria-readonly="true"' : ''}
+                           style="border-radius:8px;padding:8px 12px;font-size:14px;border:1.5px solid #e2e8f0;transition:border-color 0.2s,box-shadow 0.2s;${idReadOnly ? 'background:#f8fafc;color:#64748b;cursor:not-allowed;' : ''}"
                            onfocus="this.style.borderColor='#6366f1';this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.1)'"
                            onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
-                    ${editableId.original ? `<span style="font-size:12px;color:#94a3b8;white-space:nowrap;">${window.__('modal.renameHint')}</span>` : ''}
+                    ${idReadOnly ? `<span style="font-size:12px;color:#64748b;white-space:nowrap;"><i class="bi bi-lock"></i> ID 修改请使用专用重命名功能</span>` : (editableId.original ? `<span style="font-size:12px;color:#94a3b8;white-space:nowrap;">${window.__('modal.renameHint')}</span>` : '')}
                 </div>
             </div>
         ` : '';
@@ -508,7 +502,7 @@
                                     ${window.__('modal.cancelBtn')}
                                 </button>
                                 ${readOnly ? '' : `
-                                <button type="button" class="btn btn-primary btn-sm" id="${modalId}-save" style="min-width:80px;">
+                                <button type="button" class="btn btn-primary btn-sm" id="${modalId}-save">
                                     <i class="bi bi-check-lg me-1"></i>${window.__('modal.saveBtn')}
                                 </button>
                                 `}
@@ -561,10 +555,8 @@
                     quickSuggestions: { other: true, comments: 'off', strings: 'on' }
                 }; 
 
-                // Create editor
                 return window.DashboardMonacoEditor.init(modalId + '-editor', editorOptions).then(function(editorInstance) {
                     editor = editorInstance;
-                    console.log('[Modals] Editor created with schema:', schemaType);
                 });
             } else {
                 // Fallback to textarea
@@ -636,7 +628,6 @@
         return bsModal;
     };
 
-    // ===== Helper: Copy JSON from Editor =====
     window.DashboardModals.copyJsonFromEditor = function(modalId) {
         let value;
         if (window.DashboardMonacoEditor) {
@@ -654,7 +645,6 @@
         });
     };
 
-    // ===== Helper: Format JSON =====
     window.DashboardModals.formatJson = function(modalId) {
         let value;
         const editorContainerId = modalId + '-editor';
@@ -680,7 +670,6 @@
         }
     };
 
-    // ===== Helper: Validate JSON =====
     window.DashboardModals.validateJson = function(modalId) {
         let value;
         if (window.DashboardMonacoEditor) {
@@ -697,7 +686,6 @@
         }
     };
 
-    // ===== Add CSS animations =====
     const style = document.createElement('style');
     style.textContent = `
         @keyframes slideIn {
@@ -718,10 +706,8 @@
     `;
     document.head.appendChild(style);
 
-    // ===== Init (no-op, ensures guard checks pass) =====
     window.DashboardModals.init = function() {};
 
-    // ===== Global shortcuts =====
     window.showToast = window.DashboardModals.showToast;
     window.showConfirm = window.DashboardModals.showConfirm;
     window.showSuccess = window.DashboardModals.showSuccess;

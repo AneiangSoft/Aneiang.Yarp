@@ -24,8 +24,6 @@ public class NotificationController : ControllerBase
         _logger = logger;
     }
 
-    // ─── Settings ─────────────────────────────────────────────────────────────
-
     /// <summary>Get all notification settings including channels, rules, and global settings.</summary>
     [HttpGet("settings")]
     public async Task<IActionResult> GetSettings()
@@ -169,8 +167,6 @@ public class NotificationController : ControllerBase
         }
     }
 
-    // ─── Channels ───────────────────────────────────────────────────────────
-
     /// <summary>Create a new channel.</summary>
     [HttpPost("channels")]
     public async Task<IActionResult> CreateChannel([FromBody] ChannelRequest request)
@@ -261,8 +257,6 @@ public class NotificationController : ControllerBase
             "This is a test notification from the notification center.");
         return Ok(new { code = 200, message = "Test notification fired" });
     }
-
-    // ─── Rules ─────────────────────────────────────────────────────────────
 
     /// <summary>Create a new rule.</summary>
     [HttpPost("rules")]
@@ -364,99 +358,6 @@ public class NotificationController : ControllerBase
             }
         });
     }
-
-    /// <summary>
-    /// Diagnostics endpoint — returns the full internal state of the notification system
-    /// to help debug why notifications are not firing.
-    /// </summary>
-    [HttpGet("diagnostics")]
-    public async Task<IActionResult> GetDiagnostics()
-    {
-        var settings = await _repository.LoadSettingsAsync();
-        var channels = await _repository.GetChannelsAsync();
-        var rules = await _repository.GetRulesAsync();
-        var globalSettings = await _repository.GetGlobalSettingsAsync();
-
-        return Ok(new
-        {
-            code = 200,
-            data = new
-            {
-                databaseRowExists = settings != null,
-                settingsEnabled = settings?.Enabled ?? false,
-                globalSettingsEnabled = globalSettings.Enabled,
-                locale = globalSettings.Locale,
-                defaultTimeoutSeconds = globalSettings.DefaultTimeoutSeconds,
-                defaultRetryCount = globalSettings.DefaultRetryCount,
-                channelCount = channels.Count,
-                ruleCount = rules.Count,
-                channels = channels.Select(c => new
-                {
-                    c.Id, c.Name, c.Type, c.Enabled,
-                    hasUrl = !string.IsNullOrEmpty(c.Url),
-                    hasSecret = !string.IsNullOrEmpty(c.Secret)
-                }),
-                rules = rules.Select(r => new
-                {
-                    r.Id, r.Name, r.Enabled,
-                    r.EventTypes,
-                    r.ChannelIds,
-                    r.CooldownSeconds,
-                    r.RecordToHistory,
-                    targetRoutes = r.TargetRouteIds ?? new List<string>(),
-                    targetClusters = r.TargetClusterIds ?? new List<string>()
-                }),
-                potentialProblems = GetPotentialProblems(settings, channels, rules)
-            }
-        });
-    }
-
-    private static List<string> GetPotentialProblems(
-        NotificationSettingsEntity? settings,
-        List<NotificationChannel> channels,
-        List<NotificationRule> rules)
-    {
-        var problems = new List<string>();
-
-        if (settings == null)
-            problems.Add("notification_settings 表行不存在 — DB 未初始化");
-        else if (!settings.Enabled)
-            problems.Add("通知总开关已关闭 (notification_settings.enabled = 0)");
-
-        if (channels.Count == 0)
-            problems.Add("没有配置任何通知渠道 (Channel) — 即使有匹配规则也无法发送消息");
-
-        if (rules.Count == 0)
-            problems.Add("没有配置任何通知规则 (Rule) — 事件不会有匹配规则");
-
-        foreach (var rule in rules)
-        {
-            if (!rule.Enabled)
-                problems.Add($"规则 '{rule.Name}' 已禁用");
-            if (rule.ChannelIds.Count == 0)
-                problems.Add($"规则 '{rule.Name}' 未关联任何渠道");
-            else
-            {
-                foreach (var cid in rule.ChannelIds)
-                {
-                    var ch = channels.FirstOrDefault(c => c.Id == cid);
-                    if (ch == null)
-                        problems.Add($"规则 '{rule.Name}' 引用了不存在的渠道 ID '{cid}'");
-                    else if (!ch.Enabled)
-                        problems.Add($"规则 '{rule.Name}' 关联的渠道 '{ch.Name}' 已禁用");
-                    else if (string.IsNullOrEmpty(ch.Url))
-                        problems.Add($"规则 '{rule.Name}' 关联的渠道 '{ch.Name}' URL 为空");
-                }
-            }
-        }
-
-        if (problems.Count == 0)
-            problems.Add("系统状态正常 — 如通知仍不触发，请查看服务器日志中的 [Notification] 前缀记录");
-
-        return problems;
-    }
-
-    // ─── History ───────────────────────────────────────────────────────────
 
     /// <summary>
     /// Generate a test notification history entry directly (bypasses the rule/event pipeline).

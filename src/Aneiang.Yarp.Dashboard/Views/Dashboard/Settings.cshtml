@@ -43,7 +43,7 @@
     <div class="card-body">
         <div class="row g-3">
             <div class="col-md-6">
-                <div class="border rounded-3 p-4 h-100" style="background: linear-gradient(135deg, #f8fafc, #f1f5f9);">
+                <div class="border rounded-3 p-4 h-100" style="background: #f8fafc;">
                     <h6 class="mb-2"><i class="bi bi-download me-1" style="color:#f59e0b;"></i> <span data-i18n="config.downloadDb">下载数据库</span></h6>
                     <p class="text-muted small mb-3" data-i18n="config.downloadDbDesc">将 SQLite 数据库文件下载到本地，方便使用数据库工具查看</p>
                     <button class="btn btn-sm btn-outline-primary" onclick="DashboardConfig.downloadDatabase()">
@@ -55,17 +55,94 @@
     </div>
 </div>
 
+<!-- Security & 2FA section -->
+<div class="card-panel mb-4">
+    <div class="card-header">
+        <span><i class="bi bi-shield-lock me-2" style="color:#ef4444;"></i><span data-i18n="config.security">安全与两步验证</span></span>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="border rounded-3 p-4 h-100" style="background: #f8fafc;">
+                    <h6 class="mb-2"><i class="bi bi-shield-check me-1" style="color:#22c55e;"></i> <span data-i18n="config.twofactor">两步验证 (2FA)</span></h6>
+                    <p class="text-muted small mb-3" data-i18n="config.twofactorDesc">使用 TOTP 验证器应用（如 Google Authenticator）增强登录安全性</p>
+                    <div id="twofactor-status-area">
+                        <div class="d-flex align-items-center gap-2 mb-3">
+                            <span class="badge bg-secondary" id="twofactor-badge" data-i18n="config.twofactorDisabled">未启用</span>
+                        </div>
+                        <button class="btn btn-sm btn-primary" onclick="TwoFactorSetup.show()">
+                            <i class="bi bi-shield-lock me-1"></i><span data-i18n="config.twofactorSetup">配置 2FA</span>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger d-none" id="twofactor-disable-btn" onclick="TwoFactorSetup.disable()">
+                            <i class="bi bi-shield-x me-1"></i><span data-i18n="config.twofactorDisable">关闭 2FA</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="border rounded-3 p-4 h-100" style="background: #f8fafc;">
+                    <h6 class="mb-2"><i class="bi bi-key me-1" style="color:#f59e0b;"></i> <span data-i18n="config.passwordPolicy">密码策略</span></h6>
+                    <p class="text-muted small mb-3" data-i18n="config.passwordPolicyDesc">当前密码安全策略配置</p>
+                    <ul class="list-unstyled small text-muted mb-0">
+                        <li class="mb-1"><i class="bi bi-check-circle text-success me-1"></i><span data-i18n="config.passwordMinLength">最小密码长度</span>: <strong id="policy-min-length">6</strong></li>
+                        <li class="mb-1"><i class="bi bi-check-circle text-success me-1"></i><span data-i18n="config.passwordRequired">用户名和密码必填</span></li>
+                        <li class="mb-1"><i class="bi bi-check-circle text-success me-1"></i><span data-i18n="config.sessionTimeout">会话超时</span>: <strong>8h</strong></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 2FA Setup Modal -->
+<div class="modal fade" id="twofactor-setup-modal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-shield-lock me-2"></i><span data-i18n="config.twofactorSetup">配置 2FA</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="twofactor-setup-body">
+                <!-- Step 1: QR Code -->
+                <div id="twofactor-step-qr">
+                    <p class="text-muted small mb-3" data-i18n="config.twofactorQrDesc">使用验证器应用扫描下方二维码，或手动输入密钥</p>
+                    <div class="text-center mb-3">
+                        <div id="twofactor-qr-placeholder" class="border rounded-3 d-inline-flex align-items-center justify-content-center" style="width:200px;height:200px;background:#f8fafc;">
+                            <i class="bi bi-qr-code" style="font-size:48px;color:#94a3b8;"></i>
+                        </div>
+                        <div id="twofactor-qr-img" class="d-none"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted" data-i18n="config.twofactorSecret">密钥</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control form-control-sm font-monospace" id="twofactor-secret-display" readonly />
+                            <button class="btn btn-sm btn-outline-secondary" onclick="TwoFactorSetup.copySecret()"><i class="bi bi-clipboard"></i></button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Step 2: Verify -->
+                <div id="twofactor-step-verify" class="d-none">
+                    <p class="text-muted small mb-3" data-i18n="config.twofactorVerifyDesc">请输入验证器应用显示的 6 位验证码以确认绑定</p>
+                    <div class="mb-3">
+                        <label class="form-label"><span data-i18n="login.twofactor">两步验证码</span></label>
+                        <input type="text" class="form-control form-control-lg text-center font-monospace" id="twofactor-verify-code" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" placeholder="000000" />
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" data-i18n="modal.cancelBtn">取消</button>
+                <button type="button" class="btn btn-primary btn-sm" id="twofactor-next-btn" onclick="TwoFactorSetup.next()">
+                    <span data-i18n="config.twofactorNext">下一步</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 
 @section Scripts {
 @{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
 
 <!-- Schema Service for import/validation -->
 <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-service.js?v=@v"></script>
@@ -80,7 +157,6 @@
 <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-diff-panel.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-validation-panel.js?v=@v"></script>
 
-<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-config.js?v=@v"></script>
 
 <script>
@@ -92,6 +168,121 @@
     dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
     dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
     dash.currentPage = '@ViewBag.CurrentPage';
+</script>
+
+<script>
+    // 2FA Setup Module
+    window.TwoFactorSetup = {
+        _secret: null,
+        _step: 1,
+
+        show: async function() {
+            this._step = 1;
+            document.getElementById('twofactor-step-qr').classList.remove('d-none');
+            document.getElementById('twofactor-step-verify').classList.add('d-none');
+            document.getElementById('twofactor-next-btn').textContent = __('config.twofactorNext') || '下一步';
+
+            // Generate new secret via API
+            try {
+                var resp = await DashboardApi.get('/api/2fa/setup');
+                if (resp && resp.secret) {
+                    this._secret = resp.secret;
+                    document.getElementById('twofactor-secret-display').value = this._secret;
+
+                    // Show QR code (using Google Charts API as fallback)
+                    var qrUrl = resp.qrUrl || '';
+                    var qrImg = '<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(qrUrl) + '" width="200" height="200" class="rounded-3" alt="QR Code" />';
+                    document.getElementById('twofactor-qr-placeholder').classList.add('d-none');
+                    var qrContainer = document.getElementById('twofactor-qr-img');
+                    qrContainer.innerHTML = qrImg;
+                    qrContainer.classList.remove('d-none');
+                }
+            } catch (e) {
+                console.error('[2FA] Setup failed:', e);
+                DashboardModals.showError(__('config.twofactorSetupFailed') || '2FA setup failed');
+            }
+
+            new bootstrap.Modal(document.getElementById('twofactor-setup-modal')).show();
+        },
+
+        next: async function() {
+            if (this._step === 1) {
+                // Move to verify step
+                this._step = 2;
+                document.getElementById('twofactor-step-qr').classList.add('d-none');
+                document.getElementById('twofactor-step-verify').classList.remove('d-none');
+                document.getElementById('twofactor-next-btn').textContent = __('config.twofactorConfirm') || '确认绑定';
+                document.getElementById('twofactor-verify-code').focus();
+            } else if (this._step === 2) {
+                // Verify code
+                var code = document.getElementById('twofactor-verify-code').value.trim();
+                if (!code || code.length !== 6) {
+                    DashboardModals.showWarning(__('config.twofactorInvalidCode') || '请输入 6 位验证码');
+                    return;
+                }
+
+                try {
+                    var resp = await DashboardApi.post('/api/2fa/verify', { code: code, secret: this._secret });
+                    if (resp && resp.code === 200) {
+                        bootstrap.Modal.getInstance(document.getElementById('twofactor-setup-modal')).hide();
+                        DashboardModals.showSuccess(__('config.twofactorEnabled') || '2FA 已启用');
+                        this.refreshStatus();
+                    } else {
+                        DashboardModals.showError(resp?.message || __('config.twofactorInvalidCode') || '验证码错误');
+                    }
+                } catch (e) {
+                    DashboardModals.showError(e.message || __('config.twofactorVerifyFailed') || '验证失败');
+                }
+            }
+        },
+
+        disable: async function() {
+            DashboardModals.showConfirm(
+                __('config.twofactorDisableConfirm') || '确认关闭两步验证？关闭后登录将不再需要验证码。',
+                async function() {
+                    try {
+                        await DashboardApi.post('/api/2fa/disable', {});
+                        DashboardModals.showSuccess(__('config.twofactorDisabled') || '2FA 已关闭');
+                        TwoFactorSetup.refreshStatus();
+                    } catch (e) {
+                        DashboardModals.showError(__('config.twofactorDisableFailed') || '关闭失败');
+                    }
+                }, null, { danger: true }
+            );
+        },
+
+        refreshStatus: async function() {
+            try {
+                var resp = await DashboardApi.get('/api/2fa/status');
+                if (resp && resp.enabled !== undefined) {
+                    var enabled = resp.enabled;
+                    var badge = document.getElementById('twofactor-badge');
+                    var disableBtn = document.getElementById('twofactor-disable-btn');
+                    if (enabled) {
+                        badge.className = 'badge bg-success';
+                        badge.textContent = __('config.twofactorEnabled') || '已启用';
+                        disableBtn.classList.remove('d-none');
+                    } else {
+                        badge.className = 'badge bg-secondary';
+                        badge.textContent = __('config.twofactorDisabled') || '未启用';
+                        disableBtn.classList.add('d-none');
+                    }
+                    if (resp.minPasswordLength) {
+                        document.getElementById('policy-min-length').textContent = resp.minPasswordLength;
+                    }
+                }
+            } catch (e) {
+                // Status check failed — likely not configured
+            }
+        },
+
+        copySecret: function() {
+            var input = document.getElementById('twofactor-secret-display');
+            input.select();
+            document.execCommand('copy');
+            DashboardModals.showSuccess(__('config.copied') || '已复制');
+        }
+    };
 </script>
 
 <script>
@@ -107,9 +298,9 @@
         if (window.DashboardSchemaService) await DashboardSchemaService.load();
         if (window.LazyMonacoLoader) await window.LazyMonacoLoader.ensure();
 
-        // Load settings data - webhook settings have been moved to the Notifications page
+        // Load settings data
         try {
-            // Nothing to load for webhook summary here anymore
+            if (window.TwoFactorSetup) await TwoFactorSetup.refreshStatus();
         } catch (e) {
             console.error('[Settings] Load failed:', e);
         }

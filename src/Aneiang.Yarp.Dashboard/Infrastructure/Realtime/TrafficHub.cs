@@ -41,9 +41,18 @@ public class TrafficHub : Hub
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        foreach (var (routeId, connections) in _routeSubscriptions)
+        // Clean up route subscriptions for this connection
+        foreach (var routeId in _routeSubscriptions.Keys.ToList())
         {
-            connections.Remove(Context.ConnectionId);
+            if (_routeSubscriptions.TryGetValue(routeId, out var connections))
+            {
+                connections.Remove(Context.ConnectionId);
+                // Remove empty entries to prevent memory leak
+                if (connections.Count == 0)
+                {
+                    _routeSubscriptions.TryRemove(routeId, out _);
+                }
+            }
         }
         await base.OnDisconnectedAsync(exception);
     }

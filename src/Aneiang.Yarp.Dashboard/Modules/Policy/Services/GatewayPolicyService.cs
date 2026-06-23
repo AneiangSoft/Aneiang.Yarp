@@ -1,4 +1,5 @@
 using Aneiang.Yarp.Dashboard.Infrastructure.Storage;
+using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
 using Aneiang.Yarp.Dashboard.Modules.Policy.Models;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
@@ -13,7 +14,6 @@ namespace Aneiang.Yarp.Dashboard.Modules.Policy.Services;
 /// </summary>
 public interface IGatewayPolicyService
 {
-    // ─── Route Policies ─────────────────────────────
     Task<IReadOnlyList<RoutePolicy>> GetAllRoutePoliciesAsync();
     Task<RoutePolicy?> GetRoutePolicyAsync(string policyId);
     Task<RoutePolicy> CreateRoutePolicyAsync(RoutePolicy policy);
@@ -22,7 +22,6 @@ public interface IGatewayPolicyService
     Task<bool> ApplyRoutePolicyAsync(string policyId, string routeId);
     Task<bool> UnapplyRoutePolicyAsync(string policyId, string routeId);
 
-    // ─── Cluster Policies ───────────────────────────
     Task<IReadOnlyList<ClusterPolicy>> GetAllClusterPoliciesAsync();
     Task<ClusterPolicy?> GetClusterPolicyAsync(string policyId);
     Task<ClusterPolicy> CreateClusterPolicyAsync(ClusterPolicy policy);
@@ -36,33 +35,52 @@ public interface IGatewayPolicyService
 public class GatewayPolicyService : IGatewayPolicyService
 {
     private readonly IPolicyRepository _policyRepo;
+    private readonly IRouteRepository _routeRepo;
+    private readonly IClusterRepository _clusterRepo;
     private readonly DynamicYarpConfigService _yarpConfig;
     private readonly ILogger<GatewayPolicyService> _logger;
 
     public GatewayPolicyService(
         IPolicyRepository policyRepo,
+        IRouteRepository routeRepo,
+        IClusterRepository clusterRepo,
         DynamicYarpConfigService yarpConfig,
         ILogger<GatewayPolicyService> logger)
     {
         _policyRepo = policyRepo;
+        _routeRepo = routeRepo;
+        _clusterRepo = clusterRepo;
         _yarpConfig = yarpConfig;
         _logger = logger;
     }
-
-    // ─── Route Policies ─────────────────────────────
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<RoutePolicy>> GetAllRoutePoliciesAsync()
     {
         var entities = await _policyRepo.GetAllPoliciesAsync();
-        return entities.ToRoutePolicies().AsReadOnly();
+        var allTargets = await _policyRepo.GetAllPolicyTargetsAsync();
+        var policies = entities.ToRoutePolicies().ToList();
+
+        foreach (var policy in policies)
+        {
+            policy.AppliedRoutes = allTargets
+                .Where(t => string.Equals(t.PolicyId, policy.PolicyId, StringComparison.OrdinalIgnoreCase)
+                            && string.Equals(t.TargetType, "route", StringComparison.OrdinalIgnoreCase))
+                .Select(t => t.TargetKeySnapshot)
+                .ToList();
+        }
+
+        return policies.AsReadOnly();
     }
 
     /// <inheritdoc />
     public async Task<RoutePolicy?> GetRoutePolicyAsync(string policyId)
     {
         var entity = await _policyRepo.GetPolicyAsync(policyId);
-        return entity?.PolicyType == "route" ? entity.ToRoutePolicy() : null;
+        if (entity?.PolicyType != "route") return null;
+        var policy = entity.ToRoutePolicy();
+        policy.AppliedRoutes = await GetAppliedTargetKeysAsync(policy.PolicyId, "route");
+        return policy;
     }
 
     /// <inheritdoc />
@@ -90,9 +108,7 @@ public class GatewayPolicyService : IGatewayPolicyService
 
         policy.PolicyId = policyId;
         policy.CreatedAt = existing.CreatedAt;
-        policy.AppliedRoutes = existing.AppliedTargets != null
-            ? System.Text.Json.JsonSerializer.Deserialize<List<string>>(existing.AppliedTargets) ?? new()
-            : new();
+        policy.AppliedRoutes = await GetAppliedTargetKeysAsync(policyId, "route");
 
         await _policyRepo.SavePolicyAsync(policy.ToEntity());
         _logger.LogDebug("Updated route policy '{PolicyId}'", policyId);
@@ -112,12 +128,13 @@ public class GatewayPolicyService : IGatewayPolicyService
         var existing = await _policyRepo.GetPolicyAsync(policyId);
         if (existing == null || existing.PolicyType != "route") return false;
 
-        var policy = existing.ToRoutePolicy();
-        foreach (var routeId in policy.AppliedRoutes)
+        var appliedRoutes = await GetAppliedTargetKeysAsync(policyId, "route");
+        foreach (var routeId in appliedRoutes)
         {
             await RemoveRoutePolicyMetadata(routeId);
         }
 
+        await _policyRepo.DeletePolicyTargetsAsync(policyId);
         await _policyRepo.DeletePolicyAsync(policyId);
         _logger.LogInformation("Deleted route policy '{PolicyId}'", policyId);
         return true;
@@ -151,8 +168,8 @@ public class GatewayPolicyService : IGatewayPolicyService
             if (!policy.AppliedRoutes.Contains(routeId))
             {
                 policy.AppliedRoutes.Add(routeId);
-                await _policyRepo.SavePolicyAsync(policy.ToEntity());
             }
+            await SavePolicyTargetAsync(policy.PolicyId, "route", routeId);
             _logger.LogDebug(
                 "Route policy '{PolicyId}' ({Name}) applied to route '{RouteId}'",
                 policyId, policy.DisplayName, routeId);
@@ -171,7 +188,7 @@ public class GatewayPolicyService : IGatewayPolicyService
 
         if (policy.AppliedRoutes.Remove(routeId))
         {
-            await _policyRepo.SavePolicyAsync(policy.ToEntity());
+            await DeletePolicyTargetByKeyAsync(policy.PolicyId, "route", routeId);
         }
 
         _logger.LogDebug(
@@ -180,20 +197,33 @@ public class GatewayPolicyService : IGatewayPolicyService
         return true;
     }
 
-    // ─── Cluster Policies ───────────────────────────
-
     /// <inheritdoc />
     public async Task<IReadOnlyList<ClusterPolicy>> GetAllClusterPoliciesAsync()
     {
         var entities = await _policyRepo.GetAllPoliciesAsync();
-        return entities.ToClusterPolicies().AsReadOnly();
+        var allTargets = await _policyRepo.GetAllPolicyTargetsAsync();
+        var policies = entities.ToClusterPolicies().ToList();
+
+        foreach (var policy in policies)
+        {
+            policy.AppliedClusters = allTargets
+                .Where(t => string.Equals(t.PolicyId, policy.PolicyId, StringComparison.OrdinalIgnoreCase)
+                            && string.Equals(t.TargetType, "cluster", StringComparison.OrdinalIgnoreCase))
+                .Select(t => t.TargetKeySnapshot)
+                .ToList();
+        }
+
+        return policies.AsReadOnly();
     }
 
     /// <inheritdoc />
     public async Task<ClusterPolicy?> GetClusterPolicyAsync(string policyId)
     {
         var entity = await _policyRepo.GetPolicyAsync(policyId);
-        return entity?.PolicyType == "cluster" ? entity.ToClusterPolicy() : null;
+        if (entity?.PolicyType != "cluster") return null;
+        var policy = entity.ToClusterPolicy();
+        policy.AppliedClusters = await GetAppliedTargetKeysAsync(policy.PolicyId, "cluster");
+        return policy;
     }
 
     /// <inheritdoc />
@@ -221,9 +251,7 @@ public class GatewayPolicyService : IGatewayPolicyService
 
         policy.PolicyId = policyId;
         policy.CreatedAt = existing.CreatedAt;
-        policy.AppliedClusters = existing.AppliedTargets != null
-            ? System.Text.Json.JsonSerializer.Deserialize<List<string>>(existing.AppliedTargets) ?? new()
-            : new();
+        policy.AppliedClusters = await GetAppliedTargetKeysAsync(policyId, "cluster");
 
         await _policyRepo.SavePolicyAsync(policy.ToEntity());
         _logger.LogInformation("Updated cluster policy '{PolicyId}'", policyId);
@@ -243,12 +271,13 @@ public class GatewayPolicyService : IGatewayPolicyService
         var existing = await _policyRepo.GetPolicyAsync(policyId);
         if (existing == null || existing.PolicyType != "cluster") return false;
 
-        var policy = existing.ToClusterPolicy();
-        foreach (var clusterId in policy.AppliedClusters)
+        var appliedClusters = await GetAppliedTargetKeysAsync(policyId, "cluster");
+        foreach (var clusterId in appliedClusters)
         {
             await _yarpConfig.UpdateClusterCircuitBreakerAsync(clusterId, null);
         }
 
+        await _policyRepo.DeletePolicyTargetsAsync(policyId);
         await _policyRepo.DeletePolicyAsync(policyId);
         _logger.LogInformation("Deleted cluster policy '{PolicyId}'", policyId);
         return true;
@@ -282,8 +311,8 @@ public class GatewayPolicyService : IGatewayPolicyService
             if (!policy.AppliedClusters.Contains(clusterId))
             {
                 policy.AppliedClusters.Add(clusterId);
-                await _policyRepo.SavePolicyAsync(policy.ToEntity());
             }
+            await SavePolicyTargetAsync(policy.PolicyId, "cluster", clusterId);
             _logger.LogInformation(
                 "Cluster policy '{PolicyId}' ({Name}) applied to cluster '{ClusterId}'",
                 policyId, policy.DisplayName, clusterId);
@@ -300,9 +329,15 @@ public class GatewayPolicyService : IGatewayPolicyService
 
         await _yarpConfig.UpdateClusterCircuitBreakerAsync(clusterId, null);
 
+        // Remove in-memory circuit breaker state so it disappears from the dashboard immediately
+        var dynConfig = _yarpConfig.GetDynamicConfig();
+        var cluster = dynConfig?.Clusters.FirstOrDefault(c =>
+            string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+        CircuitBreakerMiddleware.RemoveCircuitsForCluster(clusterId, cluster?.ClusterUid);
+
         if (policy.AppliedClusters.Remove(clusterId))
         {
-            await _policyRepo.SavePolicyAsync(policy.ToEntity());
+            await DeletePolicyTargetByKeyAsync(policy.PolicyId, "cluster", clusterId);
         }
 
         _logger.LogInformation(
@@ -311,7 +346,59 @@ public class GatewayPolicyService : IGatewayPolicyService
         return true;
     }
 
-    // ─── Helpers ────────────────────────────────────
+    private async Task<List<string>> GetAppliedTargetKeysAsync(string policyId, string targetType)
+    {
+        var targets = await _policyRepo.GetPolicyTargetsAsync(policyId, targetType);
+        if (targets.Count > 0)
+            return targets.Select(t => t.TargetKeySnapshot).ToList();
+
+        var entity = await _policyRepo.GetPolicyAsync(policyId);
+        return new List<string>();
+    }
+
+    private async Task SavePolicyTargetAsync(string policyId, string targetType, string targetKey)
+    {
+        var policy = await _policyRepo.GetPolicyAsync(policyId);
+        if (policy == null) return;
+
+        var targetUid = await ResolveTargetUidAsync(targetType, targetKey);
+        await _policyRepo.SavePolicyTargetAsync(new PolicyTargetEntity
+        {
+            PolicyUid = policy.PolicyUid,
+            PolicyId = policy.PolicyId,
+            TargetType = targetType,
+            TargetUid = targetUid,
+            TargetKeySnapshot = targetKey
+        });
+    }
+
+    private async Task DeletePolicyTargetByKeyAsync(string policyId, string targetType, string targetKey)
+    {
+        var targetUid = await ResolveTargetUidAsync(targetType, targetKey);
+        await _policyRepo.DeletePolicyTargetAsync(policyId, targetType, targetUid);
+    }
+
+    private async Task<string> ResolveTargetUidAsync(string targetType, string targetKey)
+    {
+        if (string.Equals(targetType, "route", StringComparison.OrdinalIgnoreCase))
+        {
+            var route = await _routeRepo.GetRouteAsync(targetKey);
+            if (!string.IsNullOrWhiteSpace(route?.RouteUid)) return route.RouteUid;
+        }
+        else if (string.Equals(targetType, "cluster", StringComparison.OrdinalIgnoreCase))
+        {
+            var cluster = await _clusterRepo.GetClusterAsync(targetKey);
+            if (!string.IsNullOrWhiteSpace(cluster?.ClusterUid)) return cluster.ClusterUid;
+        }
+
+        return StableUidFromKey(targetType, targetKey);
+    }
+
+    private static string StableUidFromKey(string prefix, string key)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(prefix + ":" + key));
+        return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
+    }
 
     private async Task RemoveRoutePolicyMetadata(string routeId)
     {

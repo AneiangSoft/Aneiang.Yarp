@@ -18,6 +18,7 @@ public static class ConfigEntityMapper
 
     public static RouteEntity ToEntity(this DynamicRouteConfig route) => new()
     {
+        RouteUid = string.IsNullOrWhiteSpace(route.RouteUid) ? StableUidFromKey("route", route.RouteId) : route.RouteUid,
         RouteId = route.RouteId,
         ClusterId = route.ClusterId,
         MatchPath = route.MatchPath,
@@ -32,7 +33,9 @@ public static class ConfigEntityMapper
 
     public static DynamicRouteConfig ToRouteConfig(this RouteEntity entity) => new()
     {
+        RouteUid = entity.RouteUid,
         RouteId = entity.RouteId,
+        ClusterUid = entity.ClusterUid,
         ClusterId = entity.ClusterId,
         MatchPath = entity.MatchPath,
         Order = entity.Order,
@@ -50,9 +53,11 @@ public static class ConfigEntityMapper
 
     public static ClusterEntity ToEntity(this DynamicClusterConfig cluster) => new()
     {
+        ClusterUid = string.IsNullOrWhiteSpace(cluster.ClusterUid) ? StableUidFromKey("cluster", cluster.ClusterId) : cluster.ClusterUid,
         ClusterId = cluster.ClusterId,
         LoadBalancingPolicy = cluster.LoadBalancingPolicy,
         HealthCheckConfig = cluster.HealthCheck != null ? JsonSerializer.Serialize(cluster.HealthCheck, _jsonOptions) : null,
+        CircuitBreakerConfig = cluster.CircuitBreaker != null ? JsonSerializer.Serialize(cluster.CircuitBreaker, _jsonOptions) : null,
         Source = cluster.Source,
         CreatedBy = cluster.CreatedBy,
         CreatedAt = cluster.CreatedAt,
@@ -62,9 +67,11 @@ public static class ConfigEntityMapper
 
     public static DynamicClusterConfig ToClusterConfig(this ClusterEntity entity) => new()
     {
+        ClusterUid = entity.ClusterUid,
         ClusterId = entity.ClusterId,
         LoadBalancingPolicy = entity.LoadBalancingPolicy,
         HealthCheck = string.IsNullOrEmpty(entity.HealthCheckConfig) ? null : JsonSerializer.Deserialize<HealthCheckConfig>(entity.HealthCheckConfig, _jsonOptions),
+        CircuitBreaker = string.IsNullOrEmpty(entity.CircuitBreakerConfig) ? null : JsonSerializer.Deserialize<CircuitBreakerConfig>(entity.CircuitBreakerConfig, _jsonOptions),
         Source = entity.Source,
         CreatedBy = entity.CreatedBy,
         CreatedAt = entity.CreatedAt,
@@ -120,4 +127,10 @@ public static class ConfigEntityMapper
 
     public static List<ConfigChangeAudit> ToConfigChangeAudits(this IEnumerable<AuditLogEntity> entities)
         => entities.Select(e => e.ToConfigChangeAudit()).ToList();
+
+    private static string StableUidFromKey(string prefix, string key)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(prefix + ":" + key));
+        return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
+    }
 }

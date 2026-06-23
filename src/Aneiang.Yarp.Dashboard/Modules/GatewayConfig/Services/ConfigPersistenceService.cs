@@ -1,10 +1,12 @@
 using System.Text.Json;
+using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Storage;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Models;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
@@ -20,12 +22,11 @@ public class ConfigPersistenceService : IConfigPersistenceService
         WriteIndented = true
     };
 
-    private const int MaxHistorySize = 50;
-
     private readonly DynamicYarpConfigService? _dynamicConfig;
     private readonly IConfigHistoryRepository _historyRepo;
     private readonly IRouteRepository _routeRepo;
     private readonly IClusterRepository _clusterRepo;
+    private readonly IOptionsMonitor<ConfigHistoryOptions> _options;
     private readonly ILogger<ConfigPersistenceService> _logger;
     private readonly List<ConfigSnapshot> _history = new();
     private readonly object _historyLock = new();
@@ -36,14 +37,18 @@ public class ConfigPersistenceService : IConfigPersistenceService
         IConfigHistoryRepository historyRepo,
         IRouteRepository routeRepo,
         IClusterRepository clusterRepo,
+        IOptionsMonitor<ConfigHistoryOptions> options,
         DynamicYarpConfigService? dynamicConfig = null)
     {
         _historyRepo = historyRepo;
         _routeRepo = routeRepo;
         _clusterRepo = clusterRepo;
+        _options = options;
         _logger = logger;
         _dynamicConfig = dynamicConfig;
     }
+
+    private int GetMaxSnapshots() => Math.Max(1, _options.CurrentValue.MaxSnapshots);
 
     /// <summary>Load persisted snapshot history from repository on first access.</summary>
     private async Task EnsureHistoryLoadedAsync()
@@ -53,7 +58,7 @@ public class ConfigPersistenceService : IConfigPersistenceService
 
         try
         {
-            var entities = await _historyRepo.GetConfigHistoryListAsync(MaxHistorySize);
+            var entities = await _historyRepo.GetConfigHistoryListAsync(GetMaxSnapshots());
             lock (_historyLock)
             {
                 foreach (var entity in entities)
@@ -246,15 +251,17 @@ public class ConfigPersistenceService : IConfigPersistenceService
             Config = config
         };
 
+        var maxSnapshots = GetMaxSnapshots();
         lock (_historyLock)
         {
             _history.Add(snapshot);
-            while (_history.Count > MaxHistorySize)
+            while (_history.Count > maxSnapshots)
                 _history.RemoveAt(0);
         }
 
         var entity = snapshot.ToEntity("dashboard-user");
-        _ = _historyRepo.SaveConfigHistoryAsync(entity);
+        await _historyRepo.SaveConfigHistoryAsync(entity);
+        await _historyRepo.DeleteOldConfigHistoryAsync(maxSnapshots);
 
         _logger.LogInformation("Snapshot saved: {VersionId}, Description: {Description}", snapshot.VersionId, snapshot.Description);
         return snapshot;
@@ -271,6 +278,18 @@ public class ConfigPersistenceService : IConfigPersistenceService
         if (_historyLoaded && _history.Count > 0)
             lock (_historyLock) { return _history.ToList().AsReadOnly(); }
         return Array.Empty<ConfigSnapshot>();
+    }
+
+    public async Task ClearHistoryAsync()
+    {
+        await EnsureHistoryLoadedAsync();
+        lock (_historyLock)
+        {
+            _history.Clear();
+        }
+
+        await _historyRepo.ClearConfigHistoryAsync();
+        _logger.LogInformation("Configuration history cleared");
     }
 
     public async Task<bool> RollbackAsync(string versionId, string? clientIp = null)

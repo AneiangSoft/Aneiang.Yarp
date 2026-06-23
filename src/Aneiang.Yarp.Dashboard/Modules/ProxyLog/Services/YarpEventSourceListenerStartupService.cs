@@ -7,7 +7,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 /// <summary>
 /// Ensures YarpEventSourceListener is instantiated at startup to begin capturing events.
 /// </summary>
-public sealed class YarpEventSourceListenerStartupService : IHostedService
+internal sealed class YarpEventSourceListenerStartupService : IHostedService
 {
     private readonly YarpEventSourceListener _listener;
     private readonly IOptions<DashboardOptions> _options;
@@ -36,10 +36,16 @@ public sealed class YarpEventSourceListenerStartupService : IHostedService
     }
 
     /// <summary>
-    /// No cleanup needed on shutdown.
+    /// Disable EventSource subscription during host shutdown.
     /// </summary>
     public Task StopAsync(CancellationToken cancellationToken)
     {
+        if (_options.Value.EnableProxyLogging)
+        {
+            _listener.Dispose();
+        }
+
         return Task.CompletedTask;
     }
 }
+

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
+using Aneiang.Yarp.Services;
 using System.Threading.RateLimiting;
 using Yarp.ReverseProxy.Model;
 
@@ -23,6 +24,7 @@ public sealed class RateLimitMiddleware
     private readonly IGatewayPluginManager _pluginManager;
     private readonly string _dashPrefix;
     private readonly INotificationService _notificationService;
+    private readonly IDynamicYarpConfigService? _yarpConfig;
 
     private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
 
@@ -37,7 +39,8 @@ public sealed class RateLimitMiddleware
         IOptions<RateLimitOptions> options,
         IOptions<DashboardOptions> dashOptions,
         IGatewayPluginManager pluginManager,
-        INotificationService? notificationService = null)
+        INotificationService? notificationService = null,
+        IDynamicYarpConfigService? yarpConfig = null)
     {
         _next = next;
         _logger = logger;
@@ -45,6 +48,7 @@ public sealed class RateLimitMiddleware
         _pluginManager = pluginManager;
         _dashPrefix = "/" + dashOptions.Value.RoutePrefix.Trim('/');
         _notificationService = notificationService ?? NullNotificationService.Instance;
+        _yarpConfig = yarpConfig;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -66,8 +70,10 @@ public sealed class RateLimitMiddleware
 
         var proxyFeature = context.Features.Get<IReverseProxyFeature>();
         var routeMeta = proxyFeature?.Route?.Config?.Metadata;
+        var routeKey = proxyFeature?.Route?.Config?.RouteId;
 
         var config = ResolveConfig(routeMeta, out var routeId);
+        var routeScopeId = ResolveRouteScopeId(routeKey ?? routeId);
 
         if (!config.Enabled)
         {
@@ -77,9 +83,9 @@ public sealed class RateLimitMiddleware
 
         var partitionValue = GetPartitionValue(context, config.PartitionKey);
 
-        var limiterKey = string.IsNullOrEmpty(routeId)
+        var limiterKey = string.IsNullOrEmpty(routeScopeId)
             ? $"global:{partitionValue}"
-            : $"{routeId}:{partitionValue}";
+            : $"{routeScopeId}:{partitionValue}";
 
         var limiter = GetOrCreateLimiter(limiterKey, config);
 
@@ -92,7 +98,7 @@ public sealed class RateLimitMiddleware
                 "Rate limit exceeded for {LimiterKey} (algorithm={Algorithm}, limit={PermitLimit}, window={Window})",
                 limiterKey, config.Algorithm, config.PermitLimit, config.Window);
 
-            _notificationService.NotifyRateLimitExceeded(clientIp, routeId);
+            _notificationService.NotifyRateLimitExceeded(clientIp, routeKey ?? routeId);
 
             context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
             context.Response.ContentType = "application/json";
@@ -250,6 +256,22 @@ public sealed class RateLimitMiddleware
             if (Limiters.TryRemove(k, out var limiter))
                 limiter.Dispose();
         }
+    }
+
+    private string? ResolveRouteScopeId(string? routeKey)
+    {
+        if (string.IsNullOrWhiteSpace(routeKey)) return null;
+
+        var routeUid = _yarpConfig?.GetDynamicConfig()?.Routes.FirstOrDefault(r =>
+            string.Equals(r.RouteId, routeKey, StringComparison.OrdinalIgnoreCase))?.RouteUid;
+
+        return string.IsNullOrWhiteSpace(routeUid) ? StableUidFromKey("route", routeKey) : routeUid;
+    }
+
+    private static string StableUidFromKey(string prefix, string key)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(prefix + ":" + key));
+        return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
     }
 
     private static string GetPartitionValue(HttpContext context, string partitionKey)

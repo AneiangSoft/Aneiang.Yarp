@@ -58,35 +58,6 @@ public class SecurityEventsController : ControllerBase
         return Ok(new { code = 200, message = "Test security event fired" });
     }
 
-    /// <summary>
-    /// Fire multiple test security events at once.
-    /// </summary>
-    [HttpPost("test/batch")]
-    public IActionResult FireBatchTestEvents([FromQuery] int count = 10)
-    {
-        count = Math.Clamp(count, 1, 50);
-        var ips = new[] { "192.168.1.100", "10.0.0.55", "172.16.0.1", "203.0.113.50" };
-        var eventTypes = new[] { "SqlInjectionBlocked", "SqlInjectionValueBlocked", "XssBlocked", "PathTraversalBlocked", "IpBlocked" };
-        var paths = new[] { "/api/users", "/search?q=<script>", "/admin/../../../etc/passwd", "/api/orders?q=' OR '1'='1" };
-
-        for (int i = 0; i < count; i++)
-        {
-            _eventStore.Add(new WafSecurityEvent
-            {
-                ClientIp = ips[i % ips.Length],
-                EventType = eventTypes[i % eventTypes.Length],
-                RuleName = eventTypes[i % eventTypes.Length].Replace("Blocked", ""),
-                RequestUri = paths[i % paths.Length],
-                RequestMethod = i % 3 == 0 ? "POST" : "GET",
-                MatchedValue = i % 2 == 0 ? "SELECT" : "<script>",
-                Blocked = true,
-                StatusCode = 403
-            });
-        }
-
-        return Ok(new { code = 200, message = $"Fired {count} test security events" });
-    }
-
     /// <summary>Get security event summary statistics.</summary>
     [HttpGet("summary")]
     public IActionResult GetEventSummary()

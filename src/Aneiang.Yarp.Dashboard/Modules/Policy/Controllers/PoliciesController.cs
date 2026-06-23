@@ -18,8 +18,6 @@ public class PoliciesController : ControllerBase
         _policyService = policyService;
     }
 
-    // ─── Route Policies ─────────────────────────────
-
     /// <summary>Get all route policies.</summary>
     [HttpGet("routes")]
     public async Task<IActionResult> GetRoutePolicies()
@@ -92,8 +90,6 @@ public class PoliciesController : ControllerBase
             return BadRequest(new { code = 400, message = $"Failed to unapply route policy '{policyId}' from route '{request.TargetId}'" });
         return Ok(new { code = 200, message = $"Route policy '{policyId}' unapplied from route '{request.TargetId}'" });
     }
-
-    // ─── Cluster Policies ───────────────────────────
 
     /// <summary>Get all cluster policies.</summary>
     [HttpGet("clusters")]

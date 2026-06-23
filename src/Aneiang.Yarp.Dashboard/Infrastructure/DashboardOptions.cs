@@ -61,15 +61,11 @@ public class DashboardOptions
     /// </summary>
     public DashboardAuthMode AuthMode { get; set; } = DashboardAuthMode.None;
 
-    // ─── API Key mode ────────────────────────────────────
-
     /// <summary>API key value. Clients pass via header (default: X-Api-Key) or query param <c>api-key</c>.</summary>
     public string? ApiKey { get; set; }
 
     /// <summary>Header name for ApiKey mode. Default: X-Api-Key.</summary>
     public string ApiKeyHeaderName { get; set; } = "X-Api-Key";
-
-    // ─── JWT mode ────────────────────────────────────────
 
     /// <summary>JWT signing secret. Auto-generated if not set (invalidated on restart).</summary>
     public string? JwtSecret { get; set; }
@@ -80,7 +76,26 @@ public class DashboardOptions
     /// <summary>Password for JWT login (required for both CustomJwt and DefaultJwt).</summary>
     public string? JwtPassword { get; set; }
 
-    // ─── Custom delegate (highest priority) ───────────────
+    /// <summary>
+    /// Enable Two-Factor Authentication (TOTP) for JWT login.
+    /// When enabled, users must provide a 6-digit code from an authenticator app.
+    /// The shared secret is configured via <see cref="TwoFactorSecret"/>.
+    /// Default: false.
+    /// </summary>
+    public bool EnableTwoFactor { get; set; }
+
+    /// <summary>
+    /// Base32-encoded TOTP shared secret for 2FA.
+    /// Generate with: any TOTP app or the dashboard's "Setup 2FA" page.
+    /// If null while EnableTwoFactor is true, 2FA is skipped (development mode).
+    /// </summary>
+    public string? TwoFactorSecret { get; set; }
+
+    /// <summary>
+    /// Minimum password length for JWT login. Default: 6.
+    /// Only enforced at login time (does not prevent existing config).
+    /// </summary>
+    public int MinPasswordLength { get; set; } = 6;
 
     /// <summary>
     /// Dashboard UI locale. Supported values: "zh-CN", "en-US".
@@ -90,16 +105,12 @@ public class DashboardOptions
     /// </summary>
     public string Locale { get; set; } = "zh-CN";
 
-    // ─── Log sampling and filtering ───────────────────────
-
     /// <summary>
     /// Maximum number of log entries kept in the in-memory ring buffer.
     /// Minimum: 100. When the buffer is full, oldest entries are overwritten.
     /// Default: 500.
     /// </summary>
     public int LogBufferCapacity { get; set; } = 500;
-
-    // ─── Rate limiting ──────────────────────────────────
 
     /// <summary>
     /// Enable built-in rate limiting middleware for proxy routes.
@@ -167,6 +178,22 @@ public class DashboardOptions
     public int LogMaxBodyLength { get; set; } = 8192;
 
     /// <summary>
+    /// Enable request body capture on proxy hot path. Default: false.
+    /// </summary>
+    public bool EnableProxyRequestBodyCapture { get; set; } = false;
+
+    /// <summary>
+    /// Enable response body capture on proxy hot path. Default: false.
+    /// Keep disabled for streaming, SSE, large downloads, and high-throughput production traffic.
+    /// </summary>
+    public bool EnableProxyResponseBodyCapture { get; set; } = false;
+
+    /// <summary>
+    /// Maximum body bytes to buffer for proxy body capture. Default: 65536 (64KB).
+    /// </summary>
+    public int LogMaxBodyBufferBytes { get; set; } = 64 * 1024;
+
+    /// <summary>
     /// Enable async logging via Channel for better throughput.
     /// When enabled, logs are enqueued and processed in background batches,
     /// reducing latency on the request path. Default: true.
@@ -190,12 +217,8 @@ public class DashboardOptions
     /// </summary>
     public List<string>? LogJsonFieldSanitizeList { get; set; }
 
-    // ─── Custom delegate (highest priority) ───────────────
-
     /// <summary>Custom auth delegate. If set, takes precedence over all other auth modes.</summary>
     public Func<HttpContext, Task<bool>>? AuthorizeRequest { get; set; }
-
-    // ─── Health Check ──────────────────────────────────
 
     /// <summary>
     /// Enable passive health checking for all clusters by default.
@@ -216,15 +239,11 @@ public class DashboardOptions
     /// </summary>
     public string PassiveHealthCheckReactivationPeriod { get; set; } = "00:00:30";
 
-    // ─── Circuit Breaker ────────────────────────────────
-
     /// <summary>
     /// Default circuit breaker settings applied to all routes.
     /// Individual routes can override these via route metadata.
     /// </summary>
     public CircuitBreakerOptions CircuitBreaker { get; set; } = new();
-
-    // ─── Retry ─────────────────────────────────────────
 
     /// <summary>
     /// Default retry settings applied to all routes.
@@ -232,15 +251,11 @@ public class DashboardOptions
     /// </summary>
     public RetryOptions Retry { get; set; } = new();
 
-    // ─── Rate Limiting ─────────────────────────────────
-
     /// <summary>
     /// Default rate limiting settings applied to all routes.
     /// Individual routes can override these via route metadata.
     /// </summary>
     public RateLimitOptions RateLimit { get; set; } = new();
-
-    // ─── WAF ──────────────────────────────────────────
 
     /// <summary>
     /// Web Application Firewall settings.

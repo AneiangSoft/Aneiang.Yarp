@@ -211,7 +211,7 @@ public class GatewayConfigController : ControllerBase
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Batch register failed for route {RouteName}", routeReq.RouteName);
-                results.Add(new { route = routeReq.RouteName, success = false, message = ex.Message });
+                results.Add(new { route = routeReq.RouteName, success = false, message = SafeErrorMessages.Create(HttpContext, "Batch route registration failed", ex) });
                 allSucceeded = false;
             }
         }

@@ -8,28 +8,19 @@
         name: 'home',
         initialized: false,
 
-        // ===== Initialization =====
         init: async function() {
             if (this.initialized) return;
 
-            console.log('[Home] Initializing...');
-
-            // Setup event listeners
             this.setupEvents();
 
             this.initialized = true;
-            console.log('[Home] Initialized');
         },
 
-        // ===== Load Gateway Info =====
         loadInfo: async function() {
             try {
-                console.log('[Home] Loading gateway info...');
                 // Note: Gateway info is displayed in #stat-bar, not a separate container
                 const info = await window.DashboardApi.endpoints.getInfo();
-                console.log('[Home] Gateway info loaded:', info);
                 
-                // Update state
                 window.DashboardState.set('data.info', info);
 
                 // Render info
@@ -44,7 +35,6 @@
             }
         },
 
-        // ===== Render Gateway Info =====
         renderInfo: function(info) {
             // Version
             const versionEl = window.DashboardDOM.safe('#info-version');
@@ -77,7 +67,6 @@
             if (machineEl) machineEl.textContent = info.machineName || '-';
         },
 
-        // ===== Update Stat Cards =====
         updateStatCards: async function() {
             try {
                 // Load clusters, routes, and traffic in parallel
@@ -133,7 +122,6 @@
             }
         },
 
-        // ===== Render Cluster Preview (top 5) =====
         renderClusterPreview: function(clusters) {
             const tbody = window.DashboardDOM.safe('#cluster-preview-tbody');
             if (!tbody) return;
@@ -172,7 +160,6 @@
             tbody.appendChild(fragment);
         },
 
-        // ===== Render Route Preview (top 5) =====
         renderRoutePreview: function(routes) {
             const tbody = window.DashboardDOM.safe('#route-preview-tbody');
             if (!tbody) return;
@@ -211,7 +198,6 @@
             tbody.appendChild(fragment);
         },
 
-        // ===== Create Health Badge =====
         createHealthBadge: function(cluster) {
             const badge = window.DashboardDOM.create('span', {
                 className: 'badge',
@@ -232,7 +218,6 @@
             return badge;
         },
 
-        // ===== Format Uptime =====
         formatUptime: function(uptimeMs) {
             if (!uptimeMs) return '-';
             
@@ -250,7 +235,6 @@
             }
         },
 
-        // ===== Setup Events =====
         setupEvents: function() {
             // Refresh shortcut
             document.addEventListener('dashboard:shortcut:refresh', async () => {
@@ -266,7 +250,6 @@
             });
         },
 
-        // ===== Refresh =====
         refresh: async function() {
             await Promise.all([
                 this.loadInfo(),
@@ -275,7 +258,6 @@
         }
     };
 
-    // Register module
     if (window.DashboardApp) {
         window.DashboardApp.registerModule('home', HomeModule);
     }

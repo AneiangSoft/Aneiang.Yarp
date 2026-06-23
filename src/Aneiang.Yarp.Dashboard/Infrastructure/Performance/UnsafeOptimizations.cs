@@ -340,7 +340,7 @@ public unsafe struct CacheOptimizedRingBuffer<T> where T : unmanaged
 /// <summary>
 /// Bit manipulation utilities for compact storage.
 /// </summary>
-public static class BitManipulation
+internal static class BitManipulation
 {
     /// <summary>
     /// Pack multiple small integers into a single long.
@@ -431,3 +431,4 @@ public static class BitManipulation
         return (int)(value & 0x7F);
     }
 }
+
