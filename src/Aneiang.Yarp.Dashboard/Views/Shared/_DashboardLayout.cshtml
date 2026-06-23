@@ -23,7 +23,9 @@
             --primary-color: #4f46e5;
             --primary-dark: #4338ca;
             --primary-light: #6366f1;
+            --primary-lighter: #a5b4fc;
             --secondary-color: #0284c7;
+            --accent-color: #8b5cf6;
             --success-color: #059669;
             --warning-color: #d97706;
             --danger-color: #dc2626;
@@ -60,7 +62,7 @@
         body { 
             background: var(--bg-color); 
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            font-size: 14px;
+            font-size: 15px;
             line-height: 1.6;
             color: var(--text-primary);
             -webkit-font-smoothing: antialiased;
@@ -84,103 +86,262 @@
             border-right: 1px solid rgba(255,255,255,0.04);
         }
 
-        .sidebar .brand {
-            padding: 18px 20px;
-            font-size: 15px;
-            font-weight: 700;
-            border-bottom: 1px solid rgba(255,255,255,0.06);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            letter-spacing: -0.3px;
+        /* ============================================
+         * Sidebar — Enterprise Refined Design
+         * ============================================ */
+
+        .sidebar {
+            --side-pad: 14px;
         }
 
-        .sidebar .brand i {
-            font-size: 20px;
-            color: var(--primary-light);
+        /* Brand Header */
+        .sidebar .brand {
+            padding: 18px var(--side-pad) 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            position: relative;
         }
-        
+
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+        }
+
+        .brand-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 9px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #0ea5e9 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 17px;
+            flex-shrink: 0;
+            position: relative;
+            box-shadow:
+                0 4px 14px rgba(99, 102, 241, 0.4),
+                inset 0 1px 0 rgba(255,255,255,0.2);
+        }
+
+        .brand-icon::after {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            border-radius: 11px;
+            background: linear-gradient(135deg, rgba(99,102,241,0.4), transparent, rgba(14,165,233,0.4));
+            z-index: -1;
+            opacity: 0.5;
+            filter: blur(8px);
+        }
+
+        .brand-text {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .brand-title {
+            font-size: 14.5px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.1px;
+            line-height: 1.2;
+        }
+
+        .brand-subtitle {
+            font-size: 10.5px;
+            color: rgba(148, 163, 184, 0.65);
+            font-weight: 500;
+            letter-spacing: 0.8px;
+            margin-top: 2px;
+            text-transform: uppercase;
+        }
+
+        .brand-divider {
+            position: absolute;
+            bottom: 0;
+            left: var(--side-pad);
+            right: var(--side-pad);
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.3) 50%, transparent);
+        }
+
         /* Sidebar Navigation */
         .sidebar-nav {
             flex: 1;
             overflow-y: auto;
             overflow-x: hidden;
-            padding: 8px 0;
+            padding: 8px 8px 10px;
         }
-        
+
         .sidebar-nav::-webkit-scrollbar {
-            width: 3px;
+            width: 4px;
         }
-        
+
         .sidebar-nav::-webkit-scrollbar-track {
             background: transparent;
         }
-        
+
         .sidebar-nav::-webkit-scrollbar-thumb {
-            background: rgba(255,255,255,0.12);
-            border-radius: 2px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 4px;
         }
-        
+
         .sidebar-nav::-webkit-scrollbar-thumb:hover {
-            background: rgba(255,255,255,0.22);
+            background: rgba(255,255,255,0.16);
         }
-        
+
         .sidebar .nav-section {
-            padding: 2px 0;
+            padding: 0;
+            margin-bottom: 4px;
         }
-        
-        .sidebar .nav-section + .nav-section {
-            margin-top: 4px;
+
+        /* Section header — clickable group label with collapse */
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 14px 6px;
+            cursor: pointer;
+            user-select: none;
+            border-radius: 6px;
+            transition: background 0.15s ease;
         }
-        
-        .sidebar .section-title { 
-            font-size: 10px; 
-            font-weight: 700; 
-            color: rgba(148, 163, 184, 0.7); 
-            text-transform: uppercase; 
-            letter-spacing: 1.5px; 
-            padding: 12px 20px 4px;
-            margin: 0;
+
+        .section-header:hover {
+            background: rgba(255,255,255,0.03);
         }
-        
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: rgba(148, 163, 184, 0.55);
+            text-transform: uppercase;
+            letter-spacing: 1.4px;
+            transition: color 0.15s ease;
+        }
+
+        .section-header:hover .section-title {
+            color: rgba(203, 213, 225, 0.8);
+        }
+
+        .section-chevron {
+            font-size: 10px;
+            color: rgba(148, 163, 184, 0.4);
+            transition: transform 0.3s ease, color 0.2s ease;
+        }
+
+        .section-header.expanded .section-chevron {
+            transform: rotate(180deg);
+            color: rgba(165, 180, 252, 0.7);
+        }
+
+        /* Collapsible container */
+        .nav-collapse {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .nav-collapse.expanded {
+            max-height: 600px;
+        }
+
+        /* Group header link (with submenu) */
+        .nav-link.has-submenu {
+            position: relative;
+        }
+
         .sidebar .nav-link {
-            color: rgba(255,255,255,0.6);
-            padding: 9px 20px;
+            color: rgba(203, 213, 225, 0.7);
+            padding: 8px 12px;
             font-size: 13px;
             font-weight: 500;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 11px;
             transition: color 0.15s, background 0.15s;
-            border-left: 3px solid transparent;
+            border-left: 2px solid transparent;
+            border-radius: 7px;
+            position: relative;
+            cursor: pointer;
+            margin: 1px 0;
         }
 
-        .sidebar .nav-link:hover {
-            color: rgba(255,255,255,0.95);
-            background: rgba(255,255,255,0.04);
-        }
-
-        .sidebar .nav-link.active {
-            color: #fff;
-            background: rgba(99, 102, 241, 0.12);
-            border-left-color: var(--primary-color);
-            font-weight: 600;
-        }
-        
-        .sidebar .nav-link i {
+        .sidebar .nav-link > i {
             font-size: 16px;
             width: 18px;
             text-align: center;
             flex-shrink: 0;
-            transition: transform 0.2s ease, color 0.2s ease;
+            color: rgba(148, 163, 184, 0.7);
+            transition: all 0.2s ease;
         }
 
-        .sidebar .nav-link:hover i {
-            transform: scale(1.1);
+        .nav-content {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        
-        .sidebar .nav-link.active i {
-            color: var(--primary-light);
+
+        .nav-title {
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 1.3;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sidebar .nav-link:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.04);
+        }
+
+        .sidebar .nav-link:hover > i {
+            color: #c7d2fe;
+            transform: scale(1.08);
+        }
+
+        /* Active link — left accent bar + subtle bg */
+        .sidebar .nav-link.active {
+            color: #fff;
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.16) 0%, rgba(99, 102, 241, 0.04) 70%, transparent 100%);
+            border-left-color: #6366f1;
+            font-weight: 600;
+        }
+
+        .sidebar .nav-link.active > i {
+            color: #a5b4fc;
+        }
+
+        /* Group header expanded state */
+        .nav-link.has-submenu.expanded {
+            color: #fff;
+            background: rgba(99, 102, 241, 0.06);
+        }
+
+        .nav-link.has-submenu.expanded > i {
+            color: #a5b4fc;
+        }
+
+        /* Toggle arrow indicator */
+        .nav-link.has-submenu::after {
+            content: '\F285';
+            font-family: 'bootstrap-icons';
+            font-size: 10px;
+            margin-left: auto;
+            transition: transform 0.3s ease;
+            opacity: 0.4;
+            flex-shrink: 0;
+            color: rgba(148, 163, 184, 0.7);
+        }
+
+        .nav-link.has-submenu.expanded::after {
+            transform: rotate(90deg);
+            opacity: 0.8;
+            color: #a5b4fc;
         }
 
         /* Submenu Styles */
@@ -188,7 +349,6 @@
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            background: rgba(0,0,0,0.12);
         }
 
         .nav-submenu.expanded {
@@ -196,9 +356,12 @@
         }
 
         .nav-submenu .nav-link {
-            padding: 7px 20px 7px 48px;
-            font-size: 13px;
+            padding: 7px 12px 7px 38px;
+            font-size: 12.5px;
             border-left: none;
+            border-radius: 6px;
+            margin: 1px 4px 1px 8px;
+            color: rgba(203, 213, 225, 0.6);
         }
 
         .nav-submenu .nav-link::before {
@@ -206,99 +369,192 @@
         }
 
         .nav-submenu .nav-link::after {
-            content: '';
+            display: none;
+        }
+
+        .nav-dot {
             position: absolute;
-            left: 32px;
+            left: 20px;
             top: 50%;
+            transform: translateY(-50%);
             width: 4px;
             height: 4px;
             border-radius: 50%;
-            background: rgba(255,255,255,0.25);
-            transform: translateY(-50%);
+            background: rgba(148, 163, 184, 0.3);
             transition: all 0.2s ease;
         }
 
-        .nav-submenu .nav-link:hover::after {
-            background: #fff;
-            box-shadow: 0 0 6px rgba(255,255,255,0.4);
-        }
-
-        .nav-submenu .nav-link.active::after {
-            background: var(--primary-light);
-            box-shadow: 0 0 6px rgba(129, 140, 248, 0.5);
+        .nav-submenu .nav-link:hover .nav-dot {
+            background: rgba(199, 210, 254, 0.7);
+            box-shadow: 0 0 6px rgba(199, 210, 254, 0.4);
         }
 
         .nav-submenu .nav-link:hover {
-            background: rgba(255,255,255,0.04);
+            background: rgba(255,255,255,0.03);
+            color: #fff;
         }
 
         .nav-submenu .nav-link.active {
-            background: linear-gradient(90deg, rgba(99, 102, 241, 0.14), rgba(99, 102, 241, 0.04));
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.18) 0%, rgba(99, 102, 241, 0.02) 80%, transparent 100%);
+            border-left: 2px solid #6366f1;
+            color: #fff;
+            font-weight: 600;
         }
 
-        /* Nav group header active state */
-        .nav-link.has-submenu.active {
-            color: var(--primary-light);
-            background: rgba(99, 102, 241, 0.08);
-            border-left-color: rgba(99, 102, 241, 0.3);
-        }
-        .nav-link.has-submenu.active::before {
-            width: 100%;
-            background: linear-gradient(90deg, rgba(99, 102, 241, 0.12), transparent);
-        }
-        .nav-link.has-submenu.active i {
-            color: var(--primary-light);
+        .nav-submenu .nav-link.active .nav-dot {
+            background: #a5b4fc;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+            transform: translateY(-50%) scale(1.5);
         }
 
-        /* Menu Toggle Indicator */
-        .nav-link.has-submenu {
-            position: relative;
-        }
-
-        .nav-link.has-submenu::after {
-            content: '\F285';
-            font-family: 'bootstrap-icons';
-            font-size: 12px;
+        /* Nav badge (e.g. NEW) */
+        .nav-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1px 5px;
+            font-size: 9px;
+            font-weight: 700;
+            border-radius: 4px;
             margin-left: auto;
-            transition: transform 0.3s ease;
-            opacity: 0.5;
+            flex-shrink: 0;
+            letter-spacing: 0.4px;
         }
 
-        .nav-link.has-submenu.expanded::after {
-            transform: rotate(90deg);
-            opacity: 0.8;
+        .nav-badge-new {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #fff;
+            box-shadow: 0 2px 6px rgba(16, 185, 129, 0.35);
         }
         
         .sidebar-footer {
-            padding: 12px;
+            padding: 10px 12px 12px;
             border-top: 1px solid rgba(255,255,255,0.06);
-            background: linear-gradient(180deg, transparent 0%, var(--sidebar-bg) 20%);
+            background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.2) 100%);
             flex-shrink: 0;
         }
-        
-        .sidebar-user {
-            padding: 8px 0;
-            margin-bottom: 8px;
-            border-bottom: 1px solid rgba(255,255,255,0.06);
-        }
-        
-        .sidebar-user .user-info {
+
+        /* User Card */
+        .user-card {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 8px;
-            font-size: 13px;
-            color: rgba(255,255,255,0.75);
+            gap: 10px;
+            padding: 8px 10px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 8px;
+            margin-bottom: 6px;
+            transition: all 0.2s ease;
         }
-        
-        .sidebar-user .user-info i {
+
+        .user-card:hover {
+            background: rgba(255,255,255,0.04);
+            border-color: rgba(99, 102, 241, 0.2);
+        }
+
+        .user-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #0ea5e9 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
             font-size: 16px;
-            color: var(--primary-light);
+            flex-shrink: 0;
+            box-shadow:
+                0 2px 8px rgba(99, 102, 241, 0.3),
+                inset 0 1px 0 rgba(255,255,255,0.2);
+            position: relative;
         }
-        
-        .sidebar-footer .nav-link {
-            padding: 8px;
-            font-size: 13px;
+
+        .user-avatar::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #10b981;
+            border: 2px solid #0f172a;
+            box-shadow: 0 0 4px rgba(16, 185, 129, 0.5);
+        }
+
+        .user-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .user-name {
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.2;
+        }
+
+        .user-role {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 9.5px;
+            color: rgba(148, 163, 184, 0.7);
+            margin-top: 3px;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        .user-status-dot {
+            display: none; /* Now using user-avatar::after indicator */
+        }
+
+        @@keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.85); }
+        }
+
+        .user-avatar::after {
+            animation: pulse-dot 2.5s ease-in-out infinite;
+        }
+
+        /* Footer action buttons */
+        .footer-actions {
+            display: flex;
+            gap: 4px;
+            margin-top: 2px;
+        }
+
+        .footer-action {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 30px;
+            border-radius: 6px;
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.05);
+            color: rgba(148, 163, 184, 0.65);
+            font-size: 14px;
+            text-decoration: none;
+            transition: all 0.18s ease;
+            cursor: pointer;
+        }
+
+        .footer-action:hover {
+            background: rgba(99, 102, 241, 0.12);
+            border-color: rgba(99, 102, 241, 0.25);
+            color: #c7d2fe;
+        }
+
+        .footer-action:last-child:hover {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.25);
+            color: #fca5a5;
         }
         
         /* Main Content */
@@ -2596,9 +2852,18 @@
     <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar(false)"></div>
 
     <nav class="sidebar" id="sidebar">
+        <!-- Brand Header -->
         <div class="brand">
-            <i class="bi bi-hdd-rack"></i>
-            <span data-i18n="layout.brand">网关维护仪表盘</span>
+            <div class="brand-logo">
+                <div class="brand-icon">
+                    <i class="bi bi-hdd-rack-fill"></i>
+                </div>
+                <div class="brand-text">
+                    <div class="brand-title" data-i18n="layout.brand">网关维护仪表盘</div>
+                    <div class="brand-subtitle">Gateway Console</div>
+                </div>
+            </div>
+            <div class="brand-divider"></div>
         </div>
 
         @{
@@ -2606,100 +2871,89 @@
             var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
             var isEn = (ViewBag.Locale as string) == "en-US";
 
-            // Build grouped menu structure
-            var overviewItem = new { Key = "overview", Title = isEn ? "Overview" : "总览", Icon = "bi-speedometer2", Path = $"/{prefix}/" };
+            // Grouped menu with 2-level submenus
             var menuGroups = new[]
             {
                 new {
-                    Key = "gateway",
+                    Title = isEn ? "Dashboard" : "仪表盘",
+                    Items = new[] {
+                        new { Key = "overview", Title = isEn ? "Overview" : "总览", Icon = "bi-speedometer2", Path = $"/{prefix}/", Badge = "", Conditional = false }
+                    }
+                },
+                new {
                     Title = isEn ? "Gateway" : "网关管理",
-                    Icon = "bi-hdd-rack",
                     Items = new[] {
-                        new { Key = "clusters", Title = isEn ? "Clusters" : "服务集群", Icon = "bi-diagram-3", Path = $"/{prefix}/clusters", Conditional = false },
-                        new { Key = "routes", Title = isEn ? "Routes" : "路由配置", Icon = "bi-signpost-split", Path = $"/{prefix}/routes", Conditional = false }
+                        new { Key = "clusters", Title = isEn ? "Clusters" : "服务集群", Icon = "bi-diagram-3", Path = $"/{prefix}/clusters", Badge = "", Conditional = false },
+                        new { Key = "routes", Title = isEn ? "Routes" : "路由配置", Icon = "bi-signpost-split", Path = $"/{prefix}/routes", Badge = "", Conditional = false }
                     }
                 },
                 new {
-                    Key = "monitoring",
                     Title = isEn ? "Monitoring" : "监控运维",
-                    Icon = "bi-activity",
                     Items = new[] {
-                        new { Key = "stats", Title = isEn ? "Statistics" : "访问统计", Icon = "bi-bar-chart-line", Path = $"/{prefix}/stats", Conditional = false },
-                        new { Key = "logs", Title = isEn ? "Logs" : "日志", Icon = "bi-journal-text", Path = $"/{prefix}/logs", Conditional = true },
-                        new { Key = "circuits", Title = isEn ? "Circuits" : "熔断状态", Icon = "bi-lightning-charge", Path = $"/{prefix}/circuits", Conditional = false },
-                        new { Key = "notifications", Title = isEn ? "Notification Center" : "通知中心", Icon = "bi-bell", Path = $"/{prefix}/notifications", Conditional = false },
-                        new { Key = "healthcheck", Title = isEn ? "Health Check" : "健康检查", Icon = "bi-heart-pulse", Path = $"/{prefix}/healthcheck", Conditional = false }
+                        new { Key = "stats", Title = isEn ? "Statistics" : "访问统计", Icon = "bi-bar-chart-line", Path = $"/{prefix}/stats", Badge = "", Conditional = false },
+                        new { Key = "logs", Title = isEn ? "Logs" : "日志", Icon = "bi-journal-text", Path = $"/{prefix}/logs", Badge = "", Conditional = true },
+                        new { Key = "circuits", Title = isEn ? "Circuits" : "熔断状态", Icon = "bi-lightning-charge", Path = $"/{prefix}/circuits", Badge = "", Conditional = false },
+                        new { Key = "notifications", Title = isEn ? "Notifications" : "通知中心", Icon = "bi-bell", Path = $"/{prefix}/notifications", Badge = "NEW", Conditional = false },
+                        new { Key = "healthcheck", Title = isEn ? "Health Check" : "健康检查", Icon = "bi-heart-pulse", Path = $"/{prefix}/healthcheck", Badge = "", Conditional = false }
                     }
                 },
                 new {
-                    Key = "security",
                     Title = isEn ? "Security" : "安全策略",
-                    Icon = "bi-shield-check",
                     Items = new[] {
-                        new { Key = "security", Title = isEn ? "Security Events" : "安全事件", Icon = "bi-shield-lock", Path = $"/{prefix}/security", Conditional = false },
-                        new { Key = "waf", Title = isEn ? "WAF Firewall" : "WAF 防火墙", Icon = "bi-shield-lock", Path = $"/{prefix}/waf", Conditional = false },
-                        new { Key = "policies", Title = isEn ? "Policies" : "策略管理", Icon = "bi-shield", Path = $"/{prefix}/policies", Conditional = false },
-                        new { Key = "plugins", Title = isEn ? "Plugins" : "插件管理", Icon = "bi-puzzle", Path = $"/{prefix}/plugins", Conditional = false }
+                        new { Key = "security", Title = isEn ? "Security Events" : "安全事件", Icon = "bi-shield-lock", Path = $"/{prefix}/security", Badge = "", Conditional = false },
+                        new { Key = "waf", Title = isEn ? "WAF Firewall" : "WAF 防火墙", Icon = "bi-shield-lock", Path = $"/{prefix}/waf", Badge = "", Conditional = false },
+                        new { Key = "policies", Title = isEn ? "Policies" : "策略管理", Icon = "bi-shield", Path = $"/{prefix}/policies", Badge = "", Conditional = false },
+                        new { Key = "plugins", Title = isEn ? "Plugins" : "插件管理", Icon = "bi-puzzle", Path = $"/{prefix}/plugins", Badge = "", Conditional = false }
                     }
                 },
                 new {
-                    Key = "system",
                     Title = isEn ? "System" : "系统管理",
-                    Icon = "bi-gear",
                     Items = new[] {
-                        new { Key = "history", Title = isEn ? "History" : "配置历史", Icon = "bi-clock-history", Path = $"/{prefix}/history", Conditional = false },
-                        new { Key = "audit", Title = isEn ? "Audit Log" : "审计日志", Icon = "bi-shield-check", Path = $"/{prefix}/audit", Conditional = false },
-                        new { Key = "deployment", Title = isEn ? "Deployment" : "运行模式", Icon = "bi-rocket-takeoff", Path = $"/{prefix}/deployment", Conditional = false },
-                        new { Key = "settings", Title = isEn ? "Settings" : "设置", Icon = "bi-gear", Path = $"/{prefix}/settings", Conditional = false }
+                        new { Key = "history", Title = isEn ? "History" : "配置历史", Icon = "bi-clock-history", Path = $"/{prefix}/history", Badge = "", Conditional = false },
+                        new { Key = "audit", Title = isEn ? "Audit Log" : "审计日志", Icon = "bi-shield-check", Path = $"/{prefix}/audit", Badge = "", Conditional = false },
+                        new { Key = "deployment", Title = isEn ? "Deployment" : "运行模式", Icon = "bi-rocket-takeoff", Path = $"/{prefix}/deployment", Badge = "", Conditional = false },
+                        new { Key = "settings", Title = isEn ? "Settings" : "设置", Icon = "bi-gear", Path = $"/{prefix}/settings", Badge = "", Conditional = false }
                     }
                 }
             };
         }
-        <div class="sidebar-nav">
-            <!-- Overview as first-level item -->
-            <div class="nav-section" style="padding-bottom:4px;">
-                <a class="nav-link @(currentPage == "overview" ? "active" : "")"
-                   href="@overviewItem.Path"
-                   data-page="@overviewItem.Key"
-                   data-title="@overviewItem.Title"
-                   data-icon="@overviewItem.Icon">
-                    <i class="bi @overviewItem.Icon"></i>
-                    <span>@overviewItem.Title</span>
-                </a>
-            </div>
 
+        <div class="sidebar-nav">
             @foreach (var group in menuGroups)
             {
-                // Check if any item in this group is the current page
+                var visibleItems = new System.Collections.Generic.List<dynamic>();
                 var isActiveGroup = false;
-                var hasVisibleItems = false;
                 foreach (var item in group.Items)
                 {
-                    if (item.Conditional && ViewBag.EnableProxyLogging == false) continue;
-                    hasVisibleItems = true;
-                    if (currentPage == item.Key) { isActiveGroup = true; break; }
+                    var conditionalProp = item.GetType().GetProperty("Conditional");
+                    var isConditional = conditionalProp != null && (bool)(conditionalProp.GetValue(item) ?? false);
+                    if (isConditional && ViewBag.EnableProxyLogging == false) continue;
+                    visibleItems.Add(item);
+                    if (currentPage == item.Key) { isActiveGroup = true; }
                 }
-                if (!hasVisibleItems) continue;
+                if (visibleItems.Count == 0) continue;
 
                 <div class="nav-section">
-                    <a class="nav-link has-submenu @(isActiveGroup ? "active expanded" : "")"
-                       href="#" data-toggle="submenu"
-                       data-group="@(group.Key)">
-                        <i class="bi @(group.Icon)"></i>
-                        <span>@(group.Title)</span>
-                    </a>
-                    <div class="nav-submenu @(isActiveGroup ? "expanded" : "")">
-                        @foreach (var item in group.Items)
+                    <div class="section-header @(isActiveGroup ? "expanded" : "")" data-toggle="collapse" data-target="nav-group-@group.Title.GetHashCode()">
+                        <span class="section-title">@group.Title</span>
+                        <i class="bi bi-chevron-down section-chevron"></i>
+                    </div>
+                    <div class="nav-collapse @(isActiveGroup ? "expanded" : "")">
+                        @foreach (var item in visibleItems)
                         {
-                            if (item.Conditional && ViewBag.EnableProxyLogging == false) continue;
-
                             <a class="nav-link @(currentPage == item.Key ? "active" : "")"
-                               href="@(item.Path)"
-                               data-page="@(item.Key)"
-                               data-title="@(item.Title)"
-                               data-icon="@(item.Icon)">
-                                <i class="bi @(item.Icon)"></i>
-                                <span>@(item.Title)</span>
+                               href="@item.Path"
+                               data-page="@item.Key"
+                               data-title="@item.Title"
+                               data-icon="@item.Icon">
+                                <i class="bi @item.Icon"></i>
+                                <span class="nav-content">
+                                    <span class="nav-title">@item.Title</span>
+                                </span>
+                                @if (!string.IsNullOrEmpty(item.Badge))
+                                {
+                                    <span class="nav-badge nav-badge-new">@item.Badge</span>
+                                }
                             </a>
                         }
                     </div>
@@ -2708,18 +2962,27 @@
         </div>
 
         <div class="sidebar-footer">
-            <div class="sidebar-user">
-                <span class="user-info">
+            <!-- User Card -->
+            <div class="user-card">
+                <div class="user-avatar">
                     <i class="bi bi-person-circle"></i>
-                    <span id="sidebar-username" data-i18n="layout.user.loggedIn">已登录</span>
-                </span>
+                </div>
+                <div class="user-info">
+                    <div class="user-name" id="sidebar-username" data-i18n="layout.user.loggedIn">已登录</div>
+                    <div class="user-role">
+                        <span class="user-status-dot"></span>
+                        <span data-i18n="layout.user.online">在线</span>
+                    </div>
+                </div>
             </div>
-            <a class="nav-link" href="#" onclick="dashboardLogout();return false;" style="border-left:none;">
-                <i class="bi bi-box-arrow-right"></i> <span data-i18n="layout.user.logout">退出登录</span>
-            </a>
-            <a class="nav-link" href="#" onclick="switchLocale();return false;" title="@(((ViewBag.Locale as string) == "en-US") ? "切换到中文" : "Switch to English")" style="border-left:none;">
-                <i class="bi bi-translate"></i> <span data-i18n="layout.lang.switch">@(((ViewBag.Locale as string) == "en-US") ? "中文" : "English")</span>
-            </a>
+            <div class="footer-actions">
+                <a class="footer-action" href="#" onclick="switchLocale();return false;" title="@(((ViewBag.Locale as string) == "en-US") ? "切换到中文" : "Switch to English")">
+                    <i class="bi bi-translate"></i>
+                </a>
+                <a class="footer-action" href="#" onclick="dashboardLogout();return false;" title="@(isEn ? "Logout" : "退出登录")">
+                    <i class="bi bi-box-arrow-right"></i>
+                </a>
+            </div>
         </div>
     </nav>
 
@@ -2969,6 +3232,25 @@
                         if (submenu && submenu.classList.contains('nav-submenu')) {
                             submenu.classList.add('expanded');
                         }
+                    }
+                });
+            });
+
+            // Initialize group collapse/expand toggles
+            document.querySelectorAll('[data-toggle="collapse"]').forEach(function(header) {
+                header.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var collapse = this.nextElementSibling;
+                    if (!collapse || !collapse.classList.contains('nav-collapse')) return;
+
+                    var isExpanded = this.classList.contains('expanded');
+                    if (isExpanded) {
+                        this.classList.remove('expanded');
+                        collapse.classList.remove('expanded');
+                    } else {
+                        this.classList.add('expanded');
+                        collapse.classList.add('expanded');
                     }
                 });
             });
