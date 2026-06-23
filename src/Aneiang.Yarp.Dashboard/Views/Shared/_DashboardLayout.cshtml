@@ -5,10 +5,6 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - @((ViewBag.Locale as string) == "en-US" ? "Gateway Dashboard" : "网关维护仪表盘")</title>
-    <!-- Disable back/forward cache -->
-    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
     <script>
         // Prevent bfcache - critical for single-page-like behavior
         window.addEventListener('pageshow', function(event) {
@@ -3006,35 +3002,10 @@
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-performance.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-indexeddb.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-worker.js?v=@v"></script>
-    <!-- 3. Schema Service -->
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-service.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-validator.js?v=@v"></script>
-    <!-- 4. Monaco Editor — lazy loaded on demand -->
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/lazy-monaco-loader.js?v=@v"></script>
-    <!-- 5. Editor Layer -->
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-monaco-editor.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-config-editor.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-form-builder.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-diff-panel.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-validation-panel.js?v=@v"></script>
-    <!-- 6. Events -->
+    <!-- 3. Events -->
     <script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
-    <!-- 7. Shared Modules (all pages may need them) -->
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-clusters.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-routes.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-logs.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-stats.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-history.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-audit.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-config.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-operations.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-circuits.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-security.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-notifications.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-healthcheck.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-policies.js?v=@v"></script>
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-plugins.js?v=@v"></script>
+    <!-- 4. Page-specific modules & editors — loaded per page via Scripts section -->
+
 
     @await RenderSectionAsync("Scripts", required: false)
 </body>

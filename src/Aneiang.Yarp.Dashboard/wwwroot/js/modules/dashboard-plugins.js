@@ -178,15 +178,6 @@
                 }
             }, null, { danger: true });
         },
-                }
-                await this.load();
-            } catch (error) {
-                console.error('[Plugin] Reset failed:', error);
-                if (window.DashboardModals) {
-                    window.DashboardModals.showError(__('plugin.resetFailed'));
-                }
-            }
-        },
 
         updateRefreshTime: function() {
             var el = document.getElementById('plugin-refresh-time');
