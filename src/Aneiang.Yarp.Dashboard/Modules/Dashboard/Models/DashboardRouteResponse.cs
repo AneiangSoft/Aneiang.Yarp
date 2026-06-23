@@ -7,9 +7,29 @@ namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Models;
 /// </summary>
 public class DashboardRouteResponse
 {
-    /// <summary>Route identifier.</summary>
+    /// <summary>Route identifier. Kept for compatibility; prefer routeKey for new clients.</summary>
     [JsonPropertyName("routeId")]
     public string RouteId { get; set; } = string.Empty;
+
+    /// <summary>Internal immutable route UID.</summary>
+    [JsonPropertyName("routeUid")]
+    public string? RouteUid { get; set; }
+
+    /// <summary>Route key used as YARP RouteId.</summary>
+    [JsonPropertyName("routeKey")]
+    public string RouteKey { get; set; } = string.Empty;
+
+    /// <summary>Display name for UI.</summary>
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Internal immutable cluster UID.</summary>
+    [JsonPropertyName("clusterUid")]
+    public string? ClusterUid { get; set; }
+
+    /// <summary>Cluster key used as YARP ClusterId.</summary>
+    [JsonPropertyName("clusterKey")]
+    public string? ClusterKey { get; set; }
 
     /// <summary>Cluster identifier.</summary>
     [JsonPropertyName("clusterId")]

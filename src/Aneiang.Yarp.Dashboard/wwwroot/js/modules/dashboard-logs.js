@@ -29,17 +29,13 @@
         domPool: [],
         poolSize: 50, // Maximum pooled elements
 
-        // ===== Initialization =====
         init: async function() {
             if (this.initialized) return;
-
-            console.log('[Logs] Initializing with virtual scrolling...');
 
             this.initVirtualScroll();
             this.setupEvents();
 
             this.initialized = true;
-            console.log('[Logs] Initialized with virtual scrolling');
         },
 
         destroy: function() {
@@ -47,7 +43,6 @@
             this.initialized = false;
         },
 
-        // ===== Virtual Scrolling Setup =====
         initVirtualScroll: function() {
             const scrollEl = window.DashboardDOM.safe('#log-scroll-container');
             const container = window.DashboardDOM.safe('#log-entries');
@@ -82,7 +77,6 @@
             }, 150));
         },
 
-        // ===== Debounce Helper =====
         debounce: function(fn, delay) {
             let timeout;
             return function(...args) {
@@ -91,7 +85,6 @@
             };
         },
 
-        // ===== Load Logs =====
         loadLogs: async function() {
             try {
                 const container = window.DashboardDOM.safe('#log-entries');
@@ -104,7 +97,6 @@
 
                 const result = await window.DashboardApi.endpoints.getLogs(maxCount);
 
-                // Update state
                 state.set('data.logs', result.entries || []);
                 state.set('data.logMeta', { evictedCount: result.evictedCount || 0, bufferSize: result.bufferSize || 0, bufferCapacity: result.bufferCapacity || 0 });
 
@@ -120,7 +112,6 @@
             }
         },
 
-        // ===== Render Logs =====
         renderLogs: function() {
             const state = window.DashboardState;
             const entries = state.getFilteredLogs();
@@ -165,7 +156,6 @@
             }
         },
 
-        // ===== Virtual Scrolling Render =====
         renderVirtualLogEntries: function(entries, container) {
             // Calculate total height
             this.virtualScroll.totalHeight = entries.length * this.virtualScroll.itemHeight;
@@ -203,7 +193,6 @@
             this.updateVisibleRange();
         },
 
-        // ===== Update Visible Range (Virtual Scrolling) =====
         updateVisibleRange: function() {
             if (!this.virtualScroll.contentEl || !this.virtualScroll.entries) return;
 
@@ -235,7 +224,6 @@
             this.renderVisibleItems(startIndex, endIndex, entries);
         },
 
-        // ===== Render Visible Items =====
         renderVisibleItems: function(startIndex, endIndex, entries) {
             const contentEl = this.virtualScroll.contentEl;
             const traceIdMap = this.virtualScroll.traceIdMap;
@@ -259,7 +247,6 @@
             contentEl.appendChild(fragment);
         },
 
-        // ===== Create Virtual Log Item =====
         createVirtualLogItem: function(entry, index, entries, traceIdMap, processed) {
             // Try to find paired entry
             if (entry.traceId && entry.eventType !== 'YarpEvent') {
@@ -293,7 +280,6 @@
             return null;
         },
 
-        // ===== Render Filter Toolbar =====
         renderFilterToolbar: function() {
             const container = window.DashboardDOM.safe('#log-filter-container');
             if (!container) return;
@@ -362,7 +348,6 @@
             this.initFilterHandlers();
         },
 
-        // ===== Initialize Filter Handlers =====
         initFilterHandlers: function() {
             // Listen button - use onclick attribute to avoid duplicate event listeners
             const listenBtn = window.DashboardDOM.safe('#log-listen-btn');
@@ -417,7 +402,6 @@
             this.restoreFilterValues();
         },
 
-        // ===== Restore Filter Values =====
         restoreFilterValues: function() {
             const state = window.DashboardState;
             
@@ -446,7 +430,6 @@
             this.updateGatewayOnlyButtons(gatewayOnly);
         },
 
-        // ===== Update Gateway-Only Toggle Buttons =====
         updateGatewayOnlyButtons: function(gatewayOnly) {
             const allBtn = window.DashboardDOM.safe('#log-type-all-btn');
             const gatewayBtn = window.DashboardDOM.safe('#log-type-gateway-btn');
@@ -461,7 +444,6 @@
             }
         },
 
-        // ===== Render Log Entries =====
         renderLogEntries: function(entries, container) {
             window.DashboardDOM.clear(container);
             container.classList.add('log-entries-container');
@@ -525,7 +507,6 @@
             container.appendChild(fragment);
         },
 
-        // ===== Create Paired Log Item (Request + Response grouped) =====
         createPairedLogItem: function(requestEntry, responseEntry, logKey, isExpanded) {
             // Determine level from response (error if status >= 500)
             const hasError = (responseEntry.statusCode || 0) >= 500;
@@ -636,7 +617,6 @@
             return item;
         },
 
-        // ===== Create Paired Log Detail (Request → Response flow) =====
         createPairedLogDetail: function(requestEntry, responseEntry, isExpanded) {
             const detail = window.DashboardDOM.create('div', {
                 className: `log-detail ${isExpanded ? 'expanded' : ''}`
@@ -645,7 +625,6 @@
             const dtHtml = [];
             dtHtml.push('<div class="log-flow">');
 
-            // ─── Upstream Request ───
             dtHtml.push('<div class="log-flow-section">');
             dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-in-down"></i> ${__('index.log.upstream.request')}</div>`);
             dtHtml.push('<div class="log-flow-body">');
@@ -671,7 +650,6 @@
             // Arrow down
             dtHtml.push('<div class="log-flow-arrow"><i class="bi bi-arrow-down-circle-fill"></i></div>');
 
-            // ─── Downstream Request ───
             dtHtml.push('<div class="log-flow-section">');
             dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-up-right"></i> ${__('index.log.downstream.request')}</div>`);
             dtHtml.push('<div class="log-flow-body">');
@@ -693,7 +671,6 @@
             // Arrow up
             dtHtml.push('<div class="log-flow-arrow"><i class="bi bi-arrow-up-circle-fill"></i></div>');
 
-            // ─── Response (combined from downstream + upstream) ───
             dtHtml.push('<div class="log-flow-section">');
             dtHtml.push(`<div class="log-flow-title"><i class="bi bi-reply-all"></i> ${__('index.log.pairedResponse')}</div>`);
             dtHtml.push('<div class="log-flow-body">');
@@ -734,7 +711,6 @@
             return detail;
         },
 
-        // ===== Create Log Item =====
         createLogItem: function(entry, logKey, isExpanded) {
             // Level class mapping for CSS color bar
             const levelClassMap = {
@@ -846,7 +822,6 @@
             return item;
         },
 
-        // ===== Create Level Badge =====
         createLevelBadge: function(level) {
             const levelMap = {
                 'Information': { css: 'info', icon: 'bi-info-circle-fill', text: 'INFO' },
@@ -875,7 +850,6 @@
             return badge;
         },
 
-        // ===== Create Log Detail =====
         createLogDetail: function(entry, isExpanded) {
             const detail = window.DashboardDOM.create('div', {
                 className: `log-detail ${isExpanded ? 'expanded' : ''}`
@@ -883,7 +857,6 @@
                 
             const dtHtml = [];
 
-            // ─── ProxyRequest Event Type ───
             if (entry.eventType === 'ProxyRequest') {
                 dtHtml.push('<div class="log-flow">');
 
@@ -949,7 +922,6 @@
                 if (entry.traceId) dtHtml.push(`<span><strong>TraceId:</strong> <code class="text-muted">${window.DashboardUtils.escapeHtml(entry.traceId)}</code></span>`);
                 dtHtml.push('</div>');
             }
-            // ─── ProxyResponse Event Type ───
             else if (entry.eventType === 'ProxyResponse') {
                 dtHtml.push('<div class="log-flow">');
 
@@ -1003,7 +975,6 @@
                 if (entry.traceId) dtHtml.push(`<span><strong>TraceId:</strong> <code class="text-muted">${window.DashboardUtils.escapeHtml(entry.traceId)}</code></span>`);
                 dtHtml.push('</div>');
             }
-            // ─── YarpEvent Type (fallback) ───
             else {
                 // Metadata row
                 dtHtml.push('<div class="log-meta-row">');
@@ -1039,7 +1010,6 @@
             return detail;
         },
 
-        // ===== Render Body Content =====
         renderBodyContent: function(body, truncated) {
             if (!body) return '<span class="text-muted">-</span>';
             const escaped = window.DashboardUtils.escapeHtml(body);
@@ -1057,7 +1027,6 @@
             }
         },
 
-        // ===== Render Headers Inline =====
         renderHeadersInline: function(headers) {
             if (!headers || typeof headers !== 'object') return '<span class="text-muted">-</span>';
             const keys = Object.keys(headers);
@@ -1073,12 +1042,10 @@
             return `<div class="log-headers-block">${rows.join('')}</div>`;
         },
 
-        // ===== Render JSON Block (delegates to shared utility) =====
         renderJsonBlock: function(obj, title) {
             return window.DashboardUtils.renderJsonBlock(obj, title);
         },
 
-        // ===== Render Truncated Body (for large content) =====
         renderTruncatedBody: function(body, maxLength) {
             maxLength = maxLength || 500;
             
@@ -1103,7 +1070,6 @@
             return '<pre>' + window.DashboardUtils.escapeHtml(body) + '</pre>';
         },
 
-        // ===== Get Status Code Badge Class =====
         getStatusCodeBadge: function(statusCode) {
             if (statusCode >= 200 && statusCode < 300) return 'bg-success';
             if (statusCode >= 300 && statusCode < 400) return 'bg-info';
@@ -1112,8 +1078,6 @@
             return 'bg-secondary';
         },
 
-        // ===== Toggle Log Entry =====
-        // ===== Toggle Log Entry (Direct DOM Manipulation - More Efficient) =====
         toggleLogEntryDirect: function(logKey, event) {
             const state = window.DashboardState;
             const current = state.get(`ui.expandedLogs.${logKey}`) || false;
@@ -1121,10 +1085,8 @@
             // If expanding and polling is active, stop polling
             if (!current && state.get('filters.logs.autoRefresh')) {
                 this.stopPolling();
-                console.log('[Logs] Auto-stopped polling due to log expansion');
             }
             
-            // Update state
             state.set(`ui.expandedLogs.${logKey}`, !current);
             
             // Direct DOM manipulation - find the log item by data-log-key
@@ -1145,7 +1107,6 @@
             }
         },
 
-        // ===== Copy Log Entry =====
         copyLogEntry: function(entry, btnElement) {
             const text = JSON.stringify(entry, null, 2);
             window.DashboardUtils.copyToClipboard(text).then((success) => {
@@ -1174,26 +1135,29 @@
             });
         },
 
-        // ===== Update Log Counts =====
         updateLogCounts: function(entries) {
             const allLogs = window.DashboardState.get('data.logs') || [];
-            const meta = window.DashboardState.get('data.logMeta') || {};
-            
+
+            // Count actual rendered items (paired entries are merged into one row)
+            const container = window.DashboardDOM.safe('#log-entries');
+            let renderedCount = entries.length;
+            if (container) {
+                const items = container.querySelectorAll('.log-item');
+                if (items.length > 0) renderedCount = items.length;
+            }
+
             const displayEl = window.DashboardDOM.safe('#log-display-count');
-            if (displayEl) displayEl.textContent = entries.length;
+            if (displayEl) displayEl.textContent = renderedCount;
 
             const totalEl = window.DashboardDOM.safe('#log-total-count');
             if (totalEl) {
-                let text = `${allLogs.length}/${meta.bufferCapacity || '?'}`;
-                if (meta.evictedCount > 0) text += ` (${meta.evictedCount} evicted)`;
-                totalEl.textContent = text;
+                totalEl.textContent = allLogs.length;
             }
 
             const timeEl = window.DashboardDOM.safe('#log-refresh-time');
             if (timeEl) timeEl.textContent = __('index.log.updated') + window.DashboardI18n.formatTime(new Date());
         },
 
-        // ===== Polling Control =====
         togglePolling: function() {
             const state = window.DashboardState;
             const isPolling = state.get('filters.logs.autoRefresh');
@@ -1235,7 +1199,6 @@
             this.updateListenButton(false);
         },
 
-        // ===== Update Listen Button =====
         updateListenButton: function(isPolling) {
             const btn = window.DashboardDOM.safe('#log-listen-btn');
             if (!btn) return;
@@ -1251,9 +1214,15 @@
             }
         },
 
-        // ===== Clear Logs =====
         clearLogs: async function() {
-            if (!confirm(__('index.log.clearConfirm'))) return;
+            window.DashboardModals.showConfirm(__('index.log.clearConfirm'), async function() {
+                try {
+                    window.DashboardState.set('data.logs', []);
+                    window.DashboardState.set('data.logMeta', {});
+                    self.renderLogs();
+                    window.DashboardModals.showSuccess(__('index.log.cleared'));
+                } catch (e) { window.DashboardModals.showError(__('index.log.clearFailed')); }
+            }, null, { danger: true });
 
             try {
                 await window.DashboardApi.endpoints.clearLogs();
@@ -1272,7 +1241,6 @@
             }
         },
 
-        // ===== Setup Events =====
         setupEvents: function() {
             // Refresh shortcut
             document.addEventListener('dashboard:shortcut:refresh', async () => {
@@ -1291,21 +1259,18 @@
                     if (this.pollTimer) {
                         this.wasPollingBeforeHidden = true;
                         this.stopPolling();
-                        console.log('[Logs] Paused polling (page hidden)');
                     }
                 } else {
                     // Page is visible again - resume polling if it was active
                     if (this.wasPollingBeforeHidden) {
                         this.wasPollingBeforeHidden = false;
                         this.startPolling();
-                        console.log('[Logs] Resumed polling (page visible)');
                     }
                 }
             });
         }
     };
 
-    // Register module
     if (window.DashboardApp) {
         window.DashboardApp.registerModule('logs', LogsModule);
     }

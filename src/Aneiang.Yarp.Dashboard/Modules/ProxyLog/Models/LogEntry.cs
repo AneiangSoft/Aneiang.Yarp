@@ -5,7 +5,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
 /// <summary>
 /// Log event type enumeration.
 /// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter))]
+[JsonConverter(typeof(JsonStringEnumConverter<LogEventType>))]
 public enum LogEventType
 {
     /// <summary>YARP internal event.</summary>
@@ -168,4 +168,16 @@ public class ProxyLogStoreSnapshot
     /// Maximum capacity of the ring buffer.
     /// </summary>
     public int BufferCapacity { get; set; }
+
+    /// <summary>Current page number when paged query is used.</summary>
+    public int Page { get; set; } = 1;
+
+    /// <summary>Page size when paged query is used.</summary>
+    public int PageSize { get; set; }
+
+    /// <summary>Total entries matching the query before paging.</summary>
+    public int Total { get; set; }
+
+    /// <summary>Total pages matching the query.</summary>
+    public int TotalPages { get; set; }
 }

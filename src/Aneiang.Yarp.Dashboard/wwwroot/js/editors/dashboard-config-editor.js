@@ -25,7 +25,6 @@
 
             var self = this;
             
-            // Load schema
             window.DashboardSchemaService.load().then(function(schema) {
                 self._renderEditor();
             }).catch(function(err) {
@@ -42,23 +41,19 @@
 
             container.innerHTML = '';
 
-            // Create toolbar
             var toolbar = this._createToolbar();
             container.appendChild(toolbar);
 
-            // Create editor area
             var editorArea = document.createElement('div');
             editorArea.className = 'editor-area mt-3';
             editorArea.id = this.containerId + '-area';
             container.appendChild(editorArea);
 
-            // Create validation panel
             var validationPanel = document.createElement('div');
             validationPanel.id = 'validationPanel';
             validationPanel.style.display = 'none';
             container.appendChild(validationPanel);
 
-            // Create action buttons
             var actions = this._createActions();
             container.appendChild(actions);
 
@@ -242,15 +237,15 @@
 
                 if (response.code === 200) {
                     this.originalData = JSON.parse(JSON.stringify(this.draftData));
-                    alert('Saved successfully');
+                    if (window.DashboardModals) window.DashboardModals.showSuccess('Saved successfully');
                     return true;
                 } else {
-                    alert('Save failed: ' + (response.message || 'Unknown error'));
+                    if (window.DashboardModals) window.DashboardModals.showError('Save failed: ' + (response.message || 'Unknown error'));
                     return false;
                 }
             } catch (error) {
                 console.error('[ConfigEditor] Save failed:', error);
-                alert('Save failed: ' + error.message);
+                if (window.DashboardModals) window.DashboardModals.showError('Save failed: ' + error.message);
                 return false;
             }
         },
@@ -285,8 +280,7 @@
                 var response = await window.DashboardApi.endpoints.importConfig(config);
 
                 if (response.code === 200) {
-                    alert('Import successful');
-                    // Reload page
+                    if (window.DashboardModals) window.DashboardModals.showSuccess('Import successful');
                     window.location.reload();
                     return true;
                 }
@@ -294,7 +288,7 @@
                 return false;
             } catch (error) {
                 console.error('[ConfigEditor] Import failed:', error);
-                alert('Import failed: ' + error.message);
+                if (window.DashboardModals) window.DashboardModals.showError('Import failed: ' + error.message);
                 return false;
             }
         },
@@ -323,7 +317,7 @@
                 return false;
             } catch (error) {
                 console.error('[ConfigEditor] Export failed:', error);
-                alert('Export failed: ' + error.message);
+                if (window.DashboardModals) window.DashboardModals.showError('Export failed: ' + error.message);
                 return false;
             }
         },

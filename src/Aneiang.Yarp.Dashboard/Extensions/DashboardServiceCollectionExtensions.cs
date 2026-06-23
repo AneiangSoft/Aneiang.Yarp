@@ -1,5 +1,8 @@
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Auth;
+using Aneiang.Yarp.Dashboard.Infrastructure.HostedServices;
+using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Services;
+using Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Infrastructure.Realtime;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Controllers;
@@ -10,12 +13,16 @@ using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 using Aneiang.Yarp.Dashboard.Modules.Policy.Services;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
+using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
+using Aneiang.Yarp.Storage.Sqlite;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Yarp.ReverseProxy.Transforms.Builder;
@@ -34,7 +41,34 @@ public static class DashboardServiceCollectionExtensions
         Action<DashboardOptions>? configureOptions = null)
     {
         services.AddOptions<DashboardOptions>()
-            .BindConfiguration(DashboardOptions.SectionName);
+            .BindConfiguration(DashboardOptions.SectionName)
+            .Configure<IConfiguration>((options, config) =>
+            {
+                var controlPlane = config.GetSection(ControlPlaneSecurityOptions.SectionName).Get<ControlPlaneSecurityOptions>();
+                if (controlPlane == null || string.IsNullOrWhiteSpace(controlPlane.AuthMode)) return;
+
+                // Explicit Dashboard auth config still wins. Unified control-plane config fills only when Dashboard auth is None.
+                if (options.AuthMode != DashboardAuthMode.None || options.AuthorizeRequest != null) return;
+
+                if (string.Equals(controlPlane.AuthMode, "ApiKey", StringComparison.OrdinalIgnoreCase))
+                {
+                    options.AuthMode = DashboardAuthMode.ApiKey;
+                    options.ApiKey = controlPlane.ApiKey;
+                    options.ApiKeyHeaderName = string.IsNullOrWhiteSpace(controlPlane.ApiKeyHeaderName) ? "X-Api-Key" : controlPlane.ApiKeyHeaderName;
+                }
+                else if (string.Equals(controlPlane.AuthMode, "CustomJwt", StringComparison.OrdinalIgnoreCase))
+                {
+                    options.AuthMode = DashboardAuthMode.CustomJwt;
+                    options.JwtUsername = controlPlane.Username ?? "admin";
+                    options.JwtPassword = controlPlane.Password;
+                }
+                else if (string.Equals(controlPlane.AuthMode, "DefaultJwt", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(controlPlane.AuthMode, "BasicAuth", StringComparison.OrdinalIgnoreCase))
+                {
+                    options.AuthMode = DashboardAuthMode.DefaultJwt;
+                    options.JwtPassword = controlPlane.Password;
+                }
+            });
 
         // Register CircuitBreaker options (nested in DashboardOptions)
         services.AddOptions<CircuitBreakerOptions>()
@@ -51,6 +85,25 @@ public static class DashboardServiceCollectionExtensions
         // Register WAF options (nested in DashboardOptions)
         services.AddOptions<WafOptions>()
             .BindConfiguration("Gateway:Dashboard:Waf");
+
+        // Register configuration history / snapshot options
+        services.AddOptions<ConfigHistoryOptions>()
+            .BindConfiguration(ConfigHistoryOptions.SectionName)
+            .PostConfigure(options =>
+            {
+                options.MaxSnapshots = Math.Max(1, options.MaxSnapshots);
+                options.SnapshotQueueCapacity = Math.Max(1, options.SnapshotQueueCapacity);
+            });
+
+        // ── Deployment options ────────────────────────────────────────────────────
+        // BindConfiguration provides the raw config values. AddAneiangYarpDeployment
+        // (if called) will PostConfigure to normalize Mode (Auto→Split/AllInOne).
+        services.AddOptions<DeploymentOptions>()
+            .BindConfiguration(DeploymentOptions.SectionName);
+
+        // ── Alert service (no-op default; can be replaced by user's implementation) ──
+        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Alert.IGatewayAlertService,
+            Aneiang.Yarp.Dashboard.Infrastructure.Alert.NullGatewayAlertService>();
 
         if (configureOptions != null)
             services.Configure(configureOptions);
@@ -87,35 +140,40 @@ public static class DashboardServiceCollectionExtensions
                 "text/plain", "text/css", "text/javascript", "text/xml",
                 "application/javascript", "application/json", "application/xml",
                 "application/xml-dtd", "application/atom+xml", "application/octet-stream",
-                "image/svg+xml",
+                "image/svg+xml", "font/woff", "font/woff2", "font/ttf",
+                "application/wasm",
             };
         });
         services.Configure<BrotliCompressionProviderOptions>(options =>
         {
-            options.Level = System.IO.Compression.CompressionLevel.Fastest;
+            options.Level = System.IO.Compression.CompressionLevel.Optimal;
         });
         services.Configure<GzipCompressionProviderOptions>(options =>
         {
-            options.Level = System.IO.Compression.CompressionLevel.Fastest;
+            options.Level = System.IO.Compression.CompressionLevel.Optimal;
         });
 
         // ── Storage backend ──────────────────────────────────────────────────────
-        services.AddAneiangStorage(services.BuildServiceProvider().GetRequiredService<IConfiguration>());
+        services.AddAneiangStorage();
+
+        // Register DynamicYarpConfigService as HostedService AFTER SqliteSchemaMigrator
+        // so that SQLite tables exist when it loads config from repository.
+        services.AddHostedService(sp => sp.GetRequiredService<Aneiang.Yarp.Services.DynamicYarpConfigService>());
 
         // ── Audit log ─────────────────────────────────────────────────────────────
         services.AddSingleton<IConfigChangeAuditLog, ConfigChangeAuditLog>();
         services.AddSingleton<ConfigChangeAuditLog>(sp => (ConfigChangeAuditLog)sp.GetRequiredService<IConfigChangeAuditLog>());
-        services.AddHostedService<ConfigChangeEventDispatcher>();
+        services.AddSingleton<ConfigChangeEventDispatcher>();
+        services.AddHostedService(sp => sp.GetRequiredService<ConfigChangeEventDispatcher>());
 
         // ── Rate limiting ─────────────────────────────────────────────────────────
         services.AddSingleton<RateLimitConfigProvider>();
         services.AddRateLimiter(_ => { });
 
         // ── Gateway API auth ──────────────────────────────────────────────────────
+        Aneiang.Yarp.Extensions.AneiangYarpServiceCollectionExtensions.AddGatewayApiAuth(services);
         services.AddSingleton<GatewayApiAuthFilter>();
-        services.AddSingleton<IConfigureOptions<MvcOptions>>(_ =>
-            new ConfigureNamedOptions<MvcOptions>(null, mvo =>
-                mvo.Conventions.Add(new GatewayApiAuthConvention())));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<MvcOptions>, GatewayApiAuthMvcOptionsSetup>());
 
         // ── Proxy log store ───────────────────────────────────────────────────────
         services.AddSingleton<IProxyLogStore>(sp =>
@@ -126,6 +184,7 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<ProxyLogStore>(sp => (ProxyLogStore)sp.GetRequiredService<IProxyLogStore>());
         services.AddSingleton<LogSanitizer>();
         services.AddSingleton<YarpEventSourceListener>();
+        services.AddSingleton<YarpEventSourceListenerStartupService>();
         services.AddHostedService<YarpEventSourceListenerStartupService>();
 
         // ── Downstream capture transform ──────────────────────────────────────────
@@ -146,9 +205,6 @@ public static class DashboardServiceCollectionExtensions
         // ── Policy service (route + cluster policies via IPolicyRepository) ──────
         services.AddSingleton<IGatewayPolicyService, GatewayPolicyService>();
 
-        // ── Config snapshot service ───────────────────────────────────────────────
-        services.AddSingleton<IConfigSnapshotService, ConfigSnapshotService>();
-
         // ── Plugin system ─────────────────────────────────────────────────────────
         services.AddSingleton<IGatewayPlugin, CircuitBreakerPlugin>();
         services.AddSingleton<IGatewayPlugin, RequestRetryPlugin>();
@@ -163,60 +219,72 @@ public static class DashboardServiceCollectionExtensions
         // INotificationRepository is registered by AddAneiangStorage above.
         services.AddHttpClient("notification");
         services.AddSingleton<INotificationService, NotificationService>();
-        services.AddHostedService<NotificationWarmupService>();
+        services.AddBackgroundHostedService<NotificationWarmupService>();
 
         // ── WAF settings persistence ──────────────────────────────────────────
         services.AddSingleton<WafSettingsPersistenceService>();
         services.AddSingleton<IWafSettingsPersistenceService>(sp => sp.GetRequiredService<WafSettingsPersistenceService>());
 
-        // ── Config persistence service ────────────────────────────────────────────
+        // ── Config persistence / identity services ───────────────────────────────
         services.AddSingleton<ConfigPersistenceService>();
         services.AddSingleton<IConfigPersistenceService>(sp => sp.GetRequiredService<ConfigPersistenceService>());
+        services.AddSingleton<ConfigSnapshotScheduler>();
+        services.AddSingleton<IConfigSnapshotScheduler>(sp => sp.GetRequiredService<ConfigSnapshotScheduler>());
+        services.AddHostedService(sp => sp.GetRequiredService<ConfigSnapshotScheduler>());
+        services.AddSingleton<IGatewayIdentityService, GatewayIdentityService>();
 
-        // ── Default health check service ──────────────────────────────────────────
-        services.AddHostedService<DefaultHealthCheckService>();
+        // ── Default health check service (background — non-blocking) ──────────────
+        services.AddBackgroundHostedService<DefaultHealthCheckService>();
 
-        // ── Startup warmup: initializes repositories, MemoryCache, and query services ──
-        services.AddHostedService<StartupWarmupService>();
+        // ── Circuit breaker warmup (background — non-blocking) ─────────────────────
+        services.AddBackgroundHostedService<CircuitBreakerWarmupService>();
+
+        // ── Startup warmup (background — non-blocking) ─────────────────────────────
+        services.AddBackgroundHostedService<StartupWarmupService>();
 
         // ── Real-time traffic broadcast ───────────────────────────────────────────
+        services.AddSingleton<TrafficBroadcastService>();
         services.AddHostedService<TrafficBroadcastService>();
 
         // ── JWT secret provider ───────────────────────────────────────────────────
         services.AddSingleton<JwtSecretProvider>();
 
         // ── Route prefix + auth conventions ────────────────────────────────────────
-        services.AddSingleton<IConfigureOptions<MvcOptions>>(sp =>
-        {
-            var opts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
-            var prefix = opts.RoutePrefix.Trim('/');
-
-            DashboardController.RoutePrefix = prefix;
-
-            var secretProvider = sp.GetRequiredService<JwtSecretProvider>();
-            opts.JwtSecret = secretProvider.GetSecret(opts.JwtSecret);
-
-            return new ConfigureNamedOptions<MvcOptions>(null, mvcOptions =>
-            {
-                mvcOptions.Conventions.Add(new DashboardRouteConvention(prefix));
-
-                var authFilter = CreateAuthFilter(opts, prefix);
-                if (authFilter != null)
-                    mvcOptions.Filters.Add(authFilter);
-            });
-        });
+        services.AddSingleton<IConfigureOptions<MvcOptions>, DashboardMvcOptionsSetup>();
 
         return services;
     }
 
-    private static DashboardAuthFilter? CreateAuthFilter(DashboardOptions opts, string routePrefix)
+    /// <summary>
+    /// Register deployment-related services (EndpointRoleResolver, config validators, snapshot store, hot-reload).
+    /// Configuration is resolved from DI, so this can be called as <c>services.AddAneiangYarpDeployment()</c>.
+    /// </summary>
+    public static IServiceCollection AddAneiangYarpDeployment(this IServiceCollection services)
     {
-        if (opts.AuthMode == DashboardAuthMode.None && opts.AuthorizeRequest == null)
-            return null;
+        services.AddOptions<DeploymentOptions>()
+            .BindConfiguration(DeploymentOptions.SectionName);
 
-        return new DashboardAuthFilter(
-            new DashboardAuthorizationService(Options.Create(opts),
-                Microsoft.Extensions.Logging.Abstractions.NullLogger<DashboardAuthorizationService>.Instance),
-            routePrefix);
+        services.TryAddSingleton<IConfigSnapshotStore, FileConfigSnapshotStore>();
+        services.TryAddSingleton<DeploymentRestartState>();
+        services.TryAddSingleton<EndpointRoleResolver>(sp =>
+        {
+            var configuration = sp.GetRequiredService<IConfiguration>();
+            var options = sp.GetRequiredService<IOptions<DeploymentOptions>>().Value;
+            options.ResolvedEndpoints.Clear();
+            return new EndpointRoleResolver(configuration, options);
+        });
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, DeploymentConfigValidator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, Aneiang.Yarp.Dashboard.Infrastructure.HostedServices.ConfigurationFileWatcher>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, Aneiang.Yarp.Dashboard.Infrastructure.HostedServices.KestrelEndpointChangeDetector>());
+        return services;
     }
+
+    /// <summary>
+    /// Register deployment-related services. The configuration parameter is no longer required and is ignored.
+    /// Kept for source compatibility.
+    /// </summary>
+    [Obsolete("Use AddAneiangYarpDeployment() instead. IConfiguration is resolved from DI.")]
+    public static IServiceCollection AddAneiangYarpDeployment(this IServiceCollection services, IConfiguration configuration)
+        => services.AddAneiangYarpDeployment();
 }

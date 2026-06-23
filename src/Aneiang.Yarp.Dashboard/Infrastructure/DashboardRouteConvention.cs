@@ -29,7 +29,7 @@ internal sealed class DashboardRouteConvention : IApplicationModelConvention
             if (controllerSelector != null)
             {
                 // Controller has a [Route] attribute – prepend prefix to the controller route
-                var template = controllerSelector.AttributeRouteModel.Template ?? "";
+                var template = controllerSelector.AttributeRouteModel?.Template ?? "";
                 if (!template.StartsWith(_prefix, StringComparison.OrdinalIgnoreCase))
                 {
                     controllerSelector.AttributeRouteModel.Template = template.StartsWith("/")

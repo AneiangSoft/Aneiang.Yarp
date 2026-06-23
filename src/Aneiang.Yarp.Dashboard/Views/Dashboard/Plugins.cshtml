@@ -8,12 +8,12 @@
     <div class="card-panel mb-4">
         <div class="card-header">
             <span><i class="bi bi-puzzle me-2" style="color:#8b5cf6;"></i><span data-i18n="plugin.title">插件管理</span></span>
-            <div>
+            <div class="card-header-actions">
                 <span id="plugin-refresh-time" class="refresh-badge"></span>
                 <button class="btn btn-sm btn-outline-secondary" onclick="PluginModule.resetAll()" title="全部启用">
                     <i class="bi bi-check-all"></i> <span data-i18n="plugin.resetAll">全部启用</span>
                 </button>
-                <button class="btn btn-sm btn-outline-primary" onclick="PluginModule.load()" title="刷新">
+                <button class="btn btn-sm btn-outline-secondary btn-icon-only" onclick="PluginModule.load()" title="刷新">
                     <i class="bi bi-arrow-clockwise"></i>
                 </button>
             </div>
@@ -29,14 +29,6 @@
 
 @section Scripts {
 @{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-plugins.js?v=@v"></script>
 
 <script>

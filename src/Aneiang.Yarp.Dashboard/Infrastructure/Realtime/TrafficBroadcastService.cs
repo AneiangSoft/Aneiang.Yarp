@@ -12,7 +12,7 @@ namespace Aneiang.Yarp.Dashboard.Infrastructure.Realtime;
 /// Uses a sliding window over the ring buffer to compute per-route traffic statistics
 /// (RPS, error rate, latency) and pushes updates every 2 seconds.
 /// </summary>
-public sealed class TrafficBroadcastService : BackgroundService
+internal sealed class TrafficBroadcastService : BackgroundService
 {
     private readonly IHubContext<TrafficHub> _hubContext;
     private readonly IProxyLogStore _logStore;
@@ -144,3 +144,4 @@ public sealed class TrafficBroadcastService : BackgroundService
         public DateTime LastSeen { get; set; } = DateTime.MinValue;
     }
 }
+

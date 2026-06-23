@@ -9,7 +9,7 @@ namespace Aneiang.Yarp.Dashboard.Infrastructure.Storage;
 /// <summary>
 /// Maps between domain models and database entities.
 /// </summary>
-public static class EntityMapper
+internal static class EntityMapper
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -17,13 +17,13 @@ public static class EntityMapper
         WriteIndented = false
     };
 
-    // ========== Route Mapping ==========
-
     public static RouteEntity ToEntity(this DynamicRouteConfig route)
     {
         return new RouteEntity
         {
+            RouteUid = string.IsNullOrWhiteSpace(route.RouteUid) ? Guid.NewGuid().ToString("N") : route.RouteUid,
             RouteId = route.RouteId,
+            ClusterUid = route.ClusterUid,
             ClusterId = route.ClusterId,
             MatchPath = route.MatchPath,
             Order = route.Order,
@@ -40,7 +40,9 @@ public static class EntityMapper
     {
         return new DynamicRouteConfig
         {
+            RouteUid = entity.RouteUid,
             RouteId = entity.RouteId,
+            ClusterUid = entity.ClusterUid,
             ClusterId = entity.ClusterId,
             MatchPath = entity.MatchPath,
             Order = entity.Order,
@@ -57,12 +59,11 @@ public static class EntityMapper
         return entities.Select(e => e.ToRouteConfig()).ToList();
     }
 
-    // ========== Cluster Mapping ==========
-
     public static ClusterEntity ToEntity(this DynamicClusterConfig cluster)
     {
         return new ClusterEntity
         {
+            ClusterUid = string.IsNullOrWhiteSpace(cluster.ClusterUid) ? Guid.NewGuid().ToString("N") : cluster.ClusterUid,
             ClusterId = cluster.ClusterId,
             LoadBalancingPolicy = cluster.LoadBalancingPolicy,
             HealthCheckConfig = cluster.HealthCheck != null ? JsonSerializer.Serialize(cluster.HealthCheck, _jsonOptions) : null,
@@ -79,6 +80,7 @@ public static class EntityMapper
     {
         return new DynamicClusterConfig
         {
+            ClusterUid = entity.ClusterUid,
             ClusterId = entity.ClusterId,
             LoadBalancingPolicy = entity.LoadBalancingPolicy,
             HealthCheck = string.IsNullOrEmpty(entity.HealthCheckConfig) ? null : JsonSerializer.Deserialize<HealthCheckConfig>(entity.HealthCheckConfig, _jsonOptions),
@@ -96,8 +98,6 @@ public static class EntityMapper
         return entities.Select(e => e.ToClusterConfig()).ToList();
     }
 
-    // ========== Destination Mapping ==========
-
     public static DestinationEntity ToEntity(this KeyValuePair<string, string> dest, string clusterId)
     {
         return new DestinationEntity
@@ -114,12 +114,11 @@ public static class EntityMapper
         return entities.ToDictionary(e => e.DestinationId, e => e.Address);
     }
 
-    // ========== Policy Mapping ==========
-
     public static PolicyEntity ToEntity(this RoutePolicy policy)
     {
         return new PolicyEntity
         {
+            PolicyUid = string.IsNullOrWhiteSpace(policy.PolicyId) ? Guid.NewGuid().ToString("N") : StableUidFromKey("policy", policy.PolicyId),
             PolicyId = policy.PolicyId,
             PolicyType = "route",
             DisplayName = policy.DisplayName,
@@ -128,7 +127,6 @@ public static class EntityMapper
             RetryConfig = policy.Retry != null ? JsonSerializer.Serialize(policy.Retry, _jsonOptions) : null,
             RateLimitConfig = policy.RateLimit != null ? JsonSerializer.Serialize(policy.RateLimit, _jsonOptions) : null,
             WafEnabled = policy.WafEnabled?.ToString().ToLowerInvariant(),
-            AppliedTargets = policy.AppliedRoutes is { Count: > 0 } ? JsonSerializer.Serialize(policy.AppliedRoutes, _jsonOptions) : null,
             CreatedAt = policy.CreatedAt,
             UpdatedAt = DateTime.UtcNow
         };
@@ -138,13 +136,13 @@ public static class EntityMapper
     {
         return new PolicyEntity
         {
+            PolicyUid = string.IsNullOrWhiteSpace(policy.PolicyId) ? Guid.NewGuid().ToString("N") : StableUidFromKey("policy", policy.PolicyId),
             PolicyId = policy.PolicyId,
             PolicyType = "cluster",
             DisplayName = policy.DisplayName,
             Description = policy.Description,
             Enabled = policy.Enabled,
             CircuitBreakerConfig = policy.CircuitBreaker != null ? JsonSerializer.Serialize(policy.CircuitBreaker, _jsonOptions) : null,
-            AppliedTargets = policy.AppliedClusters is { Count: > 0 } ? JsonSerializer.Serialize(policy.AppliedClusters, _jsonOptions) : null,
             CreatedAt = policy.CreatedAt,
             UpdatedAt = DateTime.UtcNow
         };
@@ -166,9 +164,7 @@ public static class EntityMapper
                 "false" => false,
                 _ => null
             },
-            AppliedRoutes = string.IsNullOrEmpty(entity.AppliedTargets)
-                ? new()
-                : JsonSerializer.Deserialize<List<string>>(entity.AppliedTargets, _jsonOptions) ?? new(),
+            AppliedRoutes = new(),
             CreatedAt = entity.CreatedAt
         };
     }
@@ -177,6 +173,7 @@ public static class EntityMapper
     {
         return new ClusterPolicy
         {
+            PolicyUid = entity.PolicyUid,
             PolicyId = entity.PolicyId,
             DisplayName = entity.DisplayName,
             Description = entity.Description,
@@ -184,9 +181,7 @@ public static class EntityMapper
             CircuitBreaker = string.IsNullOrEmpty(entity.CircuitBreakerConfig)
                 ? null
                 : JsonSerializer.Deserialize<PolicyCircuitBreaker>(entity.CircuitBreakerConfig, _jsonOptions),
-            AppliedClusters = string.IsNullOrEmpty(entity.AppliedTargets)
-                ? new()
-                : JsonSerializer.Deserialize<List<string>>(entity.AppliedTargets, _jsonOptions) ?? new(),
+            AppliedClusters = new(),
             CreatedAt = entity.CreatedAt
         };
     }
@@ -201,8 +196,6 @@ public static class EntityMapper
         return entities.Where(e => e.PolicyType == "cluster").Select(e => e.ToClusterPolicy()).ToList();
     }
 
-    // ========== Audit Log Mapping ==========
-
     public static AuditLogEntity ToEntity(this ConfigChangeAudit audit)
     {
         return new AuditLogEntity
@@ -210,6 +203,10 @@ public static class EntityMapper
             Id = audit.Id,
             Action = audit.Action,
             Target = audit.Target,
+            TargetType = audit.TargetType,
+            TargetUid = audit.TargetUid,
+            TargetKeySnapshot = audit.TargetKeySnapshot ?? audit.Target,
+            TargetDisplayNameSnapshot = audit.TargetDisplayNameSnapshot,
             Operator = audit.Operator,
             ClientIp = audit.ClientIp,
             BeforeData = audit.Before,
@@ -242,8 +239,6 @@ public static class EntityMapper
         return entities.Select(e => e.ToConfigChangeAudit()).ToList();
     }
 
-    // ========== Config History Mapping ==========
-
     public static ConfigHistoryEntity ToEntity(this ConfigSnapshot snapshot, string? createdBy = null)
     {
         return new ConfigHistoryEntity
@@ -273,4 +268,11 @@ public static class EntityMapper
     {
         return entities.Select(e => e.ToConfigSnapshot()).ToList();
     }
+
+    private static string StableUidFromKey(string prefix, string key)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(prefix + ":" + key));
+        return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
+    }
 }
+

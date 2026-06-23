@@ -14,6 +14,9 @@ public interface IDashboardLogQueryService
     /// <returns>Log store snapshot.</returns>
     ProxyLogStoreSnapshot GetLogs(int count = 100);
 
+    /// <summary>Gets paged log entries.</summary>
+    ProxyLogStoreSnapshot GetLogsPage(int page = 1, int pageSize = 100);
+
     /// <summary>
     /// Clears all log entries.
     /// </summary>

@@ -6,7 +6,6 @@
 
     window.DashboardApi = window.DashboardApi || {};
 
-    // ===== Configuration =====
     let config = {
         baseUrl: '',
         token: null,
@@ -14,17 +13,14 @@
         retries: 0
     };
 
-    // ===== Initialization =====
     window.DashboardApi.init = function() {
         const dashboard = window.__dashboard;
         if (dashboard) {
             config.baseUrl = dashboard.basePath || '';
             config.token = dashboard.token || null;
         }
-        console.log('[API] Initialized with base URL:', config.baseUrl);
     };
 
-    // ===== Token Management =====
     window.DashboardApi.setToken = function(token) {
         config.token = token;
         if (token) {
@@ -38,7 +34,6 @@
         return config.token || localStorage.getItem('dashboard_token');
     };
 
-    // ===== Core Request Method =====
     window.DashboardApi.request = async function(url, options = {}) {
         const {
             method = 'GET',
@@ -49,16 +44,13 @@
             requireAuth = true
         } = options;
 
-        // Build full URL
         const fullUrl = url.startsWith('http') ? url : `${config.baseUrl}${url}`;
 
-        // Setup headers
         const requestHeaders = {
             'Content-Type': 'application/json',
             ...headers
         };
 
-        // Add authentication if required
         if (requireAuth) {
             const token = this.getToken();
             if (token) {
@@ -66,7 +58,6 @@
             }
         }
 
-        // Build request options
         const fetchOptions = {
             method,
             headers: requestHeaders,
@@ -80,18 +71,15 @@
         try {
             const response = await fetch(fullUrl, fetchOptions);
 
-            // Handle authentication errors
             if (response.status === 401) {
                 this.handleAuthError();
                 throw new Error('Unauthorized');
             }
 
-            // Handle server errors
             if (response.status >= 500) {
                 throw new Error(`Server error: ${response.status}`);
             }
 
-            // Parse response
             if (parseJson && response.status !== 204) {
                 const data = await response.json();
                 
@@ -114,7 +102,6 @@
             return response;
 
         } catch (error) {
-            // Network or parsing errors
             if (error.name === 'AbortError') {
                 throw new Error('Request timeout');
             }
@@ -122,7 +109,6 @@
         }
     };
 
-    // ===== HTTP Method Helpers =====
     window.DashboardApi.get = function(url, params, options = {}) {
         if (params) {
             // Strip null/undefined values so they never become the string "undefined"/"null" in the query string.
@@ -154,7 +140,6 @@
         return this.request(url, { method: 'DELETE', ...bodyOrOptions, ...options });
     };
 
-    // ===== File Operations =====
     window.DashboardApi.download = async function(url, filename) {
         try {
             const response = await this.request(url, {
@@ -192,7 +177,6 @@
         });
     };
 
-    // ===== Error Handling =====
     window.DashboardApi.handleAuthError = function() {
         localStorage.removeItem('dashboard_token');
         
@@ -212,7 +196,6 @@
         return error;
     };
 
-    // ===== API Endpoints =====
     window.DashboardApi.endpoints = {
         // Info
         getInfo: () => DashboardApi.get('/api/info'),
@@ -232,6 +215,7 @@
 
         // Config History
         getHistory: () => DashboardApi.get('/api/config/history'),
+        clearConfigHistory: () => DashboardApi.delete('/api/config/history'),
         rollback: (versionId) => DashboardApi.post(`/api/config/rollback/${versionId}`),
         createSnapshot: (description) => DashboardApi.post('/api/config/snapshot', { description }),
 
@@ -280,18 +264,9 @@
         togglePlugin: (id, enabled) => DashboardApi.post('/api/plugins/' + id + '/toggle', { enabled }),
         resetPlugins: () => DashboardApi.post('/api/plugins/reset'),
 
-        // Webhook Settings
-        getWebhookSettings: () => DashboardApi.get('/api/config/webhook'),
-        saveWebhookSettings: (data) => DashboardApi.put('/api/config/webhook', data),
-        testWebhook: (data) => DashboardApi.post('/api/config/webhook/test', data),
-
         // WAF Settings
         getWafSettings: () => DashboardApi.get('/api/config/waf'),
         saveWafSettings: (data) => DashboardApi.put('/api/config/waf', data),
-
-        // Alert Settings (/api/config/alert-settings)
-        getAlertSettings: () => DashboardApi.get('/api/config/alert-settings'),
-        saveAlertSettings: (data) => DashboardApi.put('/api/config/alert-settings', data),
 
         // Health Check
         getHealthCheckStatus: () => DashboardApi.get('/api/health-check/status'),
@@ -304,11 +279,7 @@
         getTopIssues: (count) => DashboardApi.get('/api/operations/top-issues', { count }),
         exportSnapshot: () => DashboardApi.get('/api/operations/snapshot'),
 
-        // Config Snapshot & Diff (Stage 2)
-        getSnapshots: (limit) => DashboardApi.get('/api/dashboard/config/snapshots', { limit: limit || 50 }),
-        getSnapshot: (id) => DashboardApi.get('/api/dashboard/config/snapshots/' + id),
-        compareSnapshots: (fromId, toId) => DashboardApi.get('/api/dashboard/config/diff', { fromId, toId: toId || 'current' }),
-        compareWithCurrent: (fromId) => DashboardApi.get('/api/dashboard/config/diff/' + fromId + '/current'),
+        // Config Snapshot & Diff
         configDiff: (versionId) => DashboardApi.get('/api/config/diff/' + versionId),
 
         // Database Download
@@ -317,7 +288,6 @@
         // Cluster Toggle (Stage 2)
         toggleCluster: (clusterId) => DashboardApi.post('/api/config/clusters/' + clusterId + '/toggle'),
 
-        // Notifications (New Unified System)
         getNotificationSettings: () => DashboardApi.get('/api/notifications/settings'),
         saveNotificationSettings: (data) => DashboardApi.put('/api/notifications/settings', data),
         getNotificationHistory: (params) => DashboardApi.get('/api/notifications/history', params),
@@ -351,11 +321,7 @@
     window.DashboardApi.getPlugin = (id) => DashboardApi.endpoints.getPlugin(id);
     window.DashboardApi.togglePlugin = (id, enabled) => DashboardApi.endpoints.togglePlugin(id, enabled);
     window.DashboardApi.resetPlugins = () => DashboardApi.endpoints.resetPlugins();
-    window.DashboardApi.getWebhookSettings = () => DashboardApi.endpoints.getWebhookSettings();
-    window.DashboardApi.saveWebhookSettings = (data) => DashboardApi.endpoints.saveWebhookSettings(data);
-    window.DashboardApi.testWebhook = (data) => DashboardApi.endpoints.testWebhook(data);
 
-    // Notifications (New Unified System)
     window.DashboardApi.getNotificationSettings = () => DashboardApi.endpoints.getNotificationSettings();
     window.DashboardApi.saveNotificationSettings = (data) => DashboardApi.endpoints.saveNotificationSettings(data);
 

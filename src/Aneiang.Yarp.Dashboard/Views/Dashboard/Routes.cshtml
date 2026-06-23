@@ -1,3 +1,4 @@
+@using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
 @{
     ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Routes" : "路由配置";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
@@ -7,7 +8,7 @@
 <div id="route-panel" class="card-panel mb-4">
     <div class="card-header">
         <span><i class="bi bi-signpost-split me-2" style="color:#f59e0b;"></i><span data-i18n="index.route.title">路由规则列表</span></span>
-        <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
+        <div class="card-header-actions">
             <span class="refresh-badge" id="route-refresh-time"></span>
             <span class="refresh-badge"><span data-i18n="index.route.showing">显示 </span><strong id="route-display-count">0</strong><span data-i18n="index.route.of"> / </span><span id="route-total-count">0</span><span data-i18n="index.route.entries"> 个</span></span>
         </div>
@@ -46,6 +47,16 @@
 </div>
 
 @section Scripts {
+@{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-service.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-schema-validator.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/lazy-monaco-loader.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-monaco-editor.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-config-editor.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-form-builder.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-diff-panel.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-validation-panel.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-routes.js?v=@v"></script>
 <!-- Page config (shared scripts now in _DashboardLayout.cshtml) -->
 <script>
     window.__dashboard = window.__dashboard || {};

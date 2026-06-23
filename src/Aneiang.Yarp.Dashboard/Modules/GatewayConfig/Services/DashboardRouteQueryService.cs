@@ -77,6 +77,8 @@ internal sealed class DashboardRouteQueryService : IDashboardRouteQueryService
 
         Dictionary<string, List<Dictionary<string, string>>>? configTransforms = null;
         Dictionary<string, string>? routeSources = null;
+        Dictionary<string, Aneiang.Yarp.Models.DynamicRouteConfig>? dynamicRoutes = null;
+        Dictionary<string, Aneiang.Yarp.Models.DynamicClusterConfig>? dynamicClusters = null;
 
         try
         {
@@ -86,6 +88,8 @@ internal sealed class DashboardRouteQueryService : IDashboardRouteQueryService
                 routeSources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
                 var dynConfig = _dynamicConfig.GetDynamicConfig();
+                dynamicRoutes = dynConfig?.Routes.ToDictionary(r => r.RouteId, StringComparer.OrdinalIgnoreCase);
+                dynamicClusters = dynConfig?.Clusters.ToDictionary(c => c.ClusterId, StringComparer.OrdinalIgnoreCase);
 
                 foreach (var r in routes)
                 {
@@ -115,7 +119,9 @@ internal sealed class DashboardRouteQueryService : IDashboardRouteQueryService
                 route,
                 clusterDest,
                 configTransforms,
-                routeSources))
+                routeSources,
+                dynamicRoutes,
+                dynamicClusters))
             .OrderBy(r => r.Order)
             .ToList() ?? new List<DashboardRouteResponse>();
     }

@@ -226,9 +226,16 @@ public static class KestrelExtensions
         var isHttps = uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
         var host = uri.Host;
 
-        // 判断是否需要监听 0.0.0.0
-        var shouldListenAnyIP = forceAnyIP ||
-                               host is "localhost" or "127.0.0.1" or "0.0.0.0" or "::1";
+        // When the user has explicitly declared 2+ Kestrel:Endpoints (multi-port / split mode),
+        // we skip the auto-injected gRPC port. Each user-declared port should be honored
+        // exactly as configured, with no implicit +1 offset.
+        var hasExplicitMultiEndpoints = configuration != null
+            && configuration.GetSection("Kestrel:Endpoints").GetChildren().Count() >= 2;
+        var skipAutoGrpc = hasExplicitMultiEndpoints;
+
+        // Split / multi-endpoint mode must honor the configured bind address.
+        // Only legacy single-URL mode keeps the old forceAnyIP behavior for backward compatibility.
+        var shouldListenAnyIP = IsAnyAddressHost(host) || (!hasExplicitMultiEndpoints && forceAnyIP);
 
         if (shouldListenAnyIP)
         {
@@ -238,13 +245,26 @@ public static class KestrelExtensions
             }
             else
             {
-                var grpcPort = ResolveGrpcPort(configuration, port);
-                // Main port: HTTP/1.1 only (Dashboard, YARP proxy, REST API)
-                options.ListenAnyIP(port, o => o.Protocols = HttpProtocols.Http1);
-                // gRPC port: HTTP/2 only (h2c) — .NET 9 requires separate port for cleartext HTTP/2
-                options.ListenAnyIP(grpcPort, o => o.Protocols = HttpProtocols.Http2);
+                if (skipAutoGrpc)
+                {
+                    // Multi-endpoint mode: bind only the declared port, no auto gRPC.
+                    options.ListenAnyIP(port, o => o.Protocols = HttpProtocols.Http1AndHttp2);
+                }
+                else
+                {
+                    var grpcPort = ResolveGrpcPort(configuration, port);
+                    // Main port: HTTP/1.1 only (Dashboard, YARP proxy, REST API)
+                    options.ListenAnyIP(port, o => o.Protocols = HttpProtocols.Http1);
+                    // gRPC port: HTTP/2 only (h2c) — .NET 9 requires separate port for cleartext HTTP/2
+                    options.ListenAnyIP(grpcPort, o => o.Protocols = HttpProtocols.Http2);
+                }
             }
             return true;
+        }
+
+        if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            host = IPAddress.Loopback.ToString();
         }
 
         // 如果指定了特定 IP，监听该 IP
@@ -256,13 +276,24 @@ public static class KestrelExtensions
             }
             else
             {
-                var grpcPort = ResolveGrpcPort(configuration, port);
-                options.Listen(ipAddress, port, o => o.Protocols = HttpProtocols.Http1);
-                options.Listen(ipAddress, grpcPort, o => o.Protocols = HttpProtocols.Http2);
+                if (skipAutoGrpc)
+                {
+                    // Multi-endpoint mode: bind only the declared port, no auto gRPC.
+                    options.Listen(ipAddress, port, o => o.Protocols = HttpProtocols.Http1AndHttp2);
+                }
+                else
+                {
+                    var grpcPort = ResolveGrpcPort(configuration, port);
+                    options.Listen(ipAddress, port, o => o.Protocols = HttpProtocols.Http1);
+                    options.Listen(ipAddress, grpcPort, o => o.Protocols = HttpProtocols.Http2);
+                }
             }
             return true;
         }
 
         return false;
     }
+
+    private static bool IsAnyAddressHost(string host) =>
+        string.IsNullOrWhiteSpace(host) || host is "0.0.0.0" or "*" or "+" or "::" or "[::]";
 }

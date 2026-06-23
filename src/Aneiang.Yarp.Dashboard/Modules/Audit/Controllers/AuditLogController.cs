@@ -21,21 +21,21 @@ public class AuditLogController : Controller
     /// <summary>
     /// Get recent audit log entries.
     /// </summary>
-    /// <param name="count">Maximum number of entries to return (default 50, max 200).</param>
+    /// <param name="count">Maximum number of entries to return for legacy callers.</param>
     /// <param name="action">Optional filter by action type (e.g. "AddRoute", "RemoveCluster").</param>
+    /// <param name="page">Page number for paged callers.</param>
+    /// <param name="pageSize">Page size for paged callers.</param>
     /// <returns>Audit log entries in reverse chronological order.</returns>
     [HttpGet]
-    public IActionResult GetAuditLogs([FromQuery] int count = 50, [FromQuery] string? action = null)
+    public IActionResult GetAuditLogs(
+        [FromQuery] int count = 50,
+        [FromQuery] string? action = null,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null)
     {
-        count = Math.Clamp(count, 1, 200);
-
-        var entries = _auditLog.GetRecent(count);
-
-        if (!string.IsNullOrEmpty(action))
-        {
-            entries = entries.Where(e =>
-                e.Action.Equals(action, StringComparison.OrdinalIgnoreCase)).ToList();
-        }
+        var effectivePage = Math.Max(1, page ?? 1);
+        var effectivePageSize = Math.Clamp(pageSize ?? count, 1, 200);
+        var (entries, total) = _auditLog.GetPage(effectivePage, effectivePageSize, action);
 
         return Json(new
         {
@@ -43,25 +43,12 @@ public class AuditLogController : Controller
             data = new
             {
                 entries,
-                total = _auditLog.Count,
+                total,
+                page = effectivePage,
+                pageSize = effectivePageSize,
+                totalPages = total == 0 ? 0 : (int)Math.Ceiling(total / (double)effectivePageSize),
                 evicted = _auditLog.EvictedCount
             }
         });
-    }
-
-    /// <summary>
-    /// Get available action types for filtering.
-    /// </summary>
-    [HttpGet("actions")]
-    public IActionResult GetActionTypes()
-    {
-        var entries = _auditLog.GetRecent(200);
-        var actionTypes = entries
-            .Select(e => e.Action)
-            .Distinct()
-            .OrderBy(a => a)
-            .ToList();
-
-        return Json(new { code = 200, data = actionTypes });
     }
 }

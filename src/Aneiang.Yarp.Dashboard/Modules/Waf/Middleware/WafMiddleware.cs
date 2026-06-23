@@ -249,6 +249,7 @@ public sealed class WafMiddleware
     {
         var clientIp = GetClientIp(context);
         var requestUri = context.Request.Path.Value + context.Request.QueryString.Value;
+        var routeConfig = context.Features.Get<IReverseProxyFeature>()?.Route?.Config;
 
         _logger.LogWarning(
             "WAF [{EventType}] from IP: {Ip}, Path: {Path}, Details: {Details}",
@@ -261,6 +262,10 @@ public sealed class WafMiddleware
             RuleName = eventType.Replace("Blocked", ""),
             RequestUri = requestUri,
             RequestMethod = context.Request.Method,
+            RouteUid = ResolveUid("route", routeConfig?.Metadata?.GetValueOrDefault("RouteUid"), routeConfig?.RouteId),
+            RouteKeySnapshot = routeConfig?.RouteId,
+            ClusterUid = ResolveUid("cluster", routeConfig?.Metadata?.GetValueOrDefault("ClusterUid"), routeConfig?.ClusterId),
+            ClusterKeySnapshot = routeConfig?.ClusterId,
             MatchedValue = details != null && details.Length <= 200 ? details : null,
             Blocked = true,
             StatusCode = 403
@@ -311,6 +316,14 @@ public sealed class WafMiddleware
         }
 
         return string.Equals(pattern, clientIp, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? ResolveUid(string prefix, string? uid, string? key)
+    {
+        if (!string.IsNullOrWhiteSpace(uid)) return uid;
+        if (string.IsNullOrWhiteSpace(key)) return null;
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(prefix + ":" + key));
+        return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
     }
 
     /// <summary>

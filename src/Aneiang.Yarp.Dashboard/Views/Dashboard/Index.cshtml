@@ -1,3 +1,4 @@
+@using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
 @{
     ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Overview" : "总览";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
@@ -16,8 +17,8 @@
                 <span><i class="bi bi-memory"></i><span data-i18n="index.label.memory">内存：</span><strong id="info-memory">-</strong></span>
                 <span><i class="bi bi-pc-display"></i><span data-i18n="index.label.host">主机：</span><strong id="info-machine">-</strong></span>
             </div>
-            <div class="info-bar-actions">
-                <button class="btn btn-icon btn-outline-primary" onclick="manualRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
+            <div class="info-bar-actions card-header-actions">
+                <button class="btn btn-sm btn-outline-secondary btn-icon-only" onclick="manualRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
                     <i class="bi bi-arrow-clockwise"></i>
                 </button>
             </div>
@@ -88,8 +89,8 @@
             <i class="bi bi-signpost-split"></i>
             <span data-i18n="index.serviceTab.routes">路由规则</span>
         </button>
-        <div class="service-tab-actions">
-            <button class="btn btn-icon btn-outline-primary" id="service-refresh-btn" onclick="ServiceTabs.refresh()" data-i18n-title="index.btn.refresh" title="刷新">
+        <div class="service-tab-actions card-header-actions">
+            <button class="btn btn-sm btn-outline-secondary btn-icon-only" id="service-refresh-btn" onclick="ServiceTabs.refresh()" data-i18n-title="index.btn.refresh" title="刷新">
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
         </div>
@@ -104,13 +105,22 @@
         <!-- Filter toolbar container -->
         <div id="cluster-filter-container"></div>
 
+        <!-- Batch operation bar -->
+        <div class="batch-bar" id="cluster-batch-bar">
+            <span class="batch-bar-info"><span id="cluster-batch-count">0</span> <span data-i18n="index.selected">已选择</span></span>
+            <div class="batch-bar-actions">
+                <button class="btn btn-sm btn-outline-danger" onclick="ClustersModule.batchDelete()"><i class="bi bi-trash me-1"></i><span data-i18n="index.batchDelete">批量删除</span></button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="ClustersModule.clearBatch()"><i class="bi bi-x me-1"></i><span data-i18n="index.cancelSelect">取消选择</span></button>
+            </div>
+        </div>
+
         <!-- Table view -->
         <div id="cluster-table-view">
             <div class="table-responsive">
                 <table class="table table-hover table-striped-custom align-middle mb-0">
                     <thead>
                         <tr>
-                            <th style="width:38px"></th>
+                            <th style="width:38px"><input type="checkbox" class="form-check-input" id="cluster-select-all" onchange="ClustersModule.toggleSelectAll(this.checked)"></th>
                             <th><span data-i18n="index.cluster.th.name">集群名称</span></th>
                             <th style="width:90px"><span data-i18n="index.source.filter">来源</span></th>
                             <th style="width:90px"><span data-i18n="index.cluster.health.filter">健康状态</span></th>
@@ -174,7 +184,7 @@
         <span><i class="bi bi-journal-text me-2"></i><span data-i18n="index.log.title">YARP 实时日志</span></span>
         <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
             <span class="refresh-badge" id="log-refresh-time"></span>
-            <span class="refresh-badge"><span data-i18n="index.log.showing">显示 </span><strong id="log-display-count">0</strong><span data-i18n="index.log.of"> / </span><span id="log-total-count">0</span><span data-i18n="index.log.entries"> 条</span></span>
+            <span class="refresh-badge"><span data-i18n="index.log.showing">显示 </span><strong id="log-display-count">0</strong><span data-i18n="index.log.of"> / </span><strong id="log-total-count">0</strong><span data-i18n="index.log.entries"> 条</span></span>
         </div>
     </div>
     
@@ -224,6 +234,10 @@
 </div>
 
 @section Scripts {
+@{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-clusters.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-routes.js?v=@v"></script>
 <!-- Page config (must be available before DashboardApp.init()) -->
 <script>
     window.__dashboard = window.__dashboard || {};
@@ -237,6 +251,94 @@
 
     // Initialize i18n after setting translations (consistent with all other pages)
     if (window.DashboardI18n) { window.DashboardI18n.init(); }
+</script>
+
+<script>
+    // Core initialization — must run before ServiceTabs triggers data loading
+    (async function() {
+            try {
+                if (window.DashboardUtils) DashboardUtils.init();
+                if (window.DashboardApi) DashboardApi.init();
+                if (window.DashboardState) DashboardState.init();
+            if (window.DashboardI18n) DashboardI18n.init();
+            if (window.DashboardStorage) DashboardStorage.init();
+            if (window.DashboardModals) DashboardModals.init();
+            if (window.DashboardEvents) DashboardEvents.setup();
+
+
+            // Initialize modules
+            if (window.DashboardApp?.modules?.home?.init) await DashboardApp.modules.home.init();
+            if (window.DashboardApp?.modules?.clusters?.init) await DashboardApp.modules.clusters.init();
+            if (window.DashboardApp?.modules?.routes?.init) await DashboardApp.modules.routes.init();
+
+            // Load gateway info and stat cards (also loads clusters + routes into state)
+            if (window.DashboardApp?.modules?.home?.loadInfo) {
+                await DashboardApp.modules.home.loadInfo();
+            } else {
+                console.warn('[Index] home.loadInfo not available, calling direct API');
+            }
+
+            // Direct fallback: always call APIs to populate stat cards and tables
+            // (in case HomeModule.loadInfo didn't complete or doesn't exist)
+            try {
+                const [info, clusters, routes] = await Promise.all([
+                    DashboardApi.endpoints.getInfo(),
+                    DashboardApi.endpoints.getClusters(),
+                    DashboardApi.endpoints.getRoutes()
+                ]);
+
+                // Render info bar
+                if (info) {
+                    const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.textContent = val; };
+                    set('info-version', info.version);
+                    set('info-env', info.environment);
+                    set('info-start', info.startTime);
+                    set('info-uptime', info.uptime);
+                    set('info-memory', info.memoryMb != null ? info.memoryMb.toFixed(1) + ' MB' : null);
+                    set('info-machine', info.machineName);
+                }
+
+                // Render stat cards
+                const clusterCount = (clusters || []).length;
+                const routeCount = (routes || []).length;
+                const healthy = (clusters || []).reduce((s, c) => s + (c.healthyCount || 0), 0);
+                const unknown = (clusters || []).reduce((s, c) => s + (c.unknownCount || 0), 0);
+                const unhealthy = (clusters || []).reduce((s, c) => s + (c.unhealthyCount || 0), 0);
+                const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+                setText('stat-clusters', clusterCount);
+                setText('stat-healthy', healthy + ' / ' + unknown + ' / ' + unhealthy);
+                setText('stat-routes', routeCount);
+
+                // Store in state for ServiceTabs
+                DashboardState.set('data.clusters', clusters || []);
+                DashboardState.set('data.routes', routes || []);
+            } catch (err) {
+                console.error('[Index] Direct API fallback failed:', err);
+            }
+
+            // Now that data is in state, trigger ServiceTabs to render the active tab
+            if (window.ServiceTabs) window.ServiceTabs.switch(window.ServiceTabs.current);
+
+            document.dispatchEvent(new CustomEvent('dashboard:ready'));
+        } catch (err) {
+            console.error('[Index] Init failed:', err);
+        }
+    })();
+
+    window.manualRefresh = async function(btn) {
+        var original = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
+        btn.disabled = true;
+        try {
+            if (window.DashboardApp?.modules?.home?.refresh) {
+                await DashboardApp.modules.home.refresh();
+            }
+            if (window.ServiceTabs) window.ServiceTabs.switch(window.ServiceTabs.current);
+        } finally {
+            btn.innerHTML = original;
+            btn.disabled = false;
+        }
+    };
 </script>
 
 <!-- Service tabs JS -->
@@ -265,15 +367,15 @@
             // Count label
             this._updateCountLabel(tab);
 
-            // Lazy-load data
-            if (tab === 'clusters' && !this._clustersLoaded) {
-                this._clustersLoaded = true;
-                window.DashboardApp?.modules?.clusters?.init?.();
-                window.DashboardApp?.modules?.clusters?.loadClusters?.();
-            } else if (tab === 'routes' && !this._routesLoaded) {
-                this._routesLoaded = true;
-                window.DashboardApp?.modules?.routes?.init?.();
-                window.DashboardApp?.modules?.routes?.loadRoutes?.();
+            // Render from state (data already loaded by HomeModule.loadInfo)
+            if (tab === 'clusters') {
+                if (window.DashboardApp?.modules?.clusters?.renderClusters) {
+                    DashboardApp.modules.clusters.renderClusters();
+                }
+            } else if (tab === 'routes') {
+                if (window.DashboardApp?.modules?.routes?.renderRoutes) {
+                    DashboardApp.modules.routes.renderRoutes();
+                }
             }
         },
 
@@ -308,18 +410,11 @@
                 var filtered = (window.DashboardState?.getFilteredRoutes?.() || []).length;
                 label.innerHTML = '<span>' + filtered + ' / ' + total + ' entries</span>';
             }
-        },
-
-        init: function() {
-            var self = this;
-            document.addEventListener('DOMContentLoaded', function() {
-                // Restore saved tab
-                self.switch(localStorage.getItem('service_tab') || 'clusters');
-            });
         }
     };
-    window.ServiceTabs.init();
 })();
+
+
 </script>
 
 <style>

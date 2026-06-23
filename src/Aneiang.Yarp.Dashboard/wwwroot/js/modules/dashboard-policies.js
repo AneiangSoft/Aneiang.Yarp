@@ -87,8 +87,6 @@
             });
         },
 
-        // ─── Route Policies ─────────────────────────────
-
         renderRoutePolicies: function(data, container) {
             window.DashboardDOM.clear(container);
             var policies = (data && data.data) || data || [];
@@ -169,8 +167,6 @@
                 '</div>';
         },
 
-        // ─── Cluster Policies ───────────────────────────
-
         renderClusterPolicies: function(data, container) {
             window.DashboardDOM.clear(container);
             var policies = (data && data.data) || data || [];
@@ -211,7 +207,7 @@
                 var descAttr = desc ? ' title="' + window.DashboardUtils.escapeHtml(desc) + '"' : '';
 
                 return '<tr class="align-middle policy-row">' +
-                    '<td><code>' + window.DashboardUtils.escapeHtml(policy.policyId) + '</code></td>' +
+                    '<td><code>' + window.DashboardUtils.escapeHtml(policy.policyKey || policy.policyId) + '</code><div class="text-muted small" style="font-size:10px;"><i class="bi bi-fingerprint"></i> ' + window.DashboardUtils.escapeHtml(policy.policyUid || '-') + '</div></td>' +
                     '<td><strong>' + window.DashboardUtils.escapeHtml(policy.displayName || '-') + '</strong></td>' +
                     '<td class="text-muted small" style="max-width:180px"' + descAttr + '>' + window.DashboardUtils.escapeHtml(descDisplay) + '</td>' +
                     '<td>' + enabledBadge + '</td>' +
@@ -243,8 +239,6 @@
                     '</table>' +
                 '</div>';
         },
-
-        // ─── Create / Edit ──────────────────────────────
 
         openCreateModal: function() {
             this.editingId = null;
@@ -406,8 +400,6 @@
             }
         },
 
-        // ─── Save ──────────────────────────────────────
-
         save: async function() {
             var type = document.getElementById('policy-type-input').value;
             var policyId = this.editingId || document.getElementById('policy-id-input').value.trim();
@@ -473,23 +465,21 @@
             }
         },
 
-        // ─── Delete ─────────────────────────────────────
-
-        deletePolicy: async function(type, policyId) {
+        deletePolicy: function(type, policyId) {
+            var self = this;
             var endpoint = type === 'route' ? 'routes' : 'clusters';
             var msg = __('policy.deleteConfirm').replace('{name}', policyId);
-            if (!confirm(msg)) return;
-            try {
-                await window.DashboardApi.deletePolicy(endpoint, policyId);
-                if (window.DashboardModals) window.DashboardModals.showToast(__('policy.deleteSuccess'), 'success');
-                await this.load();
-            } catch (error) {
-                console.error('[Policy] Delete failed:', error);
-                if (window.DashboardModals) window.DashboardModals.showError(__('policy.deleteFailed'));
-            }
+            window.DashboardModals.showConfirm(msg, async function() {
+                try {
+                    await window.DashboardApi.deletePolicy(endpoint, policyId);
+                    window.DashboardModals.showSuccess(__('policy.deleteSuccess'));
+                    await self.load();
+                } catch (error) {
+                    console.error('[Policy] Delete failed:', error);
+                    window.DashboardModals.showError(__('policy.deleteFailed'));
+                }
+            }, null, { danger: true });
         },
-
-        // ─── Apply / Unapply ────────────────────────────
 
         openApplyModal: async function(type, policyId) {
             var endpoint = type === 'route' ? 'routes' : 'clusters';

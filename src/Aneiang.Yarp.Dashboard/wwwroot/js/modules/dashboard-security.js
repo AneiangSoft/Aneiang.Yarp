@@ -224,20 +224,18 @@
             if (arrow) arrow.classList.toggle('expanded');
         },
 
-        clearAll: async function() {
-            if (!confirm(__('security.clearConfirm'))) return;
-            try {
-                await window.DashboardApi.clearSecurityEvents();
-                if (window.DashboardModals) {
-                    window.DashboardModals.showToast(__('security.clearSuccess'), 'success');
-                }
-                await this.load();
-            } catch (error) {
-                console.error('[Security] Clear failed:', error);
-                if (window.DashboardModals) {
+        clearAll: function() {
+            var self = this;
+            window.DashboardModals.showConfirm(__('security.clearConfirm'), async function() {
+                try {
+                    await window.DashboardApi.clearSecurityEvents();
+                    window.DashboardModals.showSuccess(__('security.clearSuccess'));
+                    await self.load();
+                } catch (error) {
+                    console.error('[Security] Clear failed:', error);
                     window.DashboardModals.showError(__('security.clearFailed'));
                 }
-            }
+            }, null, { danger: true, confirmText: __('security.clear') });
         },
 
         updateRefreshTime: function() {

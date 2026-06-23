@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: ['*']
+  pull_request:
+    branches: ['*']
+
+jobs:
+  build-test-pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore
+        run: dotnet restore Aneiang.Yarp.sln
+
+      - name: Build
+        run: dotnet build Aneiang.Yarp.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test Aneiang.Yarp.sln --configuration Release --no-build --verbosity normal
+        continue-on-error: true
+
+      - name: Pack
+        run: dotnet pack Aneiang.Yarp.sln --configuration Release --no-build --output artifacts/nupkg
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts/nupkg/*.nupkg
+
+  vulnerability-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore Aneiang.Yarp.sln
+
+      - name: Build
+        run: dotnet build Aneiang.Yarp.sln --configuration Release --no-restore
+
+      - name: Vulnerability scan
+        run: dotnet list Aneiang.Yarp.sln package --vulnerable --include-transitive
+        continue-on-error: true

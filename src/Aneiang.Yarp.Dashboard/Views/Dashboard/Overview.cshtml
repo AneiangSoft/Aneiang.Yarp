@@ -16,8 +16,8 @@
                 <span><i class="bi bi-memory"></i><span data-i18n="index.label.memory">内存：</span><strong id="info-memory">-</strong></span>
                 <span><i class="bi bi-pc-display"></i><span data-i18n="index.label.host">主机：</span><strong id="info-machine">-</strong></span>
             </div>
-            <div class="info-bar-actions">
-                <button class="btn btn-icon btn-outline-primary" onclick="overviewRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
+            <div class="info-bar-actions card-header-actions">
+                <button class="btn btn-sm btn-outline-secondary btn-icon-only" onclick="overviewRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
                     <i class="bi bi-arrow-clockwise"></i>
                 </button>
             </div>
@@ -77,11 +77,78 @@
     </div>
 </div>
 
+<!-- System Health Panel -->
+<div class="card-panel mb-4">
+    <div class="card-header">
+        <span><i class="bi bi-activity me-2" style="color:#10b981;"></i><span data-i18n="overview.systemHealth">系统健康</span></span>
+        <div class="card-header-actions">
+            <span class="badge bg-success" id="sys-health-status" data-i18n="overview.healthy">健康</span>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3 col-sm-6">
+                <div class="border rounded-3 p-3 h-100" style="background:#f8fafc;">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <i class="bi bi-database text-primary"></i>
+                        <span class="fw-semibold small" data-i18n="overview.dbStatus">数据库</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="health-dot healthy"></span>
+                        <span class="small text-muted" id="sys-db-status" data-i18n="overview.connected">已连接</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <div class="border rounded-3 p-3 h-100" style="background:#f8fafc;">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <i class="bi bi-cpu text-warning"></i>
+                        <span class="fw-semibold small" data-i18n="overview.cpuUsage">CPU 使用率</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="progress flex-grow-1" style="height:6px;">
+                            <div class="progress-bar bg-warning" id="sys-cpu-bar" style="width:0%"></div>
+                        </div>
+                        <span class="small text-muted" id="sys-cpu-value">--</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <div class="border rounded-3 p-3 h-100" style="background:#f8fafc;">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <i class="bi bi-memory text-info"></i>
+                        <span class="fw-semibold small" data-i18n="overview.memUsage">内存使用</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="progress flex-grow-1" style="height:6px;">
+                            <div class="progress-bar bg-info" id="sys-mem-bar" style="width:0%"></div>
+                        </div>
+                        <span class="small text-muted" id="sys-mem-value">--</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <div class="border rounded-3 p-3 h-100" style="background:#f8fafc;">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <i class="bi bi-hdd-network text-success"></i>
+                        <span class="fw-semibold small" data-i18n="overview.gcCount">GC 次数</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="small text-muted" id="sys-gc-value">--</span>
+                        <span class="small text-muted" data-i18n="overview.threadCount">线程</span>
+                        <span class="small text-muted" id="sys-thread-value">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Real-time Traffic Chart - 实时流量图 -->
 <div class="card-panel mb-4">
     <div class="card-header">
         <span><i class="bi bi-graph-up-arrow me-2"></i><span data-i18n="overview.chart.traffic">实时流量趋势 (QPS)</span></span>
-        <div class="d-flex align-items-center gap-2">
+        <div class="card-header-actions">
             <span class="pulse-dot me-1"></span>
             <span class="badge bg-success" id="current-qps">0 req/s</span>
             <select class="form-select form-select-sm" id="chart-time-range" style="width:110px;" onchange="OpsModule.changeTimeRange(this.value)">
@@ -229,25 +296,75 @@
 <!-- Chart.js for traffic chart -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
+<!-- Home module (for stat bar — version, clusters, routes, QPS) -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js"></script>
 <!-- Operations module (for overview charts) -->
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-operations.js"></script>
 
 <script>
     (async function() {
-        DashboardApi.init();
-        // Init modules
-        if (window.DashboardApp?.modules?.home?.init) await DashboardApp.modules.home.init();
-        if (window.DashboardApp?.modules?.stats?.init) await DashboardApp.modules.stats.init();
-        if (window.OpsModule?.init) await OpsModule.init();
+        try {
+            if (window.DashboardApi) DashboardApi.init();
 
-        // Auto-load data
-        if (window.DashboardApp?.modules?.home?.loadInfo) await DashboardApp.modules.home.loadInfo();
-        if (window.DashboardApp?.modules?.stats?.loadStats) await DashboardApp.modules.stats.loadStats();
-        if (window.OpsModule?.loadAlertSummary) await OpsModule.loadAlertSummary();
-        if (window.OpsModule?.loadTrafficChart) await OpsModule.loadTrafficChart();
-        if (window.OpsModule?.loadTopErrors) await OpsModule.loadTopErrors();
+            // Init modules
+            if (window.DashboardApp?.modules?.home?.init) await DashboardApp.modules.home.init();
+            if (window.DashboardApp?.modules?.stats?.init) await DashboardApp.modules.stats.init();
+            if (window.OpsModule?.init) await OpsModule.init();
 
-        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+            // Direct API calls as primary path (most reliable)
+            try {
+                const [info, clusters, routes, traffic] = await Promise.all([
+                    DashboardApi.endpoints.getInfo().catch(() => null),
+                    DashboardApi.endpoints.getClusters().catch(() => []),
+                    DashboardApi.endpoints.getRoutes().catch(() => []),
+                    (window.DashboardApi.endpoints.getTrafficData?.(15) || Promise.resolve(null)).catch(() => null)
+                ]);
+
+                // Render info bar
+                if (info) {
+                    const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.textContent = val; };
+                    set('info-version', info.version);
+                    set('info-env', info.environment);
+                    set('info-start', info.startTime);
+                    set('info-uptime', info.uptime);
+                    set('info-memory', info.memoryMb != null ? info.memoryMb.toFixed(1) + ' MB' : null);
+                    set('info-machine', info.machineName);
+
+                    // Store in state
+                    if (window.DashboardState) {
+                        DashboardState.set('data.info', info);
+                        DashboardState.set('data.clusters', clusters || []);
+                        DashboardState.set('data.routes', routes || []);
+                    }
+                }
+
+                // Render stat cards
+                const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+                setText('stat-clusters', (clusters || []).length);
+                const healthy = (clusters || []).reduce((s, c) => s + (c.healthyCount || 0), 0);
+                const unknown = (clusters || []).reduce((s, c) => s + (c.unknownCount || 0), 0);
+                const unhealthy = (clusters || []).reduce((s, c) => s + (c.unhealthyCount || 0), 0);
+                setText('stat-healthy', healthy + ' / ' + unknown + ' / ' + unhealthy);
+                setText('stat-routes', (routes || []).length);
+                if (traffic && traffic.currentQps != null) {
+                    setText('stat-qps', traffic.currentQps);
+                }
+            } catch (e) {
+                console.error('[Overview] Direct API failed:', e);
+            }
+
+            // Load additional overview charts
+            if (window.DashboardApp?.modules?.home?.loadInfo) await DashboardApp.modules.home.loadInfo();
+            if (window.DashboardApp?.modules?.stats?.loadStats) await DashboardApp.modules.stats.loadStats();
+            if (window.OpsModule?.loadAlertSummary) await OpsModule.loadAlertSummary();
+            if (window.OpsModule?.loadTrafficChart) await OpsModule.loadTrafficChart();
+            if (window.OpsModule?.loadTopErrors) await OpsModule.loadTopErrors();
+            if (window.OpsModule?.loadSystemHealth) await OpsModule.loadSystemHealth();
+
+            document.dispatchEvent(new CustomEvent('dashboard:ready'));
+        } catch (err) {
+            console.error('[Overview] Init failed:', err);
+        }
     })();
 
     window.overviewRefresh = async function(btn) {

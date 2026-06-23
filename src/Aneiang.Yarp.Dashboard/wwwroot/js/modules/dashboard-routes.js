@@ -8,19 +8,14 @@
         name: 'routes',
         initialized: false,
 
-        // ===== Initialization =====
         init: async function() {
             if (this.initialized) return;
-
-            console.log('[Routes] Initializing...');
 
             this.setupEvents();
 
             this.initialized = true;
-            console.log('[Routes] Initialized');
         },
 
-        // ===== Load Routes =====
         loadRoutes: async function(forceReload) {
             try {
                 const container = window.DashboardDOM.safe('#route-tbody');
@@ -47,11 +42,9 @@
                     window.DashboardApi.endpoints.getClusters()
                 ]);
 
-                // Update state
                 window.DashboardState.set('data.routes', routes || []);
                 window.DashboardState.set('data.clusters', clusters || []);
 
-                // Render routes
                 this.renderRoutes();
 
             } catch (error) {
@@ -63,7 +56,6 @@
             }
         },
 
-        // ===== Ensure clusters are loaded (for Add Route modal) =====
         ensureClustersLoaded: async function() {
             try {
                 const clusters = await window.DashboardApi.endpoints.getClusters();
@@ -73,7 +65,6 @@
             }
         },
 
-        // ===== Render Routes =====
         renderRoutes: function() {
             const state = window.DashboardState;
             const routes = state.getFilteredRoutes();
@@ -107,7 +98,6 @@
             this.updateRefreshTime();
         },
         
-        // ===== Render Filter Toolbar =====
         renderFilterToolbar: function() {
             const container = window.DashboardDOM.safe('#route-filter-container');
             if (!container) return;
@@ -180,7 +170,6 @@
             this._bindFilterEvents();
         },
                 
-        // ===== Update Filter Counts (called after search, not recreating toolbar) =====
         _updateFilterCounts: function() {
             const state = window.DashboardState;
             const allRoutes = state.get('data.routes') || []; 
@@ -218,7 +207,6 @@
             }
         },
                         
-        // ===== Get Method Counts =====
         _getMethodCounts: function(routes) {
             const counts = { all: routes.length, GET: 0, POST: 0, PUT: 0, DELETE: 0 }; 
             routes.forEach(route => {
@@ -233,7 +221,6 @@
             return counts;
         },
         
-        // ===== Get Source Counts =====
         _getSourceCounts: function(routes) {
             return {
                 all: routes.length,
@@ -244,7 +231,6 @@
             };
         },
                         
-        // ===== Bind Filter Events (Optimized) =====
         _bindFilterEvents: function() {
             const self = this;
             
@@ -349,9 +335,6 @@
             }
         },
 
-                
-        // ===== Render Route Rows =====
-        // ===== Render Route Cards (Optimized with DocumentFragment) =====
         renderRouteCards: function(routes) {
             var container = document.getElementById('route-cards-view');
             if (!container) return;
@@ -397,7 +380,6 @@
             container.appendChild(fragment);
         },
 
-        // ===== Batch Render Cards using requestAnimationFrame =====
         _renderCardsBatched: function(routes, container, onComplete) {
             var batchSize = 30;
             var index = 0;
@@ -424,7 +406,6 @@
             renderBatch();
         },
 
-        // ===== Render Route Cards (Legacy - falls back to string HTML) =====
         _renderRouteCardsLegacy: function(routes) {
             var container = document.getElementById('route-cards-view');
             if (!container) return;
@@ -478,7 +459,18 @@
                 }
 
                 html += '<div style="min-width:0;flex:1;">';
-                html += '<div style="font-weight:600;font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '</div>';
+                html += '<div style="font-weight:600;font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.displayName || route.routeKey || route.routeId) : (route.displayName || route.routeKey || route.routeId)) + '</div>';
+                if (route.displayName || route.routeUid || route.routeKey) {
+                    html += '<div style="font-size:11px;color:#94a3b8;margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;">';
+                    if (route.routeUid) {
+                        html += '<span title="UID"><i class="bi bi-fingerprint me-1"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeUid) : route.routeUid) + '</span>';
+                    }
+                    html += '<span style="color:#cbd5e1;">|</span>';
+                    if (route.routeKey) {
+                        html += '<span title="Key"><i class="bi bi-key me-1"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeKey) : route.routeKey) + '</span>';
+                    }
+                    html += '</div>';
+                }
                 html += '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;">';
                 html += '<span>' + (window.DashboardUtils ? DashboardUtils.createSourceBadge(route.source) : route.source || '-') + '</span>';
                 if (hostText) {
@@ -494,8 +486,8 @@
 
                 // Action buttons
                 html += '<div style="display:flex;gap:4px;flex-shrink:0;" onclick="event.stopPropagation()">';
-                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--primary-color);transition:background 0.15s;" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.showEditModal(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.edit")) + '"><i class="bi bi-pencil"></i></button>';
-                html += '<button style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:#ef4444;transition:background 0.15s;" onmouseover="this.style.background=\'#fef2f2\'" onmouseout="this.style.background=\'var(--card-bg)\'" onclick="event.stopPropagation();window.DashboardApp.modules.routes.deleteRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.delete")) + '"><i class="bi bi-trash"></i></button>';
+                html += '<button class="btn-action btn-action-edit" onclick="event.stopPropagation();window.DashboardApp.modules.routes.showEditModal(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.edit")) + '"><i class="bi bi-pencil"></i></button>';
+                html += '<button class="btn-action btn-action-danger" onclick="event.stopPropagation();window.DashboardApp.modules.routes.deleteRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.delete")) + '"><i class="bi bi-trash"></i></button>';
                 html += '</div></div>';
 
                 // Card body
@@ -546,6 +538,12 @@
                 return orderA - orderB;
             });
 
+            // Large lists are rendered in animation-frame batches to avoid blocking the UI.
+            if (sortedRoutes.length > 300) {
+                this._renderRouteRowsBatched(sortedRoutes, tbody);
+                return;
+            }
+
             // Check if this is first render or we should use diff
             const existingRowCount = tbody.querySelectorAll('tr[data-route-id]').length;
             const isFirstRender = existingRowCount === 0;
@@ -558,7 +556,6 @@
             }
         },
 
-        // ===== Standard Render (full rebuild - used for first render) =====
         _renderRouteRowsStandard: function(routes, tbody) {
             window.DashboardDOM.clear(tbody);
             const fragment = document.createDocumentFragment();
@@ -572,7 +569,34 @@
             tbody.appendChild(fragment);
         },
 
-        // ===== Diff Render (only update changed rows) =====
+        _renderRouteRowsBatched: function(routes, tbody) {
+            window.DashboardDOM.clear(tbody);
+
+            const expandedRoutes = window.DashboardState.get('ui.expandedRoutes') || new Set();
+            const batchSize = 80;
+            let index = 0;
+
+            const renderBatch = function() {
+                const fragment = document.createDocumentFragment();
+                const end = Math.min(index + batchSize, routes.length);
+
+                for (; index < end; index++) {
+                    const route = routes[index];
+                    const isExpanded = expandedRoutes.has(route.routeId);
+                    const rows = this.createRouteRows(route, isExpanded);
+                    rows.forEach(function(row) { fragment.appendChild(row); });
+                }
+
+                tbody.appendChild(fragment);
+
+                if (index < routes.length) {
+                    requestAnimationFrame(renderBatch);
+                }
+            }.bind(this);
+
+            requestAnimationFrame(renderBatch);
+        },
+
         _renderRouteRowsDiff: function(routes, tbody) {
             const startTime = performance.now();
             
@@ -641,10 +665,8 @@
             });
 
             const endTime = performance.now();
-            console.log(`[Routes] Diff render: ${routes.length} routes in ${(endTime - startTime).toFixed(2)}ms`);
         },
 
-        // ===== Update Route Row Content (for diff updates) =====
         _updateRouteRowContent: function(row, route, isExpanded) {
             // Update expand icon
             const expandIcon = row.querySelector('.row-expand-icon');
@@ -653,7 +675,6 @@
             }
         },
 
-        // ===== Create Route Rows =====
         createRouteRows: function(route, isExpanded) {
             var rows = [];
 
@@ -670,7 +691,6 @@
             return rows;
         },
 
-        // ===== Create Route Main Row =====
         createRouteMainRow: function(route, isExpanded) {
             var tr = window.DashboardDOM.create('tr', {
                 className: 'route-row',
@@ -814,7 +834,6 @@
             return tr;
         },
 
-        // ===== Create Order Badge =====
         createOrderBadge: function(order) {
             const displayOrder = (order !== null && order !== undefined) ? order : '-';
             
@@ -849,8 +868,6 @@
             return badge;
         },
 
-
-        // ===== Create Method Badge =====
         createMethodBadge: function(method) {
             const methodMap = {
                 'GET': { css: 'bg-success', icon: 'bi-arrow-down-circle-fill' },
@@ -876,7 +893,6 @@
             return badge;
         },
 
-        // ===== Create Action Buttons =====
         createActionButtons: function(route) {
             const container = window.DashboardDOM.create('div', {
                 className: 'btn-group btn-group-sm'
@@ -898,6 +914,19 @@
             });
             editBtn.appendChild(editIcon);
             container.appendChild(editBtn);
+
+            const renameBtn = window.DashboardDOM.create('button', {
+                className: 'btn btn-outline-secondary',
+                attributes: { title: '重命名 Route ID' },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        this.showRenameModal(route.routeId);
+                    }
+                }
+            });
+            renameBtn.appendChild(window.DashboardDOM.create('i', { className: 'bi bi-input-cursor-text' }));
+            container.appendChild(renameBtn);
 
             // Policy button
             const policyBtn = window.DashboardDOM.create('button', {
@@ -936,8 +965,6 @@
             return container;
         },
 
-
-        // ===== Create Route Detail Row =====
         createRouteDetailRow: function(route) {
             const tr = window.DashboardDOM.create('tr', {
                 className: 'route-detail-row'
@@ -1153,7 +1180,6 @@
             return tr;
         },
 
-        // ===== Render Structured Transforms =====
         renderStructuredTransforms: function(transforms) {
             const html = [];
             html.push('<div class="detail-transforms-list">');
@@ -1221,7 +1247,6 @@
             return html.join('');
         },
 
-        // ===== Extract Retry Configuration from Metadata =====
         extractRetryConfig: function(metadata) {
             if (!metadata || typeof metadata !== 'object') return null;
             
@@ -1240,7 +1265,6 @@
             };
         },
 
-        // ===== Extract Rate Limit Configuration from Metadata =====
         extractRateLimitConfig: function(metadata) {
             if (!metadata || typeof metadata !== 'object') return null;
             
@@ -1260,7 +1284,6 @@
             };
         },
 
-        // ===== Extract WAF Configuration from Metadata =====
         extractWafConfig: function(metadata) {
             if (!metadata || typeof metadata !== 'object') return null;
             
@@ -1275,7 +1298,6 @@
             };
         },
 
-        // ===== Render Structured Config =====
         renderStructuredConfig: function(obj, configType) {
             if (!obj || typeof obj !== 'object') return '';
 
@@ -1325,7 +1347,6 @@
             return html.join('');
         },
 
-        // ===== Copy Route JSON =====
         copyRouteJson: function(routeId) {
             const routes = window.DashboardState.get('data.routes') || [];
             const route = routes.find(function(r) { return r.routeId === routeId; });
@@ -1366,7 +1387,6 @@
             });
         },
         
-        // ===== Create Copy Button =====
         createCopyButton: function(text) {
             const btn = window.DashboardDOM.create('button', {
                 className: 'copy-btn',
@@ -1400,12 +1420,10 @@
             return btn;
         },
 
-        // ===== Create Source Badge (delegates to shared utility) =====
         createSourceBadge: function(source) {
             return window.DashboardUtils.createSourceBadge(source);
         },
         
-        // ===== Create Order Badge HTML =====
         createOrderBadgeHtml: function(order) {
             const displayOrder = (order !== null && order !== undefined) ? order : '-';
                     
@@ -1429,7 +1447,6 @@
             return `<span class="priority-badge ${cssClass}"><i class="bi ${iconClass}"></i> ${displayOrder}</span>`;
         },
 
-        // ===== Create Method Badge Inline =====
         createMethodBadgeInline: function(method) {
             const methodMap = {
                 'GET': { css: 'bg-success', icon: 'bi-arrow-down-circle-fill' },
@@ -1442,8 +1459,6 @@
             return `<span class="badge ${config.css}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;margin-right:4px;"><i class="bi ${config.icon}"></i>${method}</span>`;
         },
 
-
-        // ===== Show Policy Management Modal =====
         showPolicyModal: async function(routeId) {
             try {
                 const policies = await window.DashboardApi.endpoints.getRoutePoliciesForRoute(routeId);
@@ -1532,13 +1547,11 @@
             }
         },
 
-        // ===== Toggle Route (Direct DOM Manipulation) =====
         toggleRoute: function(routeId) {
             const state = window.DashboardState;
             const expandedSet = state.get('ui.expandedRoutes');
             const current = expandedSet ? expandedSet.has(routeId) : false;
             
-            // Update state
             if (current) {
                 expandedSet.delete(routeId);
             } else {
@@ -1570,7 +1583,6 @@
             }
         },
 
-        // ===== Update Refresh Time =====
         updateRefreshTime: function() {
             const timeEl = window.DashboardDOM.safe('#route-refresh-time');
             if (timeEl) {
@@ -1578,12 +1590,10 @@
             }
         },
 
-        // ===== Show Add Modal (Form Mode with JSON toggle) =====
         showAddModal: function() {
             this.showAddFormModal();
         },
 
-        // ===== Show Add Form Modal =====
         showAddFormModal: async function() {
             const self = this;
 
@@ -1641,7 +1651,6 @@
             });
         },
 
-        // ===== Show Add Modal (JSON Mode) =====
         _showAddJsonModal: async function() {
             const self = this;
 
@@ -1697,7 +1706,6 @@
             });
         },
         
-        // ===== Save Route from JSON =====
         saveRouteFromJson: async function(routeConfig, routeId) {
             try {
                 // Generate routeId from user input or from existing
@@ -1724,7 +1732,6 @@
             }
         },
         
-        // ===== Prompt Route ID =====
         promptRouteId: function() {
             return new Promise(function(resolve) {
                 const modalId = 'route-id-prompt-' + Date.now();
@@ -1757,8 +1764,8 @@
                                     </div>
                                 </div>
                                 <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
-                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="min-width:70px;">${__('modal.cancelBtn')}</button>
-                                    <button type="button" class="btn btn-primary btn-sm" id="${modalId}-confirm" style="min-width:70px;">${__('modal.confirmBtn')}</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">${__('modal.cancelBtn')}</button>
+                                    <button type="button" class="btn btn-primary btn-sm" id="${modalId}-confirm">${__('modal.confirmBtn')}</button>
                                 </div>
                             </div>
                         </div>
@@ -1798,7 +1805,6 @@
             });
         },
 
-        // ===== Show Edit Modal (JSON Mode) =====
         showEditModal: function(routeId) {
             const self = this;
                     
@@ -1908,18 +1914,37 @@
                         });
                     }
 
-                    // Handle rename: only if ID actually changed (case-sensitive comparison)
                     if (newId && newId !== routeId) {
-                        self.renameRoute(routeId, newId, parsedData);
-                    } else {
-                        self.saveRouteFromJson(parsedData, routeId);
+                        window.DashboardModals.showError('Route ID 不能在普通编辑中修改，请使用专用重命名功能。');
+                        return false;
                     }
+
+                    self.saveRouteFromJson(parsedData, routeId);
                     return true;
                 }
             });
         },
 
-        // ===== Rename Route =====
+        showRenameModal: function(routeId) {
+            const newId = prompt('请输入新的 Route ID', routeId);
+            if (newId === null) return;
+            const trimmed = newId.trim();
+            if (!trimmed || trimmed === routeId) return;
+
+            const route = (window.DashboardState.get('data.routes') || []).find(r => r.routeId === routeId);
+            if (!route) {
+                window.DashboardModals.showError('未找到路由配置');
+                return;
+            }
+
+            this.renameRoute(routeId, trimmed, {
+                ClusterId: route.clusterId,
+                matchPath: route.match?.path || route.matchPath || route.path,
+                Order: route.order,
+                Transforms: route.transforms
+            });
+        },
+
         renameRoute: async function(oldId, newId, routeConfig) {
             const self = this;
             try {
@@ -1950,7 +1975,6 @@
             }
         },
 
-        // ===== Delete Route =====
         deleteRoute: async function(routeId) {
             const self = this;
             
@@ -1979,7 +2003,6 @@
             );
         },
 
-        // ===== Setup Events =====
         setupEvents: function() {
             // Refresh shortcut
             document.addEventListener('dashboard:shortcut:refresh', async () => {
@@ -1995,21 +2018,16 @@
             this._setupEventDelegation();
         },
 
-        // ===== Event Delegation Setup =====
         _setupEventDelegation: function() {
             // Table view: individual row click handlers are set in createRouteMainRow (line ~855),
             // createActionButtons buttons have stopPropagation, so no delegation needed.
         },
 
-        // ===== Helper: Find Route by ID =====
         _findRouteById: function(routeId) {
             const routes = window.DashboardState.get('data.routes') || [];
             return routes.find(r => r.routeId === routeId);
         },
 
-        // ===== Optimized Render Methods =====
-
-        // ===== Create Route Card (DOM-based for performance) =====
         createRouteCardDOM: function(route) {
             const pathText = route.match && route.match.path || '-';
             const methods = route.match && route.match.methods || [];
@@ -2042,7 +2060,6 @@
             return card;
         },
 
-        // ===== Build Card HTML (separate for easier maintenance) =====
         _buildCardHTML: function(route, pathText, methods, hostText, hasTransforms, hasAuthorization) {
             const orderBadge = route.order !== null && route.order !== undefined 
                 ? '<span class="route-order-badge" style="background:' + (route.order < 100 ? '#fef3c7' : route.order < 1000 ? '#e0e7ff' : '#f1f5f9') + ';color:' + (route.order < 100 ? '#92400e' : route.order < 1000 ? '#3730a3' : '#64748b') + '">' + route.order + '</span>'
@@ -2103,7 +2120,6 @@
                 '</div>';
         },
 
-        // ===== Create Route Row for Table (with key for diff) =====
         createRouteRowsOptimized: function(route, isExpanded) {
             var rows = [];
 
@@ -2123,12 +2139,10 @@
         }
     };
 
-    // Register module
     if (window.DashboardApp) {
         window.DashboardApp.registerModule('routes', RoutesModule);
     }
 
-    // Expose to window
     window.RoutesModule = RoutesModule;
     
     // Global function for external route creation triggers.

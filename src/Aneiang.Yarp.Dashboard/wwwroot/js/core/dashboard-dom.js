@@ -6,7 +6,6 @@
 
     window.DashboardDOM = window.DashboardDOM || {};
 
-    // ===== Safe Element Selection =====
     window.DashboardDOM.safe = function(selector, context) {
         context = context || document;
         const element = context.querySelector(selector);
@@ -21,7 +20,6 @@
         return Array.from(context.querySelectorAll(selector));
     };
 
-    // ===== Element Creation =====
     window.DashboardDOM.create = function(tag, options = {}) {
         const {
             className = '',
@@ -72,7 +70,6 @@
         return element;
     };
 
-    // ===== DOM Manipulation =====
     window.DashboardDOM.setText = function(selector, text) {
         const el = this.safe(selector);
         if (el) el.textContent = text;
@@ -105,7 +102,6 @@
         parent.appendChild(child);
     };
 
-    // ===== Class Manipulation =====
     window.DashboardDOM.addClass = function(element, className) {
         if (!element) return;
         if (Array.isArray(className)) {
@@ -138,7 +134,6 @@
         return element.classList.contains(className);
     };
 
-    // ===== Visibility =====
     window.DashboardDOM.show = function(element) {
         if (!element) return;
         element.style.display = '';
@@ -154,71 +149,58 @@
         return element.offsetParent !== null;
     };
 
-    // ===== Loading States =====
     window.DashboardDOM.showLoading = function(container, message) {
         if (!container) return;
-        
         this.clear(container);
-        
-        const loading = this.create('div', {
-            className: 'text-center py-4',
-            children: [
-                this.create('div', {
-                    className: 'spinner-border text-primary mb-2',
-                    attributes: { role: 'status' }
-                }),
-                this.create('div', {
-                    textContent: message || '加载中...'
-                })
-            ]
-        });
-        
-        container.appendChild(loading);
+        // Skeleton loading
+        const skeleton = this.create('div', { className: 'p-3' });
+        for (var i = 0; i < 5; i++) {
+            skeleton.appendChild(this.create('div', {
+                className: 'skeleton skeleton-row',
+                children: [
+                    this.create('div', { className: 'skeleton skeleton-circle' }),
+                    this.create('div', { style: { flex: 1 }, children: [
+                        this.create('div', { className: 'skeleton skeleton-line skeleton-line-medium' }),
+                        this.create('div', { className: 'skeleton skeleton-line skeleton-line-short' })
+                    ]})
+                ]
+            }));
+        }
+        container.appendChild(skeleton);
     };
 
     window.DashboardDOM.showError = function(container, message) {
         if (!container) return;
-        
         this.clear(container);
-        
         const error = this.create('div', {
             className: 'alert alert-danger',
             children: [
-                this.create('i', {
-                    className: 'bi bi-exclamation-triangle me-2'
-                }),
-                this.create('span', {
-                    textContent: message || '加载失败'
-                })
+                this.create('i', { className: 'bi bi-exclamation-triangle me-2' }),
+                this.create('span', { textContent: message || '加载失败' })
             ]
         });
-        
         container.appendChild(error);
     };
 
     window.DashboardDOM.showEmpty = function(container, message, icon) {
         if (!container) return;
-        
         this.clear(container);
-        
         const empty = this.create('div', {
-            className: 'text-center py-5 text-muted',
+            className: 'empty-state',
             children: [
-                this.create('i', {
-                    className: icon || 'bi bi-inbox',
-                    attributes: { style: 'font-size: 3rem;' }
+                this.create('div', {
+                    className: 'empty-state-icon',
+                    children: [this.create('i', { className: icon || 'bi bi-inbox' })]
                 }),
                 this.create('div', {
-                    className: 'mt-2',
+                    className: 'empty-state-title',
                     textContent: message || '暂无数据'
                 })
             ]
         });
-        
         container.appendChild(empty);
     };
 
-    // ===== Debounced Resize Handler =====
     let resizeTimeout;
     window.DashboardDOM.onResize = function(callback) {
         window.addEventListener('resize', () => {
@@ -227,7 +209,6 @@
         });
     };
 
-    // ===== Scroll Utilities =====
     window.DashboardDOM.scrollTo = function(element, behavior = 'smooth') {
         if (!element) return;
         element.scrollIntoView({ behavior, block: 'start' });

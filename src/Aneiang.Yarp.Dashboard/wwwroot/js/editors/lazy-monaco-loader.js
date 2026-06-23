@@ -95,7 +95,6 @@
 
         require(['vs/editor/editor.main'], function() {
             clearTimeout(timeout);
-            console.log('[LazyMonaco] Monaco Editor loaded successfully');
             resolve();
         });
     }

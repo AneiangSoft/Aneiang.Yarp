@@ -7,7 +7,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 /// Listens to YARP's internal EventSource events and writes them to the ProxyLogStore.
 /// This works regardless of the logging framework (Serilog, NLog, etc.) being used.
 /// </summary>
-public sealed class YarpEventSourceListener : EventListener
+internal sealed class YarpEventSourceListener : EventListener
 {
     private const string YarpEventSourceName = "Yarp.ReverseProxy";
     private readonly IProxyLogStore _store;
@@ -100,3 +100,4 @@ public sealed class YarpEventSourceListener : EventListener
         base.Dispose();
     }
 }
+

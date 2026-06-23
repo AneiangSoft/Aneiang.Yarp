@@ -7,7 +7,7 @@ namespace Aneiang.Yarp.Dashboard.Infrastructure.Performance;
 /// Reduces GC pressure in high-throughput string concatenation scenarios.
 /// Thread-safe via ThreadStatic fallback.
 /// </summary>
-public static class PooledStringBuilder
+internal static class PooledStringBuilder
 {
     // Maximum capacity to retain in the pool (prevents memory bloat)
     private const int MaxCapacity = 4096;
@@ -60,7 +60,7 @@ public static class PooledStringBuilder
 /// <summary>
 /// Helper methods for common string building patterns.
 /// </summary>
-public static class StringBuilderExtensions
+internal static class StringBuilderExtensions
 {
     /// <summary>
     /// Appends a key-value pair with separator efficiently.
@@ -114,3 +114,5 @@ public static class StringBuilderExtensions
         return sb;
     }
 }
+
+

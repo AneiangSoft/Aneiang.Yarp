@@ -5,8 +5,21 @@ namespace Aneiang.Yarp.Models;
 /// </summary>
 public class DynamicClusterConfig
 {
-    /// <summary>Cluster ID (unique identifier).</summary>
+    /// <summary>Internal immutable cluster UID.</summary>
+    public string ClusterUid { get; set; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>Cluster key used as YARP ClusterId.</summary>
     public string ClusterId { get; set; } = string.Empty;
+
+    /// <summary>Cluster key alias. Prefer this for internal semantics; ClusterId is kept for compatibility.</summary>
+    public string ClusterKey
+    {
+        get => ClusterId;
+        set => ClusterId = value;
+    }
+
+    /// <summary>Display name for UI. Defaults to ClusterKey when empty.</summary>
+    public string? DisplayName { get; set; }
 
     /// <summary>Destination addresses (load balancing targets).</summary>
     public Dictionary<string, string> Destinations { get; set; } = new();

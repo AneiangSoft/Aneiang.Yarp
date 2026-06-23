@@ -7,9 +7,11 @@
 <div class="card-panel mb-4">
     <div class="card-header">
         <span><i class="bi bi-shield-lock me-2" style="color:#ef4444;"></i><span data-i18n="waf.title">WAF 防火墙设置</span></span>
-        <button class="btn btn-sm btn-outline-primary" onclick="DashboardWafSettings.save()">
-            <i class="bi bi-check-lg"></i> <span data-i18n="waf.save">保存设置</span>
-        </button>
+        <div class="card-header-actions">
+            <button class="btn btn-sm btn-primary" onclick="DashboardWafSettings.save()">
+                <i class="bi bi-check-lg"></i> <span data-i18n="waf.save">保存设置</span>
+            </button>
+        </div>
     </div>
     <div class="card-body" id="waf-settings-body">
         <div class="loading-state">
@@ -47,14 +49,6 @@
 
 @section Scripts {
 @{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
 
 <script>
     // WAF Settings Module

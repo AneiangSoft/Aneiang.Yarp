@@ -1,6 +1,174 @@
 # 更新日志
 
 
+## [2.3.0.21] - 2026-06-24
+
+> 灵活端口与启动模式 + 健康检查 + 配置热更新 + 2FA 两步验证 + 企业化 UI 重构 + 前端性能优化 + 代码清理
+
+### 🚀 新增功能
+
+#### 灵活端口与启动模式
+- **多端口监听**：通过 `Kestrel:Endpoints` 配置多个端点，每个端点绑定不同端口和 IP
+- **5 种启动模式**：`Auto` / `AllInOne` / `Split` / `ProxyOnly` / `DashboardOnly`
+- **端点角色路由**：`EndpointRouterMiddleware` 根据 `LocalPort` + 角色决定请求归属
+- **角色枚举**：`Proxy` / `Dashboard` / `Admin` / `Health` / `All`
+- **安全防护**：`RequireLoopbackForDashboard` 默认 true，公网绑定 Dashboard 启动失败
+- **命令行快捷参数**：`--deployment split --proxy-url ... --dashboard-url ...`
+- **完全向后兼容**：现有 `Urls` 配置自动生效，行为不变
+
+#### 健康检查
+- **3 个端点**：`/health`（综合）、`/ready`（就绪）、`/live`（存活）
+- **依赖检查**：可配置是否检查数据库连接、YARP 配置加载
+- **鉴权选项**：可选 IP 白名单、可选 Token 鉴权（`X-Health-Token` 头或 `?token=` 查询）
+- **K8s 友好**：返回 JSON 包含 `status` / `checks` / `uptime` / `version` / `endpoints`
+
+#### 配置热更新
+- **FileSystemWatcher 主监听**：监听 `appsettings.json` 和 `appsettings.{Env}.json`
+- **30s 兜底轮询**：防止编辑器 temp+rename 模式下事件丢失
+- **500ms 防抖**：避免编辑器多次保存触发连续重载
+- **失败自动回滚**：重载异常时恢复上次快照
+- **配置快照**：保留最近 5 个版本，支持手动回滚（`.config-snapshots/` 目录）
+- **端点变更检测**：Kestrel:Endpoints 变更时发出告警（不自动重启）
+
+#### 2FA 两步验证（TOTP）
+- **TOTP 验证器**：`TotpHelper` 生成 Base32 密钥 + `otpauth://` URI，支持 Google Authenticator 等验证器应用
+- **登录页 2FA 适配**：登录时检测 2FA 启用状态，返回 202 时展示验证码输入框，按钮文字切换"登录"→"验证"
+- **设置页 2FA 管理**：配置 2FA（生成密钥+二维码）、验证绑定、关闭 2FA、实时状态刷新
+- **运行时状态持久化**：2FA 启用状态保存到 `twofactor-state.json`，重启不丢失
+- **i18n 支持**：新增 `login.verify`、`login.verifying`、`config.twofactor*` 等中英文键
+
+#### 系统健康监控
+- **DashboardInfoResponse 扩展**：新增 CPU 使用率、内存工作集、总内存、GC 次数、线程数字段
+- **DashboardInfoQueryService 增强**：实时计算 CPU%（处理器时间/运行时间）、GC 收集次数、线程数
+
+### 🎨 UI/UX 企业化重构
+
+#### 登录页重新设计
+- **毛玻璃卡片**：`backdrop-filter: blur(20px)` + 半透明白色背景
+- **品牌色渐变面板**：靛蓝→紫→蓝渐变，玻璃态图标，装饰圆圈
+- **气泡动画背景**：24 个小气泡从底部上浮，6 色随机，左右摇摆+缩放
+- **渐变登录按钮**：阴影 + hover 上浮效果
+- **底部版本信息**：`v2.3.0 · MIT License · © 2026 Aneiang.Yarp`
+
+#### 侧边栏菜单重构
+- **分组折叠**：5 个分组（仪表盘/网关管理/监控运维/安全策略/系统管理），点击标题折叠/展开
+- **当前页自动展开**：进入页面时自动展开所在分组，其余折叠
+- **品牌区**：三色渐变图标 + 光晕 + 副标题
+- **用户卡片**：渐变头像 + 右下角脉冲在线指示
+- **底部操作**：图标按钮组（语言切换、退出登录）
+- **字体调大**：body 14→15px，菜单项 13→14px，分组标题 10.5→13px
+
+### ⚡ 性能优化
+
+#### 前端资源优化
+- **字体 TTF→WOFF2**：5 个 Inter 字体 1,590KB → 553KB（节省 65%）
+- **缓存启用**：移除 `Cache-Control: no-store`，已有 `?v=版本号` 机制可安全缓存
+- **压缩优化**：Brotli/Gzip 压缩级别 Fastest→Optimal，新增字体 MIME 类型
+- **Monaco 精简**：删除 8 个不使用的 NLS 语言包（-1,747KB）+ 74 个 basic-languages 目录（-450KB）
+- **按页面拆分模块**：17 个页面模块从 Layout 移至各页面 `@section Scripts`，每页减少 ~500-700KB
+- **编辑器脚本按需加载**：8 个编辑器脚本从 Layout 移除，仅 Settings/Clusters/Routes 页加载
+- **13 个页面清理重复核心脚本**：删除 ~97 行重复 `<script src>` 引用
+
+### 🐛 修复
+
+- **2FA 验证码错误返回码**：401→400，避免前端 API 客户端将其当作认证失效跳转登录页
+- **2FA API 响应解包**：`Settings.cshtml` 中 `resp.data.secret` → `resp.secret`（DashboardApi 已自动解包）
+- **dashboard-plugins.js 语法错误**：删除 `resetAll` 函数后的孤立重复代码块
+- **DashboardApp 未定义**：在 `dashboard-core.js` 中定义 `DashboardApp` 对象（modules 注册表 + registerModule + navigateTo）
+- **首页数据绑定**：`Overview.cshtml` 添加 `dashboard-home.js` + 直接 API 兜底渲染
+- **loadSystemHealth API 调用**：`DashboardApi.getInfo()`（不存在）→ `DashboardApi.endpoints.getInfo()`
+- **ServiceTabs 初始化时序**：DOMContentLoaded 已触发时立即执行而非注册监听
+
+### 🧹 代码清理
+
+- **前端 JS**：删除 48 条 `console.log`、277 条分隔线注释、59 条冗余注释（共 384 条）
+- **后端 C#**：删除 42 条分隔线注释（`// ───` / `// ====`），保留 XML 文档注释
+- **push-nuget.ps1 更新**：新增 2 个 Storage 项目、依赖顺序打包、`-SkipRestore` 参数
+
+### 📁 新增文件
+
+```
+src/Aneiang.Yarp.Dashboard/
+├── Infrastructure/
+│   ├── Deployment/
+│   │   ├── DeploymentOptions.cs        # 配置选项 + 5 种枚举
+│   │   ├── EndpointRoleResolver.cs     # 端口→角色映射
+│   │   ├── DeploymentConfigValidator.cs # 启动验证
+│   │   ├── ConfigSnapshot.cs           # 快照模型 + 文件存储
+│   │   └── DeploymentCli.cs            # 命令行解析
+│   ├── Middleware/
+│   │   ├── EndpointRouterMiddleware.cs # 端口路由分发
+│   │   └── HealthCheckMiddleware.cs    # 健康检查
+│   ├── HostedServices/
+│   │   ├── ConfigurationFileWatcher.cs # 文件热更新
+│   │   └── KestrelEndpointChangeDetector.cs # 端点变更检测
+│   └── Alert/
+│       ├── IGatewayAlertService.cs     # 告警接口
+│       └── NullGatewayAlertService.cs  # 默认实现
+├── Infrastructure/Auth/
+│   └── TotpHelper.cs                   # TOTP 2FA 验证器
+├── Modules/Dashboard/
+│   ├── Controllers/DeploymentInfoController.cs # /api/deployment/* 接口
+│   └── Views/Dashboard/Deployment.cshtml         # 运行模式展示页
+└── wwwroot/js/modules/
+    └── dashboard-deployment.js         # 前端模块
+
+samples/SampleGateway/appsettings.examples/
+├── appsettings.AllInOne.json           # 兼容模式示例
+├── appsettings.Split.json              # 双端口拆分示例
+├── appsettings.SplitWithHealth.json    # 含健康检查示例
+├── appsettings.ProxyOnly.json          # 仅代理示例
+└── README.md                           # 使用说明
+```
+
+### 📝 使用示例
+
+```csharp
+// Program.cs 一行启用
+builder.Services.AddAneiangYarpDeployment(builder.Configuration);
+
+// 中间件挂载（在 UseAneiangYarpDashboard 之前）
+app.UseMiddleware<EndpointRouterMiddleware>();
+app.UseMiddleware<HealthCheckMiddleware>();
+app.UseAneiangYarpDashboard();
+```
+
+```json
+// appsettings.json 双端口配置
+{
+  "Kestrel": {
+    "Endpoints": {
+      "Proxy":     { "Url": "http://0.0.0.0:80" },
+      "Dashboard": { "Url": "http://127.0.0.1:5000" }
+    }
+  },
+  "Gateway": {
+    "Deployment": {
+      "Mode": "Split",
+      "EndpointRoles": { "Proxy": "Proxy", "Dashboard": "Dashboard" }
+    }
+  }
+}
+```
+
+### 🔗 相关文档
+- 设计文档：`docs/灵活端口与启动方案设计.md`
+
+#### Dashboard "运行模式" 页面
+- 新增菜单项：**系统管理 → 运行模式**（路径：`/{prefix}/deployment`）
+- 展示内容：
+  - **当前模式卡片**：Auto / AllInOne / Split / ProxyOnly / DashboardOnly 五种模式高亮
+  - **运行摘要**：进程启动时间、运行时长（实时更新）、程序版本、环境
+  - **监听端点表格**：名称/地址/端口/角色/是否公网/状态
+  - **配置热更新状态**：启用状态、监听文件、防抖时间、兜底轮询间隔、失败回滚
+  - **健康检查状态**：启用状态、端点路径（`/health` `/ready` `/live`）、鉴权方式、检查项
+  - **安全告警卡片**：Dashboard/Admin/Health 端口暴露公网时红色高亮
+  - **配置快照表格**：时间/触发/文件/查看详情
+  - **手动操作区**：重新加载配置、创建快照、健康检查
+- 后端 API：`GET /api/deployment/summary` 聚合所有运行时信息
+- 数据来源：`DeploymentOptions` + `EndpointRoleResolver` + `IConfigSnapshotStore`
+
+
 ## [2.3.0.20] - 2026-06-13
 
 > 里程碑版本：完整 WAF 防火墙、通知告警系统、健康检查面板、熔断/限流/重试 Dashboard、Storage 模块架构重构（上帝接口消除）、SQLCipher 数据库加密、数据库下载。README 中英文版大幅扩容，新增技术栈总览、中间件管道、插件系统、策略引擎、性能优化等章节。
