@@ -13,132 +13,193 @@
     <title>@(isEn ? "Login - Gateway Dashboard" : "登录 - 网关仪表盘")</title>
     <link href="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
     <link href="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet" />
+    <link href="/_content/Aneiang.Yarp.Dashboard/styles/inter-font.css" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --brand-1: #4f46e5;
+            --brand-2: #6366f1;
+            --brand-3: #8b5cf6;
+            --brand-4: #0ea5e9;
+        }
         body {
-            background: #0f172a;
+            background: #f8fafc;
             height: 100vh; display: flex; align-items: center; justify-content: center;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             position: relative; overflow: hidden;
         }
 
-        /* Subtle ambient glow */
-        body::before {
-            content: ''; position: absolute; width: 800px; height: 800px;
-            border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,0.08), transparent 60%);
-            top: -300px; right: -200px; pointer-events: none;
+        /* ===== Small Bubbles Rising Background ===== */
+        .bg-canvas {
+            position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
         }
-        body::after {
-            content: ''; position: absolute; width: 500px; height: 500px;
-            border-radius: 50%; background: radial-gradient(circle, rgba(14,165,233,0.06), transparent 60%);
-            bottom: -200px; left: -100px; pointer-events: none;
+        .bubble {
+            position: absolute; bottom: -20px; border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.6), var(--b-color) 60%, transparent 100%);
+            box-shadow: inset 0 0 4px rgba(255,255,255,0.4);
+            opacity: 0;
+            will-change: transform, opacity;
+            animation: rise var(--b-dur, 15s) linear infinite;
+            animation-delay: var(--b-delay, 0s);
+        }
+        @@keyframes rise {
+            0% { transform: translate3d(0, 0, 0) scale(0.6); opacity: 0; }
+            8% { opacity: var(--b-opacity, 0.55); }
+            50% { transform: translate3d(var(--b-sway-mid, 15px), -50vh, 0) scale(1); }
+            92% { opacity: var(--b-opacity, 0.55); }
+            100% { transform: translate3d(var(--b-sway-end, -10px), -115vh, 0) scale(1.1); opacity: 0; }
         }
 
+        /* ===== Login Card ===== */
         .login-wrapper {
-            display: flex; align-items: stretch;
             position: relative; z-index: 1;
-            border-radius: 16px; overflow: hidden;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-            animation: cardEnter 0.5s ease-out;
+            width: 880px; max-width: calc(100vw - 40px);
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border-radius: 24px; overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.6);
+            box-shadow: 0 24px 64px rgba(15,23,42,0.1), 0 2px 8px rgba(15,23,42,0.04);
+            display: flex;
+            animation: cardIn 0.7s cubic-bezier(0.16,1,0.3,1);
         }
-        @@keyframes cardEnter {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+        @@keyframes cardIn {
+            from { opacity: 0; transform: translateY(28px) scale(0.97); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
-        /* Left panel - branding */
-        .login-brand-panel {
-            width: 400px;
-            background: linear-gradient(160deg, #1e293b 0%, #0f172a 100%);
+        /* ===== Left: Brand Panel ===== */
+        .brand-panel {
+            width: 440px; flex-shrink: 0;
+            background: linear-gradient(160deg, #4f46e5 0%, #6366f1 35%, #7c3aed 70%, #0ea5e9 100%);
             padding: 48px 40px;
             display: flex; flex-direction: column; justify-content: space-between;
-            position: relative;
+            position: relative; overflow: hidden;
         }
-        .login-brand-panel::before {
-            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-            background: linear-gradient(90deg, #6366f1, #0ea5e9);
+        /* Decorative circles inside brand panel */
+        .brand-panel::before {
+            content: ''; position: absolute; width: 300px; height: 300px;
+            border-radius: 50%; background: rgba(255,255,255,0.06);
+            top: -100px; right: -80px;
         }
+        .brand-panel::after {
+            content: ''; position: absolute; width: 200px; height: 200px;
+            border-radius: 50%; background: rgba(255,255,255,0.04);
+            bottom: -60px; left: -40px;
+        }
+
         .brand-logo {
-            display: flex; align-items: center; gap: 14px; margin-bottom: 6px;
+            display: flex; align-items: center; gap: 14px;
+            position: relative; z-index: 1;
         }
         .brand-logo-icon {
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 44px; height: 44px; border-radius: 10px;
-            background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; font-size: 22px;
-            box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+            width: 46px; height: 46px; border-radius: 12px;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.25);
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 22px;
         }
         .brand-logo-text { color: #fff; font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
-        .brand-tagline { color: #94a3b8; font-size: 13px; line-height: 1.6; margin-top: 8px; }
+        .brand-tagline { color: rgba(255,255,255,0.75); font-size: 13px; line-height: 1.6; margin-top: 10px; position: relative; z-index: 1; }
 
-        .brand-features { margin-top: 40px; }
-        .brand-feature { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 20px; }
+        .brand-features { margin-top: 40px; position: relative; z-index: 1; }
+        .brand-feature { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 22px; }
         .brand-feature-icon {
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
-            background: rgba(99,102,241,0.12); color: #818cf8; font-size: 16px;
-            border: 1px solid rgba(99,102,241,0.15);
+            width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.15);
+            display: flex; align-items: center; justify-content: center;
+            color: rgba(255,255,255,0.9); font-size: 16px;
         }
-        .brand-feature-text { color: #94a3b8; font-size: 13px; line-height: 1.5; }
-        .brand-feature-text strong { color: #e2e8f0; font-size: 14px; font-weight: 600; display: block; margin-bottom: 2px; }
+        .brand-feature-text { color: rgba(255,255,255,0.7); font-size: 12.5px; line-height: 1.5; }
+        .brand-feature-text strong { color: #fff; font-size: 14px; font-weight: 600; display: block; margin-bottom: 3px; }
 
         .brand-footer {
-            color: #475569; font-size: 11px;
+            color: rgba(255,255,255,0.4); font-size: 11px;
             margin-top: auto; padding-top: 24px;
-            border-top: 1px solid rgba(148,163,184,0.08);
+            border-top: 1px solid rgba(255,255,255,0.1);
             display: flex; align-items: center; gap: 6px;
+            position: relative; z-index: 1; letter-spacing: 0.3px;
         }
 
-        /* Right panel - form */
-        .login-card {
-            background: #ffffff; padding: 48px 40px;
-            width: 420px;
+        /* ===== Right: Form Panel ===== */
+        .form-panel {
+            flex: 1; padding: 48px 44px;
             display: flex; flex-direction: column; justify-content: center;
         }
-        .login-card .login-title { font-size: 22px; font-weight: 700; color: #0f172a; margin-bottom: 4px; letter-spacing: -0.3px; }
-        .login-card .login-subtitle { font-size: 14px; color: #64748b; margin-bottom: 32px; }
-        .login-card .form-label { font-weight: 600; color: #334155; font-size: 13px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
-        .login-card .form-control {
-            border-radius: 8px; padding: 10px 14px; border: 1px solid #cbd5e1; font-size: 14px;
-            transition: border-color 0.15s, box-shadow 0.15s;
-        }
-        .login-card .form-control:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.08); }
-        .login-card .btn-primary {
-            padding: 11px; font-weight: 600; border-radius: 8px; font-size: 14px;
-            background: #4f46e5; border: none;
-            transition: background 0.15s;
-        }
-        .login-card .btn-primary:hover { background: #4338ca; }
-        .login-card .btn-primary:active { background: #3730a3; }
-        .login-card .alert { border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
-        .login-card .alert-info { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
-        .login-card .input-icon { color: #6366f1; font-size: 14px; }
+        .form-title { font-size: 24px; font-weight: 700; color: #0f172a; margin-bottom: 6px; letter-spacing: -0.3px; }
+        .form-subtitle { font-size: 14px; color: #64748b; margin-bottom: 32px; }
 
-        .login-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 20px; }
-        .login-meta-item { display: flex; align-items: center; gap: 6px; color: #94a3b8; font-size: 12px; }
-        .login-meta-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; }
-        .login-meta a { text-decoration: none; cursor: pointer; color: #94a3b8; }
-        .login-meta a:hover { color: #64748b; }
+        .form-group { margin-bottom: 20px; }
+        .form-label { font-weight: 600; color: #334155; font-size: 13px; margin-bottom: 7px; display: flex; align-items: center; gap: 6px; }
+        .form-control {
+            width: 100%; border-radius: 10px; padding: 12px 16px;
+            border: 1.5px solid #e2e8f0; font-size: 14px;
+            background: #f8fafc; color: #0f172a;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+        .form-control:focus { outline: none; border-color: var(--brand-2); box-shadow: 0 0 0 4px rgba(99,102,241,0.1); background: #fff; }
+        .form-control::placeholder { color: #cbd5e1; }
+        .input-icon { color: var(--brand-2); font-size: 14px; }
 
+        .alert { border-radius: 10px; font-size: 13px; margin-bottom: 16px; display: none; padding: 10px 14px; }
+        .alert-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+
+        .btn-login {
+            width: 100%; padding: 13px; border: none; border-radius: 10px;
+            font-size: 15px; font-weight: 600; color: #fff; cursor: pointer;
+            background: linear-gradient(135deg, var(--brand-1), var(--brand-2));
+            box-shadow: 0 4px 14px rgba(79,70,229,0.3);
+            transition: all 0.2s ease;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-login:hover { background: linear-gradient(135deg, #4338ca, var(--brand-1)); box-shadow: 0 6px 20px rgba(79,70,229,0.4); transform: translateY(-1px); }
+        .btn-login:active { transform: translateY(0); }
+        .btn-login:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+
+        .form-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 24px; }
+        .form-meta-item { display: flex; align-items: center; gap: 6px; color: #94a3b8; font-size: 12px; }
+        .meta-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.4); animation: pulse 2s ease-in-out infinite; }
+        @@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .form-meta a { text-decoration: none; cursor: pointer; color: #94a3b8; font-size: 12px; display: flex; align-items: center; gap: 4px; }
+        .form-meta a:hover { color: #64748b; }
+
+        /* Footer */
+        .login-footer {
+            position: absolute; bottom: 20px; left: 0; right: 0;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            color: rgba(100, 116, 139, 0.6); font-size: 11.5px; z-index: 1;
+            letter-spacing: 0.2px;
+        }
+        .footer-sep { opacity: 0.4; }
+
+        .twofactor-hint { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+
+        /* ===== Responsive ===== */
         @@media (max-width: 860px) {
-            .login-wrapper { flex-direction: column; }
-            .login-brand-panel { width: 420px; padding: 32px 40px; }
-            .login-card { width: 420px; }
+            .login-wrapper { flex-direction: column; width: 420px; }
+            .brand-panel { width: 100%; padding: 32px 36px; }
             .brand-features { display: none; }
+            .form-panel { padding: 36px; }
         }
         @@media (max-width: 480px) {
-            .login-brand-panel, .login-card { width: 100%; padding: 32px 24px; }
             .login-wrapper { width: 100%; border-radius: 0; }
+            .brand-panel, .form-panel { padding: 28px 22px; }
             body { padding: 0; }
         }
     </style>
 </head>
 <body>
+    <!-- Animated Background -->
+    <div class="bg-canvas" id="bg-canvas"></div>
+
     <div class="login-wrapper">
         <!-- Left: Brand Panel -->
-        <div class="login-brand-panel">
+        <div class="brand-panel">
             <div>
                 <div class="brand-logo">
-                    <span class="brand-logo-icon"><i class="bi bi-hdd-rack"></i></span>
+                    <span class="brand-logo-icon"><i class="bi bi-hdd-rack-fill"></i></span>
                     <span class="brand-logo-text" data-i18n="login.brand">网关仪表盘</span>
                 </div>
                 <div class="brand-tagline" data-i18n="login.tagline">企业级 API 网关运维管理平台</div>
@@ -172,36 +233,36 @@
             </div>
         </div>
 
-        <!-- Right: Login Form -->
-        <div class="login-card">
-            <div class="login-title" data-i18n="login.welcome">欢迎回来</div>
-            <div class="login-subtitle" data-i18n="login.subtitle">请登录以继续管理您的网关</div>
+        <!-- Right: Form Panel -->
+        <div class="form-panel">
+            <div class="form-title" data-i18n="login.welcome">欢迎回来</div>
+            <div class="form-subtitle" data-i18n="login.subtitle">请登录以继续管理您的网关</div>
+
             <div class="alert alert-danger" id="error-msg" role="alert"></div>
             <div class="alert alert-info d-none" id="info-msg" role="alert"></div>
+
             <form id="login-form">
-                <div class="mb-3">
+                <div class="form-group">
                     <label class="form-label"><i class="bi bi-person input-icon"></i><span data-i18n="login.username">用户名</span></label>
                     <input type="text" class="form-control" id="username" data-i18n-placeholder="login.username.placeholder" placeholder="请输入用户名" required autofocus />
                 </div>
-                <div class="mb-3">
+                <div class="form-group">
                     <label class="form-label"><i class="bi bi-lock input-icon"></i><span data-i18n="login.password">密码</span></label>
                     <input type="password" class="form-control" id="password" data-i18n-placeholder="login.password.placeholder" placeholder="请输入密码" required />
                 </div>
-                <div class="mb-4 d-none" id="twofactor-group">
+                <div class="form-group d-none" id="twofactor-group">
                     <label class="form-label"><i class="bi bi-shield-lock input-icon"></i><span data-i18n="login.twofactor">两步验证码</span></label>
                     <input type="text" class="form-control" id="twofactor-code" data-i18n-placeholder="login.twofactor.placeholder" placeholder="输入 6 位验证码" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" />
-                    <small class="text-muted mt-1" data-i18n="login.twofactorHint">请打开验证器应用获取 6 位验证码</small>
+                    <div class="twofactor-hint" data-i18n="login.twofactorHint">请打开验证器应用获取 6 位验证码</div>
                 </div>
-                <button type="submit" class="btn btn-primary w-100" id="login-btn">
+                <button type="submit" class="btn-login" id="login-btn">
                     <span id="btn-text" data-i18n="login.submit">登 录</span>
                     <span id="btn-spinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
                 </button>
             </form>
-            <div class="login-meta">
-                <div class="login-meta-item">
-                    <span class="login-meta-dot"></span>
-                    <span data-i18n="login.systemOnline">系统在线</span>
-                </div>
+
+            <div class="form-meta">
+                <span></span>
                 <a href="#" onclick="switchLocale();return false;" title="@(isEn ? "切换到中文" : "Switch to English")">
                     <i class="bi bi-translate"></i><span data-i18n="layout.lang.switch">@(isEn ? "中文" : "English")</span>
                 </a>
@@ -209,6 +270,49 @@
         </div>
     </div>
 
+    <!-- Footer: version + copyright -->
+    @{
+        var loginVersion = typeof(Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models.LogEntry).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
+    }
+    <div class="login-footer">
+        <span>v@(loginVersion)</span>
+        <span class="footer-sep">·</span>
+        <span>MIT License</span>
+        <span class="footer-sep">·</span>
+        <span>&copy; 2026 Aneiang.Yarp</span>
+    </div>
+
+    <script>
+        // Generate small rising bubbles
+        (function() {
+            var container = document.getElementById('bg-canvas');
+            if (!container) return;
+            var colors = [
+                'rgba(99,102,241,0.5)',   // indigo
+                'rgba(139,92,246,0.45)',  // violet
+                'rgba(14,165,233,0.5)',   // sky
+                'rgba(59,130,246,0.45)',  // blue
+                'rgba(168,85,247,0.4)',   // purple
+                'rgba(236,72,153,0.35)'   // pink
+            ];
+            for (var i = 0; i < 24; i++) {
+                var b = document.createElement('div');
+                b.className = 'bubble';
+                // Small sizes 4-14px
+                var size = 4 + Math.random() * 10;
+                b.style.width = size + 'px';
+                b.style.height = size + 'px';
+                b.style.left = (Math.random() * 100) + '%';
+                b.style.setProperty('--b-color', colors[i % colors.length]);
+                b.style.setProperty('--b-opacity', 0.35 + Math.random() * 0.3);
+                b.style.setProperty('--b-sway-mid', (Math.random() * 60 - 30) + 'px');
+                b.style.setProperty('--b-sway-end', (Math.random() * 60 - 30) + 'px');
+                b.style.setProperty('--b-dur', (10 + Math.random() * 14) + 's');
+                b.style.setProperty('--b-delay', (Math.random() * 18) + 's');
+                container.appendChild(b);
+            }
+        })();
+    </script>
     <script>
         var I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
         var CURRENT_LOCALE = '@ViewBag.Locale';
@@ -228,10 +332,6 @@
             document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
                 var key = el.getAttribute('data-i18n-placeholder');
                 if (key && I18N[key]) el.placeholder = I18N[key];
-            });
-            document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
-                var key = el.getAttribute('data-i18n-title');
-                if (key && I18N[key]) el.title = I18N[key];
             });
         });
     </script>
@@ -269,7 +369,6 @@
                     localStorage.setItem('dashboard_token', json.token);
                     window.location.href = basePath + '/';
                 } else if (json.code === 202 && json.requiresTwoFactor) {
-                    // Show 2FA input — informational, not an error
                     if (twofaGroup) {
                         twofaGroup.classList.remove('d-none');
                         var twofaInput = document.getElementById('twofactor-code');
@@ -281,7 +380,6 @@
                 } else {
                     errorMsg.textContent = json.message || __('login.failed');
                     errorMsg.style.display = 'block';
-                    // If 2FA was visible, keep it visible for retry
                     if (isTwofaVisible) {
                         text.textContent = __('login.verify');
                     }
