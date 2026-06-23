@@ -17,8 +17,6 @@ internal static class EntityMapper
         WriteIndented = false
     };
 
-    // ========== Route Mapping ==========
-
     public static RouteEntity ToEntity(this DynamicRouteConfig route)
     {
         return new RouteEntity
@@ -61,8 +59,6 @@ internal static class EntityMapper
         return entities.Select(e => e.ToRouteConfig()).ToList();
     }
 
-    // ========== Cluster Mapping ==========
-
     public static ClusterEntity ToEntity(this DynamicClusterConfig cluster)
     {
         return new ClusterEntity
@@ -102,8 +98,6 @@ internal static class EntityMapper
         return entities.Select(e => e.ToClusterConfig()).ToList();
     }
 
-    // ========== Destination Mapping ==========
-
     public static DestinationEntity ToEntity(this KeyValuePair<string, string> dest, string clusterId)
     {
         return new DestinationEntity
@@ -119,8 +113,6 @@ internal static class EntityMapper
     {
         return entities.ToDictionary(e => e.DestinationId, e => e.Address);
     }
-
-    // ========== Policy Mapping ==========
 
     public static PolicyEntity ToEntity(this RoutePolicy policy)
     {
@@ -204,8 +196,6 @@ internal static class EntityMapper
         return entities.Where(e => e.PolicyType == "cluster").Select(e => e.ToClusterPolicy()).ToList();
     }
 
-    // ========== Audit Log Mapping ==========
-
     public static AuditLogEntity ToEntity(this ConfigChangeAudit audit)
     {
         return new AuditLogEntity
@@ -249,8 +239,6 @@ internal static class EntityMapper
         return entities.Select(e => e.ToConfigChangeAudit()).ToList();
     }
 
-    // ========== Config History Mapping ==========
-
     public static ConfigHistoryEntity ToEntity(this ConfigSnapshot snapshot, string? createdBy = null)
     {
         return new ConfigHistoryEntity
@@ -287,4 +275,4 @@ internal static class EntityMapper
         return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
     }
 }
-
+

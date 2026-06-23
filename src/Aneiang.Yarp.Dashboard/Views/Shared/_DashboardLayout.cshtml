@@ -2017,7 +2017,6 @@
             display: none;
         }
 
-
         .info-bar-content {
             display: flex;
             flex-wrap: wrap;
@@ -2669,7 +2668,6 @@
         /* Smooth Scrolling */
         html { scroll-behavior: smooth; }
 
-
         /* ── Modal / Dialog Styles ─────────────────────────────────────── */
         .modal-content {
             border: none !important;
@@ -3132,8 +3130,6 @@
             }
         }
 
-
-        // ========== Mobile Sidebar ==========
         function toggleMobileSidebar(forceState) {
             var sidebar = document.getElementById('sidebar');
             var overlay = document.getElementById('sidebar-overlay');
@@ -3152,7 +3148,6 @@
             }
         }
 
-        // ========== Toast Notifications ==========
         window.showToast = function(message, type, duration) {
             type = type || 'info';
             duration = duration || 4000;
@@ -3175,7 +3170,6 @@
             setTimeout(function() { item.remove(); }, 300);
         };
 
-        // ========== Animated Counter ==========
         window.animateValue = function(el, start, end, duration, suffix) {
             suffix = suffix || '';
             if (start === end) { el.textContent = end + suffix; return; }
@@ -3192,7 +3186,6 @@
             requestAnimationFrame(step);
         };
 
-        // ========== Init ==========
         document.addEventListener('DOMContentLoaded', function() {
             // i18n
             document.querySelectorAll('[data-i18n]').forEach(function(el) {
@@ -3287,7 +3280,6 @@
     <!-- 3. Events -->
     <script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
     <!-- 4. Page-specific modules & editors — loaded per page via Scripts section -->
-
 
     @await RenderSectionAsync("Scripts", required: false)
 </body>

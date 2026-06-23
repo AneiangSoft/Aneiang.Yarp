@@ -14,7 +14,6 @@ namespace Aneiang.Yarp.Dashboard.Modules.Policy.Services;
 /// </summary>
 public interface IGatewayPolicyService
 {
-    // ─── Route Policies ─────────────────────────────
     Task<IReadOnlyList<RoutePolicy>> GetAllRoutePoliciesAsync();
     Task<RoutePolicy?> GetRoutePolicyAsync(string policyId);
     Task<RoutePolicy> CreateRoutePolicyAsync(RoutePolicy policy);
@@ -23,7 +22,6 @@ public interface IGatewayPolicyService
     Task<bool> ApplyRoutePolicyAsync(string policyId, string routeId);
     Task<bool> UnapplyRoutePolicyAsync(string policyId, string routeId);
 
-    // ─── Cluster Policies ───────────────────────────
     Task<IReadOnlyList<ClusterPolicy>> GetAllClusterPoliciesAsync();
     Task<ClusterPolicy?> GetClusterPolicyAsync(string policyId);
     Task<ClusterPolicy> CreateClusterPolicyAsync(ClusterPolicy policy);
@@ -55,8 +53,6 @@ public class GatewayPolicyService : IGatewayPolicyService
         _yarpConfig = yarpConfig;
         _logger = logger;
     }
-
-    // ─── Route Policies ─────────────────────────────
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<RoutePolicy>> GetAllRoutePoliciesAsync()
@@ -200,8 +196,6 @@ public class GatewayPolicyService : IGatewayPolicyService
             policyId, routeId);
         return true;
     }
-
-    // ─── Cluster Policies ───────────────────────────
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<ClusterPolicy>> GetAllClusterPoliciesAsync()
@@ -351,8 +345,6 @@ public class GatewayPolicyService : IGatewayPolicyService
             policyId, clusterId);
         return true;
     }
-
-    // ─── Helpers ────────────────────────────────────
 
     private async Task<List<string>> GetAppliedTargetKeysAsync(string policyId, string targetType)
     {

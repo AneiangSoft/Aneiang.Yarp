@@ -61,15 +61,11 @@ public class DashboardOptions
     /// </summary>
     public DashboardAuthMode AuthMode { get; set; } = DashboardAuthMode.None;
 
-    // ─── API Key mode ────────────────────────────────────
-
     /// <summary>API key value. Clients pass via header (default: X-Api-Key) or query param <c>api-key</c>.</summary>
     public string? ApiKey { get; set; }
 
     /// <summary>Header name for ApiKey mode. Default: X-Api-Key.</summary>
     public string ApiKeyHeaderName { get; set; } = "X-Api-Key";
-
-    // ─── JWT mode ────────────────────────────────────────
 
     /// <summary>JWT signing secret. Auto-generated if not set (invalidated on restart).</summary>
     public string? JwtSecret { get; set; }
@@ -101,8 +97,6 @@ public class DashboardOptions
     /// </summary>
     public int MinPasswordLength { get; set; } = 6;
 
-    // ─── Custom delegate (highest priority) ───────────────
-
     /// <summary>
     /// Dashboard UI locale. Supported values: "zh-CN", "en-US".
     /// Users can switch the language on the page at runtime via a toggle button;
@@ -111,16 +105,12 @@ public class DashboardOptions
     /// </summary>
     public string Locale { get; set; } = "zh-CN";
 
-    // ─── Log sampling and filtering ───────────────────────
-
     /// <summary>
     /// Maximum number of log entries kept in the in-memory ring buffer.
     /// Minimum: 100. When the buffer is full, oldest entries are overwritten.
     /// Default: 500.
     /// </summary>
     public int LogBufferCapacity { get; set; } = 500;
-
-    // ─── Rate limiting ──────────────────────────────────
 
     /// <summary>
     /// Enable built-in rate limiting middleware for proxy routes.
@@ -227,12 +217,8 @@ public class DashboardOptions
     /// </summary>
     public List<string>? LogJsonFieldSanitizeList { get; set; }
 
-    // ─── Custom delegate (highest priority) ───────────────
-
     /// <summary>Custom auth delegate. If set, takes precedence over all other auth modes.</summary>
     public Func<HttpContext, Task<bool>>? AuthorizeRequest { get; set; }
-
-    // ─── Health Check ──────────────────────────────────
 
     /// <summary>
     /// Enable passive health checking for all clusters by default.
@@ -253,15 +239,11 @@ public class DashboardOptions
     /// </summary>
     public string PassiveHealthCheckReactivationPeriod { get; set; } = "00:00:30";
 
-    // ─── Circuit Breaker ────────────────────────────────
-
     /// <summary>
     /// Default circuit breaker settings applied to all routes.
     /// Individual routes can override these via route metadata.
     /// </summary>
     public CircuitBreakerOptions CircuitBreaker { get; set; } = new();
-
-    // ─── Retry ─────────────────────────────────────────
 
     /// <summary>
     /// Default retry settings applied to all routes.
@@ -269,15 +251,11 @@ public class DashboardOptions
     /// </summary>
     public RetryOptions Retry { get; set; } = new();
 
-    // ─── Rate Limiting ─────────────────────────────────
-
     /// <summary>
     /// Default rate limiting settings applied to all routes.
     /// Individual routes can override these via route metadata.
     /// </summary>
     public RateLimitOptions RateLimit { get; set; } = new();
-
-    // ─── WAF ──────────────────────────────────────────
 
     /// <summary>
     /// Web Application Firewall settings.

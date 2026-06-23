@@ -126,8 +126,6 @@ public class ClusterPolicy
     }
 }
 
-// ─── Shared Sub-Models ─────────────────────────────────────────────
-
 /// <summary>
 /// Circuit breaker settings for a cluster policy.
 /// </summary>

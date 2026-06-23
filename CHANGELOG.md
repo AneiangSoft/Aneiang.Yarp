@@ -1,9 +1,9 @@
 # 更新日志
 
 
-## [2.3.0.21] - 2026-06-17
+## [2.3.0.21] - 2026-06-24
 
-> 灵活端口与启动模式 + 健康检查 + 配置热更新
+> 灵活端口与启动模式 + 健康检查 + 配置热更新 + 2FA 两步验证 + 企业化 UI 重构 + 前端性能优化 + 代码清理
 
 ### 🚀 新增功能
 
@@ -30,6 +30,61 @@
 - **配置快照**：保留最近 5 个版本，支持手动回滚（`.config-snapshots/` 目录）
 - **端点变更检测**：Kestrel:Endpoints 变更时发出告警（不自动重启）
 
+#### 2FA 两步验证（TOTP）
+- **TOTP 验证器**：`TotpHelper` 生成 Base32 密钥 + `otpauth://` URI，支持 Google Authenticator 等验证器应用
+- **登录页 2FA 适配**：登录时检测 2FA 启用状态，返回 202 时展示验证码输入框，按钮文字切换"登录"→"验证"
+- **设置页 2FA 管理**：配置 2FA（生成密钥+二维码）、验证绑定、关闭 2FA、实时状态刷新
+- **运行时状态持久化**：2FA 启用状态保存到 `twofactor-state.json`，重启不丢失
+- **i18n 支持**：新增 `login.verify`、`login.verifying`、`config.twofactor*` 等中英文键
+
+#### 系统健康监控
+- **DashboardInfoResponse 扩展**：新增 CPU 使用率、内存工作集、总内存、GC 次数、线程数字段
+- **DashboardInfoQueryService 增强**：实时计算 CPU%（处理器时间/运行时间）、GC 收集次数、线程数
+
+### 🎨 UI/UX 企业化重构
+
+#### 登录页重新设计
+- **毛玻璃卡片**：`backdrop-filter: blur(20px)` + 半透明白色背景
+- **品牌色渐变面板**：靛蓝→紫→蓝渐变，玻璃态图标，装饰圆圈
+- **气泡动画背景**：24 个小气泡从底部上浮，6 色随机，左右摇摆+缩放
+- **渐变登录按钮**：阴影 + hover 上浮效果
+- **底部版本信息**：`v2.3.0 · MIT License · © 2026 Aneiang.Yarp`
+
+#### 侧边栏菜单重构
+- **分组折叠**：5 个分组（仪表盘/网关管理/监控运维/安全策略/系统管理），点击标题折叠/展开
+- **当前页自动展开**：进入页面时自动展开所在分组，其余折叠
+- **品牌区**：三色渐变图标 + 光晕 + 副标题
+- **用户卡片**：渐变头像 + 右下角脉冲在线指示
+- **底部操作**：图标按钮组（语言切换、退出登录）
+- **字体调大**：body 14→15px，菜单项 13→14px，分组标题 10.5→13px
+
+### ⚡ 性能优化
+
+#### 前端资源优化
+- **字体 TTF→WOFF2**：5 个 Inter 字体 1,590KB → 553KB（节省 65%）
+- **缓存启用**：移除 `Cache-Control: no-store`，已有 `?v=版本号` 机制可安全缓存
+- **压缩优化**：Brotli/Gzip 压缩级别 Fastest→Optimal，新增字体 MIME 类型
+- **Monaco 精简**：删除 8 个不使用的 NLS 语言包（-1,747KB）+ 74 个 basic-languages 目录（-450KB）
+- **按页面拆分模块**：17 个页面模块从 Layout 移至各页面 `@section Scripts`，每页减少 ~500-700KB
+- **编辑器脚本按需加载**：8 个编辑器脚本从 Layout 移除，仅 Settings/Clusters/Routes 页加载
+- **13 个页面清理重复核心脚本**：删除 ~97 行重复 `<script src>` 引用
+
+### 🐛 修复
+
+- **2FA 验证码错误返回码**：401→400，避免前端 API 客户端将其当作认证失效跳转登录页
+- **2FA API 响应解包**：`Settings.cshtml` 中 `resp.data.secret` → `resp.secret`（DashboardApi 已自动解包）
+- **dashboard-plugins.js 语法错误**：删除 `resetAll` 函数后的孤立重复代码块
+- **DashboardApp 未定义**：在 `dashboard-core.js` 中定义 `DashboardApp` 对象（modules 注册表 + registerModule + navigateTo）
+- **首页数据绑定**：`Overview.cshtml` 添加 `dashboard-home.js` + 直接 API 兜底渲染
+- **loadSystemHealth API 调用**：`DashboardApi.getInfo()`（不存在）→ `DashboardApi.endpoints.getInfo()`
+- **ServiceTabs 初始化时序**：DOMContentLoaded 已触发时立即执行而非注册监听
+
+### 🧹 代码清理
+
+- **前端 JS**：删除 48 条 `console.log`、277 条分隔线注释、59 条冗余注释（共 384 条）
+- **后端 C#**：删除 42 条分隔线注释（`// ───` / `// ====`），保留 XML 文档注释
+- **push-nuget.ps1 更新**：新增 2 个 Storage 项目、依赖顺序打包、`-SkipRestore` 参数
+
 ### 📁 新增文件
 
 ```
@@ -50,6 +105,8 @@ src/Aneiang.Yarp.Dashboard/
 │   └── Alert/
 │       ├── IGatewayAlertService.cs     # 告警接口
 │       └── NullGatewayAlertService.cs  # 默认实现
+├── Infrastructure/Auth/
+│   └── TotpHelper.cs                   # TOTP 2FA 验证器
 ├── Modules/Dashboard/
 │   ├── Controllers/DeploymentInfoController.cs # /api/deployment/* 接口
 │   └── Views/Dashboard/Deployment.cshtml         # 运行模式展示页

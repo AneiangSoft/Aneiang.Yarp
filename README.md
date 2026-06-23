@@ -3,7 +3,7 @@
 
 **Aneiang.Yarp — Full-featured API Gateway powered by YARP**
 
-Dashboard · Dynamic Routing · WAF · Notifications · IP Isolation · Auto-Registration
+Dashboard · Dynamic Routing · WAF · 2FA · Notifications · IP Isolation · Auto-Registration
 
 [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp)
 [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard)
@@ -31,13 +31,19 @@ Dashboard · Dynamic Routing · WAF · Notifications · IP Isolation · Auto-Reg
 | Package | Purpose | Depends on YARP |
 |:--------|:--------|:---:|
 | **Aneiang.Yarp** | Gateway core: dynamic routing, config persistence, API auth, IP-based LB | ✅ |
-| **Aneiang.Yarp.Dashboard** | Web admin UI: full CRUD, logs, WAF, notifications, health check, auditing | via core |
+| **Aneiang.Yarp.Dashboard** | Web admin UI: full CRUD, logs, WAF, 2FA, notifications, health check, auditing | via core |
 | **Aneiang.Yarp.Client** | Client SDK: one-liner auto-register / unregister on startup and shutdown | ❌ |
+| **Aneiang.Yarp.Storage.Abstractions** | Storage interfaces & entities (8 repository interfaces) | ❌ |
+| **Aneiang.Yarp.Storage.Sqlite** | SQLite implementation with SQLCipher AES-256 encryption | via abstractions |
+| **Aneiang.Yarp.Grpc** | gRPC registration protocol (GatewayRegistry.proto) | ❌ |
 
 ```
 Aneiang.Yarp.Dashboard
   └── Aneiang.Yarp
-        └── Aneiang.Yarp.Client
+        ├── Aneiang.Yarp.Client
+        ├── Aneiang.Yarp.Grpc
+        └── Aneiang.Yarp.Storage.Abstractions
+              └── Aneiang.Yarp.Storage.Sqlite
 
 Client microservice → reference Aneiang.Yarp.Client only (zero YARP SDK)
 Gateway project     → reference Aneiang.Yarp + Aneiang.Yarp.Dashboard
@@ -218,6 +224,24 @@ Implementation: custom `IpBasedLoadBalancingPolicy` matches request source IP (v
 | Custom delegate | `AuthorizeRequest` — plug into your own auth system |
 
 Dashboard API auth for client auto-registration: auto-infers credentials from Dashboard JWT config. No duplicate setup.
+
+### Two-Factor Authentication (2FA)
+
+TOTP-based 2FA for enhanced login security:
+
+- **TOTP helper**: `TotpHelper` generates Base32 secrets + `otpauth://` URIs compatible with Google Authenticator, Microsoft Authenticator, etc.
+- **Setup flow**: Settings page → generate secret → scan QR code → enter 6-digit code to verify binding
+- **Login flow**: when 2FA enabled, login returns `202` → login page shows verification code input → submit code to complete login
+- **Runtime persistence**: 2FA state saved to `twofactor-state.json`, survives restarts
+- **Per-user control**: enable/disable 2FA anytime from Settings page
+
+### Enterprise UI
+
+- **Login page**: glassmorphism card, brand gradient panel, animated bubble background, version + license footer
+- **Sidebar**: collapsible grouped menu (5 groups), auto-expand active group, brand header with gradient icon, user card with online indicator
+- **Responsive**: mobile-friendly sidebar overlay, adaptive layouts
+- **i18n**: Chinese / English runtime switch, 180+ i18n keys
+- **Performance**: WOFF2 fonts, Brotli compression, per-page module loading, lazy Monaco editor, stripped unused language packs
 
 ---
 
@@ -474,6 +498,9 @@ Dashboard: `/apigateway` · Login: `admin` / `demo123`
 | **Aneiang.Yarp** | Gateway core: dynamic routing, IP isolation, API auth | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp) |
 | **Aneiang.Yarp.Client** | Client auto-registration (lightweight, no YARP dep) | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Client.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Client) |
 | **Aneiang.Yarp.Dashboard** | Web admin UI with full management capabilities | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard) |
+| **Aneiang.Yarp.Storage.Abstractions** | Storage interfaces & entities | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Storage.Abstractions.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Storage.Abstractions) |
+| **Aneiang.Yarp.Storage.Sqlite** | SQLite storage with SQLCipher encryption | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Storage.Sqlite.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Storage.Sqlite) |
+| **Aneiang.Yarp.Grpc** | gRPC registration protocol | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Grpc.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Grpc) |
 
 **.NET 8.0 / 9.0** &nbsp;·&nbsp; **YARP 2.3.0**
 
