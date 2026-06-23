@@ -256,17 +256,15 @@
 <script>
     // Core initialization — must run before ServiceTabs triggers data loading
     (async function() {
-        try {
-            console.log('[Index] Init start');
-            if (window.DashboardUtils) DashboardUtils.init();
-            if (window.DashboardApi) { DashboardApi.init(); console.log('[Index] DashboardApi ready, basePath=', window.__dashboard?.basePath); }
-            if (window.DashboardState) DashboardState.init();
+            try {
+                if (window.DashboardUtils) DashboardUtils.init();
+                if (window.DashboardApi) DashboardApi.init();
+                if (window.DashboardState) DashboardState.init();
             if (window.DashboardI18n) DashboardI18n.init();
             if (window.DashboardStorage) DashboardStorage.init();
             if (window.DashboardModals) DashboardModals.init();
             if (window.DashboardEvents) DashboardEvents.setup();
 
-            console.log('[Index] Modules registered:', Object.keys(window.DashboardApp?.modules || {}));
 
             // Initialize modules
             if (window.DashboardApp?.modules?.home?.init) await DashboardApp.modules.home.init();
@@ -288,7 +286,6 @@
                     DashboardApi.endpoints.getClusters(),
                     DashboardApi.endpoints.getRoutes()
                 ]);
-                console.log('[Index] Direct API results:', { info, clusters: clusters?.length, routes: routes?.length });
 
                 // Render info bar
                 if (info) {
@@ -323,7 +320,6 @@
             if (window.ServiceTabs) window.ServiceTabs.switch(window.ServiceTabs.current);
 
             document.dispatchEvent(new CustomEvent('dashboard:ready'));
-            console.log('[Index] Init complete');
         } catch (err) {
             console.error('[Index] Init failed:', err);
         }

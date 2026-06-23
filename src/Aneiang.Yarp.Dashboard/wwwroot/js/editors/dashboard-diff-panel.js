@@ -125,11 +125,9 @@
                 document.body.appendChild(modal);
             }
 
-            // Update title
             var titleEl = modal.querySelector('.modal-title');
             if (titleEl) titleEl.textContent = title;
 
-            // Update close button text
             var closeBtn = modal.querySelector('.modal-footer .btn-secondary');
             if (closeBtn) closeBtn.textContent = __('diff.close') || 'Close';
 
@@ -147,7 +145,6 @@
             }
             body.innerHTML = contentHtml;
 
-            // Show modal
             var bsModal = new bootstrap.Modal(modal, { backdrop: 'static', keyboard: false });
             bsModal.show();
         },

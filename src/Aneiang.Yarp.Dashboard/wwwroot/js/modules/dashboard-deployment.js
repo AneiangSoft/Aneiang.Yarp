@@ -15,13 +15,11 @@
             snapshotModal: null
         },
 
-        // ─── Initialization ─────────────────────────────────────────
         init: function () {
             this.refresh();
             this.state.uptimeTimer = setInterval(() => this.updateUptime(), 1000);
         },
 
-        // ─── Data Loading ──────────────────────────────────────────
         refresh: async function () {
             try {
                 // Use DashboardApi (respects basePath + auth) when available
@@ -44,7 +42,6 @@
             }
         },
 
-        // ─── Rendering ─────────────────────────────────────────────
         render: function (data) {
             this.setText('deployment-mode-name', data.mode);
             this.setText('deployment-mode-desc', this._modeDescription(data.mode));
@@ -219,7 +216,6 @@
             card.style.display = '';
         },
 
-        // ─── Actions ───────────────────────────────────────────────
         reload: function () {
             if (window.DashboardUtils && typeof window.DashboardUtils.toast === 'function') {
                 window.DashboardUtils.toast(__('deployment.reloadSuccess') + __('deployment.pageRefresh'), 'success');
@@ -312,7 +308,6 @@
             el.textContent = this._formatUptime(seconds);
         },
 
-        // ─── DOM helpers ───────────────────────────────────────────
         getEl: function (id) {
             return document.getElementById(id);
         },
@@ -327,7 +322,6 @@
             if (el) el.innerHTML = html;
         },
 
-        // ─── String helpers ────────────────────────────────────────
         _modeDescription: function (mode) {
             const key = 'deployment.mode.' + (mode || '').toLowerCase();
             const translated = __(key);
@@ -419,7 +413,6 @@
 
     window.DashboardDeployment = DashboardDeployment;
 
-    // Init on DOM ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function () { DashboardDeployment.init(); });
     } else {

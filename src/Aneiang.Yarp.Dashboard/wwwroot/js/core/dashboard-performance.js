@@ -6,7 +6,6 @@
     'use strict';
 
     window.DashboardPerformance = {
-        // ===== Virtual Scroller =====
         VirtualScroller: class {
             constructor(container, options = {}) {
                 this.container = container;
@@ -184,7 +183,6 @@
                 this.itemPool = [];
             }
 
-            // ===== Utilities =====
             throttleByRaf(fn) {
                 let ticking = false;
                 return (...args) => {
@@ -211,7 +209,6 @@
             }
         },
 
-        // ===== Batched Updates =====
         Batcher: class {
             constructor() {
                 this.updates = new Map();
@@ -233,7 +230,6 @@
             }
         },
 
-        // ===== Memory Monitor =====
         MemoryMonitor: {
             isWatching: false,
             snapshots: [],
@@ -310,7 +306,6 @@
             }
         },
 
-        // ===== Long Task Monitor =====
         LongTaskMonitor: {
             observer: null,
             longTasks: [],
@@ -354,7 +349,6 @@
             }
         },
 
-        // ===== Web Vitals Monitor =====
         WebVitals: {
             metrics: {},
 
@@ -371,7 +365,6 @@
                     for (const entry of list.getEntries()) {
                         if (entry.name === 'first-contentful-paint') {
                             this.metrics.fcp = entry.startTime;
-                            console.log('[WebVitals] FCP:', entry.startTime.toFixed(0) + 'ms');
                         }
                     }
                 }).observe({ entryTypes: ['paint'] });
@@ -383,7 +376,6 @@
                     const entries = list.getEntries();
                     const lastEntry = entries[entries.length - 1];
                     this.metrics.lcp = lastEntry.startTime;
-                    console.log('[WebVitals] LCP:', lastEntry.startTime.toFixed(0) + 'ms');
                 }).observe({ entryTypes: ['largest-contentful-paint'] });
             },
 
@@ -405,7 +397,6 @@
                 new PerformanceObserver(list => {
                     for (const entry of list.getEntries()) {
                         this.metrics.fid = entry.processingStart - entry.startTime;
-                        console.log('[WebVitals] FID:', this.metrics.fid.toFixed(0) + 'ms');
                     }
                 }).observe({ entryTypes: ['first-input'] });
             },
@@ -415,7 +406,6 @@
             }
         },
 
-        // ===== FPS Monitor =====
         FPSMonitor: {
             frames: [],
             isRunning: false,
@@ -472,7 +462,6 @@
             }
         },
 
-        // ===== Initialize All Monitors =====
         initAll() {
             this.WebVitals.init();
             this.MemoryMonitor.start();
@@ -484,17 +473,12 @@
                 setTimeout(() => {
                     const perfData = performance.getEntriesByType('navigation')[0];
                     if (perfData) {
-                        console.log('[Performance] Page Load:', {
-                            TTFB: perfData.responseStart.toFixed(0) + 'ms',
-                            DOMReady: perfData.domContentLoadedEventEnd.toFixed(0) + 'ms',
-                            LoadComplete: perfData.loadEventEnd.toFixed(0) + 'ms'
-                        });
+                        // Performance metrics available via performance API
                     }
                 }, 0);
             });
         },
 
-        // ===== Cleanup All Monitors =====
         cleanupAll() {
             this.MemoryMonitor.stop();
             this.LongTaskMonitor.stop();
@@ -502,7 +486,6 @@
         }
     };
 
-    // Auto-initialize on DOM ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             window.DashboardPerformance.initAll();

@@ -5,12 +5,10 @@
 (function() {
     'use strict';
 
-    // Module state
     var trafficChart = null;
     var trafficUpdateInterval = null;
     var currentTimeRange = 15;
 
-    // API Endpoints
     var endpoints = {
         alertSummary: '/api/operations/alert-summary',
         traffic: '/api/operations/traffic',
@@ -23,7 +21,6 @@
      * Initialize the operations module
      */
     function init() {
-        console.log('[OpsModule] Initializing...');
         registerEndpoints();
     }
 
@@ -359,7 +356,6 @@
         }
     }
 
-    // Utility functions
     function updateElement(id, value) {
         var el = document.getElementById(id);
         if (el) el.textContent = value;
@@ -384,13 +380,11 @@
         return div.innerHTML;
     }
 
-    // i18n helper
     function __(key) {
         if (window.I18N && I18N[key]) return I18N[key];
         return key;
     }
 
-    // Public API
     window.OpsModule = {
         init: init,
         loadAlertSummary: loadAlertSummary,
@@ -402,7 +396,6 @@
         exportSnapshot: exportSnapshot
     };
 
-    // Auto-init if DashboardApp exists
     if (window.DashboardApp) {
         DashboardApp.registerModule('operations', window.OpsModule);
     }

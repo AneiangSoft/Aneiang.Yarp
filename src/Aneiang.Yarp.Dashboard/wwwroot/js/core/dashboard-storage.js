@@ -6,18 +6,14 @@
 
     window.DashboardStorage = window.DashboardStorage || {};
 
-    // ===== Configuration =====
     const config = {
         prefix: 'dashboard_',
         defaultExpiration: 24 * 60 * 60 * 1000 // 24 hours
     };
 
-    // ===== Initialization =====
     window.DashboardStorage.init = function() {
-        console.log('[Storage] Initialized');
     };
 
-    // ===== Core Storage Methods =====
     window.DashboardStorage.set = function(key, value, expiration) {
         try {
             const item = {
@@ -82,7 +78,6 @@
         }
     };
 
-    // ===== Specific Storage Keys =====
     window.DashboardStorage.getToken = function() {
         return this.get('token', null);
     };
@@ -133,7 +128,6 @@
         return this.remove(`draft_${type}`);
     };
 
-    // ===== Session Storage (cleared on tab close) =====
     window.DashboardStorage.sessionSet = function(key, value) {
         try {
             sessionStorage.setItem(config.prefix + key, JSON.stringify(value));
@@ -165,7 +159,6 @@
         }
     };
 
-    // ===== Storage Info =====
     window.DashboardStorage.getInfo = function() {
         try {
             let totalSize = 0;

@@ -48,7 +48,6 @@
             }
         },
 
-        // ===== Database Initialization =====
         async open() {
             if (this.isOpen && this.db) return this.db;
             if (this.openPromise) return this.openPromise;
@@ -60,7 +59,6 @@
                 request.onsuccess = () => {
                     this.db = request.result;
                     this.isOpen = true;
-                    console.log('[IndexedDB] Database opened');
                     resolve(this.db);
                 };
 
@@ -82,7 +80,6 @@
                                 }
                             }
 
-                            console.log(`[IndexedDB] Created store: ${storeName}`);
                         }
                     }
                 };
@@ -100,7 +97,6 @@
             }
         },
 
-        // ===== Generic CRUD Operations =====
         async add(storeName, data) {
             await this.open();
             return new Promise((resolve, reject) => {
@@ -182,7 +178,6 @@
             });
         },
 
-        // ===== Query Operations =====
         async getByIndex(storeName, indexName, value) {
             await this.open();
             return new Promise((resolve, reject) => {
@@ -219,7 +214,6 @@
             });
         },
 
-        // ===== Cache Operations =====
         async cacheGet(key) {
             const item = await this.get('cache', key);
             if (!item) return null;
@@ -251,7 +245,6 @@
             await this.clear('cache');
         },
 
-        // ===== Log Operations =====
         async saveLogs(logs) {
             await this.open();
             const tx = this.db.transaction('logs', 'readwrite');
@@ -298,7 +291,6 @@
             });
         },
 
-        // ===== Stats Operations =====
         async saveStats(key, data) {
             await this.put('stats', {
                 key,
@@ -312,7 +304,6 @@
             return item ? item.data : null;
         },
 
-        // ===== Configuration Operations =====
         async saveRoutes(routes) {
             await this.open();
             const tx = this.db.transaction('routes', 'readwrite');
@@ -361,7 +352,6 @@
             return items.map(i => i.data);
         },
 
-        // ===== Maintenance =====
         async cleanup() {
             // Clean expired cache entries
             const cache = await this.getAll('cache');
@@ -398,7 +388,6 @@
             return stats;
         },
 
-        // ===== Backup / Export =====
         async exportAll() {
             const data = {};
             for (const storeName of Object.keys(this.stores)) {

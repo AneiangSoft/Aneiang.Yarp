@@ -8,19 +8,14 @@
         name: 'clusters',
         initialized: false,
 
-        // ===== Initialization =====
         init: async function() {
             if (this.initialized) return;
-
-            console.log('[Clusters] Initializing...');
 
             this.setupEvents();
 
             this.initialized = true;
-            console.log('[Clusters] Initialized');
         },
 
-        // ===== Load Clusters =====
         loadClusters: async function(forceReload) {
             try {
                 const container = window.DashboardDOM.safe('#cluster-tbody');
@@ -40,10 +35,8 @@
 
                 const clusters = await window.DashboardApi.endpoints.getClusters();
 
-                // Update state
                 window.DashboardState.set('data.clusters', clusters || []);
 
-                // Render clusters
                 this.renderClusters();
 
             } catch (error) {
@@ -55,17 +48,10 @@
             }
         },
 
-        // ===== Render Clusters =====
         renderClusters: function() {
             const state = window.DashboardState;
             const allClusters = state.get('data.clusters') || [];
             const clusters = state.getFilteredClusters();
-            
-            console.log('[Clusters] Rendering:', {
-                total: allClusters.length,
-                filtered: clusters.length,
-                filters: state.get('filters.clusters')
-            });
             
             // Render filter toolbar (only once, then update counts)
             this.renderFilterToolbar();
@@ -96,7 +82,6 @@
             this.updateRefreshTime();
         },
 
-        // ===== Render Filter Toolbar =====
         renderFilterToolbar: function() {
             const container = window.DashboardDOM.safe('#cluster-filter-container');
             if (!container) return;
@@ -168,7 +153,6 @@
             this._bindFilterEvents();
         },
         
-        // ===== Update Filter Counts (called after search, not recreating toolbar) =====
         _updateFilterCounts: function() {
             const state = window.DashboardState;
             const allClusters = state.get('data.clusters') || [];
@@ -206,7 +190,6 @@
             }
         },
         
-        // ===== Get Health Counts =====
         _getHealthCounts: function(clusters) {
             return {
                 all: clusters.length,
@@ -216,7 +199,6 @@
             }; 
         },
         
-        // ===== Get Source Counts =====
         _getSourceCounts: function(clusters) {
             return {
                 all: clusters.length,
@@ -227,7 +209,6 @@
             };
         },
         
-        // ===== Bind Filter Events =====
         _bindFilterEvents: function() {
             const self = this;
             
@@ -296,10 +277,6 @@
             }
         },
 
-
-
-
-        // ===== Render Cluster Cards =====
         renderClusterCards: function(clusters) {
             var container = document.getElementById('cluster-cards-view');
             if (!container) return;
@@ -401,7 +378,6 @@
             container.innerHTML = html;
         },
 
-        // ===== Render Cluster Rows =====
         renderClusterRows: function(clusters, tbody) {
             window.DashboardDOM.clear(tbody);
 
@@ -421,7 +397,6 @@
             tbody.appendChild(fragment);
         },
 
-        // ===== Batched Render (large lists) =====
         _renderClusterRowsBatched: function(clusters, tbody) {
             const expandedClusters = window.DashboardState.get('ui.expandedClusters') || new Set();
             const batchSize = 80;
@@ -448,7 +423,6 @@
             requestAnimationFrame(renderBatch);
         },
 
-        // ===== Create Cluster Rows =====
         createClusterRows: function(cluster, isExpanded) {
             var rows = [];
             var destinations = cluster.destinations || [];
@@ -561,7 +535,6 @@
             return rows;
         },
 
-        // ===== Create Health Badge =====
         createHealthBadge: function(health) {
             const healthMap = {
                 'Healthy': { css: 'bg-success', icon: 'bi-check-circle-fill', text: __('index.cluster.health.healthy') },
@@ -585,7 +558,6 @@
             return badge;
         },
 
-        // ===== Create Policy Badge =====
         createPolicyBadge: function(policy) {
             return window.DashboardDOM.create('span', {
                 className: 'badge bg-light text-dark',
@@ -593,7 +565,6 @@
             });
         },
 
-        // ===== Create Action Buttons =====
         createActionButtons: function(cluster) {
             const container = window.DashboardDOM.create('div', {
                 className: 'btn-group btn-group-sm'
@@ -666,7 +637,6 @@
             return container;
         },
 
-        // ===== Create Cluster Detail Row =====
         createClusterDetailRow: function(cluster) {
             const tr = window.DashboardDOM.create('tr', {
                 className: 'cluster-detail-row'
@@ -823,7 +793,6 @@
             return tr;
         },
 
-        // ===== Render Structured Config (instead of raw JSON) =====
         renderStructuredConfig: function(obj, configType) {
             if (!obj || typeof obj !== 'object') return '';
 
@@ -895,7 +864,6 @@
             return html.join('');
         },
 
-        // ===== Copy Cluster JSON =====
         copyClusterJson: function(clusterId) {
             const clusters = window.DashboardState.get('data.clusters') || [];
             const cluster = clusters.find(function(c) { return c.clusterId === clusterId; });
@@ -927,7 +895,6 @@
             });
         },
 
-        // ===== Create Copy Button =====
         createCopyButton: function(text) {
             const btn = window.DashboardDOM.create('button', {
                 className: 'copy-btn',
@@ -961,12 +928,10 @@
             return btn;
         },
 
-        // ===== Create Source Badge (delegates to shared utility) =====
         createSourceBadge: function(source) {
             return window.DashboardUtils.createSourceBadge(source);
         },
 
-        // ===== Create Health Badge Inline =====
         createHealthBadgeInline: function(health) {
             const healthMap = {
                 'Healthy': { css: 'text-success', icon: 'bi-check-circle-fill' },
@@ -979,14 +944,11 @@
             </span>`;
         },
 
-
-        // ===== Toggle Cluster =====
         toggleCluster: function(clusterId) {
             const state = window.DashboardState;
             const expandedSet = state.get('ui.expandedClusters');
             const current = expandedSet ? expandedSet.has(clusterId) : false;
 
-            // Update state
             if (current) {
                 expandedSet.delete(clusterId);
             } else {
@@ -1016,7 +978,6 @@
             }
         },
 
-        // ===== Update Refresh Time =====
         updateRefreshTime: function() {
             const timeEl = window.DashboardDOM.safe('#cluster-refresh-time');
             if (timeEl) {
@@ -1024,12 +985,10 @@
             }
         },
 
-        // ===== Show Add Modal (Form Mode with JSON toggle) =====
         showAddModal: function() {
             this.showAddFormModal();
         },
 
-        // ===== Show Add Form Modal =====
         showAddFormModal: function() {
             const self = this;
 
@@ -1071,7 +1030,6 @@
             });
         },
 
-        // ===== Show Add Modal (JSON Mode) =====
         _showAddJsonModal: function() {
             const self = this;
 
@@ -1119,7 +1077,6 @@
             });
         },
         
-        // ===== Save Cluster from JSON =====
         saveClusterFromJson: async function(clusterConfig, clusterId) {
             try {
                 // Generate clusterId from user input or from existing
@@ -1158,7 +1115,6 @@
             }
         },
         
-        // ===== Prompt Cluster ID =====
         promptClusterId: function() {
             return new Promise(function(resolve) {
                 // Use a simple Bootstrap modal for ID input
@@ -1233,7 +1189,6 @@
             });
         },
 
-        // ===== Save Cluster =====
         saveCluster: async function(clusterId, config) {
             try {
                 window.DashboardModals.showInfo(__('index.cluster.saving'));
@@ -1255,7 +1210,6 @@
             }
         },
 
-        // ===== Show Edit Modal (JSON Mode) =====
         showEditModal: function(clusterId) {
             const self = this;
             
@@ -1390,8 +1344,6 @@
             });
         },
 
-        // ===== Delete Cluster =====
-        // ===== Rename Cluster =====
         renameCluster: async function(oldId, newId, clusterConfig) {
             const self = this;
             try {
@@ -1460,7 +1412,6 @@
             );
         },
 
-        // ===== Show Policy Management Modal =====
         showPolicyModal: async function(clusterId) {
             try {
                 const policies = await window.DashboardApi.endpoints.getClusterPoliciesForCluster(clusterId);
@@ -1546,7 +1497,6 @@
             }
         },
 
-        // ===== Setup Events =====
         setupEvents: function() {
             // Refresh shortcut
             document.addEventListener('dashboard:shortcut:refresh', async () => {
@@ -1560,12 +1510,10 @@
         }
     };
 
-    // Register module
     if (window.DashboardApp) {
         window.DashboardApp.registerModule('clusters', ClustersModule);
     }
 
-    // Expose to window
     window.ClustersModule = ClustersModule;
 
     // Batch operations
