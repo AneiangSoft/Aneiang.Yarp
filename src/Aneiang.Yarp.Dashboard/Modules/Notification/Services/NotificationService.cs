@@ -83,8 +83,6 @@ public sealed class NotificationService : INotificationService
 
     public void InvalidateCache() => _cacheExpiry = DateTime.MinValue;
 
-    // ─── Event Notification ───────────────────────────────────────────────────
-
     /// <summary>
     /// Known config-change event types. When a rule specifies "ConfigChange" (legacy umbrella type),
     /// we expand it to match any of these concrete sub-types.
@@ -257,8 +255,6 @@ public sealed class NotificationService : INotificationService
         return true;
     }
 
-    // ─── Channel Delivery ───────────────────────────────────────────────────
-
     private async Task<bool> SendToChannelAsync(
         NotificationChannel channel,
         NotificationEvent evt,
@@ -424,8 +420,6 @@ public sealed class NotificationService : INotificationService
         return response.IsSuccessStatusCode;
     }
 
-    // ─── Test Notification ───────────────────────────────────────────────────
-
     public async Task<bool> TestChannelAsync(string channelId, CancellationToken ct = default)
     {
         var channel = await _repository.GetChannelAsync(channelId, ct);
@@ -444,8 +438,6 @@ public sealed class NotificationService : INotificationService
         var testRule = new NotificationRule { Id = "test" };
         return await SendToChannelAsync(channel, testEvent, testRule, ct);
     }
-
-    // ─── Event Convenience Methods ─────────────────────────────────────────
 
     public void NotifyCircuitBreakerOpen(string clusterId, string? destinationId = null)
     {
@@ -621,8 +613,6 @@ public interface INotificationService
     /// <summary>Send a custom notification.</summary>
     void NotifyCustom(string eventType, string title, string message);
 }
-
-// ─── Webhook Payload Models ────────────────────────────────────────────────────
 
 internal class DingTalkPayload
 {

@@ -319,8 +319,6 @@ public class DashboardController : Controller
         return Json(new { code = 200, data = info });
     }
 
-    // ─── 2FA Management ──────────────────────────────────────────────
-
     /// <summary>Get 2FA status.</summary>
     [HttpGet("api/2fa/status")]
     public IActionResult GetTwoFactorStatus()
@@ -735,10 +733,7 @@ public class DashboardController : Controller
         public int Count { get; set; }
     }
 
-
-
     /// <summary>Rate limiting configuration status.</summary>
-
 
     /// <summary>Get current authorization status and mode.</summary>
     [HttpGet("api/auth/status")]
@@ -758,8 +753,6 @@ public class DashboardController : Controller
     }
 
     // Simple DTOs for typed JSON responses
-
-
 
     private class AuthStatus
     {

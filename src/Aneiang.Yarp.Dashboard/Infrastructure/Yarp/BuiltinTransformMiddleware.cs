@@ -58,8 +58,6 @@ internal sealed class BuiltinTransformMiddleware
 
         await _next(context);
 
-        // ─── Response transforms (after proxy) ───
-
         // Remove Server header
         if (_options.RemoveServerHeader)
         {
@@ -97,4 +95,4 @@ internal sealed class BuiltinTransformMiddleware
         }
     }
 }
-
+

@@ -24,8 +24,6 @@ public class NotificationController : ControllerBase
         _logger = logger;
     }
 
-    // ─── Settings ─────────────────────────────────────────────────────────────
-
     /// <summary>Get all notification settings including channels, rules, and global settings.</summary>
     [HttpGet("settings")]
     public async Task<IActionResult> GetSettings()
@@ -169,8 +167,6 @@ public class NotificationController : ControllerBase
         }
     }
 
-    // ─── Channels ───────────────────────────────────────────────────────────
-
     /// <summary>Create a new channel.</summary>
     [HttpPost("channels")]
     public async Task<IActionResult> CreateChannel([FromBody] ChannelRequest request)
@@ -261,8 +257,6 @@ public class NotificationController : ControllerBase
             "This is a test notification from the notification center.");
         return Ok(new { code = 200, message = "Test notification fired" });
     }
-
-    // ─── Rules ─────────────────────────────────────────────────────────────
 
     /// <summary>Create a new rule.</summary>
     [HttpPost("rules")]
@@ -364,8 +358,6 @@ public class NotificationController : ControllerBase
             }
         });
     }
-
-    // ─── History ───────────────────────────────────────────────────────────
 
     /// <summary>
     /// Generate a test notification history entry directly (bypasses the rule/event pipeline).
