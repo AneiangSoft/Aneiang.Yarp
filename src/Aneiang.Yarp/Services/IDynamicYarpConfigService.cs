@@ -12,6 +12,18 @@ public interface IDynamicYarpConfigService
     /// <summary>Add or update a route (creates or replaces cluster). Thread-safe.</summary>
     Task<RouteOperationResult> TryAddRoute(RegisterRouteRequest request, string source = "dynamic", string? createdBy = null);
 
+    /// <summary>
+    /// Add or update a route from a complete native YARP <see cref="RouteConfig"/>, preserving all
+    /// advanced properties (full Match criteria, Auth/Cors/RateLimiter/Timeout policies, etc.).
+    /// </summary>
+    Task<RouteOperationResult> TryAddRouteConfig(RouteConfig route, string source = "dashboard", string? createdBy = "dashboard-user");
+
+    /// <summary>
+    /// Add or update a cluster from a complete native YARP <see cref="ClusterConfig"/>, preserving all
+    /// advanced properties (SessionAffinity, HttpClient, HttpRequest, per-destination metadata, etc.).
+    /// </summary>
+    Task<RouteOperationResult> TryAddClusterConfig(ClusterConfig cluster, string source = "dashboard", string? createdBy = "dashboard-user");
+
     /// <summary>Remove a route and optionally its orphaned cluster.</summary>
     Task<RouteOperationResult> TryRemoveRoute(string routeName, string? clientIp = null, bool removeOrphanedCluster = true);
 

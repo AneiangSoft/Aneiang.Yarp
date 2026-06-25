@@ -44,4 +44,11 @@ public class DynamicClusterConfig
 
     /// <summary>Circuit breaker configuration at cluster level.</summary>
     public CircuitBreakerConfig? CircuitBreaker { get; set; }
+
+    /// <summary>
+    /// Full native YARP ClusterConfig serialized as PascalCase JSON. Carries all advanced
+    /// properties (SessionAffinity, HttpClient, HttpRequest, per-destination Health/Host/Metadata,
+    /// cluster Metadata, etc.) so that nothing is lost when the cluster round-trips through persistence.
+    /// </summary>
+    public string? ConfigJson { get; set; }
 }

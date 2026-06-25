@@ -9,6 +9,66 @@
     window.DashboardUtils.init = function() {
     };
 
+    /**
+     * Parses JSON while tolerating // and /* *\/ comments and trailing commas, matching the
+     * relaxed style used in docs/yarp_all.json. String contents are preserved verbatim.
+     * Throws the same way JSON.parse does on genuinely invalid input.
+     */
+    window.DashboardUtils.parseJsonLenient = function(text) {
+        if (typeof text !== 'string') return JSON.parse(text);
+
+        let out = '';
+        let inString = false;
+        let quote = '';
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            const next = text[i + 1];
+
+            if (inString) {
+                out += ch;
+                if (ch === '\\') {
+                    // Copy the escaped character verbatim.
+                    if (i + 1 < text.length) { out += text[i + 1]; i++; }
+                } else if (ch === quote) {
+                    inString = false;
+                }
+                continue;
+            }
+
+            if (ch === '"' || ch === '\'') {
+                inString = true;
+                quote = ch;
+                out += ch;
+                continue;
+            }
+
+            // Line comment
+            if (ch === '/' && next === '/') {
+                i += 2;
+                while (i < text.length && text[i] !== '\n') i++;
+                if (i < text.length) out += '\n';
+                continue;
+            }
+
+            // Block comment
+            if (ch === '/' && next === '*') {
+                i += 2;
+                while (i + 1 < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++;
+                i += 1;
+                continue;
+            }
+
+            out += ch;
+        }
+
+        // Remove trailing commas before } or ]
+        out = out.replace(/,(\s*[}\]])/g, '$1');
+
+        return JSON.parse(out);
+    };
+
+
+
     window.DashboardUtils.$ = function(selector, context) {
         context = context || document;
         return context.querySelector(selector);

@@ -51,6 +51,12 @@ public sealed class SqliteSchemaMigrator : IHostedService
             "Change yarp_destinations primary key to (cluster_id, destination_id) so destinations are unique per cluster",
             cancellationToken);
 
+        await RunSchemaMigrationAsync(
+            conn,
+            "20260625_001_full_yarp_config_json",
+            "Add config_json columns to yarp_routes and yarp_clusters to carry all native YARP properties",
+            cancellationToken);
+
         // Phase 2: data backfill — best-effort, time-boxed so startup doesn't hang.
         var backfillCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         backfillCts.CancelAfter(TimeSpan.FromSeconds(30));
@@ -195,7 +201,8 @@ public sealed class SqliteSchemaMigrator : IHostedService
                 created_by TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
-                last_heartbeat TEXT
+                last_heartbeat TEXT,
+                config_json TEXT
             );
             CREATE TABLE IF NOT EXISTS yarp_routes (
                 route_id TEXT PRIMARY KEY,
@@ -207,7 +214,8 @@ public sealed class SqliteSchemaMigrator : IHostedService
                 created_by TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
-                metadata TEXT
+                metadata TEXT,
+                config_json TEXT
             );
             CREATE TABLE IF NOT EXISTS yarp_destinations (
                 destination_id TEXT NOT NULL,
@@ -332,8 +340,10 @@ public sealed class SqliteSchemaMigrator : IHostedService
         {
             ("yarp_clusters", "cluster_uid"),
             ("yarp_clusters", "circuit_breaker_config"),
+            ("yarp_clusters", "config_json"),
             ("yarp_routes", "route_uid"),
             ("yarp_routes", "cluster_uid"),
+            ("yarp_routes", "config_json"),
             ("gateway_policies", "policy_uid"),
             ("gateway_policies", "policy_type"),
             ("gateway_policies", "waf_enabled"),

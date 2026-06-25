@@ -21,4 +21,7 @@ public class RouteEntity
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public string? Metadata { get; set; } // JSON
+
+    /// <summary>Full native YARP RouteConfig serialized as PascalCase JSON. Carries all advanced properties.</summary>
+    public string? ConfigJson { get; set; }
 }

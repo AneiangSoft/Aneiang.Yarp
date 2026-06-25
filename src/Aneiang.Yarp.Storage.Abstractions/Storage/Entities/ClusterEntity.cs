@@ -19,4 +19,7 @@ public class ClusterEntity
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastHeartbeat { get; set; }
+
+    /// <summary>Full native YARP ClusterConfig serialized as PascalCase JSON. Carries all advanced properties.</summary>
+    public string? ConfigJson { get; set; }
 }

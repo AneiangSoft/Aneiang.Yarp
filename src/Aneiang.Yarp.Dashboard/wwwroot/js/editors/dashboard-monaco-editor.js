@@ -212,7 +212,8 @@
             try {
                 monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
                     validate: true,
-                    allowComments: false,
+                    allowComments: true,
+                    trailingCommas: 'ignore',
                     schemas: [{
                         uri: 'http://aneiang.yarp/schema',
                         fileMatch: ['*'],

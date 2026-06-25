@@ -77,11 +77,11 @@ public sealed class SqliteRouteRepository : IRouteRepository
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO yarp_routes (route_uid, route_id, cluster_uid, cluster_id, match_path, "order", transforms, source, created_by, created_at, updated_at, metadata)
-            VALUES (@uid, @id, @cuid, @cid, @path, @order, @trans, @src, @cb, @ca, @ua, @meta)
+            INSERT INTO yarp_routes (route_uid, route_id, cluster_uid, cluster_id, match_path, "order", transforms, source, created_by, created_at, updated_at, metadata, config_json)
+            VALUES (@uid, @id, @cuid, @cid, @path, @order, @trans, @src, @cb, @ca, @ua, @meta, @cfg)
             ON CONFLICT(route_id) DO UPDATE SET
                 route_uid = @uid, cluster_uid = @cuid, cluster_id = @cid, match_path = @path, "order" = @order, transforms = @trans,
-                source = @src, updated_at = @ua, metadata = @meta
+                source = @src, updated_at = @ua, metadata = @meta, config_json = @cfg
             """;
         AddParams(cmd, route);
         await cmd.ExecuteNonQueryAsync(ct);
@@ -101,11 +101,11 @@ public sealed class SqliteRouteRepository : IRouteRepository
                 await using var cmd = conn.CreateCommand();
                 cmd.Transaction = tx;
                 cmd.CommandText = """
-                    INSERT INTO yarp_routes (route_uid, route_id, cluster_uid, cluster_id, match_path, "order", transforms, source, created_by, created_at, updated_at, metadata)
-                    VALUES (@uid, @id, @cuid, @cid, @path, @order, @trans, @src, @cb, @ca, @ua, @meta)
+                    INSERT INTO yarp_routes (route_uid, route_id, cluster_uid, cluster_id, match_path, "order", transforms, source, created_by, created_at, updated_at, metadata, config_json)
+                    VALUES (@uid, @id, @cuid, @cid, @path, @order, @trans, @src, @cb, @ca, @ua, @meta, @cfg)
                     ON CONFLICT(route_id) DO UPDATE SET
                         route_uid = @uid, cluster_uid = @cuid, cluster_id = @cid, match_path = @path, "order" = @order, transforms = @trans,
-                        source = @src, updated_at = @ua, metadata = @meta
+                        source = @src, updated_at = @ua, metadata = @meta, config_json = @cfg
                     """;
                 AddParams(cmd, r);
                 await cmd.ExecuteNonQueryAsync(ct);
@@ -151,6 +151,7 @@ public sealed class SqliteRouteRepository : IRouteRepository
         cmd.Parameters.AddWithValue("@ca", r.CreatedAt.ToString("O"));
         cmd.Parameters.AddWithValue("@ua", r.UpdatedAt.ToString("O"));
         cmd.Parameters.AddWithValue("@meta", r.Metadata ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@cfg", r.ConfigJson ?? (object)DBNull.Value);
     }
 
     private static RouteEntity Map(SqliteDataReader r) => new()
@@ -166,7 +167,8 @@ public sealed class SqliteRouteRepository : IRouteRepository
         CreatedBy = ReadString(r, "created_by"),
         CreatedAt = ReadDateTime(r, "created_at") ?? DateTime.MinValue,
         UpdatedAt = ReadDateTime(r, "updated_at") ?? DateTime.MinValue,
-        Metadata = ReadString(r, "metadata")
+        Metadata = ReadString(r, "metadata"),
+        ConfigJson = ReadString(r, "config_json")
     };
 
     private static string? ReadString(SqliteDataReader r, string name)

@@ -148,6 +148,10 @@ public class RouteHeaderInfo
     /// <summary>Match mode.</summary>
     [JsonPropertyName("mode")]
     public string Mode { get; set; } = string.Empty;
+
+    /// <summary>Whether value matching is case-sensitive.</summary>
+    [JsonPropertyName("isCaseSensitive")]
+    public bool IsCaseSensitive { get; set; }
 }
 
 /// <summary>
@@ -166,4 +170,8 @@ public class RouteQueryParameterInfo
     /// <summary>Match mode.</summary>
     [JsonPropertyName("mode")]
     public string Mode { get; set; } = string.Empty;
+
+    /// <summary>Whether value matching is case-sensitive.</summary>
+    [JsonPropertyName("isCaseSensitive")]
+    public bool IsCaseSensitive { get; set; }
 }

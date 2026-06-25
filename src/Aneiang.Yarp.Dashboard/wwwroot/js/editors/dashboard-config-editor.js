@@ -169,7 +169,7 @@
                 value: jsonValue,
                 onChange: function(newValue) {
                     try {
-                        this.draftData = JSON.parse(newValue);
+                        this.draftData = window.DashboardUtils.parseJsonLenient(newValue);
                     } catch (e) {
                         // Invalid JSON, ignore
                     }
@@ -263,7 +263,7 @@
         import: async function(file) {
             try {
                 var text = await file.text();
-                var config = JSON.parse(text);
+                var config = window.DashboardUtils.parseJsonLenient(text);
 
                 // Pre-validate
                 var validation = window.DashboardSchemaValidator.validate(

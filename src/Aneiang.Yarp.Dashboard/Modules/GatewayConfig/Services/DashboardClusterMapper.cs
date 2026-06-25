@@ -50,7 +50,7 @@ internal static class DashboardClusterMapper
             SessionAffinity = MapSessionAffinity(cluster.SessionAffinity),
             HealthCheck = MapHealthCheck(cluster.HealthCheck),
             HttpClient = MapHttpClient(cluster.HttpClient),
-            HttpRequest = null,
+            HttpRequest = MapHttpRequest(cluster.HttpRequest),
             Metadata = cluster.Metadata?.Count > 0
                 ? cluster.Metadata.ToDictionary(kv => kv.Key, kv => kv.Value)
                 : null,
@@ -144,6 +144,23 @@ internal static class DashboardClusterMapper
                 BypassOnLocal = config.WebProxy.BypassOnLocal ?? false,
                 UseDefaultCredentials = config.WebProxy.UseDefaultCredentials ?? false
             } : null
+        };
+    }
+
+    /// <summary>
+    /// Maps HTTP request configuration.
+    /// </summary>
+    private static HttpRequestInfo? MapHttpRequest(global::Yarp.ReverseProxy.Forwarder.ForwarderRequestConfig? config)
+    {
+        if (config == null)
+            return null;
+
+        return new HttpRequestInfo
+        {
+            ActivityTimeout = config.ActivityTimeout?.ToString(),
+            Version = config.Version?.ToString(),
+            VersionPolicy = config.VersionPolicy?.ToString(),
+            AllowResponseBuffering = config.AllowResponseBuffering
         };
     }
 
