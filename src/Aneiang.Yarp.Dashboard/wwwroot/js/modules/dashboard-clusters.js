@@ -243,7 +243,11 @@
             const refreshBtn = document.getElementById('cluster-refresh-btn');
             if (refreshBtn) {
                 refreshBtn.addEventListener('click', function() {
-                    self.loadClusters();
+                    if (window.DashboardLoading) {
+                        window.DashboardLoading.withButton(refreshBtn, '刷新中...', function() { return self.loadClusters(true); });
+                    } else {
+                        self.loadClusters(true);
+                    }
                 });
             }
             

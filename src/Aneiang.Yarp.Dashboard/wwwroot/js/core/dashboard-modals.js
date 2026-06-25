@@ -280,7 +280,8 @@
         const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
 
         // Save button handler
-        document.getElementById(modalId + '-save').addEventListener('click', function() {
+        const saveBtn = document.getElementById(modalId + '-save');
+        saveBtn.addEventListener('click', async function() {
             const form = document.getElementById(modalId + '-form');
             const formData = new FormData(form);
             const result = {};
@@ -325,9 +326,18 @@
             }
 
             if (config.onSave) {
-                const saveResult = config.onSave(result);
-                if (saveResult !== false) {
-                    bsModal.hide();
+                // Show loading state while the (possibly async) save runs.
+                if (window.DashboardLoading) window.DashboardLoading.setButton(saveBtn, true, '保存中...');
+                try {
+                    const saveResult = config.onSave(result);
+                    const resolved = saveResult && typeof saveResult.then === 'function' ? await saveResult : saveResult;
+                    if (resolved !== false) {
+                        bsModal.hide();
+                    }
+                } catch (e) {
+                    console.error('[FormModal] onSave threw:', e);
+                } finally {
+                    if (window.DashboardLoading) window.DashboardLoading.setButton(saveBtn, false);
                 }
             } else {
                 bsModal.hide();
@@ -583,7 +593,8 @@
 
         // Save button handler
         if (!readOnly) {
-            document.getElementById(modalId + '-save').addEventListener('click', function() {
+            const saveBtn = document.getElementById(modalId + '-save');
+            saveBtn.addEventListener('click', async function() {
                 let newValue;
                 if (editor && window.DashboardMonacoEditor) {
                     newValue = window.DashboardMonacoEditor.getValue(modalId + '-editor');
@@ -607,9 +618,20 @@
                     }
 
                     if (config.onSave) {
-                        const saveResult = config.onSave(parsed, newId);
-                        if (saveResult !== false) {
-                            bsModal.hide();
+                        // Show loading state on the save button while the async save runs.
+                        // The onSave callback may be sync (return boolean) or async (return Promise<boolean>).
+                        if (window.DashboardLoading) window.DashboardLoading.setButton(saveBtn, true, '保存中...');
+                        try {
+                            const saveResult = config.onSave(parsed, newId);
+                            const resolved = saveResult && typeof saveResult.then === 'function' ? await saveResult : saveResult;
+                            if (resolved !== false) {
+                                bsModal.hide();
+                            }
+                        } catch (e) {
+                            // onSave threw - leave modal open so user can fix and retry
+                            console.error('[JsonModal] onSave threw:', e);
+                        } finally {
+                            if (window.DashboardLoading) window.DashboardLoading.setButton(saveBtn, false);
                         }
                     } else {
                         bsModal.hide();

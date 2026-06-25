@@ -9,7 +9,12 @@
     <div class="card-header">
         <span><i class="bi bi-shield-check me-2" style="color:#22c55e;"></i><span data-i18n="audit.title">审计日志</span></span>
     </div>
-    <div id="audit-content" class="card-body"></div>
+    <div id="audit-content" class="card-body">
+        <div class="loading-state">
+            <div class="loading-spinner"></div>
+            <div class="loading-text" data-i18n="audit.loading">加载中...</div>
+        </div>
+    </div>
 </div>
 
 @section Scripts {
