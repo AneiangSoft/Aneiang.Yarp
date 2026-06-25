@@ -3283,5 +3283,11 @@
     <!-- 4. Page-specific modules & editors — loaded per page via Scripts section -->
 
     @await RenderSectionAsync("Scripts", required: false)
+    <script>
+        // Initialize global loading helpers once scripts are ready.
+        if (window.DashboardLoading && window.DashboardLoading.initNetworkStatus) {
+            window.DashboardLoading.initNetworkStatus();
+        }
+    </script>
 </body>
 </html>

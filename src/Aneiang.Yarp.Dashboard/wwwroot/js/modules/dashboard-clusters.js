@@ -17,6 +17,7 @@
         },
 
         loadClusters: async function(forceReload) {
+            const self = this;
             try {
                 const container = window.DashboardDOM.safe('#cluster-tbody');
                 if (!container) return;
@@ -32,6 +33,7 @@
                 }
 
                 window.DashboardDOM.showLoading(container, __('index.cluster.loading'));
+                if (window.DashboardLoading) window.DashboardLoading.tableProgress(window.DashboardDOM.safe('#cluster-table-view'), true);
 
                 const clusters = await window.DashboardApi.endpoints.getClusters();
 
@@ -43,8 +45,14 @@
                 console.error('[Clusters] Load failed:', error);
                 const container = window.DashboardDOM.safe('#cluster-tbody');
                 if (container) {
-                    window.DashboardDOM.showError(container, __('index.cluster.loadFailed'));
+                    if (window.DashboardLoading) {
+                        window.DashboardLoading.retryableError(container, __('index.cluster.loadFailed') + '：' + (error.message || error), function() { return self.loadClusters(true); });
+                    } else {
+                        window.DashboardDOM.showError(container, __('index.cluster.loadFailed'));
+                    }
                 }
+            } finally {
+                if (window.DashboardLoading) window.DashboardLoading.tableProgress(window.DashboardDOM.safe('#cluster-table-view'), false);
             }
         },
 

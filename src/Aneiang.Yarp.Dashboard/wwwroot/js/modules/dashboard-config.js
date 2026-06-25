@@ -193,21 +193,61 @@
             if (!importData) return;
 
             try {
-                window.DashboardModals.showInfo(__('config.importing'));
                 bsModal.hide();
 
-                const response = await window.DashboardApi.endpoints.importConfig(importData);
+                // Show full-screen overlay with stage progress. Backend import is one transaction,
+                // but we surface stages to give the user feedback during a potentially long run.
+                var stages = [
+                    __('config.importStageValidate') || '正在校验配置...',
+                    __('config.importStageApply') || '正在写入配置...',
+                    __('config.importStageReload') || '正在刷新页面...'
+                ];
+                var totalStages = stages.length + 1; // +1 for the import call itself
+                var stageIdx = 0;
+
+                if (window.DashboardLoading) {
+                    window.DashboardLoading.overlay(stages[stageIdx]);
+                    window.DashboardLoading.begin();
+                    window.DashboardLoading.setProgress(1, totalStages, __('config.importing') || '导入中');
+                }
+
+                var advance = function() {
+                    stageIdx++;
+                    if (window.DashboardLoading) {
+                        window.DashboardLoading.setProgress(stageIdx + 1, totalStages, __('config.importing') || '导入中');
+                        if (stageIdx < stages.length) window.DashboardLoading.overlay(stages[stageIdx]);
+                    }
+                };
+
+                // Stage 1: validate (light, optional). Backend re-validates anyway; we just tick the bar.
+                advance();
+                await new Promise(function(r) { setTimeout(r, 50); });
+
+                // Stage 2: import (the actual call). Advance when complete.
+                var response = await window.DashboardApi.endpoints.importConfig(importData);
+                advance();
+                await new Promise(function(r) { setTimeout(r, 50); });
 
                 window.DashboardModals.showSuccess(__('config.imported'));
 
-                // Reload page to reflect changes
+                // Stage 3: reload
+                advance();
                 setTimeout(function() {
+                    if (window.DashboardLoading) {
+                        // safety: clear overlays in case reload is delayed
+                        window.DashboardLoading.overlay(null);
+                        window.DashboardLoading.end();
+                    }
                     window.location.reload();
-                }, 1500);
+                }, 800);
 
             } catch (error) {
                 console.error('[Config] Import failed:', error);
-                window.DashboardModals.showError(__('config.importFailed') + error.message);
+                if (window.DashboardLoading) {
+                    window.DashboardLoading.overlay(null);
+                    window.DashboardLoading.end();
+                }
+                window.DashboardModals.showError((__('config.importFailed') || '导入失败：') + (error.message || error));
             }
         });
 
