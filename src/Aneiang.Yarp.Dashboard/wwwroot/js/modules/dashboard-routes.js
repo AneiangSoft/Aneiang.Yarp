@@ -17,6 +17,7 @@
         },
 
         loadRoutes: async function(forceReload) {
+            const self = this;
             try {
                 const container = window.DashboardDOM.safe('#route-tbody');
                 if (!container) return;
@@ -35,6 +36,7 @@
                 }
 
                 window.DashboardDOM.showLoading(container, __('index.route.loading'));
+                if (window.DashboardLoading) window.DashboardLoading.tableProgress(window.DashboardDOM.safe('#route-table-view'), true);
 
                 // Load both routes and clusters in parallel (clusters needed for Add Route modal)
                 const [routes, clusters] = await Promise.all([
@@ -51,8 +53,14 @@
                 console.error('[Routes] Load failed:', error);
                 const container = window.DashboardDOM.safe('#route-tbody');
                 if (container) {
-                    window.DashboardDOM.showError(container, __('index.route.loadFailed'));
+                    if (window.DashboardLoading) {
+                        window.DashboardLoading.retryableError(container, __('index.route.loadFailed') + '：' + (error.message || error), function() { return self.loadRoutes(true); });
+                    } else {
+                        window.DashboardDOM.showError(container, __('index.route.loadFailed'));
+                    }
                 }
+            } finally {
+                if (window.DashboardLoading) window.DashboardLoading.tableProgress(window.DashboardDOM.safe('#route-table-view'), false);
             }
         },
 
