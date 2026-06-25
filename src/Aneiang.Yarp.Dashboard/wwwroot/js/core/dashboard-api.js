@@ -41,7 +41,8 @@
             headers = {},
             timeout = config.timeout,
             parseJson = true,
-            requireAuth = true
+            requireAuth = true,
+            silent = false
         } = options;
 
         const fullUrl = url.startsWith('http') ? url : `${config.baseUrl}${url}`;
@@ -68,6 +69,9 @@
             fetchOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
         }
 
+        // Notify global loading indicator (begin/end paired even on error).
+        if (!silent && window.DashboardLoading) window.DashboardLoading.begin();
+
         try {
             const response = await fetch(fullUrl, fetchOptions);
 
@@ -82,7 +86,7 @@
 
             if (parseJson && response.status !== 204) {
                 const data = await response.json();
-                
+
                 // Unwrap { code: 200, data: ... } response format
                 if (data && typeof data === 'object' && 'code' in data) {
                     if (data.code === 200) {
@@ -94,7 +98,7 @@
                         throw new Error(data.message || `API error: ${data.code}`);
                     }
                 }
-                
+
                 // Fallback: return data directly if no code field
                 return data;
             }
@@ -106,6 +110,8 @@
                 throw new Error('Request timeout');
             }
             throw error;
+        } finally {
+            if (!silent && window.DashboardLoading) window.DashboardLoading.end();
         }
     };
 

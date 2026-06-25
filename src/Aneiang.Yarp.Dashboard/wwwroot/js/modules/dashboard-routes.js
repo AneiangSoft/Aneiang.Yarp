@@ -301,7 +301,11 @@
             const refreshBtn = document.getElementById('route-refresh-btn');
             if (refreshBtn) {
                 refreshBtn.addEventListener('click', function() {
-                    self.loadRoutes();
+                    if (window.DashboardLoading) {
+                        window.DashboardLoading.withButton(refreshBtn, '刷新中...', function() { return self.loadRoutes(true); });
+                    } else {
+                        self.loadRoutes(true);
+                    }
                 });
             }
             
