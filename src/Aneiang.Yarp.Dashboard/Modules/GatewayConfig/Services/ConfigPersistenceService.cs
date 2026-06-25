@@ -79,30 +79,20 @@ public class ConfigPersistenceService : IConfigPersistenceService
         var yarpRoutes = _dynamicConfig?.GetRoutes() ?? Array.Empty<RouteConfig>();
         var yarpClusters = _dynamicConfig?.GetClusters() ?? Array.Empty<ClusterConfig>();
 
-        var routesDict = yarpRoutes.ToDictionary(
-            r => r.RouteId ?? string.Empty,
-            r => (object)new
-            {
-                ClusterId = r.ClusterId ?? string.Empty,
-                Match = new { Path = r.Match?.Path ?? string.Empty },
-                Transforms = r.Transforms,
-                Order = r.Order ?? 50
-            }
-        );
+        var routesDict = new Dictionary<string, JsonElement>();
+        foreach (var r in yarpRoutes)
+        {
+            var json = Aneiang.Yarp.Serialization.YarpJsonConfig.SerializeRoute(r);
+            using var doc = JsonDocument.Parse(json);
+            routesDict[r.RouteId ?? string.Empty] = doc.RootElement.Clone();
+        }
 
-        var clustersDict = new Dictionary<string, object>();
+        var clustersDict = new Dictionary<string, JsonElement>();
         foreach (var c in yarpClusters)
         {
-            var dests = c.Destinations?.ToDictionary(
-                d => d.Key,
-                d => (object)new { Address = d.Value.Address ?? string.Empty }
-            ) ?? new Dictionary<string, object>();
-            clustersDict[c.ClusterId ?? string.Empty] = new
-            {
-                Destinations = dests,
-                LoadBalancingPolicy = c.LoadBalancingPolicy,
-                HealthCheck = c.HealthCheck
-            };
+            var json = Aneiang.Yarp.Serialization.YarpJsonConfig.SerializeCluster(c);
+            using var doc = JsonDocument.Parse(json);
+            clustersDict[c.ClusterId ?? string.Empty] = doc.RootElement.Clone();
         }
 
         var fullConfig = new Dictionary<string, object>
@@ -114,9 +104,9 @@ public class ConfigPersistenceService : IConfigPersistenceService
             }
         };
 
-        var json = JsonSerializer.Serialize(fullConfig, _jsonOptions);
-        using var doc = JsonDocument.Parse(json);
-        return doc.RootElement.Clone();
+        var fullJson = JsonSerializer.Serialize(fullConfig, Aneiang.Yarp.Serialization.YarpJsonConfig.IndentedOptions);
+        using var fullDoc = JsonDocument.Parse(fullJson);
+        return fullDoc.RootElement.Clone();
     }
 
     public async Task<bool> ImportFullConfigAsync(JsonElement config, string? clientIp = null)
@@ -125,106 +115,38 @@ public class ConfigPersistenceService : IConfigPersistenceService
         {
             await SaveSnapshotAsync("Before import", clientIp);
 
-            // Build GatewayDynamicConfig from import data using repository
-            var dynamicConfig = await LoadConfigFromRepositoryAsync();
-
             bool hasReverseProxy = config.TryGetProperty("reverseProxy", out var rpCamel) ||
                                    config.TryGetProperty("ReverseProxy", out rpCamel);
             if (!hasReverseProxy) return false;
             var reverseProxy = rpCamel;
 
-            bool hasRoutes = reverseProxy.TryGetProperty("routes", out var rCamel) ||
-                             reverseProxy.TryGetProperty("Routes", out rCamel);
-            if (hasRoutes)
-            {
-                var routesElement = rCamel;
-                foreach (var route in routesElement.EnumerateObject())
-                {
-                    var clusterId = route.Value.TryGetProperty("clusterId", out var cidC) ? cidC.GetString() ?? string.Empty
-                        : route.Value.TryGetProperty("ClusterId", out var cidP) ? cidP.GetString() ?? string.Empty
-                        : string.Empty;
-
-                    var matchPath = string.Empty;
-                    if (route.Value.TryGetProperty("match", out var mC) && mC.TryGetProperty("path", out var pC))
-                        matchPath = pC.GetString() ?? string.Empty;
-                    else if (route.Value.TryGetProperty("Match", out var mP) && mP.TryGetProperty("Path", out var pP))
-                        matchPath = pP.GetString() ?? string.Empty;
-
-                    List<Dictionary<string, string>>? transforms = null;
-                    if (route.Value.TryGetProperty("transforms", out var tfC) || route.Value.TryGetProperty("Transforms", out tfC))
-                        transforms = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(tfC.GetRawText(), _jsonOptions);
-
-                    var order = route.Value.TryGetProperty("order", out var oC) ? oC.GetInt32()
-                        : route.Value.TryGetProperty("Order", out var oP) ? oP.GetInt32()
-                        : 50;
-
-                    dynamicConfig.Routes.RemoveAll(r => r.RouteId == route.Name);
-                    dynamicConfig.Routes.Add(new DynamicRouteConfig
-                    {
-                        RouteId = route.Name,
-                        ClusterId = clusterId,
-                        MatchPath = matchPath,
-                        Transforms = transforms ?? new List<Dictionary<string, string>>(),
-                        Order = order
-                    });
-                }
-            }
+            if (_dynamicConfig == null) return false;
 
             bool hasClusters = reverseProxy.TryGetProperty("clusters", out var cCamel) ||
                                reverseProxy.TryGetProperty("Clusters", out cCamel);
             if (hasClusters)
             {
-                var clustersElement = cCamel;
-                foreach (var cluster in clustersElement.EnumerateObject())
+                foreach (var cluster in cCamel.EnumerateObject())
                 {
-                    var destinations = new Dictionary<string, string>();
-                    if (cluster.Value.TryGetProperty("destinations", out var dC) || cluster.Value.TryGetProperty("Destinations", out dC))
-                    {
-                        foreach (var dest in dC.EnumerateObject())
-                        {
-                            var address = dest.Value.ValueKind == JsonValueKind.String
-                                ? dest.Value.GetString() ?? string.Empty
-                                : dest.Value.TryGetProperty("address", out var aC) ? aC.GetString() ?? string.Empty
-                                : dest.Value.TryGetProperty("Address", out var aP) ? aP.GetString() ?? string.Empty
-                                : string.Empty;
-                            destinations[dest.Name] = address;
-                        }
-                    }
-
-                    var lb = cluster.Value.TryGetProperty("loadBalancingPolicy", out var lbC) ? lbC.GetString()
-                        : cluster.Value.TryGetProperty("LoadBalancingPolicy", out var lbP) ? lbP.GetString()
-                        : null;
-
-                    dynamicConfig.Clusters.RemoveAll(c => c.ClusterId == cluster.Name);
-                    dynamicConfig.Clusters.Add(new DynamicClusterConfig
-                    {
-                        ClusterId = cluster.Name,
-                        Destinations = destinations,
-                        LoadBalancingPolicy = lb
-                    });
+                    var clusterConfig = Aneiang.Yarp.Serialization.YarpJsonConfig.DeserializeCluster(cluster.Value);
+                    if (clusterConfig == null) continue;
+                    clusterConfig = clusterConfig with { ClusterId = cluster.Name };
+                    if (clusterConfig.Destinations == null || clusterConfig.Destinations.Count == 0) continue;
+                    await _dynamicConfig.TryAddClusterConfig(clusterConfig, "import", "dashboard-user");
                 }
             }
 
-            // Persist imported config via ReplaceAllConfig
-            if (_dynamicConfig != null)
+            bool hasRoutes = reverseProxy.TryGetProperty("routes", out var rCamel) ||
+                             reverseProxy.TryGetProperty("Routes", out rCamel);
+            if (hasRoutes)
             {
-                foreach (var c in dynamicConfig.Clusters)
+                foreach (var route in rCamel.EnumerateObject())
                 {
-                    if (c.Destinations?.Count > 0)
-                        await _dynamicConfig.TryAddCluster(c.ClusterId, c.Destinations, c.LoadBalancingPolicy, null, "import", "dashboard-user");
-                }
-
-                foreach (var r in dynamicConfig.Routes)
-                {
-                    var request = new RegisterRouteRequest
-                    {
-                        RouteName = r.RouteId,
-                        ClusterName = r.ClusterId,
-                        MatchPath = r.MatchPath,
-                        Order = r.Order,
-                        Transforms = r.Transforms
-                    };
-                    await _dynamicConfig.TryAddRoute(request, "import", "dashboard-user");
+                    var routeConfig = Aneiang.Yarp.Serialization.YarpJsonConfig.DeserializeRoute(route.Value);
+                    if (routeConfig == null) continue;
+                    routeConfig = routeConfig with { RouteId = route.Name };
+                    if (string.IsNullOrWhiteSpace(routeConfig.ClusterId)) continue;
+                    await _dynamicConfig.TryAddRouteConfig(routeConfig, "import", "dashboard-user");
                 }
             }
 
@@ -327,31 +249,9 @@ public class ConfigPersistenceService : IConfigPersistenceService
                 {
                     foreach (var route in rC.EnumerateObject())
                     {
-                        var clusterId = route.Value.TryGetProperty("clusterId", out var cidC) ? cidC.GetString() ?? string.Empty
-                            : route.Value.TryGetProperty("ClusterId", out var cidP) ? cidP.GetString() ?? string.Empty : string.Empty;
-
-                        var matchPath = string.Empty;
-                        if (route.Value.TryGetProperty("match", out var mC) && mC.TryGetProperty("path", out var pC))
-                            matchPath = pC.GetString() ?? string.Empty;
-                        else if (route.Value.TryGetProperty("Match", out var mP) && mP.TryGetProperty("Path", out var pP))
-                            matchPath = pP.GetString() ?? string.Empty;
-
-                        var order = route.Value.TryGetProperty("order", out var oC) ? oC.GetInt32()
-                            : route.Value.TryGetProperty("Order", out var oP) ? oP.GetInt32() : 50;
-
-                        var transforms = (route.Value.TryGetProperty("transforms", out var tfC) || route.Value.TryGetProperty("Transforms", out tfC))
-                            ? JsonSerializer.Deserialize<List<Dictionary<string, string>>>(tfC.GetRawText(), _jsonOptions)?
-                                .Select(d => (IReadOnlyDictionary<string, string>)new Dictionary<string, string>(d)).ToList()
-                            : null;
-
-                        yarpRoutes.Add(new RouteConfig
-                        {
-                            RouteId = route.Name,
-                            ClusterId = clusterId,
-                            Match = new RouteMatch { Path = matchPath },
-                            Order = order,
-                            Transforms = transforms
-                        });
+                        var routeConfig = Aneiang.Yarp.Serialization.YarpJsonConfig.DeserializeRoute(route.Value);
+                        if (routeConfig == null) continue;
+                        yarpRoutes.Add(routeConfig with { RouteId = route.Name });
                     }
                 }
 
@@ -359,27 +259,9 @@ public class ConfigPersistenceService : IConfigPersistenceService
                 {
                     foreach (var cluster in clC.EnumerateObject())
                     {
-                        var lb = cluster.Value.TryGetProperty("loadBalancingPolicy", out var lbC) ? lbC.GetString()
-                            : cluster.Value.TryGetProperty("LoadBalancingPolicy", out var lbP) ? lbP.GetString() : null;
-
-                        var destinations = new Dictionary<string, DestinationConfig>();
-                        if (cluster.Value.TryGetProperty("destinations", out var dC) || cluster.Value.TryGetProperty("Destinations", out dC))
-                        {
-                            foreach (var dest in dC.EnumerateObject())
-                            {
-                                var address = dest.Value.ValueKind == JsonValueKind.String ? dest.Value.GetString() ?? string.Empty
-                                    : dest.Value.TryGetProperty("address", out var aC) ? aC.GetString() ?? string.Empty
-                                    : dest.Value.TryGetProperty("Address", out var aP) ? aP.GetString() ?? string.Empty : string.Empty;
-                                destinations[dest.Name] = new DestinationConfig { Address = address };
-                            }
-                        }
-
-                        yarpClusters.Add(new ClusterConfig
-                        {
-                            ClusterId = cluster.Name,
-                            Destinations = destinations,
-                            LoadBalancingPolicy = lb
-                        });
+                        var clusterConfig = Aneiang.Yarp.Serialization.YarpJsonConfig.DeserializeCluster(cluster.Value);
+                        if (clusterConfig == null) continue;
+                        yarpClusters.Add(clusterConfig with { ClusterId = cluster.Name });
                     }
                 }
             }
@@ -401,11 +283,12 @@ public class ConfigPersistenceService : IConfigPersistenceService
     {
         var errors = new List<string>();
 
-        if (config.TryGetProperty("ReverseProxy", out var reverseProxy))
+        if (config.TryGetProperty("ReverseProxy", out var reverseProxy) ||
+            config.TryGetProperty("reverseProxy", out reverseProxy))
         {
-            if (!reverseProxy.TryGetProperty("Routes", out _))
+            if (!(reverseProxy.TryGetProperty("Routes", out _) || reverseProxy.TryGetProperty("routes", out _)))
                 errors.Add("Missing 'ReverseProxy.Routes'");
-            if (!reverseProxy.TryGetProperty("Clusters", out _))
+            if (!(reverseProxy.TryGetProperty("Clusters", out _) || reverseProxy.TryGetProperty("clusters", out _)))
                 errors.Add("Missing 'ReverseProxy.Clusters'");
         }
         else

@@ -49,4 +49,11 @@ public class DynamicRouteConfig
     /// Route metadata for extensibility (e.g., circuit breaker, retry, rate-limit, WAF policy keys).
     /// </summary>
     public Dictionary<string, string> Metadata { get; set; } = new();
+
+    /// <summary>
+    /// Full native YARP RouteConfig serialized as PascalCase JSON. Carries all advanced
+    /// properties (full Match criteria, Auth/Cors/RateLimiter/Timeout policies, etc.) so that
+    /// nothing is lost when the route round-trips through persistence.
+    /// </summary>
+    public string? ConfigJson { get; set; }
 }

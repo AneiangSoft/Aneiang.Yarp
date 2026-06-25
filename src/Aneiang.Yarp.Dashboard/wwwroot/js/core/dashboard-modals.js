@@ -377,6 +377,7 @@
         monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
             validate: true,
             allowComments: true,
+            trailingCommas: 'ignore',
             schemas: [{
                 uri: schemaUri,
                 fileMatch: ['*'],
@@ -590,9 +591,9 @@
                     newValue = document.getElementById(modalId + '-textarea')?.value || '';
                 }
 
-                // Validate JSON
+                // Validate JSON (tolerates comments and trailing commas)
                 try {
-                    const parsed = JSON.parse(newValue);
+                    const parsed = window.DashboardUtils.parseJsonLenient(newValue);
 
                     // Get editable ID value if present
                     let newId = null;
@@ -656,7 +657,7 @@
         }
 
         try {
-            const parsed = JSON.parse(value);
+            const parsed = window.DashboardUtils.parseJsonLenient(value);
             const formatted = JSON.stringify(parsed, null, 2);
             if (window.DashboardMonacoEditor && window.DashboardMonacoEditor.instances.has(editorContainerId)) {
                 window.DashboardMonacoEditor.setValue(editorContainerId, formatted);
@@ -679,7 +680,7 @@
         }
 
         try {
-            JSON.parse(value);
+            window.DashboardUtils.parseJsonLenient(value);
             DashboardModals.showSuccess(window.__('modal.validJson'));
         } catch (e) {
             DashboardModals.showError(window.__('modal.invalidJson') + e.message);

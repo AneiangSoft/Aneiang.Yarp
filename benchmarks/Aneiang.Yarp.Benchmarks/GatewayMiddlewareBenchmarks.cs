@@ -136,6 +136,8 @@ public class GatewayMiddlewareBenchmarks
     private sealed class BenchmarkDynamicYarpConfigService : IDynamicYarpConfigService
     {
         public Task<RouteOperationResult> TryAddRoute(RegisterRouteRequest request, string source = "dynamic", string? createdBy = null) => Task.FromResult(new RouteOperationResult(true, "ok"));
+        public Task<RouteOperationResult> TryAddRouteConfig(RouteConfig route, string source = "dashboard", string? createdBy = "dashboard-user") => Task.FromResult(new RouteOperationResult(true, "ok"));
+        public Task<RouteOperationResult> TryAddClusterConfig(ClusterConfig cluster, string source = "dashboard", string? createdBy = "dashboard-user") => Task.FromResult(new RouteOperationResult(true, "ok"));
         public Task<RouteOperationResult> TryRemoveRoute(string routeName, string? clientIp = null, bool removeOrphanedCluster = true) => Task.FromResult(new RouteOperationResult(true, "ok"));
         public Task<RouteOperationResult> TryAddCluster(string clusterId, Dictionary<string, string> destinations, string? loadBalancingPolicy = null, Aneiang.Yarp.Models.HealthCheckConfig? healthCheck = null, string source = "dynamic", string? createdBy = null) => Task.FromResult(new RouteOperationResult(true, "ok"));
         public Task<RouteOperationResult> TryAddCluster(CreateClusterRequest request, string source = "dynamic", string? createdBy = null) => Task.FromResult(new RouteOperationResult(true, "ok"));

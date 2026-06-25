@@ -120,7 +120,8 @@ internal static class DashboardRouteMapper
             {
                 Name = h.Name,
                 Values = h.Values,
-                Mode = h.Mode.ToString()
+                Mode = h.Mode.ToString(),
+                IsCaseSensitive = h.IsCaseSensitive
             });
         }
         return result;
@@ -141,7 +142,8 @@ internal static class DashboardRouteMapper
             {
                 Name = q.Name,
                 Values = q.Values,
-                Mode = q.Mode.ToString()
+                Mode = q.Mode.ToString(),
+                IsCaseSensitive = q.IsCaseSensitive
             });
         }
         return result;

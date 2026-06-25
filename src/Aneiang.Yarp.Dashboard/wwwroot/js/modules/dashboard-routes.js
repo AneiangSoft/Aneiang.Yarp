@@ -1032,16 +1032,18 @@
             if ((match.headers && match.headers.length > 0) || (match.queryParameters && match.queryParameters.length > 0)) {
                 detailHtml.push('<div class="table-responsive mt-2">');
                 detailHtml.push('<table class="table table-sm detail-table">');
-                detailHtml.push('<thead><tr><th style="width:100px;">' + (__('index.detail.type')) + '</th><th style="width:120px;">' + (__('index.detail.name')) + '</th><th>' + (__('index.detail.values')) + '</th><th style="width:80px;">' + (__('index.detail.mode')) + '</th></tr></thead>');
+                detailHtml.push('<thead><tr><th style="width:100px;">' + (__('index.detail.type')) + '</th><th style="width:120px;">' + (__('index.detail.name')) + '</th><th>' + (__('index.detail.values')) + '</th><th style="width:80px;">' + (__('index.detail.mode')) + '</th><th style="width:60px;">Aa</th></tr></thead>');
                 detailHtml.push('<tbody>');
                 if (match.headers && match.headers.length > 0) {
                     match.headers.forEach(h => {
-                        detailHtml.push(`<tr><td><span class="badge bg-secondary">${__('index.detail.header')}</span></td><td><code>${h.name || '-'}</code></td><td>${(h.values || []).map(v => `<code>${v}</code>`).join(' ')}</td><td>${h.mode || '-'}</td></tr>`);
+                        const cs = h.isCaseSensitive ? '<i class="bi bi-check-lg text-success"></i>' : '<span class="text-muted">-</span>';
+                        detailHtml.push(`<tr><td><span class="badge bg-secondary">${__('index.detail.header')}</span></td><td><code>${h.name || '-'}</code></td><td>${(h.values || []).map(v => `<code>${v}</code>`).join(' ')}</td><td>${h.mode || '-'}</td><td>${cs}</td></tr>`);
                     });
                 }
                 if (match.queryParameters && match.queryParameters.length > 0) {
                     match.queryParameters.forEach(q => {
-                        detailHtml.push(`<tr><td><span class="badge bg-info">${__('index.detail.query')}</span></td><td><code>${q.name || '-'}</code></td><td>${(q.values || []).map(v => `<code>${v}</code>`).join(' ')}</td><td>${q.mode || '-'}</td></tr>`);
+                        const cs = q.isCaseSensitive ? '<i class="bi bi-check-lg text-success"></i>' : '<span class="text-muted">-</span>';
+                        detailHtml.push(`<tr><td><span class="badge bg-info">${__('index.detail.query')}</span></td><td><code>${q.name || '-'}</code></td><td>${(q.values || []).map(v => `<code>${v}</code>`).join(' ')}</td><td>${q.mode || '-'}</td><td>${cs}</td></tr>`);
                     });
                 }
                 detailHtml.push('</tbody></table></div>');
@@ -1071,8 +1073,8 @@
                 detailHtml.push('</div>');
             }
 
-            // Policies (merged: Authorization + CORS + Timeout + RateLimiter)
-            const hasPolicies = route.authorizationPolicy || route.corsPolicy || route.timeout || route.timeoutPolicy || route.rateLimiterPolicy;
+            // Policies (merged: Authorization + CORS + OutputCache + Timeout + RateLimiter + MaxRequestBodySize)
+            const hasPolicies = route.authorizationPolicy || route.corsPolicy || route.outputCachePolicy || route.timeout || route.timeoutPolicy || route.rateLimiterPolicy || (route.maxRequestBodySize !== null && route.maxRequestBodySize !== undefined);
             if (hasPolicies) {
                 detailHtml.push('<div class="detail-section">');
                 detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield-check"></i>${__('index.route.policies')}</div>`);
@@ -1083,6 +1085,9 @@
                 if (route.corsPolicy) {
                     detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield"></i> ${__('index.route.policy.cors')}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.corsPolicy)}</code></span></div>`);
                 }
+                if (route.outputCachePolicy) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-hdd-stack"></i> OutputCachePolicy</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.outputCachePolicy)}</code></span></div>`);
+                }
                 if (route.timeout || route.timeoutPolicy) {
                     const timeoutVal = route.timeout ? `<code>${route.timeout}</code>` : '<span class="text-muted">-</span>';
                     const timeoutNote = route.timeoutPolicy ? ` <span class="text-muted small">(${route.timeoutPolicy})</span>` : '';
@@ -1090,6 +1095,9 @@
                 }
                 if (route.rateLimiterPolicy) {
                     detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-speedometer2"></i> ${__('index.route.policy.rateLimiter')}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.rateLimiterPolicy)}</code></span></div>`);
+                }
+                if (route.maxRequestBodySize !== null && route.maxRequestBodySize !== undefined) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-file-earmark-binary"></i> MaxRequestBodySize</span><span class="detail-kv-value"><code>${route.maxRequestBodySize}</code></span></div>`);
                 }
                 detailHtml.push('</div>');
                 detailHtml.push('</div>');
@@ -1347,41 +1355,85 @@
             return html.join('');
         },
 
+        // Policy-managed metadata key prefixes, edited via the "Manage Policy" UI rather than raw JSON.
+        _policyMetaPrefixes: ['Retry:', 'RateLimit:', 'CircuitBreaker:', 'Waf:', 'Policy:'],
+
+        _isPolicyMetaKey: function(key) {
+            return this._policyMetaPrefixes.some(function(p) { return key.indexOf(p) === 0; });
+        },
+
+        // Builds a complete native YARP route object (PascalCase) from a route response,
+        // preserving every supported property so the JSON editor exposes the full schema.
+        // When stripPolicyMeta is true, policy-managed metadata keys are omitted (and returned
+        // separately) so they are not edited via raw JSON.
+        buildYarpRoute: function(route, options) {
+            options = options || {};
+            const self = this;
+            const match = route.match || {};
+            const yarpRoute = {
+                "ClusterId": route.clusterId || route.clusterKey || ""
+            };
+
+            if (route.order !== null && route.order !== undefined) yarpRoute.Order = route.order;
+
+            const yarpMatch = {};
+            if (match.path) yarpMatch.Path = match.path;
+            const methods = match.methods || [];
+            if (methods.length > 0) yarpMatch.Methods = methods;
+            const hosts = match.hosts || [];
+            if (hosts.length > 0) yarpMatch.Hosts = hosts;
+            if (Array.isArray(match.headers) && match.headers.length > 0) {
+                yarpMatch.Headers = match.headers.map(function(h) {
+                    const item = { "Name": h.name };
+                    if (h.values && h.values.length > 0) item.Values = h.values;
+                    if (h.mode) item.Mode = h.mode;
+                    if (h.isCaseSensitive) item.IsCaseSensitive = true;
+                    return item;
+                });
+            }
+            if (Array.isArray(match.queryParameters) && match.queryParameters.length > 0) {
+                yarpMatch.QueryParameters = match.queryParameters.map(function(q) {
+                    const item = { "Name": q.name };
+                    if (q.values && q.values.length > 0) item.Values = q.values;
+                    if (q.mode) item.Mode = q.mode;
+                    if (q.isCaseSensitive) item.IsCaseSensitive = true;
+                    return item;
+                });
+            }
+            yarpRoute.Match = yarpMatch;
+
+            if (route.authorizationPolicy) yarpRoute.AuthorizationPolicy = route.authorizationPolicy;
+            if (route.corsPolicy) yarpRoute.CorsPolicy = route.corsPolicy;
+            if (route.outputCachePolicy) yarpRoute.OutputCachePolicy = route.outputCachePolicy;
+            if (route.rateLimiterPolicy) yarpRoute.RateLimiterPolicy = route.rateLimiterPolicy;
+            if (route.timeoutPolicy) yarpRoute.TimeoutPolicy = route.timeoutPolicy;
+            if (route.timeout) yarpRoute.Timeout = route.timeout;
+            if (route.maxRequestBodySize !== null && route.maxRequestBodySize !== undefined) yarpRoute.MaxRequestBodySize = route.maxRequestBodySize;
+            if (route.transforms && route.transforms.length > 0) yarpRoute.Transforms = route.transforms;
+
+            const preservedPolicyMeta = {};
+            if (route.metadata && Object.keys(route.metadata).length > 0) {
+                const meta = {};
+                Object.keys(route.metadata).forEach(function(key) {
+                    if (options.stripPolicyMeta && self._isPolicyMetaKey(key)) {
+                        preservedPolicyMeta[key] = route.metadata[key];
+                    } else {
+                        meta[key] = route.metadata[key];
+                    }
+                });
+                if (Object.keys(meta).length > 0) yarpRoute.Metadata = meta;
+            }
+
+            return { yarpRoute: yarpRoute, preservedPolicyMeta: preservedPolicyMeta };
+        },
+
         copyRouteJson: function(routeId) {
             const routes = window.DashboardState.get('data.routes') || [];
             const route = routes.find(function(r) { return r.routeId === routeId; });
             if (!route) return;
 
-            const yarpRoute = {
-                "ClusterId": route.clusterId || "",
-                "Order": route.order || 50,
-                "Match": {
-                    "Path": route.match?.path || ""
-                }
-            };
-            const methods = route.match?.methods || [];
-            if (methods.length > 0) yarpRoute.Match.Methods = methods;
-            const hosts = route.match?.hosts || [];
-            if (hosts.length > 0) yarpRoute.Match.Hosts = hosts;
-            if (route.match?.headers && route.match?.headers.length > 0) yarpRoute.Match.Headers = route.match.headers;
-            if (route.transforms && route.transforms.length > 0) yarpRoute.Transforms = route.transforms;
-            if (route.authorizationPolicy) yarpRoute.AuthorizationPolicy = route.authorizationPolicy;
-            if (route.corsPolicy) yarpRoute.CorsPolicy = route.corsPolicy;
-            if (route.timeout) yarpRoute.Timeout = route.timeout;
-            if (route.timeoutPolicy) yarpRoute.TimeoutPolicy = route.timeoutPolicy;
-            if (route.rateLimiterPolicy) yarpRoute.RateLimiterPolicy = route.rateLimiterPolicy;
-            if (route.metadata && Object.keys(route.metadata).length > 0) {
-                const cleanMeta = Object.fromEntries(
-                    Object.entries(route.metadata).filter(([key]) =>
-                        !key.startsWith('Retry:') && !key.startsWith('RateLimit:') && !key.startsWith('CircuitBreaker:') && !key.startsWith('Waf:') && !key.startsWith('Policy:')
-                    )
-                );
-                if (Object.keys(cleanMeta).length > 0) {
-                    yarpRoute.Metadata = cleanMeta;
-                }
-            }
-
-            const json = JSON.stringify(yarpRoute, null, 2);
+            const built = this.buildYarpRoute(route, { stripPolicyMeta: true });
+            const json = JSON.stringify(built.yarpRoute, null, 2);
             window.DashboardUtils.copyToClipboard(json).then(function(success) {
                 if (success) window.DashboardModals.showSuccess(__('index.copied'));
             });
@@ -1817,72 +1869,12 @@
                 return;
             }
 
-            // Build YARP format route config for JSON editor
-            const yarpRoute = {
-                "ClusterId": route.clusterId || "",
-                "Order": route.order || 50,
-                "Match": {
-                    "Path": route.match?.path || route.path || ""
-                }
-            }; 
-        
-            // Add methods if exists
-            const methods = route.match?.methods || route.methods || [];
-            if (methods && methods.length > 0) {
-                yarpRoute.Match.Methods = methods;
-            }
-        
-            // Add hosts if exists
-            const hosts = route.match?.hosts || [];
-            if (hosts && hosts.length > 0) {
-                yarpRoute.Match.Hosts = hosts;
-            }
-        
-            // Add headers if exists
-            if (route.match?.headers && Object.keys(route.match.headers).length > 0) {
-                yarpRoute.Match.Headers = route.match.headers;
-            }
-        
-            // Add transforms if exists
-            if (route.transforms && route.transforms.length > 0) {
-                yarpRoute.Transforms = route.transforms;
-            }
-        
-            // Add authorization policy if exists
-            if (route.authorizationPolicy) {
-                yarpRoute.AuthorizationPolicy = route.authorizationPolicy;
-            }
-        
-            // Add CORS policy if exists
-            if (route.corsPolicy) {
-                yarpRoute.CorsPolicy = route.corsPolicy;
-            }
-        
-            // Add timeout if exists
-            if (route.timeout) {
-                yarpRoute.Timeout = route.timeout;
-            }
-        
-            // Add timeout policy if exists
-            if (route.timeoutPolicy) {
-                yarpRoute.TimeoutPolicy = route.timeoutPolicy;
-            }
-        
-            // Add metadata - strip policy-related keys (managed via "Manage Policy" button)
-            yarpRoute.Metadata = {};
-            const _preservedPolicyMeta = {};
-            if (route.metadata && Object.keys(route.metadata).length > 0) {
-                Object.keys(route.metadata).forEach(function(key) {
-                    if (key.startsWith('RateLimit:') || key.startsWith('Policy:') || key.startsWith('Retry:') || key.startsWith('Waf:') || key.startsWith('CircuitBreaker:')) {
-                        _preservedPolicyMeta[key] = route.metadata[key];
-                    } else {
-                        yarpRoute.Metadata[key] = route.metadata[key];
-                    }
-                });
-            }
-            // Remove empty Metadata section
-            if (Object.keys(yarpRoute.Metadata).length === 0) delete yarpRoute.Metadata;
-        
+            // Build the full native YARP route config for the JSON editor, exposing every
+            // supported property and keeping policy-managed metadata out of the raw editor.
+            const built = this.buildYarpRoute(route, { stripPolicyMeta: true });
+            const yarpRoute = built.yarpRoute;
+            const _preservedPolicyMeta = built.preservedPolicyMeta;
+
             window.DashboardModals.showJsonModal({
                 title: __('modal.editRoute'),
                 data: yarpRoute,
@@ -1893,7 +1885,8 @@
                     label: 'Route ID',
                     value: routeId,
                     original: routeId,
-                    placeholder: __('modal.routeIdPlaceholder')
+                    placeholder: __('modal.routeIdPlaceholder'),
+                    readOnly: true
                 },
                 onSave: function(parsedData, newId) {
                     // Validate route config

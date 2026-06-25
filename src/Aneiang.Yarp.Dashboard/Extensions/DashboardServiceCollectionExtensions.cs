@@ -115,12 +115,16 @@ public static class DashboardServiceCollectionExtensions
                 wafo.DashboardRoutePrefix = "apigateway";
         });
 
-        // Register MVC controllers from this assembly with JSON camelCase naming policy
+        // Register MVC controllers from this assembly with JSON camelCase naming policy.
+        // Comments and trailing commas are tolerated so route/cluster editors and config import
+        // accept relaxed JSON (matching docs/yarp_all.json style).
         services.AddMvcCore()
             .AddApplicationPart(typeof(DashboardController).Assembly)
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+                options.JsonSerializerOptions.ReadCommentHandling = System.Text.Json.JsonCommentHandling.Skip;
+                options.JsonSerializerOptions.AllowTrailingCommas = true;
             });
 
         // Unified caching: single IMemoryCache instance shared by all query services.

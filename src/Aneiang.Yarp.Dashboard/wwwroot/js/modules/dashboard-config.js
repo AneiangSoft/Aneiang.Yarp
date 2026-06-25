@@ -12,8 +12,11 @@
 
             const response = await window.DashboardApi.endpoints.exportConfig();
 
+            // Write only the YARP config body (PascalCase, matching docs/yarp_all.json),
+            // not the API envelope.
+            const configBody = (response && response.data) ? response.data : response;
             const blob = new Blob(
-                [JSON.stringify(response, null, 2)],
+                [JSON.stringify(configBody, null, 2)],
                 { type: 'application/json' }
             );
             const url = URL.createObjectURL(blob);
@@ -157,10 +160,13 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
-                    importData = JSON.parse(e.target.result);
+                    importData = window.DashboardUtils.parseJsonLenient(e.target.result);
 
-                    // Validate structure
-                    if (!importData.ReverseProxy || !importData.ReverseProxy.Routes || !importData.ReverseProxy.Clusters) {
+                    // Validate structure (accept both PascalCase and camelCase)
+                    const rp = importData.ReverseProxy || importData.reverseProxy;
+                    const routes = rp && (rp.Routes || rp.routes);
+                    const clusters = rp && (rp.Clusters || rp.clusters);
+                    if (!rp || !routes || !clusters) {
                         errors.style.display = 'block';
                         errors.querySelector('.alert').textContent = __('config.importInvalid');
                         importBtn.disabled = true;

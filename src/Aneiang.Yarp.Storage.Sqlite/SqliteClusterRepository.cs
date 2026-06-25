@@ -164,11 +164,11 @@ public sealed class SqliteClusterRepository : IClusterRepository
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
         cmd.CommandText = """
-            INSERT INTO yarp_clusters (cluster_uid, cluster_id, load_balancing_policy, health_check_config, circuit_breaker_config, source, created_by, created_at, updated_at, last_heartbeat)
-            VALUES (@uid, @id, @lb, @hc, @cbc, @src, @cb, @ca, @ua, @lh)
+            INSERT INTO yarp_clusters (cluster_uid, cluster_id, load_balancing_policy, health_check_config, circuit_breaker_config, source, created_by, created_at, updated_at, last_heartbeat, config_json)
+            VALUES (@uid, @id, @lb, @hc, @cbc, @src, @cb, @ca, @ua, @lh, @cfg)
             ON CONFLICT(cluster_id) DO UPDATE SET
                 cluster_uid = @uid, load_balancing_policy = @lb, health_check_config = @hc, circuit_breaker_config = @cbc,
-                source = @src, updated_at = @ua, last_heartbeat = @lh
+                source = @src, updated_at = @ua, last_heartbeat = @lh, config_json = @cfg
             """;
         cmd.Parameters.AddWithValue("@uid", uid);
         cmd.Parameters.AddWithValue("@id", c.ClusterId);
@@ -180,6 +180,7 @@ public sealed class SqliteClusterRepository : IClusterRepository
         cmd.Parameters.AddWithValue("@ca", c.CreatedAt.ToString("O"));
         cmd.Parameters.AddWithValue("@ua", c.UpdatedAt.ToString("O"));
         cmd.Parameters.AddWithValue("@lh", c.LastHeartbeat?.ToString("O") ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@cfg", c.ConfigJson ?? (object)DBNull.Value);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
@@ -194,7 +195,8 @@ public sealed class SqliteClusterRepository : IClusterRepository
         CreatedBy = ReadString(r, "created_by"),
         CreatedAt = ReadDateTime(r, "created_at") ?? DateTime.MinValue,
         UpdatedAt = ReadDateTime(r, "updated_at") ?? DateTime.MinValue,
-        LastHeartbeat = ReadDateTime(r, "last_heartbeat")
+        LastHeartbeat = ReadDateTime(r, "last_heartbeat"),
+        ConfigJson = ReadString(r, "config_json")
     };
 
     private static string? ReadString(SqliteDataReader r, string name)

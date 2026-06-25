@@ -28,7 +28,8 @@ public static class ConfigEntityMapper
         CreatedBy = route.CreatedBy,
         CreatedAt = route.CreatedAt,
         UpdatedAt = DateTime.UtcNow,
-        Metadata = route.Metadata is { Count: > 0 } ? JsonSerializer.Serialize(route.Metadata, _jsonOptions) : null
+        Metadata = route.Metadata is { Count: > 0 } ? JsonSerializer.Serialize(route.Metadata, _jsonOptions) : null,
+        ConfigJson = route.ConfigJson
     };
 
     public static DynamicRouteConfig ToRouteConfig(this RouteEntity entity) => new()
@@ -43,7 +44,8 @@ public static class ConfigEntityMapper
         Source = entity.Source,
         CreatedBy = entity.CreatedBy,
         CreatedAt = entity.CreatedAt,
-        Metadata = string.IsNullOrEmpty(entity.Metadata) ? new() : JsonSerializer.Deserialize<Dictionary<string, string>>(entity.Metadata, _jsonOptions) ?? new()
+        Metadata = string.IsNullOrEmpty(entity.Metadata) ? new() : JsonSerializer.Deserialize<Dictionary<string, string>>(entity.Metadata, _jsonOptions) ?? new(),
+        ConfigJson = entity.ConfigJson
     };
 
     public static List<DynamicRouteConfig> ToRouteConfigs(this IEnumerable<RouteEntity> entities)
@@ -62,7 +64,8 @@ public static class ConfigEntityMapper
         CreatedBy = cluster.CreatedBy,
         CreatedAt = cluster.CreatedAt,
         UpdatedAt = DateTime.UtcNow,
-        LastHeartbeat = cluster.LastHeartbeat
+        LastHeartbeat = cluster.LastHeartbeat,
+        ConfigJson = cluster.ConfigJson
     };
 
     public static DynamicClusterConfig ToClusterConfig(this ClusterEntity entity) => new()
@@ -76,7 +79,8 @@ public static class ConfigEntityMapper
         CreatedBy = entity.CreatedBy,
         CreatedAt = entity.CreatedAt,
         LastHeartbeat = entity.LastHeartbeat,
-        Destinations = new Dictionary<string, string>()
+        Destinations = new Dictionary<string, string>(),
+        ConfigJson = entity.ConfigJson
     };
 
     public static List<DynamicClusterConfig> ToClusterConfigs(this IEnumerable<ClusterEntity> entities)

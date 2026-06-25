@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Controllers;
 
@@ -171,7 +172,8 @@ public class ConfigManagementController : ControllerBase
     }
 
     /// <summary>
-    /// Save or update a single cluster.
+    /// Save or update a single cluster from a full native YARP cluster config.
+    /// Accepts both camelCase and PascalCase keys, plus JSON comments and trailing commas.
     /// </summary>
     [HttpPut("clusters/{clusterId}")]
     public async Task<IActionResult> SaveCluster(string clusterId, [FromBody] JsonElement config)
@@ -180,85 +182,27 @@ public class ConfigManagementController : ControllerBase
         {
             _logger.LogInformation("Save cluster requested: {ClusterId}", clusterId);
 
-            // Parse destinations from config
-            Dictionary<string, string> destinations = new();
-            string? loadBalancingPolicy = null;
-            HealthCheckConfig? healthCheck = null;
-
-            if (config.TryGetProperty("destinations", out var destsProp))
+            ClusterConfig? cluster;
+            try
             {
-                // Handle both object format {"d1": "http://..."} and array format [{"name":...,"address":...}]
-                // Also handle YARP standard format with PascalCase "Address"
-                if (destsProp.ValueKind == JsonValueKind.Object)
-                {
-                    foreach (var dest in destsProp.EnumerateObject())
-                    {
-                        var address = dest.Value.ValueKind == JsonValueKind.String
-                            ? dest.Value.GetString() ?? string.Empty
-                            : dest.Value.TryGetProperty("address", out var addrProp)
-                                ? addrProp.GetString() ?? string.Empty
-                                : dest.Value.TryGetProperty("Address", out var addrPascalProp)  // YARP standard format
-                                    ? addrPascalProp.GetString() ?? string.Empty
-                                    : string.Empty;
-                        if (!string.IsNullOrEmpty(address))
-                        {
-                            destinations[dest.Name] = address;
-                        }
-                    }
-                }
-                else if (destsProp.ValueKind == JsonValueKind.Array)
-                {
-                    var idx = 0;
-                    foreach (var dest in destsProp.EnumerateArray())
-                    {
-                        var name = dest.TryGetProperty("name", out var nameProp)
-                            ? nameProp.GetString() ?? $"d{idx}"
-                            : $"d{idx}";
-                        var address = dest.TryGetProperty("address", out var addrProp)
-                            ? addrProp.GetString() ?? string.Empty
-                            : string.Empty;
-                        destinations[name] = address;
-                        idx++;
-                    }
-                }
+                cluster = Aneiang.Yarp.Serialization.YarpJsonConfig.DeserializeCluster(config);
+            }
+            catch (Exception parseEx)
+            {
+                return BadRequest(new { code = 400, message = "Invalid cluster configuration: " + parseEx.Message });
             }
 
-            if (destinations.Count == 0)
-            {
+            if (cluster == null)
+                return BadRequest(new { code = 400, message = "Cluster configuration is required" });
+
+            cluster = cluster with { ClusterId = clusterId };
+
+            if (cluster.Destinations == null || cluster.Destinations.Count == 0)
                 return BadRequest(new { code = 400, message = "At least one destination is required" });
-            }
-
-            // Parse load balancing policy
-            if (config.TryGetProperty("loadBalancingPolicy", out var lbProp))
-            {
-                loadBalancingPolicy = lbProp.GetString();
-            }
-
-            // Parse health check config
-            if (config.TryGetProperty("healthCheck", out var hcProp))
-            {
-                healthCheck = new HealthCheckConfig();
-                if (hcProp.TryGetProperty("active", out var activeProp))
-                {
-                    healthCheck.Active = activeProp.GetBoolean();
-                }
-                if (hcProp.TryGetProperty("endpoint", out var endpointProp))
-                {
-                    healthCheck.Endpoint = endpointProp.GetString();
-                }
-                if (hcProp.TryGetProperty("interval", out var intervalProp))
-                {
-                    healthCheck.Interval = TimeSpan.Parse(intervalProp.GetString() ?? "15s");
-                }
-                if (hcProp.TryGetProperty("timeout", out var timeoutProp))
-                {
-                    healthCheck.Timeout = TimeSpan.Parse(timeoutProp.GetString() ?? "10s");
-                }
-            }
 
             _snapshotScheduler.QueueSnapshot($"After cluster '{clusterId}' saved via dashboard", GetClientIp());
 
-            var result = await _dynamicConfig.TryAddCluster(clusterId, destinations, loadBalancingPolicy, healthCheck, "dashboard", "dashboard-user");
+            var result = await _dynamicConfig.TryAddClusterConfig(cluster, "dashboard", "dashboard-user");
 
             if (result.Success) InvalidateQueryCaches();
             return result.Success
@@ -445,7 +389,10 @@ public class ConfigManagementController : ControllerBase
     }
 
     /// <summary>
-    /// Save or update a single route.
+    /// Save or update a single route from a full native YARP route config.
+    /// Accepts both camelCase and PascalCase keys, plus JSON comments and trailing commas.
+    /// All advanced properties (full Match criteria, Auth/Cors/RateLimiter/Timeout policies,
+    /// transforms, metadata) are preserved.
     /// </summary>
     [HttpPut("routes/{routeId}")]
     public async Task<IActionResult> SaveRoute(string routeId, [FromBody] JsonElement config)
@@ -454,108 +401,32 @@ public class ConfigManagementController : ControllerBase
         {
             _logger.LogInformation("Save route requested: {RouteId}", routeId);
 
-            // Parse required fields - support both camelCase and PascalCase (YARP standard)
-            string clusterId = string.Empty;
-            if (config.TryGetProperty("clusterId", out var clusterIdProp))
+            RouteConfig? route;
+            try
             {
-                clusterId = clusterIdProp.GetString() ?? string.Empty;
+                route = Aneiang.Yarp.Serialization.YarpJsonConfig.DeserializeRoute(config);
             }
-            else if (config.TryGetProperty("ClusterId", out var clusterIdPascalProp))  // YARP standard format
+            catch (Exception parseEx)
             {
-                clusterId = clusterIdPascalProp.GetString() ?? string.Empty;
-            }
-            else
-            {
-                return BadRequest(new { code = 400, message = "clusterId/ClusterId is required" });
+                return BadRequest(new { code = 400, message = "Invalid route configuration: " + parseEx.Message });
             }
 
-            // Get matchPath - support multiple formats
-            string matchPath = string.Empty;
-            // Format 1: direct matchPath (camelCase)
-            if (config.TryGetProperty("matchPath", out var matchPathProp) && matchPathProp.ValueKind != JsonValueKind.Undefined)
-            {
-                matchPath = matchPathProp.GetString() ?? string.Empty;
-            }
-            // Format 2: nested match.path (YARP standard)
-            else if (config.TryGetProperty("Match", out var matchPascalProp) && matchPascalProp.TryGetProperty("Path", out var pathPascalProp))
-            {
-                matchPath = pathPascalProp.GetString() ?? string.Empty;
-            }
-            // Format 3: nested match.path (camelCase)
-            else if (config.TryGetProperty("match", out var matchProp) && matchProp.TryGetProperty("path", out var pathProp))
-            {
-                matchPath = pathProp.GetString() ?? string.Empty;
-            }
-            else
-            {
-                return BadRequest(new { code = 400, message = "Match.Path is required" });
-            }
+            if (route == null)
+                return BadRequest(new { code = 400, message = "Route configuration is required" });
 
-            // Check if cluster exists
-            var existingCluster = _dynamicConfig.GetCluster(clusterId);
-            string destinationAddress = string.Empty;
-            
-            if (existingCluster == null)
-            {
-                // Cluster doesn't exist - need to provide a default destination address
-                // Try to get from config if provided
-                if (config.TryGetProperty("destinations", out var destsProp) || config.TryGetProperty("Destinations", out destsProp))
-                {
-                    if (destsProp.ValueKind == JsonValueKind.Object)
-                    {
-                        var firstDest = destsProp.EnumerateObject().FirstOrDefault();
-                        if (firstDest.Value.ValueKind == JsonValueKind.String)
-                        {
-                            destinationAddress = firstDest.Value.GetString() ?? string.Empty;
-                        }
-                        else if (firstDest.Value.TryGetProperty("address", out var addrProp))
-                        {
-                            destinationAddress = addrProp.GetString() ?? string.Empty;
-                        }
-                        else if (firstDest.Value.TryGetProperty("Address", out var addrPascalProp))
-                        {
-                            destinationAddress = addrPascalProp.GetString() ?? string.Empty;
-                        }
-                    }
-                }
-                
-                if (string.IsNullOrEmpty(destinationAddress))
-                {
-                    return BadRequest(new { code = 400, message = $"Cluster '{clusterId}' doesn't exist. 'destinations' is required to create a new cluster." });
-                }
-            }
-            // else: Cluster exists - destinationAddress will be ignored, no need to validate
+            route = route with { RouteId = routeId };
 
-            // Get order - support both camelCase and PascalCase
-            int? order = null;
-            if (config.TryGetProperty("order", out var orderProp) || config.TryGetProperty("Order", out orderProp))
-            {
-                order = orderProp.GetInt32();
-            }
+            if (string.IsNullOrWhiteSpace(route.ClusterId))
+                return BadRequest(new { code = 400, message = "ClusterId is required" });
 
-            // Get transforms - support both camelCase and PascalCase
-            List<Dictionary<string, string>>? transforms = null;
-            JsonElement transformsProp;
-            if (config.TryGetProperty("transforms", out transformsProp) || config.TryGetProperty("Transforms", out transformsProp))
-            {
-                transforms = transformsProp.Deserialize<List<Dictionary<string, string>>>();
-            }
+            if (route.Match == null || (string.IsNullOrWhiteSpace(route.Match.Path) && (route.Match.Hosts == null || route.Match.Hosts.Count == 0)))
+                return BadRequest(new { code = 400, message = "Match.Path or Match.Hosts is required" });
 
-            // Create request
-            // Note: DestinationAddress is only used when creating a new cluster
-            var request = new RegisterRouteRequest
-            {
-                RouteName = routeId,
-                ClusterName = clusterId,
-                MatchPath = matchPath,
-                DestinationAddress = destinationAddress,
-                Order = order,
-                Transforms = transforms
-            };
+            await EnsureClusterForRouteAsync(route.ClusterId!, config);
 
             await SnapshotLowRiskMutationAsync($"After route '{routeId}' saved via dashboard");
 
-            var result = await _dynamicConfig.TryAddRoute(request, "dashboard", "dashboard-user");
+            var result = await _dynamicConfig.TryAddRouteConfig(route, "dashboard", "dashboard-user");
 
             if (result.Success) InvalidateQueryCaches();
             return result.Success
@@ -567,6 +438,38 @@ public class ConfigManagementController : ControllerBase
             _logger.LogError(ex, "Failed to save route: {RouteId}", routeId);
             return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Save failed", ex) });
         }
+    }
+
+    /// <summary>
+    /// Ensures the cluster referenced by a route exists. If it does not and the payload carries
+    /// a "destinations" object, the cluster is created from those destinations.
+    /// </summary>
+    private async Task EnsureClusterForRouteAsync(string clusterId, JsonElement config)
+    {
+        if (_dynamicConfig.GetCluster(clusterId) != null)
+            return;
+
+        if (!(config.TryGetProperty("destinations", out var destsProp) || config.TryGetProperty("Destinations", out destsProp)))
+            return;
+        if (destsProp.ValueKind != JsonValueKind.Object)
+            return;
+
+        var destinations = new Dictionary<string, string>();
+        foreach (var dest in destsProp.EnumerateObject())
+        {
+            var address = dest.Value.ValueKind == JsonValueKind.String
+                ? dest.Value.GetString() ?? string.Empty
+                : dest.Value.TryGetProperty("address", out var addrProp)
+                    ? addrProp.GetString() ?? string.Empty
+                    : dest.Value.TryGetProperty("Address", out var addrPascalProp)
+                        ? addrPascalProp.GetString() ?? string.Empty
+                        : string.Empty;
+            if (!string.IsNullOrEmpty(address))
+                destinations[dest.Name] = address;
+        }
+
+        if (destinations.Count > 0)
+            await _dynamicConfig.TryAddCluster(clusterId, destinations, null, null, "dashboard", "dashboard-user");
     }
 
     /// <summary>

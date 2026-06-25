@@ -740,6 +740,14 @@
                 detailHtml.push('</div>');
             }
 
+            // HTTP Request - structured display
+            if (cluster.httpRequest) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-arrow-up-right-circle"></i>HttpRequest</div>`);
+                detailHtml.push(this.renderStructuredConfig(cluster.httpRequest, 'httpRequest'));
+                detailHtml.push('</div>');
+            }
+
             // Metadata - structured key-value display (excluding policy configs which are managed via "Manage Policy")
             const nonPolicyClusterMeta = cluster.metadata ? Object.fromEntries(
                 Object.entries(cluster.metadata).filter(([key]) =>
@@ -864,32 +872,110 @@
             return html.join('');
         },
 
+        // Policy-managed metadata key prefixes, edited via the "Manage Policy" UI rather than raw JSON.
+        _policyMetaPrefixes: ['CircuitBreaker:', 'Policy:', 'RateLimit:', 'Waf:', 'Retry:'],
+
+        _isPolicyMetaKey: function(key) {
+            return this._policyMetaPrefixes.some(function(p) { return key.indexOf(p) === 0; });
+        },
+
+        // Builds a complete native YARP cluster object (PascalCase) from a cluster response,
+        // preserving every supported property (per-destination Health/Host/Metadata, SessionAffinity,
+        // HealthCheck, HttpClient, HttpRequest, cluster Metadata) so the JSON editor exposes the full schema.
+        buildYarpCluster: function(cluster, options) {
+            options = options || {};
+            const self = this;
+            const yarpCluster = { "Destinations": {} };
+
+            const addDestination = function(name, address, extra) {
+                const dest = { "Address": address };
+                if (extra) {
+                    if (extra.health) dest.Health = extra.health;
+                    if (extra.host) dest.Host = extra.host;
+                    if (extra.metadata && Object.keys(extra.metadata).length > 0) dest.Metadata = extra.metadata;
+                }
+                yarpCluster.Destinations[name || 'destination'] = dest;
+            };
+
+            if (Array.isArray(cluster.destinations)) {
+                cluster.destinations.forEach(function(dest) {
+                    addDestination(dest.name, dest.address, dest);
+                });
+            } else if (cluster.destinations && typeof cluster.destinations === 'object') {
+                Object.keys(cluster.destinations).forEach(function(name) {
+                    const dest = cluster.destinations[name];
+                    if (typeof dest === 'string') addDestination(name, dest);
+                    else addDestination(name, dest.Address || dest.address, dest);
+                });
+            }
+
+            if (cluster.loadBalancingPolicy) yarpCluster.LoadBalancingPolicy = cluster.loadBalancingPolicy;
+            if (cluster.sessionAffinity) yarpCluster.SessionAffinity = self._camelToPascal(self._cleanObject(cluster.sessionAffinity));
+            if (cluster.healthCheck) yarpCluster.HealthCheck = self._camelToPascal(self._cleanObject(cluster.healthCheck));
+            if (cluster.httpClient) yarpCluster.HttpClient = self._camelToPascal(self._cleanObject(cluster.httpClient));
+            if (cluster.httpRequest) yarpCluster.HttpRequest = self._camelToPascal(self._cleanObject(cluster.httpRequest));
+
+            const preservedPolicyMeta = {};
+            if (cluster.metadata && Object.keys(cluster.metadata).length > 0) {
+                const meta = {};
+                Object.keys(cluster.metadata).forEach(function(key) {
+                    if (options.stripPolicyMeta && self._isPolicyMetaKey(key)) {
+                        preservedPolicyMeta[key] = cluster.metadata[key];
+                    } else {
+                        meta[key] = cluster.metadata[key];
+                    }
+                });
+                if (Object.keys(meta).length > 0) yarpCluster.Metadata = meta;
+            }
+
+            return { yarpCluster: yarpCluster, preservedPolicyMeta: preservedPolicyMeta };
+        },
+
+        // Recursively removes null/undefined/empty values so the editor template stays clean.
+        _cleanObject: function(obj) {
+            if (obj === null || obj === undefined) return undefined;
+            if (Array.isArray(obj)) {
+                const arr = obj.map(this._cleanObject, this).filter(function(v) { return v !== undefined; });
+                return arr.length > 0 ? arr : undefined;
+            }
+            if (typeof obj === 'object') {
+                const out = {};
+                Object.keys(obj).forEach(function(key) {
+                    const cleaned = this._cleanObject(obj[key]);
+                    if (cleaned !== undefined && cleaned !== '') out[key] = cleaned;
+                }, this);
+                return Object.keys(out).length > 0 ? out : undefined;
+            }
+            return obj;
+        },
+
+        // Recursively converts object keys from camelCase to PascalCase, matching the
+        // canonical YARP appsettings style. Keys already starting with uppercase are left
+        // unchanged. This is needed because the dashboard API response uses camelCase
+        // (via DashboardJsonContext) while the JSON editor expects PascalCase (yarp_all.json).
+        _camelToPascal: function(obj) {
+            if (obj === null || obj === undefined) return obj;
+            if (Array.isArray(obj)) {
+                return obj.map(this._camelToPascal, this);
+            }
+            if (typeof obj === 'object') {
+                const out = {};
+                Object.keys(obj).forEach(function(key) {
+                    const pascalKey = key.charAt(0).toUpperCase() + key.slice(1);
+                    out[pascalKey] = this._camelToPascal(obj[key]);
+                }, this);
+                return out;
+            }
+            return obj;
+        },
+
         copyClusterJson: function(clusterId) {
             const clusters = window.DashboardState.get('data.clusters') || [];
             const cluster = clusters.find(function(c) { return c.clusterId === clusterId; });
             if (!cluster) return;
 
-            // Build YARP-format JSON
-            const yarpCluster = {
-                "Destinations": {},
-                "LoadBalancingPolicy": cluster.loadBalancingPolicy || "RoundRobin"
-            };
-            (cluster.destinations || []).forEach(function(dest) {
-                yarpCluster.Destinations[dest.name || 'destination'] = { "Address": dest.address };
-            });
-            if (cluster.healthCheck) yarpCluster.HealthCheck = cluster.healthCheck;
-            if (cluster.httpClient) yarpCluster.HttpClient = cluster.httpClient;
-            if (cluster.sessionAffinity) yarpCluster.SessionAffinity = cluster.sessionAffinity;
-            if (cluster.metadata && Object.keys(cluster.metadata).length > 0) {
-                const cleanMeta = Object.fromEntries(
-                    Object.entries(cluster.metadata).filter(([key]) =>
-                        !key.startsWith('CircuitBreaker:') && !key.startsWith('Policy:') && !key.startsWith('RateLimit:') && !key.startsWith('Waf:') && !key.startsWith('Retry:')
-                    )
-                );
-                if (Object.keys(cleanMeta).length > 0) yarpCluster.Metadata = cleanMeta;
-            }
-
-            const json = JSON.stringify(yarpCluster, null, 2);
+            const built = this.buildYarpCluster(cluster, { stripPolicyMeta: true });
+            const json = JSON.stringify(built.yarpCluster, null, 2);
             window.DashboardUtils.copyToClipboard(json).then(function(success) {
                 if (success) window.DashboardModals.showSuccess(__('index.copied'));
             });
@@ -1221,52 +1307,11 @@
                 return;
             }
 
-            // Build YARP format cluster config for JSON editor
-            const yarpCluster = {
-                "Destinations": {},
-                "LoadBalancingPolicy": cluster.loadBalancingPolicy || "RoundRobin"
-            }; 
-
-            // Convert destinations from API format to YARP format
-            if (cluster.destinations && Array.isArray(cluster.destinations)) {
-                cluster.destinations.forEach(function(dest) {
-                    yarpCluster.Destinations[dest.name || 'destination'] = {
-                        "Address": dest.address
-                    }; 
-                });
-            } else if (cluster.destinations && typeof cluster.destinations === 'object') {
-                // Already in object format
-                for (const destName in cluster.destinations) {
-                    const dest = cluster.destinations[destName];
-                    yarpCluster.Destinations[destName] = {
-                        "Address": typeof dest === 'string' ? dest : (dest.Address || dest.address)
-                    }; 
-                }
-            }
-
-            // Add health check if exists
-            if (cluster.healthCheck) {
-                yarpCluster.HealthCheck = cluster.healthCheck;
-            }
-
-            // Add HTTP client config if exists
-            if (cluster.httpClient) {
-                yarpCluster.HttpClient = cluster.httpClient;
-            }
-
-            // Add metadata - strip policy-related keys (managed via "Manage Policy" button)
-            const _preservedClusterPolicyMeta = {};
-            if (cluster.metadata && Object.keys(cluster.metadata).length > 0) {
-                const cleanMeta = {};
-                Object.keys(cluster.metadata).forEach(function(key) {
-                    if (key.startsWith('CircuitBreaker:') || key.startsWith('Policy:') || key.startsWith('RateLimit:') || key.startsWith('Waf:') || key.startsWith('Retry:')) {
-                        _preservedClusterPolicyMeta[key] = cluster.metadata[key];
-                    } else {
-                        cleanMeta[key] = cluster.metadata[key];
-                    }
-                });
-                if (Object.keys(cleanMeta).length > 0) yarpCluster.Metadata = cleanMeta;
-            }
+            // Build the full native YARP cluster config for the JSON editor, exposing every
+            // supported property and keeping policy-managed metadata out of the raw editor.
+            const built = this.buildYarpCluster(cluster, { stripPolicyMeta: true });
+            const yarpCluster = built.yarpCluster;
+            const _preservedClusterPolicyMeta = built.preservedPolicyMeta;
 
             window.DashboardModals.showJsonModal({
                 title: __('modal.editCluster'),

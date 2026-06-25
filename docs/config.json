@@ -1,0 +1,822 @@
+{
+  "ReverseProxy": {
+    "Routes": {
+      /*手机端前端路由*/
+      "route_mobile": {
+        "ClusterId": "cluster_app",
+        "Match": {
+          "Path": "/app/{**remainder}"
+        },
+        "Transforms": [
+            {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      /*财务路由*/
+      "route_hrp30": {
+        "ClusterId": "cluster_hrp30",
+        "Match": {
+          "Path": "/api/hrp30/{**remainder}"
+        },
+        "Transforms": [
+            {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      /*发票路由*/
+      "route_Invoice": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/Invoice/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      /*文件路由*/
+      "route_file": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/API/File/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      /*文件路由*/
+      "route_filePreviewCache": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/filePreviewCache/{**remainder}",
+          "IsCaseSensitive": true
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      /*报表路由*/
+      "route_report": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/API/RptForm/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      /*Excel路由*/
+      "route_excelexport": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/API/ExcExportForm/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      /*Excel路由*/
+      "route_excelimport": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/API/ExcImportForm/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      }, 
+      /*Excel导出路由*/
+      "route_excelexport2": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/CllWorktypeForm/ExportExcel/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      }, 
+      /*hrp23upload路由*/
+      "route_hrp23upload2": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/hrp23/Common/UploadFiles2/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      "route_hrp23upload3": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/hrp23/Common/UploadFiles3/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      "route_hrp23download": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/hrp23/Common/Download/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      "route_hrp23download2": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/hrp23/Contract/DraftComplete/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+		"route_hrp23download3": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/hrp23/Common/WordToPdf/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      //从泛微拿了文件  然后保存
+      "route_hrp23download4": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/hrp23/Contract/ContractClaim/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      "route_hrp23download5": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/hrp23/Contract/FlowSheetArchiving/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      "route_hrp23download6": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/hrp23/Contract/SaveDraft/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      // 手机端扫码上传
+      "route_app_QRUploadFilesTask": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/Anonymous/QRUploadFilesTask/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      "route_app_QRCreate": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/Anonymous/QRCreate/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      "route_app_QRGetTask": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/Anonymous/QRGetTask/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      // 手机端扫码上传
+      "route_app_QRDeleteFile": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/Anonymous/QRDeleteFile/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+       // 手机端扫码上传3
+      "route_app_QRDownloadFile": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/Anonymous/QRDownloadFile/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      // 发票上传
+      "route_app_MyTicketUploadFiles": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/Invoice/MyTicketUploadFiles/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      // 发票上传
+      "route_app_AnonymousMyTicketUploadFiles": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/Invoice/AnonymousMyTicketUploadFiles/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      //专项上传
+      "route_HRP28_V2_SubItemAnnexesSaveEntity": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/HRP28_V2/SubItemAnnexes/SaveEntity/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      //费控
+      "route_HRP24Get_HRP23_Files": {
+        "ClusterId": "cluster_file",
+        "Match": {
+          "Path": "/api/hrp24/Contract/Get_HRP23_Files/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      //自动任务
+      "route_task": {
+        "ClusterId": "cluster_task",
+        "Match": {
+          "Path": "/api/Tasks/{**remainder}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      },
+      /*保底路由 平台、资源文件等*/
+      "route_default": {
+        "ClusterId": "cluster_api",
+        "Match": {
+          "Path": "{**catch-all}"
+        },
+        "Transforms": [
+          {
+            "RequestHeadersCopy": true
+          },
+          {
+            "RequestHeaderOriginalHost": "true"
+          },
+          {
+            "X-Forwarded": "Append",
+            "HeaderPrefix": "X-Forwarded-"
+          },
+          {
+            "ResponseHeaderRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          },
+          {
+            "ResponseTrailerRemove": "Server", //隐藏Web服务器信息
+            "When": "Always"
+          }
+        ]
+      }
+    },
+    "Clusters": {
+      "cluster_file": {
+        "Destinations": {
+          "cluster_file/destination1": {
+            "Address": "http://172.30.25.14"
+          }
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:05:00" // 设置为5分钟
+        },
+        "HttpClient": {
+          "DangerousAcceptAnyServerCertificate": "true" //目标如果是HTTPS，则忽略证书错误
+        }
+      }, 
+      "cluster_api": {
+        "Destinations": {
+          "cluster_api/destination1": {
+            "Address": "http://172.30.25.12"
+          }
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:05:00" // 设置为5分钟
+        },
+        "HttpClient": {
+          "DangerousAcceptAnyServerCertificate": "true" //目标如果是HTTPS，则忽略证书错误
+        }
+      },
+      "cluster_hrp30": {
+        "Destinations": {
+          "cluster_hrp30/destination1": {
+            "Address": "http://172.30.25.13"
+          },
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:05:00" // 设置为5分钟
+        },
+        "HttpClient": {
+          "DangerousAcceptAnyServerCertificate": "true" //目标如果是HTTPS，则忽略证书错误
+        }
+      },
+      "cluster_app": {
+        "Destinations": {
+          "cluster_app/destination1": {
+            "Address": "http://172.30.25.12"
+          }
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:05:00" // 设置为5分钟
+        },
+        "HttpClient": {
+          "DangerousAcceptAnyServerCertificate": "true" //目标如果是HTTPS，则忽略证书错误
+        }
+      },
+      "cluster_task": {
+        "Destinations": {
+          "cluster_task/destination1": {
+            "Address": "http://172.30.25.12:884"
+          }
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:05:00" // 设置为5分钟
+        },
+        "HttpClient": {
+          "DangerousAcceptAnyServerCertificate": "true" //目标如果是HTTPS，则忽略证书错误
+        }
+      }
+    }
+  }
+}
