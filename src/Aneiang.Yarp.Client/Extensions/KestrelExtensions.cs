@@ -123,35 +123,31 @@ public static class KestrelExtensions
     }
 
     /// <summary>
-    /// 从 "Kestrel:EndPoints" 配置节读取并配置
+    /// 从 "Kestrel:EndPoints" 配置节读取并配置。
+    /// 当 Kestrel:Endpoints 存在时，Kestrel 原生配置系统已经自动绑定这些端点，
+    /// 此方法只需返回 true 表示"已配置"，不再手动添加 ListenAnyIP（否则会重复绑定导致 address already in use）。
     /// </summary>
     private static bool ConfigureFromKestrelSection(
         IConfiguration configuration,
         KestrelServerOptions options,
         bool forceAnyIP)
     {
+        // Check both "EndPoints" (legacy) and "Endpoints" (standard) — .NET config is case-insensitive
         var kestrelSection = configuration.GetSection("Kestrel:EndPoints");
+        if (!kestrelSection.Exists())
+        {
+            kestrelSection = configuration.GetSection("Kestrel:Endpoints");
+        }
         if (!kestrelSection.Exists())
         {
             return false;
         }
 
-        var configured = false;
-        foreach (var endpoint in kestrelSection.GetChildren())
-        {
-            var url = endpoint["Url"];
-            if (string.IsNullOrEmpty(url))
-            {
-                continue;
-            }
-
-            if (TryParseAndConfigure(url, options, forceAnyIP, configuration))
-            {
-                configured = true;
-            }
-        }
-
-        return configured;
+        // Kestrel natively reads Kestrel:Endpoints from IConfiguration and binds the endpoints.
+        // We must NOT call options.ListenAnyIP() here — that would create duplicate bindings.
+        // Just return true to signal "configured" so that ConfigureFromAllSources doesn't
+        // fall through to Urls/ASPNETCORE_URLS/default ports.
+        return true;
     }
 
     /// <summary>
