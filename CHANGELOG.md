@@ -1,6 +1,34 @@
 # 更新日志
 
 
+## [2.3.0.22] - 2026-06-26
+
+> 原生 YARP 配置完整保留 + 端口重复绑定修复 + 全局加载指示器 + JSON 宽松解析
+
+### 🚀 新增
+
+- **原生 YARP 配置完整保留**：通过 Dashboard 编辑/保存路由和集群时，所有高级属性（SessionAffinity、HttpClient、HttpRequest、完整 Match 条件、Auth/Cors/Timeout 策略等）完整保留，不再丢失
+- **全局加载指示器**：API 请求时显示顶部进度条，加载失败提供重试按钮，离线状态自动检测
+- **JSON 宽松解析**：配置编辑器和导入功能支持 JSON 注释（`//`、`/* */`）和尾逗号，兼容标准 YARP 配置文件风格
+- **路由匹配大小写敏感**：Header / QueryParameter 匹配支持 `IsCaseSensitive` 选项
+
+### 🐛 修复
+
+- **端口重复绑定**：配置 `Kestrel:Endpoints` 时不再报 "address already in use" 错误
+- **集群 HTTP Request 配置丢失**：集群详情中 HttpRequest 配置（ActivityTimeout、Version 等）现在正确显示
+- **配置导入大小写不兼容**：导入配置时 `Routes`/`routes`、`Clusters`/`clusters` 等键名均可识别
+
+### 🎨 优化
+
+- 审计日志页添加加载动画
+- 集群加载失败显示可重试错误提示
+
+### 📝 文档
+
+- README 添加公众号二维码
+- 新增完整 YARP 配置参考示例 `docs/yarp_all.json`
+
+
 ## [2.3.0.21] - 2026-06-24
 
 > 灵活端口与启动模式 + 健康检查 + 配置热更新 + 2FA 两步验证 + 企业化 UI 重构 + 前端性能优化 + 代码清理
