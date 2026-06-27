@@ -364,3 +364,4 @@ FodyWeavers.xsd
 /samples/SampleGateway/gateway-store.db
 website/
 /docs/blog
+/docs/test.json
