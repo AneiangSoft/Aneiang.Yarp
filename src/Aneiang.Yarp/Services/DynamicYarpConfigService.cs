@@ -1821,54 +1821,6 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
         }
     }
 
-    /// <summary>
-    /// Reload static YARP routes/clusters from <see cref="IConfiguration"/>,
-    /// merge with current dynamic overrides, and push to the in-memory provider.
-    /// Called by <c>Aneiang.Yarp.Dashboard.Infrastructure.HostedServices.ConfigurationFileWatcher</c> after appsettings.json hot-reload.
-    /// </summary>
-    public void ReloadStaticConfig(IConfiguration configuration)
-    {
-        _semaphore.Wait();
-        try
-        {
-            var section = configuration.GetSection("ReverseProxy");
-            var staticRoutes = YarpConfigParser.ParseRoutes(section.GetSection("Routes"));
-            var staticClusters = YarpConfigParser.ParseClusters(section.GetSection("Clusters"));
-
-            // Start with new static config
-            var allRoutes = new List<RouteConfig>(staticRoutes);
-            var allClusters = new List<ClusterConfig>(staticClusters);
-
-            // Overlay dynamic routes that are not part of static config
-            EnsureDynamicConfigInitialized();
-            foreach (var dynRoute in _dynamicConfig!.Routes)
-            {
-                if (!allRoutes.Any(r => string.Equals(r.RouteId, dynRoute.RouteId, StringComparison.OrdinalIgnoreCase)))
-                {
-                    allRoutes.Add(BuildRouteConfig(dynRoute));
-                }
-            }
-
-            // Overlay dynamic clusters that are not part of static config
-            foreach (var dynCluster in _dynamicConfig.Clusters)
-            {
-                if (!allClusters.Any(c => string.Equals(c.ClusterId, dynCluster.ClusterId, StringComparison.OrdinalIgnoreCase)))
-                {
-                    allClusters.Add(BuildClusterConfig(dynCluster));
-                }
-            }
-
-            _configProvider.Update(allRoutes, SanitizeClusters(allClusters));
-            _logger.LogInformation(
-                "Static config reloaded: {RouteCount} routes, {ClusterCount} clusters (with dynamic overrides)",
-                allRoutes.Count, allClusters.Count);
-        }
-        finally
-        {
-            _semaphore.Release();
-        }
-    }
-
     public async Task SaveDynamicConfig()
     {
         await _semaphore.WaitAsync();

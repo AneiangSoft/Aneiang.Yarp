@@ -265,7 +265,7 @@ public static class DashboardServiceCollectionExtensions
         services.AddOptions<DeploymentOptions>()
             .BindConfiguration(DeploymentOptions.SectionName);
 
-        services.TryAddSingleton<IConfigSnapshotStore, FileConfigSnapshotStore>();
+
         services.TryAddSingleton<DeploymentRestartState>();
         services.TryAddSingleton<EndpointRoleResolver>(sp =>
         {
@@ -276,7 +276,6 @@ public static class DashboardServiceCollectionExtensions
         });
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, DeploymentConfigValidator>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, Aneiang.Yarp.Dashboard.Infrastructure.HostedServices.ConfigurationFileWatcher>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, Aneiang.Yarp.Dashboard.Infrastructure.HostedServices.KestrelEndpointChangeDetector>());
         return services;
     }

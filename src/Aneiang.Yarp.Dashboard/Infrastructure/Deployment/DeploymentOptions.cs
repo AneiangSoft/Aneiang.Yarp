@@ -51,9 +51,6 @@ public class DeploymentOptions
     /// <summary>Health check configuration.</summary>
     public HealthCheckDeploymentOptions HealthCheck { get; set; } = new();
 
-    /// <summary>Configuration file hot-reload configuration.</summary>
-    public HotReloadOptions HotReload { get; set; } = new();
-
     /// <summary>Resolved endpoint list populated at startup by <see cref="EndpointRoleResolver"/>.</summary>
     public List<EndpointRoleMap> ResolvedEndpoints { get; set; } = new();
 }
@@ -86,34 +83,6 @@ public class HealthCheckDeploymentOptions
 
     /// <summary>Check whether dynamic YARP config has been loaded. Default: true.</summary>
     public bool CheckConfigLoaded { get; set; } = true;
-}
-
-/// <summary>
-/// Configuration file hot-reload configuration.
-/// </summary>
-public class HotReloadOptions
-{
-    /// <summary>Enable config file hot-reload. Default: true.</summary>
-    public bool Enabled { get; set; } = true;
-
-    /// <summary>Debounce window in milliseconds before applying the reload. Default: 500.</summary>
-    public int DebounceMilliseconds { get; set; } = 500;
-
-    /// <summary>List of file name patterns to watch. Supports <c>{Environment}</c> placeholder.</summary>
-    public List<string> WatchedFiles { get; set; } = new()
-    {
-        "appsettings.json",
-        "appsettings.{Environment}.json"
-    };
-
-    /// <summary>Fallback polling interval in seconds. Set to 0 to disable. Default: 30.</summary>
-    public int FallbackPollSeconds { get; set; } = 30;
-
-    /// <summary>Automatically roll back to the last good snapshot when reload fails. Default: true.</summary>
-    public bool RollbackOnFailure { get; set; } = true;
-
-    /// <summary>Maximum number of config snapshots to retain. Default: 5.</summary>
-    public int MaxSnapshots { get; set; } = 5;
 }
 
 /// <summary>
