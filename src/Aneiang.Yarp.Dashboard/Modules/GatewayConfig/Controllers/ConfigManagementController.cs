@@ -894,7 +894,8 @@ public class ConfigManagementController : ControllerBase
                 // Route exists in snapshot but not in current → was removed
                 diffs.Add(GetDiffItem("route",
                     $"{sr.RouteId} ({sr.MatchPath} → {sr.ClusterId})",
-                    "removed", null, null));
+                    "removed",
+                    $"ClusterId: {sr.ClusterId}, Path: {sr.MatchPath}, Order: {sr.Order}"));
             }
         }
 
@@ -906,7 +907,9 @@ public class ConfigManagementController : ControllerBase
             {
                 diffs.Add(GetDiffItem("route",
                     $"{live.RouteId} ({live.Match?.Path} → {live.ClusterId})",
-                    "added", null, null));
+                    "added",
+                    null,
+                    $"ClusterId: {live.ClusterId}, Path: {live.Match?.Path}, Order: {live.Order}"));
             }
         }
 
@@ -940,7 +943,9 @@ public class ConfigManagementController : ControllerBase
             }
             else
             {
-                diffs.Add(GetDiffItem("cluster", sc.ClusterId, "removed", null, null));
+                var snapshotDest = string.Join(", ", sc.Destinations.Select(d => $"{d.Key}={d.Value}"));
+                diffs.Add(GetDiffItem("cluster", sc.ClusterId, "removed",
+                    $"Destinations: [{snapshotDest}], Policy: {sc.LoadBalancingPolicy ?? "none"}"));
             }
         }
 
@@ -950,14 +955,16 @@ public class ConfigManagementController : ControllerBase
             if (!snapshotSet.Contains(live.ClusterId ?? string.Empty))
             {
                 var dest = string.Join(", ", live.Destinations?.Select(d => $"{d.Key}={d.Value.Address}") ?? Enumerable.Empty<string>());
-                diffs.Add(GetDiffItem("cluster", $"{live.ClusterId} ({dest})", "added", null, null));
+                diffs.Add(GetDiffItem("cluster", $"{live.ClusterId} ({dest})", "added",
+                    null,
+                    $"Destinations: [{dest}], Policy: {live.LoadBalancingPolicy ?? "none"}"));
             }
         }
 
         return diffs;
     }
 
-    private static object GetDiffItem(string entityType, string path, string diffType, string? oldValue, string? newValue)
+    private static object GetDiffItem(string entityType, string path, string diffType, string? oldValue = null, string? newValue = null)
     {
         return new
         {

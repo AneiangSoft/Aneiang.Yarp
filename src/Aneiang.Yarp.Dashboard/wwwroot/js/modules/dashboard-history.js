@@ -117,7 +117,7 @@
                             <div class="min-w-0">
                                 <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
                                     ${this.badgeForType(entry.changeType)}
-                                    ${entry.isLatest ? '<span class="badge bg-success">当前最新</span>' : ''}
+                                    ${entry.isLatest ? '<span class="badge bg-success">' + __('history.currentLatest') + '</span>' : ''}
                                 </div>
                                 <h6 class="mb-1">${this.escape(entry.description || __('history.unnamedSnapshot'))}</h6>
                                 <div class="history-version">${this.escape(entry.versionId)}</div>
@@ -134,9 +134,9 @@
                             <span><i class="bi bi-database me-1"></i>${this.formatBytes(entry.configSize)}</span>
                         </div>
                         <div class="history-action-bar">
-                            <button class="btn btn-sm btn-outline-secondary" data-action="copy" data-version="${this.escape(entry.versionId)}"><i class="bi bi-copy me-1"></i>复制版本</button>
-                            <button class="btn btn-sm btn-outline-info" data-action="diff" data-version="${this.escape(entry.versionId)}"><i class="bi bi-file-diff me-1"></i>差异</button>
-                            ${entry.isLatest ? '' : `<button class="btn btn-sm btn-outline-warning" data-action="rollback" data-version="${this.escape(entry.versionId)}"><i class="bi bi-arrow-counterclockwise me-1"></i>回滚</button>`}
+                            <button class="btn btn-sm btn-outline-secondary" data-action="copy" data-version="${this.escape(entry.versionId)}"><i class="bi bi-copy me-1"></i>${__('history.copyVersionId')}</button>
+                            <button class="btn btn-sm btn-outline-info" data-action="diff" data-version="${this.escape(entry.versionId)}"><i class="bi bi-file-diff me-1"></i>${__('history.diff')}</button>
+                            ${entry.isLatest ? '' : '<button class="btn btn-sm btn-outline-warning" data-action="rollback" data-version="' + this.escape(entry.versionId) + '"><i class="bi bi-arrow-counterclockwise me-1"></i>' + __('history.rollbackShort') + '</button>'}
                         </div>
                     </div>
                 </div>`;
@@ -168,7 +168,7 @@
                 </div>
                 <div class="history-detail-body">
                     <div class="mb-3">
-                        <div class="text-muted small mb-1">版本 ID</div>
+                        <div class="text-muted small mb-1">${__('history.versionId')}</div>
                         <code class="d-block p-2 rounded" style="background:#f8fafc;word-break:break-all;">${this.escape(entry.versionId)}</code>
                     </div>
                     <div class="row g-2 mb-3">
@@ -176,14 +176,14 @@
                         <div class="col-6"><div class="border rounded p-2"><div class="text-muted small">${__('history.clusters')}</div><div class="fw-bold fs-5">${entry.clusterCount}</div></div></div>
                     </div>
                     <div class="small mb-3">
-                        <div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted">创建时间</span><span>${this.formatDate(entry.timestamp)}</span></div>
-                        <div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted">来源 IP</span><span>${this.escape(entry.clientIp || '-')}</span></div>
-                        <div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted">配置大小</span><span>${this.formatBytes(entry.configSize)}</span></div>
+                        <div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted">${__('history.createdTime')}</span><span>${this.formatDate(entry.timestamp)}</span></div>
+                        <div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted">${__('history.sourceIp')}</span><span>${this.escape(entry.clientIp || '-')}</span></div>
+                        <div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted">${__('history.configSize')}</span><span>${this.formatBytes(entry.configSize)}</span></div>
                     </div>
                     <div class="d-grid gap-2">
-                        <button class="btn btn-outline-secondary" data-action="copy" data-version="${this.escape(entry.versionId)}"><i class="bi bi-copy me-1"></i>复制版本 ID</button>
-                        <button class="btn btn-outline-info" data-action="diff" data-version="${this.escape(entry.versionId)}"><i class="bi bi-file-diff me-1"></i>查看差异</button>
-                        ${entry.isLatest ? '' : `<button class="btn btn-warning" data-action="rollback" data-version="${this.escape(entry.versionId)}"><i class="bi bi-arrow-counterclockwise me-1"></i>回滚到该版本</button>`}
+                        <button class="btn btn-outline-secondary" data-action="copy" data-version="${this.escape(entry.versionId)}"><i class="bi bi-copy me-1"></i>${__('history.copyVersionId')}</button>
+                        <button class="btn btn-outline-info" data-action="diff" data-version="${this.escape(entry.versionId)}"><i class="bi bi-file-diff me-1"></i>${__('history.viewDiff')}</button>
+                        ${entry.isLatest ? '' : '<button class="btn btn-warning" data-action="rollback" data-version="' + this.escape(entry.versionId) + '"><i class="bi bi-arrow-counterclockwise me-1"></i>' + __('history.rollbackToVersion') + '</button>'}
                     </div>
                 </div>`;
         },
@@ -245,7 +245,7 @@
 
         clearHistory: async function() {
             if (this.entries.length === 0) {
-                this.toast('当前没有可清空的历史记录', 'info');
+                this.toast(__('history.noRecordsToClear'), 'info');
                 return;
             }
 
@@ -265,22 +265,22 @@
                 this.renderStats();
                 this.renderHistory();
                 this.renderDetail(null);
-                this.toast('配置历史已清空', 'success');
+                this.toast(__('history.clearSuccess'), 'success');
             } catch (error) {
                 console.error('[History] Clear failed:', error);
-                this.toast('清空失败：' + (error.message || ''), 'error');
+                this.toast(__('history.clearFailed') + ': ' + (error.message || ''), 'error');
             }
         },
 
         copyVersionId: function(versionId) {
             if (window.DashboardUtils?.copyToClipboard) {
                 window.DashboardUtils.copyToClipboard(versionId).then(success => {
-                    if (success) this.toast('版本 ID 已复制', 'success');
+                    if (success) this.toast(__('history.versionIdCopied'), 'success');
                 });
                 return;
             }
             navigator.clipboard?.writeText(versionId);
-            this.toast('版本 ID 已复制', 'success');
+            this.toast(__('history.versionIdCopied'), 'success');
         },
 
         showDiff: async function(versionId) {
@@ -378,7 +378,15 @@
         },
 
         typeLabel: function(type) {
-            return ({ update: '保存/更新', delete: '删除', rollback: '回滚', import: '导入', rename: '重命名', manual: '手动快照' })[type] || '快照';
+            const labels = {
+                update: __('history.type.update'),
+                delete: __('history.type.delete'),
+                rollback: __('history.type.rollback'),
+                import: __('history.type.import'),
+                rename: __('history.type.rename'),
+                manual: __('history.type.manual')
+            };
+            return labels[type] || __('history.type.manual');
         },
 
         badgeForType: function(type) {

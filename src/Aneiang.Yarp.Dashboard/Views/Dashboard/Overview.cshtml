@@ -279,19 +279,7 @@
 
 @section Scripts {
 <!-- Page config (shared scripts now in _DashboardLayout.cshtml) -->
-<script>
-    window.__dashboard = window.__dashboard || {};
-    var dash = window.__dashboard;
-    dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
-    dash.token = localStorage.getItem('dashboard_token');
-    dash.CURRENT_LOCALE = '@ViewBag.Locale';
-    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
-    dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
-    dash.currentPage = 'overview';
-
-    // Initialize i18n after setting translations
-    if (window.DashboardI18n) { window.DashboardI18n.init(); }
-</script>
+@await Html.PartialAsync("_DashboardPageInit")
 
 <!-- Chart.js for traffic chart -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>

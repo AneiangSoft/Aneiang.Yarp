@@ -202,8 +202,8 @@
             var oldLabel = __('diff.old') || 'Old';
             var newLabel = __('diff.new') || 'New';
 
-            var oldValStr = diff.oldValue !== undefined ? window.DashboardUtils.escapeHtml(JSON.stringify(diff.oldValue, null, 2)) : '<span class="text-muted">—</span>';
-            var newValStr = diff.newValue !== undefined ? window.DashboardUtils.escapeHtml(JSON.stringify(diff.newValue, null, 2)) : '<span class="text-muted">—</span>';
+            var oldValStr = (diff.oldValue != null) ? window.DashboardUtils.escapeHtml(JSON.stringify(diff.oldValue, null, 2)) : '<span class="text-muted">—</span>';
+            var newValStr = (diff.newValue != null) ? window.DashboardUtils.escapeHtml(JSON.stringify(diff.newValue, null, 2)) : '<span class="text-muted">—</span>';
 
             var html = '<div class="' + className + ' p-2 mb-2 border-start border-3 rounded">';
             html += '<div class="d-flex align-items-center justify-content-between">';

@@ -620,7 +620,7 @@
                     if (config.onSave) {
                         // Show loading state on the save button while the async save runs.
                         // The onSave callback may be sync (return boolean) or async (return Promise<boolean>).
-                        if (window.DashboardLoading) window.DashboardLoading.setButton(saveBtn, true, '保存中...');
+                        if (window.DashboardLoading) window.DashboardLoading.setButton(saveBtn, true, __('modal.saving'));
                         try {
                             const saveResult = config.onSave(parsed, newId);
                             const resolved = saveResult && typeof saveResult.then === 'function' ? await saveResult : saveResult;

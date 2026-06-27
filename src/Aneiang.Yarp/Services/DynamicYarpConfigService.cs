@@ -1824,7 +1824,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
     /// <summary>
     /// Reload static YARP routes/clusters from <see cref="IConfiguration"/>,
     /// merge with current dynamic overrides, and push to the in-memory provider.
-    /// Called by <see cref="ConfigurationFileWatcher"/> after appsettings.json hot-reload.
+    /// Called by <c>Aneiang.Yarp.Dashboard.Infrastructure.HostedServices.ConfigurationFileWatcher</c> after appsettings.json hot-reload.
     /// </summary>
     public void ReloadStaticConfig(IConfiguration configuration)
     {

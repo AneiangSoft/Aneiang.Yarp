@@ -32,7 +32,7 @@ internal sealed class DashboardRouteConvention : IApplicationModelConvention
                 var template = controllerSelector.AttributeRouteModel?.Template ?? "";
                 if (!template.StartsWith(_prefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    controllerSelector.AttributeRouteModel.Template = template.StartsWith("/")
+                    controllerSelector.AttributeRouteModel!.Template = template.StartsWith("/")
                         ? _prefix + template
                         : _prefix + "/" + template;
                 }

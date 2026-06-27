@@ -79,6 +79,10 @@ public class ConfigPersistenceService : IConfigPersistenceService
         var yarpRoutes = _dynamicConfig?.GetRoutes() ?? Array.Empty<RouteConfig>();
         var yarpClusters = _dynamicConfig?.GetClusters() ?? Array.Empty<ClusterConfig>();
 
+        _logger.LogInformation(
+            "ExportFullConfigAsync: dynamicConfig={HasSvc}, routes={RouteCount}, clusters={ClusterCount}",
+            _dynamicConfig != null, yarpRoutes.Count, yarpClusters.Count);
+
         var routesDict = new Dictionary<string, JsonElement>();
         foreach (var r in yarpRoutes)
         {
