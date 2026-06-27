@@ -1,5 +1,6 @@
 using Aneiang.Yarp.Dashboard.Infrastructure.Alert;
 using Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
+using Aneiang.Yarp.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -19,6 +20,7 @@ public class ConfigurationFileWatcher : IHostedService, IAsyncDisposable
     private readonly DeploymentOptions _options;
     private readonly IConfigSnapshotStore _snapshotStore;
     private readonly IGatewayAlertService _alertService;
+    private readonly IDynamicYarpConfigService? _dynamicConfigService;
     private readonly ILogger<ConfigurationFileWatcher> _logger;
     private readonly List<FileSystemWatcher> _watchers = new();
     private readonly string _basePath;
@@ -34,7 +36,8 @@ public class ConfigurationFileWatcher : IHostedService, IAsyncDisposable
         IConfigSnapshotStore snapshotStore,
         IGatewayAlertService alertService,
         IHostEnvironment hostEnvironment,
-        ILogger<ConfigurationFileWatcher> logger)
+        ILogger<ConfigurationFileWatcher> logger,
+        IDynamicYarpConfigService? dynamicConfigService = null)
     {
         _configRoot = config as IConfigurationRoot
             ?? throw new InvalidOperationException("IConfiguration must be IConfigurationRoot to support file watching");
@@ -44,6 +47,7 @@ public class ConfigurationFileWatcher : IHostedService, IAsyncDisposable
         _logger = logger;
         _basePath = hostEnvironment.ContentRootPath;
         _env = hostEnvironment.EnvironmentName;
+        _dynamicConfigService = dynamicConfigService;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -142,6 +146,7 @@ public class ConfigurationFileWatcher : IHostedService, IAsyncDisposable
         try
         {
             _configRoot.Reload();
+            _dynamicConfigService?.ReloadStaticConfig(_configRoot);
             _logger.LogInformation("Config hot-reloaded successfully");
             _alertService.AlertCustom("ConfigReloaded", "配置热更新",
                 $"已从 {Path.GetFileName(filePath)} 重新加载", "Info");

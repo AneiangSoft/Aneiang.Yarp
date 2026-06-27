@@ -39,6 +39,13 @@ public static class DashboardApplicationBuilderExtensions
 
         /// <summary>Mount built-in proxy branch middleware when auto-use is enabled.</summary>
         public bool UseBuiltInProxyPipeline { get; set; } = true;
+
+        /// <summary>
+        /// Automatically register a default permissive CORS middleware (AllowAnyOrigin/Method/Header).
+        /// Set to <c>false</c> and call <c>app.UseCors(...)</c> yourself before <c>app.UseAneiangYarpDashboard(...)</c>
+        /// to use a custom CORS policy.
+        /// </summary>
+        public bool AutoUseCors { get; set; } = true;
     }
 
     /// <summary>
@@ -87,6 +94,15 @@ public static class DashboardApplicationBuilderExtensions
 
         var dashboardActive = mode != DeploymentMode.ProxyOnly;
         var proxyActive = mode != DeploymentMode.DashboardOnly;
+
+        // CORS middleware must appear after UseRouting() but before endpoint execution.
+        // YARP routes may carry CorsPolicy metadata (set via appsettings or Dashboard),
+        // which requires an active CORS middleware in the pipeline.
+        // Set AutoUseCors = false and call app.UseCors(...) yourself for a custom policy.
+        if (useOptions.AutoUseCors)
+        {
+            app.UseCors(policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+        }
 
         if (autoUseMiddleware && useOptions.UseDeploymentMiddleware)
         {

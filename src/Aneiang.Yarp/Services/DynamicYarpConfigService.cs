@@ -1,6 +1,7 @@
 using System.Threading;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Storage;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Yarp.ReverseProxy.Configuration;
@@ -203,6 +204,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
                             MatchPath = route.Match?.Path!,
                             Order = route.Order ?? 50,
                             Transforms = route.Transforms?.Select(t => new Dictionary<string, string>(t)).ToList(),
+                            Metadata = route.Metadata?.ToDictionary(kv => kv.Key, kv => kv.Value) ?? new Dictionary<string, string>(),
                             Source = "config",
                             CreatedAt = DateTime.UtcNow,
                             CreatedBy = "appsettings.json",
@@ -217,6 +219,8 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
                         existingRoute.Order = route.Order ?? 50;
                         existingRoute.Transforms = route.Transforms?.Select(t => new Dictionary<string, string>(t)).ToList();
                         existingRoute.ConfigJson = TrySerializeRoute(route);
+                        if (route.Metadata?.Count > 0)
+                            existingRoute.Metadata = route.Metadata.ToDictionary(kv => kv.Key, kv => kv.Value);
                     }
                 }
             }
@@ -598,14 +602,22 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
             bool isNew;
             if (existingRouteIdx >= 0)
             {
-                newRoutes[existingRouteIdx] = new RouteConfig
+                var oldRoute = newRoutes[existingRouteIdx];
+                newRoutes[existingRouteIdx] = oldRoute with
                 {
-                    RouteId = request.RouteName,
                     ClusterId = request.ClusterName,
-                    Match = new RouteMatch { Path = request.MatchPath },
+                    Match = oldRoute.Match != null
+                        ? new RouteMatch
+                        {
+                            Path = request.MatchPath,
+                            Hosts = oldRoute.Match.Hosts,
+                            Methods = oldRoute.Match.Methods,
+                            Headers = oldRoute.Match.Headers,
+                            QueryParameters = oldRoute.Match.QueryParameters
+                        }
+                        : new RouteMatch { Path = request.MatchPath },
                     Order = request.Order ?? 50,
-                    Transforms = request.Transforms?.Select(t => (IReadOnlyDictionary<string, string>)t).ToList(),
-                    Metadata = existingMetadata
+                    Transforms = request.Transforms?.Select(t => (IReadOnlyDictionary<string, string>)t).ToList() ?? oldRoute.Transforms
                 };
                 isNew = false;
                 _logger.LogDebug("Route '{RouteName}' exists, updating", request.RouteName);
@@ -713,6 +725,14 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
 
             if (dynRoute == null)
             {
+                var newRouteConfig = new RouteConfig
+                {
+                    RouteId = request.RouteName,
+                    ClusterId = request.ClusterName,
+                    Match = new RouteMatch { Path = request.MatchPath },
+                    Order = request.Order ?? 50,
+                    Transforms = request.Transforms?.Select(t => (IReadOnlyDictionary<string, string>)t).ToList()
+                };
                 dynRoute = new DynamicRouteConfig
                 {
                     RouteId = request.RouteName,
@@ -723,7 +743,8 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
                     Transforms = request.Transforms,
                     Source = source,
                     CreatedAt = DateTime.UtcNow,
-                    CreatedBy = createdBy
+                    CreatedBy = createdBy,
+                    ConfigJson = TrySerializeRoute(newRouteConfig)
                 };
                 _dynamicConfig.Routes.Add(dynRoute);
             }
@@ -1800,6 +1821,54 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
         }
     }
 
+    /// <summary>
+    /// Reload static YARP routes/clusters from <see cref="IConfiguration"/>,
+    /// merge with current dynamic overrides, and push to the in-memory provider.
+    /// Called by <see cref="ConfigurationFileWatcher"/> after appsettings.json hot-reload.
+    /// </summary>
+    public void ReloadStaticConfig(IConfiguration configuration)
+    {
+        _semaphore.Wait();
+        try
+        {
+            var section = configuration.GetSection("ReverseProxy");
+            var staticRoutes = YarpConfigParser.ParseRoutes(section.GetSection("Routes"));
+            var staticClusters = YarpConfigParser.ParseClusters(section.GetSection("Clusters"));
+
+            // Start with new static config
+            var allRoutes = new List<RouteConfig>(staticRoutes);
+            var allClusters = new List<ClusterConfig>(staticClusters);
+
+            // Overlay dynamic routes that are not part of static config
+            EnsureDynamicConfigInitialized();
+            foreach (var dynRoute in _dynamicConfig!.Routes)
+            {
+                if (!allRoutes.Any(r => string.Equals(r.RouteId, dynRoute.RouteId, StringComparison.OrdinalIgnoreCase)))
+                {
+                    allRoutes.Add(BuildRouteConfig(dynRoute));
+                }
+            }
+
+            // Overlay dynamic clusters that are not part of static config
+            foreach (var dynCluster in _dynamicConfig.Clusters)
+            {
+                if (!allClusters.Any(c => string.Equals(c.ClusterId, dynCluster.ClusterId, StringComparison.OrdinalIgnoreCase)))
+                {
+                    allClusters.Add(BuildClusterConfig(dynCluster));
+                }
+            }
+
+            _configProvider.Update(allRoutes, SanitizeClusters(allClusters));
+            _logger.LogInformation(
+                "Static config reloaded: {RouteCount} routes, {ClusterCount} clusters (with dynamic overrides)",
+                allRoutes.Count, allClusters.Count);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
     public async Task SaveDynamicConfig()
     {
         await _semaphore.WaitAsync();
@@ -1868,6 +1937,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
                 if (existingRoutes.TryGetValue(route.RouteId ?? string.Empty, out var existing))
                 {
                     existing.ClusterId = route.ClusterId ?? string.Empty;
+                    existing.ClusterUid = ResolveClusterUid(route.ClusterId);
                     existing.MatchPath = route.Match?.Path ?? string.Empty;
                     existing.Order = route.Order ?? 50;
                     existing.Transforms = route.Transforms?.Select(t => new Dictionary<string, string>(t)).ToList();
