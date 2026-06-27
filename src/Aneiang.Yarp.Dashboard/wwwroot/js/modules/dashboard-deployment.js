@@ -1,6 +1,6 @@
 /**
  * Dashboard Deployment Page
- * Displays current startup mode, listening endpoints, hot-reload status, and config snapshots.
+ * Displays current startup mode, listening endpoints, and health check status.
  * Fetches data from /api/deployment/summary.
  *
  * Uses native DOM APIs (no jQuery) to match project convention.
@@ -11,8 +11,7 @@
     const DashboardDeployment = {
         state: {
             summary: null,
-            uptimeTimer: null,
-            snapshotModal: null
+            uptimeTimer: null
         },
 
         init: function () {
@@ -52,22 +51,9 @@
             this.setText('deployment-version', data.version);
             this.setText('deployment-env', data.environment);
 
-            this.setHtml('deployment-hotreload', data.hotReload.enabled
-                ? '<span class="badge bg-success">' + this._escape(__('deployment.enabled')) + '</span>'
-                : '<span class="badge bg-secondary">' + this._escape(__('deployment.disabled')) + '</span>');
             this.setHtml('deployment-healthcheck', data.healthCheck.enabled
                 ? '<span class="badge bg-success">' + this._escape(__('deployment.enabled')) + '</span>'
                 : '<span class="badge bg-secondary">' + this._escape(__('deployment.disabled')) + '</span>');
-
-            this.setHtml('deployment-hotreload-enabled', data.hotReload.enabled
-                ? '<span class="text-success">' + this._escape(__('deployment.yes')) + '</span>'
-                : '<span class="text-muted">' + this._escape(__('deployment.no')) + '</span>');
-            this.setText('deployment-watched-files', (data.hotReload.watchedFiles || []).join(', ') || '-');
-            this.setText('deployment-debounce', data.hotReload.debounceMs + ' ms');
-            this.setText('deployment-fallback', data.hotReload.fallbackPollSeconds + ' s');
-            this.setHtml('deployment-rollback', data.hotReload.rollbackOnFailure
-                ? '<span class="text-success">' + this._escape(__('deployment.yes')) + '</span>'
-                : '<span class="text-muted">' + this._escape(__('deployment.no')) + '</span>');
 
             this.setHtml('deployment-health-enabled', data.healthCheck.enabled
                 ? '<span class="text-success">' + this._escape(__('deployment.yes')) + '</span>'
@@ -83,7 +69,6 @@
 
             this.renderEndpoints(data.endpoints || []);
             this._showRestartRequired(data);
-            this.renderSnapshots(data.snapshots || []);
         },
 
         renderEndpoints: function (endpoints) {
@@ -135,44 +120,6 @@
             this._showSecurityWarnings(warnings);
         },
 
-        renderSnapshots: function (snapshots) {
-            const tbody = this.getEl('deployment-snapshots-body');
-            if (!tbody) return;
-            tbody.innerHTML = '';
-            this.setText('deployment-snapshot-count', String(snapshots.length));
-
-            if (snapshots.length === 0) {
-                const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="4" class="text-center text-muted py-4">' + this._escape(__('deployment.noSnapshots')) + '</td>';
-                tbody.appendChild(tr);
-                return;
-            }
-
-            snapshots.forEach(s => {
-                const date = new Date(s.timestamp).toLocaleString();
-                const fileName = (s.filePath || '').split(/[/\\]/).pop();
-                const safeTimestamp = this._escape(s.timestamp);
-
-                const tr = document.createElement('tr');
-                tr.innerHTML =
-                    '<td>' + date + '</td>' +
-                    '<td><span class="badge bg-light text-dark">' + this._escape(s.trigger || '-') + '</span></td>' +
-                    '<td><code>' + this._escape(fileName || '-') + '</code></td>' +
-                    '<td><button class="btn btn-sm btn-outline-primary" data-action="view" data-ts="' + safeTimestamp + '">' +
-                        '<i class="bi bi-eye"></i> ' + this._escape(__('deployment.viewDetail')) +
-                    '</button></td>';
-                tbody.appendChild(tr);
-            });
-
-            // Wire up handlers
-            tbody.querySelectorAll('button[data-action="view"]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const ts = e.currentTarget.getAttribute('data-ts');
-                    this.viewSnapshot(ts);
-                });
-            });
-        },
-
         _showRestartRequired: function (data) {
             if (!data || !data.restartRequired) return;
             const card = this.getEl('deployment-security-card');
@@ -214,91 +161,6 @@
                 container.appendChild(div);
             });
             card.style.display = '';
-        },
-
-        reload: function () {
-            if (window.DashboardUtils && typeof window.DashboardUtils.toast === 'function') {
-                window.DashboardUtils.toast(__('deployment.reloadSuccess') + __('deployment.pageRefresh'), 'success');
-            }
-            setTimeout(() => location.reload(), 500);
-        },
-
-        takeSnapshot: function () {
-            if (window.DashboardUtils && typeof window.DashboardUtils.toast === 'function') {
-                window.DashboardUtils.toast(__('deployment.snapshotSuccess') + __('deployment.placeholderSuffix'), 'info');
-            }
-        },
-
-        checkHealth: async function () {
-            try {
-                const res = await fetch((window.__dashboard && window.__dashboard.basePath || '') + '/health',
-                    { cache: 'no-store' });
-                if (res.ok) {
-                    if (window.DashboardUtils && typeof window.DashboardUtils.toast === 'function') {
-                        window.DashboardUtils.toast(__('deployment.healthOk'), 'success');
-                    }
-                } else {
-                    if (window.DashboardUtils && typeof window.DashboardUtils.toast === 'function') {
-                        window.DashboardUtils.toast(__('deployment.healthFailed') + ' (' + res.status + ')', 'error');
-                    }
-                }
-            } catch (err) {
-                if (window.DashboardUtils && typeof window.DashboardUtils.toast === 'function') {
-                    window.DashboardUtils.toast(__('deployment.healthFailed'), 'error');
-                }
-            }
-        },
-
-        viewSnapshot: async function (timestamp) {
-            let data;
-            try {
-                if (window.DashboardApi && typeof window.DashboardApi.get === 'function') {
-                    data = await window.DashboardApi.get('/api/deployment/snapshots/' + encodeURIComponent(timestamp));
-                } else {
-                    const res = await fetch((window.__dashboard && window.__dashboard.basePath || '') +
-                        '/api/deployment/snapshots/' + encodeURIComponent(timestamp));
-                    if (res.status === 404) {
-                        this._showSnapshotNotFound();
-                        return;
-                    }
-                    if (!res.ok) {
-                        if (window.DashboardUtils && typeof window.DashboardUtils.toast === 'function') {
-                            window.DashboardUtils.toast(__('deployment.snapshotFailed'), 'error');
-                        }
-                        return;
-                    }
-                    data = await res.json();
-                }
-            } catch (err) {
-                // 404 / "not found" is expected when snapshot no longer exists
-                if (err && /not\s*found/i.test(String(err.message || ''))) {
-                    this._showSnapshotNotFound();
-                    return;
-                }
-                if (window.DashboardUtils && typeof window.DashboardUtils.toast === 'function') {
-                    window.DashboardUtils.toast(__('deployment.snapshotFailed') + ': ' + (err && err.message || ''), 'error');
-                }
-                return;
-            }
-            this.setText('snapshot-detail-content', JSON.stringify(data, null, 2));
-            if (!this.state.snapshotModal) {
-                const modalEl = document.getElementById('snapshot-detail-modal');
-                if (modalEl && window.bootstrap) {
-                    this.state.snapshotModal = new window.bootstrap.Modal(modalEl);
-                }
-            }
-            if (this.state.snapshotModal) this.state.snapshotModal.show();
-        },
-
-        _showSnapshotNotFound: function () {
-            this.setText('snapshot-detail-content', __('deployment.snapshotNotFound'));
-            if (!this.state.snapshotModal) {
-                const modalEl = document.getElementById('snapshot-detail-modal');
-                if (modalEl && window.bootstrap) {
-                    this.state.snapshotModal = new window.bootstrap.Modal(modalEl);
-                }
-            }
-            if (this.state.snapshotModal) this.state.snapshotModal.show();
         },
 
         updateUptime: function () {

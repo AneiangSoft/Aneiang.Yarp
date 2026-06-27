@@ -155,6 +155,7 @@ public class ConfigPersistenceService : IConfigPersistenceService
             }
 
             _logger.LogInformation("Configuration imported successfully");
+            await SaveSnapshotAsync("After import", clientIp);
             return true;
         }
         catch (Exception ex)

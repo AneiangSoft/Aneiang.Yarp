@@ -15,7 +15,6 @@ namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Controllers;
 public class DeploymentInfoController : ControllerBase
 {
     private readonly DeploymentOptions _options;
-    private readonly IConfigSnapshotStore _snapshotStore;
     private readonly DeploymentRestartState _restartState;
     private readonly ILogger<DeploymentInfoController> _logger;
 
@@ -24,22 +23,19 @@ public class DeploymentInfoController : ControllerBase
 
     public DeploymentInfoController(
         IOptions<DeploymentOptions> options,
-        IConfigSnapshotStore snapshotStore,
         DeploymentRestartState restartState,
         ILogger<DeploymentInfoController> logger)
     {
         _options = options.Value;
-        _snapshotStore = snapshotStore;
         _restartState = restartState;
         _logger = logger;
     }
 
-    /// <summary>Get current deployment summary: mode, endpoints, hot-reload and health-check settings.</summary>
+    /// <summary>Get current deployment summary: mode, endpoints, and health-check settings.</summary>
     [HttpGet("summary")]
-    public async Task<IActionResult> GetSummary()
+    public IActionResult GetSummary()
     {
         var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
-        var snapshots = await _snapshotStore.GetHistoryAsync(_options.HotReload.MaxSnapshots);
 
         var healthAuth = new List<string>();
         if (!string.IsNullOrEmpty(_options.HealthCheck.Token)) healthAuth.Add("Token");
@@ -58,11 +54,6 @@ public class DeploymentInfoController : ControllerBase
             environment = env,
             restartRequired = _restartState.IsRestartRequired,
             restartReasons = _restartState.GetReasons(),
-            hotReloadBoundary = new
-            {
-                hotReloadable = new[] { "ReverseProxy:Routes", "ReverseProxy:Clusters", "Gateway:Dashboard:Policies", "Gateway:Dashboard:Waf", "Gateway:Dashboard:Notifications" },
-                restartRequired = new[] { "Kestrel:Endpoints", "Kestrel:Certificates", "ASPNETCORE_URLS", "Gateway:Deployment:Mode", "Gateway:Deployment:EndpointRoles" }
-            },
             endpoints = _options.ResolvedEndpoints.Select(e => new
             {
                 name = e.EndpointName,
@@ -71,15 +62,6 @@ public class DeploymentInfoController : ControllerBase
                 role = e.Role,
                 isPublic = e.IsPubliclyBound
             }),
-            hotReload = new
-            {
-                enabled = _options.HotReload.Enabled,
-                watchedFiles = _options.HotReload.WatchedFiles,
-                debounceMs = _options.HotReload.DebounceMilliseconds,
-                fallbackPollSeconds = _options.HotReload.FallbackPollSeconds,
-                rollbackOnFailure = _options.HotReload.RollbackOnFailure,
-                maxSnapshots = _options.HotReload.MaxSnapshots
-            },
             healthCheck = new
             {
                 enabled = _options.HealthCheck.Enabled,
@@ -90,27 +72,7 @@ public class DeploymentInfoController : ControllerBase
                 ipWhitelist = _options.HealthCheck.AllowedIps,
                 authentication = healthAuth,
                 checks = healthChecks
-            },
-            snapshots = snapshots.Select(s => new
-            {
-                timestamp = s.Timestamp,
-                trigger = s.Trigger,
-                filePath = s.FilePath
-            })
+            }
         });
-    }
-
-    /// <summary>Get a specific snapshot's data.</summary>
-    [HttpGet("snapshots/{timestamp}")]
-    public async Task<IActionResult> GetSnapshot(string timestamp)
-    {
-        if (!DateTime.TryParse(timestamp, out var ts))
-            return BadRequest(new { code = 400, message = "Invalid timestamp" });
-
-        var snapshot = await _snapshotStore.RestoreAsync(ts);
-        if (snapshot == null)
-            return NotFound(new { code = 404, message = "Snapshot not found" });
-
-        return Ok(snapshot);
     }
 }

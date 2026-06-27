@@ -155,6 +155,5 @@ public class GatewayMiddlewareBenchmarks
         public bool UpdateHeartbeat(string routeName, string? clientIp = null) => true;
         public Task<RouteOperationResult> TryRenameRoute(string oldRouteId, string newRouteId, RegisterRouteRequest request, string source = "dashboard", string? createdBy = "dashboard-user") => Task.FromResult(new RouteOperationResult(true, "ok"));
         public Task<bool> UpdateClusterCircuitBreakerAsync(string clusterId, CircuitBreakerConfig? config) => Task.FromResult(true);
-        public void ReloadStaticConfig(Microsoft.Extensions.Configuration.IConfiguration configuration) { }
     }
 }
