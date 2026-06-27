@@ -239,19 +239,7 @@
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-clusters.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-routes.js?v=@v"></script>
 <!-- Page config (must be available before DashboardApp.init()) -->
-<script>
-    window.__dashboard = window.__dashboard || {};
-    var dash = window.__dashboard;
-    dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
-    dash.token = localStorage.getItem('dashboard_token');
-    dash.CURRENT_LOCALE = '@ViewBag.Locale';
-    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
-    dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
-    dash.currentPage = 'overview';
-
-    // Initialize i18n after setting translations (consistent with all other pages)
-    if (window.DashboardI18n) { window.DashboardI18n.init(); }
-</script>
+@await Html.PartialAsync("_DashboardPageInit")
 
 <script>
     // Core initialization — must run before ServiceTabs triggers data loading

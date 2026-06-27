@@ -194,7 +194,7 @@
                 }),
                 this.create('div', {
                     className: 'empty-state-title',
-                    textContent: message || '暂无数据'
+                    textContent: message || (window.__ && window.__('index.noData')) || 'No data'
                 })
             ]
         });

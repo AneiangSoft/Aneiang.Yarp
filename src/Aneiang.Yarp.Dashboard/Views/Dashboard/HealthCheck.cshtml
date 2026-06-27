@@ -106,16 +106,7 @@
 
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-healthcheck.js?v=@v"></script>
 
-<script>
-    window.__dashboard = window.__dashboard || {};
-    var dash = window.__dashboard;
-    dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
-    dash.token = localStorage.getItem('dashboard_token');
-    dash.CURRENT_LOCALE = '@ViewBag.Locale';
-    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
-    dash.logPanelEnabled = @(ViewBag.EnableProxyLogging != false ? "true" : "false");
-    dash.currentPage = '@ViewBag.CurrentPage';
-</script>
+@await Html.PartialAsync("_DashboardPageInit")
 
 <script>
     // Enhanced Health Check Module

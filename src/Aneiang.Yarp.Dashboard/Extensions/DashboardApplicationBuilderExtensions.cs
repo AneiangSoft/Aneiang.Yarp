@@ -46,6 +46,15 @@ public static class DashboardApplicationBuilderExtensions
         /// to use a custom CORS policy.
         /// </summary>
         public bool AutoUseCors { get; set; } = true;
+
+        /// <summary>
+        /// Automatically register authorization middleware (<c>UseAuthorization()</c>).
+        /// Required for YARP routes with non-<c>Anonymous</c> <c>AuthorizationPolicy</c>.
+        /// Set to <c>false</c> if you call <c>app.UseAuthorization()</c> yourself.
+        /// Call <c>app.UseAuthentication()</c> before <c>UseAneiangYarpDashboard()</c> if your
+        /// auth policies require authenticated users.
+        /// </summary>
+        public bool AutoUseAuthorization { get; set; } = true;
     }
 
     /// <summary>
@@ -102,6 +111,16 @@ public static class DashboardApplicationBuilderExtensions
         if (useOptions.AutoUseCors)
         {
             app.UseCors(policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+        }
+
+        // Authorization middleware — same rationale as CORS above.
+        // YARP routes may carry AuthorizationPolicy metadata; without UseAuthorization()
+        // in the pipeline, ASP.NET Core will throw InvalidOperationException at runtime.
+        // Set AutoUseAuthorization = false if you already call UseAuthorization() before
+        // UseAneiangYarpDashboard(), or if you need UseAuthentication() before it.
+        if (useOptions.AutoUseAuthorization)
+        {
+            app.UseAuthorization();
         }
 
         if (autoUseMiddleware && useOptions.UseDeploymentMiddleware)

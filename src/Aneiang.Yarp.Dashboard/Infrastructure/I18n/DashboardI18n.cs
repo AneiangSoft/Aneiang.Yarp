@@ -1438,6 +1438,14 @@ public static class DashboardI18n
         ["history.rollback.failed"] = "回滚失败",
         ["history.loadingMsg"] = "正在加载配置历史...",
 
+        // ── History type labels ─────────────────────────
+        ["history.type.update"] = "保存/更新",
+        ["history.type.delete"] = "删除",
+        ["history.type.rollback"] = "回滚",
+        ["history.type.import"] = "导入",
+        ["history.type.rename"] = "重命名",
+        ["history.type.manual"] = "手动快照",
+
         // ── Notification extras ────────────────────────
         ["notif.pushSuccess"] = "推送成功",
         ["notif.pushFailed"] = "推送失败",
@@ -2881,6 +2889,14 @@ public static class DashboardI18n
         ["history.rollback.success"] = "Rollback succeeded",
         ["history.rollback.failed"] = "Rollback failed",
         ["history.loadingMsg"] = "Loading configuration history...",
+
+        // ── History type labels ─────────────────────────
+        ["history.type.update"] = "Save/Update",
+        ["history.type.delete"] = "Delete",
+        ["history.type.rollback"] = "Rollback",
+        ["history.type.import"] = "Import",
+        ["history.type.rename"] = "Rename",
+        ["history.type.manual"] = "Manual Snapshot",
 
         // ── Notification extras ────────────────────────
         ["notif.pushSuccess"] = "Push succeeded",

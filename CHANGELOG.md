@@ -1,6 +1,37 @@
 # 更新日志
 
 
+## [2.3.0.23] - 2026-06-28
+
+> 静态配置字段补全 + 热重载修复 + 请求先行日志 + 国际化覆盖 + 冗余组件清理
+
+### 🚀 新增
+
+- **静态配置字段补全**：`appsettings.json` 中 YARP 路由的 `Hosts`/`Headers`/`QueryParameters`/`AuthorizationPolicy`/`CorsPolicy` 和集群的 `SessionAffinity`/`HealthCheck`/`HttpClient`/`HttpRequest`/`Metadata` 全部正确解析，不再丢失
+- **热重载同步 YARP**：修改 `appsettings.json` 后，`ReverseProxy` 配置节变更即时推送到 `InMemoryConfigProvider`，无需重启
+- **请求先行日志**：请求到达后立即在日志页显示，再等待响应返回配对，慢后端不再让页面长时间空白
+- **CORS 中间件**：自动注册宽松 CORS 策略，通过 `DashboardUseOptions.AutoUseCors` 可自定义
+- **国际化覆盖**：Stats / History / Notification / Overview / Logs 所有页面硬编码中文全部转为 i18n 调用，新增 90+ 双语 key
+- **页面初始化 Partial**：`_DashboardPageInit.cshtml` 统一 17 个页面的客户端初始化逻辑
+
+### 🐛 修复
+
+- **GC 次数显示 `--`**：JS `||` 短路误杀 `0` 值，改为 `??` 正确显示
+- **TryAddRoute 更新路由字段丢失**：API 更新路由时保留已有 `Hosts`/`Methods`/`Headers`/`QueryParameters`/`Auth`/`Cors`
+- **ClusterUid 映射断裂**：`ConfigEntityMapper.ToEntity(Route)` 补上 `ClusterUid`
+- **Stats 页面不显示翻译**：补上 `dash.I18N` 初始化，修复显示原始 key
+
+### 🗑️ 清理
+
+- 删除非请求日志组件（`YarpEventSourceListener`、`StructuredLogService`、`PipelineLogWriter`、`IProxyLogRepository` 等 7 个文件）
+- `LogEntry` 精简：移除 `YarpEvent` 枚举值、`Category`、`Details` 字段
+- 日志页移除 Gateway Only 按钮、EventType 过滤
+
+### 🎨 优化
+
+- 日志页样式：自适应视口高度、条目间距、badge 尺寸、流式详情面板
+
+
 ## [2.3.0.22] - 2026-06-26
 
 > 原生 YARP 配置完整保留 + 端口重复绑定修复 + 全局加载指示器 + JSON 宽松解析
