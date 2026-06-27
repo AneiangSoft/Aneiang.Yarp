@@ -176,7 +176,7 @@
             className: 'alert alert-danger',
             children: [
                 this.create('i', { className: 'bi bi-exclamation-triangle me-2' }),
-                this.create('span', { textContent: message || '加载失败' })
+                this.create('span', { textContent: message || (window.__ && window.__('loading.loadFailed')) || 'Load failed' })
             ]
         });
         container.appendChild(error);

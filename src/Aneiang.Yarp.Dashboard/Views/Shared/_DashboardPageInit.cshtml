@@ -1,0 +1,15 @@
+@* Shared dashboard client initialization.
+   Sets window.__dashboard with basePath, token, locale, i18n translations, and current page.
+   Also initializes DashboardI18n so that __() works everywhere immediately.
+   Usage: @@await Html.PartialAsync("_DashboardPageInit") inside @@section Scripts. *@
+<script>
+    window.__dashboard = window.__dashboard || {};
+    var dash = window.__dashboard;
+    dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
+    dash.token = localStorage.getItem('dashboard_token');
+    dash.CURRENT_LOCALE = '@ViewBag.Locale';
+    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
+    dash.logPanelEnabled = @(ViewBag.EnableProxyLogging is false ? "false" : "true");
+    dash.currentPage = '@ViewBag.CurrentPage';
+    if (window.DashboardI18n) { window.DashboardI18n.init(); }
+</script>

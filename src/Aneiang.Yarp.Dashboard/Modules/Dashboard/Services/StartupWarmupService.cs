@@ -58,7 +58,6 @@ public sealed class StartupWarmupService : IHostedService
             var historyRepo = scope.ServiceProvider.GetRequiredService<IConfigHistoryRepository>();
             var auditRepo = scope.ServiceProvider.GetRequiredService<IAuditLogRepository>();
             var wafRepo = scope.ServiceProvider.GetRequiredService<IWafSettingsRepository>();
-            var proxyLogRepo = scope.ServiceProvider.GetRequiredService<IProxyLogRepository>();
 
             await Task.WhenAll(
                 notificationRepo.GetRulesAsync(ct),
@@ -67,8 +66,7 @@ public sealed class StartupWarmupService : IHostedService
                 policyRepo.GetAllPoliciesAsync(),
                 historyRepo.GetConfigHistoryListAsync(1),
                 auditRepo.GetAuditLogsAsync(1),
-                wafRepo.GetWafSettingsAsync(ct),
-                proxyLogRepo.GetRecentProxyLogsAsync(1, ct)
+                wafRepo.GetWafSettingsAsync(ct)
             );
             _logger.LogDebug("Repository warmup done");
         }

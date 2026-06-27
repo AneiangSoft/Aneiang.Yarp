@@ -163,10 +163,11 @@
         const d = typeof date === 'string' ? new Date(date) : date;
         const seconds = Math.floor((now - d) / 1000);
 
-        if (seconds < 60) return '刚刚';
-        if (seconds < 3600) return Math.floor(seconds / 60) + ' 分钟前';
-        if (seconds < 86400) return Math.floor(seconds / 3600) + ' 小时前';
-        return Math.floor(seconds / 86400) + ' 天前';
+        if (seconds < 30) return __('index.time.justNow');
+        if (seconds < 60) return Math.floor(seconds) + __('index.time.secondsAgo');
+        if (seconds < 3600) return Math.floor(seconds / 60) + __('index.time.minutesAgo');
+        if (seconds < 86400) return Math.floor(seconds / 3600) + __('index.time.hoursAgo');
+        return Math.floor(seconds / 86400) + __('index.time.daysAgo');
     };
 
     window.DashboardUtils.safeJsonParse = function(text, defaultValue) {

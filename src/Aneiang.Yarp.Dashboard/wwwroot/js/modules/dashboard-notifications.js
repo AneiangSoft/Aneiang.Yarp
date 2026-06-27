@@ -394,8 +394,8 @@
                 var deliveryIcon = '';
                 if (entry.notifiedChannels && entry.notifiedChannels.length > 0) {
                     deliveryIcon = entry.deliverySuccess
-                        ? '<i class="bi bi-check-circle-fill" style="color:#16a34a;font-size:12px;margin-left:4px;" title="推送成功"></i>'
-                        : '<i class="bi bi-x-circle-fill" style="color:#dc2626;font-size:12px;margin-left:4px;" title="推送失败"></i>';
+                        ? '<i class="bi bi-check-circle-fill" style="color:#16a34a;font-size:12px;margin-left:4px;" title="' + __('notif.pushSuccess') + '"></i>'
+                        : '<i class="bi bi-x-circle-fill" style="color:#dc2626;font-size:12px;margin-left:4px;" title="' + __('notif.pushFailed') + '"></i>';
                 }
 
                 html += '<div class="notification-item" onclick="NotificationModule.toggleNotification(this)" data-id="' + entry.id + '">' +

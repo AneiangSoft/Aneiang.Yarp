@@ -77,7 +77,7 @@
 
                 const now = new Date();
                 const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                setEl('stats-last-updated', '更新于 ' + timeStr);
+                setEl('stats-last-updated', __('stats.updatedAt') + ' ' + timeStr);
 
             } catch (e) {
                 console.error('[StatsPage] Load failed:', e);
@@ -116,7 +116,7 @@
             if (this.qpsChart) this.qpsChart.destroy();
 
             if (!data || !data.labels || data.labels.length === 0) {
-                ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">暂无流量数据</div>';
+                ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">' + __('stats.noTraffic') + '</div>';
                 return;
             }
 
@@ -182,7 +182,7 @@
             const p99 = data.p99 || 0;
 
             if (p50 === 0 && p90 === 0 && p99 === 0) {
-                ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">暂无延迟数据</div>';
+                ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">' + __('stats.noLatency') + '</div>';
                 return;
             }
 
@@ -191,7 +191,7 @@
                 data: {
                     labels: ['P50', 'P90', 'P99'],
                     datasets: [{
-                        label: '延迟 (ms)',
+                        label: '\u5ef6\u8fdf (ms)',
                         data: [p50, p90, p99],
                         backgroundColor: ['rgba(34,197,94,0.7)', 'rgba(245,158,11,0.7)', 'rgba(239,68,68,0.7)'],
                         borderColor: ['#22c55e', '#f59e0b', '#ef4444'],
@@ -237,7 +237,7 @@
             if (this.errorChart) this.errorChart.destroy();
 
             if (!data || !data.labels || data.labels.length === 0) {
-                ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">暂无错误数据</div>';
+                ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">' + __('stats.noErrors') + '</div>';
                 return;
             }
 
@@ -264,7 +264,7 @@
                 data: {
                     labels: this.formatLabels(data.labels),
                     datasets: [{
-                        label: '错误率 (%)',
+                        label: '\u9519\u8bef\u7387 (%)',
                         data: errorRates,
                         borderColor: '#ef4444',
                         backgroundColor: 'rgba(239,68,68,0.06)',
@@ -319,7 +319,7 @@
 
             const codes = data.statusCodes || [];
             if (!codes.length) {
-                ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">暂无状态码数据</div>';
+                ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">' + __('stats.noStatusCodes') + '</div>';
                 return;
             }
 
@@ -335,14 +335,14 @@
 
             const total = count2xx + count3xx + count4xx + count5xx;
             if (total === 0) {
-                ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">暂无状态码数据</div>';
+                ctx.parentElement.innerHTML = '<div class="text-center text-muted py-5">' + __('stats.noStatusCodes') + '</div>';
                 return;
             }
 
             this.statusChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['2xx 成功', '3xx 重定向', '4xx 客户端错误', '5xx 服务端错误'],
+                    labels: ['2xx \u6210\u529f', '3xx \u91cd\u5b9a\u5411', '4xx \u5ba2\u6237\u7aef\u9519\u8bef', '5xx \u670d\u52a1\u7aef\u9519\u8bef'],
                     datasets: [{
                         data: [count2xx, count3xx, count4xx, count5xx],
                         backgroundColor: ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444'],
@@ -392,10 +392,10 @@
             const container = document.getElementById('top-routes-list');
             const countBadge = document.getElementById('top-routes-count');
             if (!container) return;
-            if (countBadge) countBadge.textContent = routes.length + ' 个路由';
+            if (countBadge) countBadge.textContent = routes.length + ' ' + __('stats.routesUnit');
 
             if (!routes.length) {
-                container.innerHTML = '<div class="text-center text-muted py-4 small">暂无路由数据</div>';
+                container.innerHTML = '<div class="text-center text-muted py-4 small">' + __('stats.noRoutes') + '</div>';
                 return;
             }
 
@@ -418,10 +418,10 @@
             const container = document.getElementById('top-clusters-list');
             const countBadge = document.getElementById('top-clusters-count');
             if (!container) return;
-            if (countBadge) countBadge.textContent = clusters.length + ' 个集群';
+            if (countBadge) countBadge.textContent = clusters.length + ' ' + __('stats.clustersUnit');
 
             if (!clusters.length) {
-                container.innerHTML = '<div class="text-center text-muted py-4 small">暂无集群数据</div>';
+                container.innerHTML = '<div class="text-center text-muted py-4 small">' + __('stats.noClusters') + '</div>';
                 return;
             }
 
@@ -448,7 +448,6 @@
 
         formatLabels: function(labels) {
             if (!labels || !labels.length) return [];
-            // If labels are full timestamps, show only HH:mm
             if (typeof labels[0] === 'string' && labels[0].includes('T')) {
                 return labels.map(l => {
                     try {
@@ -457,7 +456,6 @@
                     } catch { return l; }
                 });
             }
-            // If numeric (minutes ago), show relative
             if (typeof labels[0] === 'number') {
                 const now = new Date();
                 return labels.map(m => {

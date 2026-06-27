@@ -196,7 +196,7 @@
         console.error('[API] Error:', error);
         
         if (showMessage && window.DashboardModals) {
-            window.DashboardModals.showError(error.message || '请求失败');
+            window.DashboardModals.showError(error.message || __('api.requestFailed'));
         }
         
         return error;

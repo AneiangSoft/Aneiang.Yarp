@@ -13,26 +13,13 @@ public static class DashboardI18n
     public static readonly Dictionary<string, string> ZhCN = new()
     {
         // ── Layout ──
-        ["layout.title"] = "网关维护仪表盘",
         ["layout.brand"] = "网关维护仪表盘",
-        ["layout.section.monitor"] = "监控",
-        ["layout.tab.overview"] = "总览",
-        ["layout.tab.services"] = "服务集群",
-        ["layout.tab.routes"] = "路由配置",
-        ["layout.section.diag"] = "诊断",
-        ["layout.section.config"] = "配置",
-        ["layout.tab.logs"] = "日志",
-        ["layout.tab.healthcheck"] = "健康检查",
-        ["layout.tab.topology"] = "拓扑图",
         ["layout.lang.switch"] = "English",
-        ["layout.lang.tooltip"] = "Switch to English",
         ["layout.user.loggedIn"] = "已登录",
         ["layout.user.logout"] = "退出登录",
         ["layout.user.logoutConfirm"] = "确认退出登录？",
-        ["layout.tab.closeAll"] = "关闭全部",
 
         // ── Login ──
-        ["login.title"] = "登录 - 网关仪表盘",
         ["login.brand"] = "网关仪表盘",
         ["login.tagline"] = "企业级 API 网关运维管理平台",
         ["login.welcome"] = "欢迎回来",
@@ -1350,32 +1337,130 @@ public static class DashboardI18n
         // ── History Diff ─────────────────────────────
         ["history.diff"] = "差异对比",
 
+        // ── Statistics ───────────────────────────────
+        ["stats.noTraffic"] = "暂无流量数据",
+        ["stats.noStatusCodes"] = "暂无状态码数据",
+        ["stats.noLatency"] = "暂无延迟数据",
+        ["stats.noErrors"] = "暂无错误数据",
+        ["stats.routesUnit"] = "个路由",
+        ["stats.clustersUnit"] = "个集群",
+        ["stats.noRoutes"] = "暂无路由数据",
+        ["stats.noClusters"] = "暂无集群数据",
+        ["stats.updatedAt"] = "更新于",
+
+        // ── Notification ─────────────────────────────
+        ["notification.searchPlaceholder"] = "搜索关键词...",
+        ["notification.itemsPerPage"] = "条/页",
+        ["notification.test"] = "测试通知",
+        ["notification.clear"] = "清空",
+        ["notification.rules"] = "规则",
+
+        // ── Config History ───────────────────────────
+        ["history.import"] = "导入",
+        ["history.currentLatest"] = "当前最新",
+        ["history.versionId"] = "版本 ID",
+        ["history.createdTime"] = "创建时间",
+        ["history.sourceIp"] = "来源 IP",
+        ["history.configSize"] = "配置大小",
+        ["history.copyVersionId"] = "复制版本 ID",
+        ["history.versionIdCopied"] = "版本 ID 已复制",
+
+        // ── Overview ─────────────────────────────────
+        ["overview.stat.qps"] = "当前 QPS",
+        ["overview.top.emptyDesc"] = "一切正常，没有异常路由",
+        ["overview.top.latencyEmptyDesc"] = "延迟数据采集中",
+        ["index.stat.qps"] = "当前 QPS",
+        ["layout.user.online"] = "在线",
+        ["notif.cancel"] = "取消",
+
+        // ── Generic ──────────────────────────────────
+        ["index.noData"] = "暂无数据",
+
+        // ── Notification extras ──────────────────────
+        ["notif.lastEvent"] = "最近事件",
+
+        // ── History clear ─────────────────────────────
+        ["history.noRecordsToClear"] = "当前没有可清空的历史记录",
+        ["history.clearSuccess"] = "配置历史已清空",
+        ["history.clearFailed"] = "清空失败",
+
+        // ── History extras ────────────────────────────
+        ["history.viewDiff"] = "查看差异",
+        ["history.configDiff"] = "配置差异",
+        ["history.unnamedSnapshot"] = "未命名快照",
+        ["history.diffPanelNotLoaded"] = "差异面板未加载",
+        ["history.diffLoadFailed"] = "差异加载失败",
+        ["history.rollbackShort"] = "回滚",
+        ["history.rollbackToVersion"] = "回滚到该版本",
+
+        // ── Time ago ──────────────────────────────────
+        ["index.time.justNow"] = "刚刚",
+        ["index.time.minutesAgo"] = " 分钟前",
+        ["index.time.hoursAgo"] = " 小时前",
+        ["index.time.daysAgo"] = " 天前",
+        ["index.time.secondsAgo"] = " 秒前",
+
+        // ── Loading / Retry ────────────────────────────
+        ["loading.slowRequest"] = "请求耗时较长，请耐心等待...",
+        ["loading.networkIssue"] = "网络可能有问题，仍在等待响应...",
+        ["loading.checkNetwork"] = "检查网络",
+        ["loading.networkIssueDetail"] = "请检查浏览器网络连接；如网络正常，可稍候片刻等待响应或刷新页面。",
+        ["loading.loadFailed"] = "加载失败",
+        ["loading.requestFailed"] = "请求失败，请稍后重试。",
+        ["loading.retry"] = "重试",
+        ["loading.retrying"] = "重试中...",
+        ["loading.retryFailed"] = "重试失败：",
+        ["loading.networkDisconnected"] = "网络连接已断开，部分功能将不可用",
+        ["loading.processing"] = "处理中",
+        ["loading.refreshing"] = "刷新中...",
+
+        // ── Modal extras ───────────────────────────────
+        ["modal.saving"] = "保存中...",
+        ["modal.renameOnly"] = "ID 修改请使用专用重命名功能",
+
+        // ── Route rename ───────────────────────────────
+        ["route.renameTitle"] = "重命名 Route ID",
+        ["route.renameOnly"] = "Route ID 不能在普通编辑中修改，请使用专用重命名功能。",
+        ["route.renamePrompt"] = "请输入新的 Route ID",
+        ["route.notFound"] = "未找到路由配置",
+
+        // ── Cluster rename ─────────────────────────────
+        ["cluster.renameTitle"] = "重命名 Cluster ID",
+        ["cluster.renameOnly"] = "Cluster ID 不能在普通编辑中修改，请使用专用重命名功能。",
+        ["cluster.renamePrompt"] = "请输入新的 Cluster ID",
+        ["cluster.notFound"] = "未找到集群配置",
+
+        // ── History extras ─────────────────────────────
+        ["history.snapshotPrompt"] = "请输入快照说明",
+        ["history.snapshotCreated"] = "快照创建成功",
+        ["history.snapshotFailed"] = "快照创建失败",
+        ["history.rollback.success"] = "回滚成功",
+        ["history.rollback.failed"] = "回滚失败",
+        ["history.loadingMsg"] = "正在加载配置历史...",
+
+        // ── Notification extras ────────────────────────
+        ["notif.pushSuccess"] = "推送成功",
+        ["notif.pushFailed"] = "推送失败",
+
+        // ── API ────────────────────────────────────────
+        ["api.requestFailed"] = "请求失败",
+
+        // ── Deployment extras ──────────────────────────
+        ["deployment.restartRequired"] = "部署配置已变更，需要重启进程才能生效",
+
     };
 
     /// <summary>English translation dictionary.</summary>
     public static readonly Dictionary<string, string> EnUS = new()
     {
         // ── Layout ──
-        ["layout.title"] = "Gateway Dashboard",
         ["layout.brand"] = "Gateway Dashboard",
-        ["layout.section.monitor"] = "Monitor",
-        ["layout.tab.overview"] = "Overview",
-        ["layout.tab.services"] = "Clusters",
-        ["layout.tab.routes"] = "Routes",
-        ["layout.section.diag"] = "Diagnostics",
-        ["layout.section.config"] = "Config",
-        ["layout.tab.logs"] = "Logs",
-        ["layout.tab.healthcheck"] = "Health Check",
-        ["layout.tab.topology"] = "Topology",
         ["layout.lang.switch"] = "中文",
-        ["layout.lang.tooltip"] = "切换到中文",
         ["layout.user.loggedIn"] = "Logged in",
         ["layout.user.logout"] = "Logout",
         ["layout.user.logoutConfirm"] = "Confirm logout?",
-        ["layout.tab.closeAll"] = "Close All",
 
         // ── Login ──
-        ["login.title"] = "Login - Gateway Dashboard",
         ["login.brand"] = "Gateway Dashboard",
         ["login.tagline"] = "Enterprise API Gateway Operations Platform",
         ["login.welcome"] = "Welcome Back",
@@ -2695,6 +2780,117 @@ public static class DashboardI18n
 
         // ── History Diff ─────────────────────────────
         ["history.diff"] = "Diff",
+
+        // ── Statistics ───────────────────────────────
+        ["stats.noTraffic"] = "No traffic data",
+        ["stats.noStatusCodes"] = "No status code data",
+        ["stats.noLatency"] = "No latency data",
+        ["stats.noErrors"] = "No error data",
+        ["stats.routesUnit"] = "routes",
+        ["stats.clustersUnit"] = "clusters",
+        ["stats.noRoutes"] = "No route data",
+        ["stats.noClusters"] = "No cluster data",
+        ["stats.updatedAt"] = "Updated at",
+
+        // ── Notification ─────────────────────────────
+        ["notification.searchPlaceholder"] = "Search keywords...",
+        ["notification.itemsPerPage"] = "/page",
+        ["notification.test"] = "Test Notification",
+        ["notification.clear"] = "Clear",
+        ["notification.rules"] = "Rules",
+
+        // ── Config History ───────────────────────────
+        ["history.import"] = "Import",
+        ["history.currentLatest"] = "Current Latest",
+        ["history.versionId"] = "Version ID",
+        ["history.createdTime"] = "Created Time",
+        ["history.sourceIp"] = "Source IP",
+        ["history.configSize"] = "Config Size",
+        ["history.copyVersionId"] = "Copy Version ID",
+        ["history.versionIdCopied"] = "Version ID copied",
+
+        // ── Overview ─────────────────────────────────
+        ["overview.stat.qps"] = "Current QPS",
+        ["overview.top.emptyDesc"] = "All clear, no abnormal routes",
+        ["overview.top.latencyEmptyDesc"] = "Latency data collecting",
+        ["index.stat.qps"] = "Current QPS",
+        ["layout.user.online"] = "Online",
+        ["notif.cancel"] = "Cancel",
+
+        // ── Generic ──────────────────────────────────
+        ["index.noData"] = "No data",
+
+        // ── Notification extras ──────────────────────
+        ["notif.lastEvent"] = "Last Event",
+
+        // ── History clear ─────────────────────────────
+        ["history.noRecordsToClear"] = "No history records to clear",
+        ["history.clearSuccess"] = "History cleared",
+        ["history.clearFailed"] = "Clear failed",
+
+        // ── History extras ────────────────────────────
+        ["history.viewDiff"] = "View Diff",
+        ["history.configDiff"] = "Config Diff",
+        ["history.unnamedSnapshot"] = "Unnamed snapshot",
+        ["history.diffPanelNotLoaded"] = "Diff panel not loaded",
+        ["history.diffLoadFailed"] = "Diff load failed",
+        ["history.rollbackShort"] = "Rollback",
+        ["history.rollbackToVersion"] = "Rollback to this version",
+
+        // ── Time ago ──────────────────────────────────
+        ["index.time.justNow"] = "Just now",
+        ["index.time.minutesAgo"] = " min ago",
+        ["index.time.hoursAgo"] = " hr ago",
+        ["index.time.daysAgo"] = " days ago",
+        ["index.time.secondsAgo"] = " sec ago",
+
+        // ── Loading / Retry ────────────────────────────
+        ["loading.slowRequest"] = "Request is taking longer than expected, please wait...",
+        ["loading.networkIssue"] = "Network may have issues, still waiting for response...",
+        ["loading.checkNetwork"] = "Check Network",
+        ["loading.networkIssueDetail"] = "Please check your browser network connection; if the network is fine, wait a moment or refresh the page.",
+        ["loading.loadFailed"] = "Load failed",
+        ["loading.requestFailed"] = "Request failed, please try again later.",
+        ["loading.retry"] = "Retry",
+        ["loading.retrying"] = "Retrying...",
+        ["loading.retryFailed"] = "Retry failed: ",
+        ["loading.networkDisconnected"] = "Network disconnected, some features unavailable",
+        ["loading.processing"] = "Processing",
+        ["loading.refreshing"] = "Refreshing...",
+
+        // ── Modal extras ───────────────────────────────
+        ["modal.saving"] = "Saving...",
+        ["modal.renameOnly"] = "Use the dedicated rename feature to change the ID",
+
+        // ── Route rename ───────────────────────────────
+        ["route.renameTitle"] = "Rename Route ID",
+        ["route.renameOnly"] = "Route ID cannot be modified in the regular editor. Use the dedicated rename feature.",
+        ["route.renamePrompt"] = "Please enter a new Route ID",
+        ["route.notFound"] = "Route configuration not found",
+
+        // ── Cluster rename ─────────────────────────────
+        ["cluster.renameTitle"] = "Rename Cluster ID",
+        ["cluster.renameOnly"] = "Cluster ID cannot be modified in the regular editor. Use the dedicated rename feature.",
+        ["cluster.renamePrompt"] = "Please enter a new Cluster ID",
+        ["cluster.notFound"] = "Cluster configuration not found",
+
+        // ── History extras ─────────────────────────────
+        ["history.snapshotPrompt"] = "Enter snapshot description",
+        ["history.snapshotCreated"] = "Snapshot created",
+        ["history.snapshotFailed"] = "Snapshot creation failed",
+        ["history.rollback.success"] = "Rollback succeeded",
+        ["history.rollback.failed"] = "Rollback failed",
+        ["history.loadingMsg"] = "Loading configuration history...",
+
+        // ── Notification extras ────────────────────────
+        ["notif.pushSuccess"] = "Push succeeded",
+        ["notif.pushFailed"] = "Push failed",
+
+        // ── API ────────────────────────────────────────
+        ["api.requestFailed"] = "Request failed",
+
+        // ── Deployment extras ──────────────────────────
+        ["deployment.restartRequired"] = "Deployment configuration changed, restart required for changes to take effect",
 
     };
 

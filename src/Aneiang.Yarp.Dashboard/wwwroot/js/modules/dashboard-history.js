@@ -119,7 +119,7 @@
                                     ${this.badgeForType(entry.changeType)}
                                     ${entry.isLatest ? '<span class="badge bg-success">当前最新</span>' : ''}
                                 </div>
-                                <h6 class="mb-1">${this.escape(entry.description || '未命名快照')}</h6>
+                                <h6 class="mb-1">${this.escape(entry.description || __('history.unnamedSnapshot'))}</h6>
                                 <div class="history-version">${this.escape(entry.versionId)}</div>
                             </div>
                             <div class="text-end text-muted small text-nowrap">
@@ -128,8 +128,8 @@
                             </div>
                         </div>
                         <div class="history-meta mb-3">
-                            <span><i class="bi bi-signpost-split me-1"></i>${entry.routeCount} 路由</span>
-                            <span><i class="bi bi-hdd-network me-1"></i>${entry.clusterCount} 集群</span>
+                            <span><i class="bi bi-signpost-split me-1"></i>${entry.routeCount} ${__('history.routes')}</span>
+                            <span><i class="bi bi-hdd-network me-1"></i>${entry.clusterCount} ${__('history.clusters')}</span>
                             <span><i class="bi bi-pc-display me-1"></i>${this.escape(entry.clientIp || '-')}</span>
                             <span><i class="bi bi-database me-1"></i>${this.formatBytes(entry.configSize)}</span>
                         </div>
@@ -161,9 +161,9 @@
                     <div class="d-flex justify-content-between gap-2 align-items-start">
                         <div>
                             <div class="small opacity-75">${this.escape(this.typeLabel(entry.changeType))}</div>
-                            <h5 class="mb-0">${this.escape(entry.description || '未命名快照')}</h5>
+                            <h5 class="mb-0">${this.escape(entry.description || __('history.unnamedSnapshot'))}</h5>
                         </div>
-                        ${entry.isLatest ? '<span class="badge bg-success">最新</span>' : ''}
+                        ${entry.isLatest ? '<span class="badge bg-success">' + __('history.latest') + '</span>' : ''}
                     </div>
                 </div>
                 <div class="history-detail-body">
@@ -172,8 +172,8 @@
                         <code class="d-block p-2 rounded" style="background:#f8fafc;word-break:break-all;">${this.escape(entry.versionId)}</code>
                     </div>
                     <div class="row g-2 mb-3">
-                        <div class="col-6"><div class="border rounded p-2"><div class="text-muted small">路由</div><div class="fw-bold fs-5">${entry.routeCount}</div></div></div>
-                        <div class="col-6"><div class="border rounded p-2"><div class="text-muted small">集群</div><div class="fw-bold fs-5">${entry.clusterCount}</div></div></div>
+                        <div class="col-6"><div class="border rounded p-2"><div class="text-muted small">${__('history.routes')}</div><div class="fw-bold fs-5">${entry.routeCount}</div></div></div>
+                        <div class="col-6"><div class="border rounded p-2"><div class="text-muted small">${__('history.clusters')}</div><div class="fw-bold fs-5">${entry.clusterCount}</div></div></div>
                     </div>
                     <div class="small mb-3">
                         <div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted">创建时间</span><span>${this.formatDate(entry.timestamp)}</span></div>
@@ -221,25 +221,25 @@
 
             try {
                 await window.DashboardApi.endpoints.rollback(versionId);
-                this.toast('回滚成功', 'success');
+                this.toast(__('history.rollback.success'), 'success');
                 setTimeout(() => this.loadHistory(), 500);
             } catch (error) {
                 console.error('[History] Rollback failed:', error);
-                this.toast('回滚失败：' + (error.message || ''), 'error');
+                this.toast(__('history.rollback.failed') + ': ' + (error.message || ''), 'error');
             }
         },
 
         createSnapshot: async function() {
-            const description = prompt('请输入快照说明', 'Manual snapshot - ' + new Date().toLocaleString());
+            const description = prompt(__('history.snapshotPrompt'), __('history.snapshotPrompt') + ': ' + new Date().toLocaleString());
             if (description === null) return;
 
             try {
                 await window.DashboardApi.endpoints.createSnapshot(description || 'Manual snapshot');
-                this.toast('快照创建成功', 'success');
+                this.toast(__('history.snapshotCreated'), 'success');
                 this.loadHistory();
             } catch (error) {
                 console.error('[History] Snapshot failed:', error);
-                this.toast('快照创建失败：' + (error.message || ''), 'error');
+                this.toast(__('history.snapshotFailed') + ': ' + (error.message || ''), 'error');
             }
         },
 
@@ -288,15 +288,15 @@
                 const data = await window.DashboardApi.endpoints.configDiff(versionId);
                 if (window.DashboardDiffPanel) {
                     window.DashboardDiffPanel.showStructured(data, {
-                        title: '配置差异 (' + versionId.substring(0, 10) + ')',
+                        title: __('history.configDiff') + ' (' + versionId.substring(0, 10) + ')',
                         summary: data.summary
                     });
                 } else {
-                    this.toast('差异面板未加载', 'error');
+                    this.toast(__('history.diffPanelNotLoaded'), 'error');
                 }
             } catch (error) {
                 console.error('[History] Diff failed:', error);
-                this.toast('差异加载失败：' + (error.message || ''), 'error');
+                this.toast(__('history.diffLoadFailed') + ': ' + (error.message || ''), 'error');
             }
         },
 
@@ -352,11 +352,11 @@
         },
 
         renderLoading: function() {
-            return '<div class="history-empty-state"><div class="spinner-border text-primary mb-3"></div><div class="text-muted">正在加载配置历史...</div></div>';
+            return `<div class="history-empty-state"><div class="spinner-border text-primary mb-3"></div><div class="text-muted">${__('history.loadingMsg')}</div></div>`;
         },
 
         renderError: function(error) {
-            return `<div class="history-empty-state"><i class="bi bi-exclamation-triangle text-danger" style="font-size:42px;"></i><h5 class="mt-3">加载失败</h5><p class="text-muted">${this.escape(error.message || 'Unknown error')}</p><button class="btn btn-outline-primary" onclick="HistoryModule.loadHistory()">重试</button></div>`;
+            return `<div class="history-empty-state"><i class="bi bi-exclamation-triangle text-danger" style="font-size:42px;"></i><h5 class="mt-3">${__('loading.loadFailed')}</h5><p class="text-muted">${this.escape(error.message || 'Unknown error')}</p><button class="btn btn-outline-primary" onclick="HistoryModule.loadHistory()">${__('loading.retry')}</button></div>`;
         },
 
         renderEmpty: function(title, message) {
@@ -395,12 +395,12 @@
         relativeTime: function(value) {
             if (!value) return '--';
             const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
-            if (seconds < 60) return seconds + ' 秒前';
+            if (seconds < 60) return seconds + __('index.time.secondsAgo');
             const minutes = Math.floor(seconds / 60);
-            if (minutes < 60) return minutes + ' 分钟前';
+            if (minutes < 60) return minutes + __('index.time.minutesAgo');
             const hours = Math.floor(minutes / 60);
-            if (hours < 24) return hours + ' 小时前';
-            return Math.floor(hours / 24) + ' 天前';
+            if (hours < 24) return hours + __('index.time.hoursAgo');
+            return Math.floor(hours / 24) + __('index.time.daysAgo');
         },
 
         formatBytes: function(bytes) {

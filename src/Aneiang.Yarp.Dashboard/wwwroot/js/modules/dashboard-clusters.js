@@ -252,7 +252,7 @@
             if (refreshBtn) {
                 refreshBtn.addEventListener('click', function() {
                     if (window.DashboardLoading) {
-                        window.DashboardLoading.withButton(refreshBtn, '刷新中...', function() { return self.loadClusters(true); });
+                        window.DashboardLoading.withButton(refreshBtn, __('loading.refreshing'), function() { return self.loadClusters(true); });
                     } else {
                         self.loadClusters(true);
                     }
@@ -601,7 +601,7 @@
 
             const renameBtn = window.DashboardDOM.create('button', {
                 className: 'btn btn-outline-secondary',
-                attributes: { title: '重命名 Cluster ID' },
+                attributes: { title: __('cluster.renameTitle') },
                 events: {
                     click: (e) => {
                         e.stopPropagation();
@@ -1368,7 +1368,7 @@
                     }
 
                     if (newId && newId !== clusterId) {
-                        window.DashboardModals.showError('Cluster ID 不能在普通编辑中修改，请使用专用重命名功能。');
+                        window.DashboardModals.showError(__('cluster.renameOnly'));
                         return false;
                     }
 
@@ -1379,14 +1379,14 @@
         },
 
         showRenameModal: function(clusterId) {
-            const newId = prompt('请输入新的 Cluster ID', clusterId);
+            const newId = prompt(__('cluster.renamePrompt'), clusterId);
             if (newId === null) return;
             const trimmed = newId.trim();
             if (!trimmed || trimmed === clusterId) return;
 
             const cluster = (window.DashboardState.get('data.clusters') || []).find(c => c.clusterId === clusterId);
             if (!cluster) {
-                window.DashboardModals.showError('未找到集群配置');
+                window.DashboardModals.showError(__('cluster.notFound'));
                 return;
             }
 

@@ -349,8 +349,8 @@
             if (cpuBar) cpuBar.style.width = Math.min(100, cpuPct) + '%';
 
             // GC + Threads
-            updateElement('sys-gc-value', info.gcCount || info.gcTotalCount || '--');
-            updateElement('sys-thread-value', info.threadCount || '--');
+            updateElement('sys-gc-value', info.gcCount ?? '--');
+            updateElement('sys-thread-value', info.threadCount ?? '--');
         } catch (e) {
             console.error('[OpsModule] System health load failed:', e);
         }

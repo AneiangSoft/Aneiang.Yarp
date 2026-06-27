@@ -187,9 +187,6 @@ public static class DashboardServiceCollectionExtensions
         });
         services.AddSingleton<ProxyLogStore>(sp => (ProxyLogStore)sp.GetRequiredService<IProxyLogStore>());
         services.AddSingleton<LogSanitizer>();
-        services.AddSingleton<YarpEventSourceListener>();
-        services.AddSingleton<YarpEventSourceListenerStartupService>();
-        services.AddHostedService<YarpEventSourceListenerStartupService>();
 
         // ── Downstream capture transform ──────────────────────────────────────────
         services.AddSingleton<ITransformProvider, DownstreamCaptureTransformProvider>();

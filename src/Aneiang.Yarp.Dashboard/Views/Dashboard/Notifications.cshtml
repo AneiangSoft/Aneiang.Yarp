@@ -36,7 +36,7 @@
                 </div>
                 <div class="stat-info">
                     <div class="stat-value" id="notif-rules-count">-</div>
-                    <div class="stat-label" data-i18n="notif.rules">规则</div>
+                    <div class="stat-label" data-i18n="notification.rules">规则</div>
                 </div>
             </div>
         </div>
@@ -82,7 +82,7 @@
                         <select class="form-select form-select-sm" id="notif-type-filter" style="width:170px;">
                             <option value="" data-i18n="notif.filter.allTypes">所有类型</option>
                         </select>
-                        <input type="text" class="form-control form-control-sm" id="notif-keyword-filter" placeholder="搜索关键词..." style="width:180px;" onkeyup="NotificationModule.onKeywordChange(event)">
+                        <input type="text" class="form-control form-control-sm" id="notif-keyword-filter" style="width:180px;" onkeyup="NotificationModule.onKeywordChange(event)">
                         <input type="date" class="form-control form-control-sm" id="notif-date-start" style="width:140px;" onchange="NotificationModule.applyFilters()" title="开始日期">
                         <input type="date" class="form-control form-control-sm" id="notif-date-end" style="width:140px;" onchange="NotificationModule.applyFilters()" title="结束日期">
                         <select class="form-select form-select-sm" id="notif-page-size" style="width:100px;" onchange="NotificationModule.onPageSizeChange()">
@@ -97,10 +97,10 @@
                             <i class="bi bi-lightning-fill"></i> <span data-i18n="notif.genTest">生成测试</span>
                         </button>
                         <button class="btn btn-sm btn-outline-primary" onclick="NotificationModule.testNotification()" title="测试通知">
-                            <i class="bi bi-send"></i> <span data-i18n="notif.test">测试通知</span>
+                            <i class="bi bi-send"></i> <span data-i18n="notification.test">测试通知</span>
                         </button>
                         <button class="btn btn-sm btn-outline-danger" onclick="NotificationModule.clearHistory()" title="清空">
-                            <i class="bi bi-trash"></i> <span data-i18n="notif.clear">清空</span>
+                            <i class="bi bi-trash"></i> <span data-i18n="notification.clear">清空</span>
                         </button>
                         <button class="btn btn-sm btn-outline-secondary btn-icon-only" onclick="NotificationModule.loadHistory()" title="刷新">
                             <i class="bi bi-arrow-clockwise"></i>

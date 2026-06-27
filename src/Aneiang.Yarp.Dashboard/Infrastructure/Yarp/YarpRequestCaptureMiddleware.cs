@@ -143,6 +143,25 @@ public sealed class YarpRequestCaptureMiddleware
             requestBody = await ReadBodyAsync(context.Request, _maxBodyBufferBytes);
         }
 
+        // Sanitize and truncate request body, then write request log entry immediately
+        // so it appears in the UI before the downstream response arrives (slow backend support).
+        var sanitizedRequestBody = _sanitizer.SanitizeJsonBody(requestBody);
+        var requestText = _sanitizer.TruncateText(sanitizedRequestBody, out var requestTruncated);
+
+        _store.Add(new LogEntry
+        {
+            Timestamp = timestamp,
+            EventType = LogEventType.ProxyRequest,
+            Level = "Information",
+            Message = $"[Request] {context.Request.Method} {context.Request.Path}{context.Request.QueryString}",
+            TraceId = traceId,
+            Method = context.Request.Method,
+            UpstreamPath = context.Request.Path + context.Request.QueryString.Value,
+            RequestHeaders = _sanitizer.SanitizeHeaders(context.Request.Headers),
+            RequestBody = requestText,
+            RequestBodyTruncated = requestTruncated
+        });
+
         var captureResponseBody = _enableResponseBodyCapture && IsResponseBodyCaptureCandidate(context.Request);
         var originalResponseBody = context.Response.Body;
         var originalBodyFeature = context.Features.Get<IHttpResponseBodyFeature>();
@@ -191,10 +210,6 @@ public sealed class YarpRequestCaptureMiddleware
             await responseBodyStream.DisposeAsync();
         }
 
-        // Sanitize and truncate request body
-        var sanitizedRequestBody = _sanitizer.SanitizeJsonBody(requestBody);
-        var requestText = _sanitizer.TruncateText(sanitizedRequestBody, out var requestTruncated);
-
         // Sanitize and truncate downstream body
         string? downstreamText = null;
         var downstreamTruncatedFlag = false;
@@ -204,14 +219,18 @@ public sealed class YarpRequestCaptureMiddleware
             downstreamText = _sanitizer.TruncateText(sanitizedDownstreamBody, out downstreamTruncatedFlag);
         }
 
-        // Build structured request log entry
+        // Sanitize and truncate response body
+        var sanitizedResponseBody = _sanitizer.SanitizeJsonBody(responseBodyText);
+        var responseText = _sanitizer.TruncateText(sanitizedResponseBody, out var responseTruncated);
+
+        // Build structured response log entry (carries Route/Cluster + downstream data
+        // in addition to response info, since the pre-await request entry didn't have it yet)
         _store.Add(new LogEntry
         {
-            Timestamp = timestamp,
-            EventType = LogEventType.ProxyRequest,
-            Level = "Information",
-            Category = "Gateway",
-            Message = $"[Request] {context.Request.Method} {context.Request.Path}{context.Request.QueryString}",
+            Timestamp = DateTime.Now,
+            EventType = LogEventType.ProxyResponse,
+            Level = GetLogLevel(context.Response.StatusCode),
+            Message = $"[Response] {context.Response.StatusCode} {context.Request.Method} {context.Request.Path}{context.Request.QueryString}",
             TraceId = traceId,
             RouteId = routeId,
             ClusterId = clusterId,
@@ -221,29 +240,6 @@ public sealed class YarpRequestCaptureMiddleware
             DownstreamMethod = downstreamMethod,
             DownstreamBody = downstreamText,
             DownstreamBodyTruncated = downstreamTruncatedFlag,
-            RequestHeaders = _sanitizer.SanitizeHeaders(context.Request.Headers),
-            RequestBody = requestText,
-            RequestBodyTruncated = requestTruncated
-        });
-
-        // Sanitize and truncate response body
-        var sanitizedResponseBody = _sanitizer.SanitizeJsonBody(responseBodyText);
-        var responseText = _sanitizer.TruncateText(sanitizedResponseBody, out var responseTruncated);
-
-        // Build structured response log entry
-        _store.Add(new LogEntry
-        {
-            Timestamp = DateTime.Now,
-            EventType = LogEventType.ProxyResponse,
-            Level = GetLogLevel(context.Response.StatusCode),
-            Category = "Gateway",
-            Message = $"[Response] {context.Response.StatusCode} {context.Request.Method} {context.Request.Path}{context.Request.QueryString}",
-            TraceId = traceId,
-            RouteId = routeId,
-            ClusterId = clusterId,
-            Method = context.Request.Method,
-            UpstreamPath = context.Request.Path + context.Request.QueryString.Value,
-            DownstreamUrl = downstreamUrl,
             StatusCode = context.Response.StatusCode,
             ElapsedMs = stopwatch.Elapsed.TotalMilliseconds,
             ResponseHeaders = _sanitizer.SanitizeHeaders(context.Response.Headers),

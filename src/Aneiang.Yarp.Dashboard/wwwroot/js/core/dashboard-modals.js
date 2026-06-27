@@ -327,7 +327,7 @@
 
             if (config.onSave) {
                 // Show loading state while the (possibly async) save runs.
-                if (window.DashboardLoading) window.DashboardLoading.setButton(saveBtn, true, '保存中...');
+                if (window.DashboardLoading) window.DashboardLoading.setButton(saveBtn, true, __('modal.saving'));
                 try {
                     const saveResult = config.onSave(result);
                     const resolved = saveResult && typeof saveResult.then === 'function' ? await saveResult : saveResult;
@@ -471,7 +471,7 @@
                            style="border-radius:8px;padding:8px 12px;font-size:14px;border:1.5px solid #e2e8f0;transition:border-color 0.2s,box-shadow 0.2s;${idReadOnly ? 'background:#f8fafc;color:#64748b;cursor:not-allowed;' : ''}"
                            onfocus="this.style.borderColor='#6366f1';this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.1)'"
                            onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
-                    ${idReadOnly ? `<span style="font-size:12px;color:#64748b;white-space:nowrap;"><i class="bi bi-lock"></i> ID 修改请使用专用重命名功能</span>` : (editableId.original ? `<span style="font-size:12px;color:#94a3b8;white-space:nowrap;">${window.__('modal.renameHint')}</span>` : '')}
+                    ${idReadOnly ? `<span style="font-size:12px;color:#64748b;white-space:nowrap;"><i class="bi bi-lock"></i>${window.__('modal.renameOnly')}</span>` : (editableId.original ? `<span style="font-size:12px;color:#94a3b8;white-space:nowrap;">${window.__('modal.renameHint')}</span>` : '')}
                 </div>
             </div>
         ` : '';
