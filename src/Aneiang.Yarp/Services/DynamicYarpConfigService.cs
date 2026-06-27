@@ -325,6 +325,9 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
                 clusters.Add(clusterConfig);
         }
 
+        for (var ri = 0; ri < routes.Count; ri++)
+            routes[ri] = NormalizeTransforms(routes[ri]);
+
         _configProvider.Update(routes, SanitizeClusters(clusters));
     }
 
@@ -333,6 +336,33 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
     /// serialized config (carrying all advanced properties) and falling back to basic fields.
     /// Route identity and policy metadata always remain authoritative from the dynamic record.
     /// </summary>
+    private static RouteConfig NormalizeTransforms(RouteConfig route)
+    {
+        if (route.Transforms == null || route.Transforms.Count == 0) return route;
+
+        var normalized = new List<IReadOnlyDictionary<string, string>>();
+        var changed = false;
+        foreach (var transform in route.Transforms)
+        {
+            if (transform.TryGetValue("X-Forwarded", out var xForwarded)
+                && !string.IsNullOrWhiteSpace(xForwarded)
+                && !string.Equals(xForwarded, "Set", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(xForwarded, "Append", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(xForwarded, "Remove", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(xForwarded, "Random", StringComparison.OrdinalIgnoreCase))
+            {
+                normalized.Add(new Dictionary<string, string> { ["X-Forwarded"] = "Set" });
+                changed = true;
+            }
+            else
+            {
+                normalized.Add(transform);
+            }
+        }
+
+        return changed ? route with { Transforms = normalized } : route;
+    }
+
     private static RouteConfig BuildRouteConfig(DynamicRouteConfig dynRoute)
     {
         RouteConfig? parsed = null;
@@ -868,7 +898,11 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
                 isNew = true;
             }
 
-            _configProvider.Update(newRoutes, config.Clusters ?? Array.Empty<ClusterConfig>());
+            // Normalize comma-delimited transform values (X-Forwarded: For,Proto → two entries)
+            for (var ri = 0; ri < newRoutes.Count; ri++)
+                newRoutes[ri] = NormalizeTransforms(newRoutes[ri]);
+
+            _configProvider.Update(newRoutes, SanitizeClusters((config.Clusters ?? Array.Empty<ClusterConfig>()).ToList()));
 
             var configJson = Serialization.YarpJsonConfig.SerializeRoute(route);
             var transforms = route.Transforms?.Select(t => new Dictionary<string, string>(t)).ToList();

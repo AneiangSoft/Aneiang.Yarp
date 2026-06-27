@@ -233,6 +233,15 @@ internal static class YarpConfigParser
         return dict.Count > 0 ? dict : null;
     }
 
+    /// <summary>
+    /// Transform keys whose appsettings.json syntax (e.g. X-Forwarded: For,Proto,Host,Prefix)
+    /// must be converted to the API/InMemoryConfigProvider enum format (e.g. X-Forwarded: Set).
+    /// </summary>
+    private static readonly HashSet<string> _apiCompatibleTransformKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "X-Forwarded"
+    };
+
     private static List<Dictionary<string, string>>? ParseTransforms(IConfigurationSection section)
     {
         if (!section.Exists()) return null;
@@ -242,9 +251,43 @@ internal static class YarpConfigParser
         {
             var dict = new Dictionary<string, string>();
             foreach (var entry in t.GetChildren())
-                if (entry.Value != null) dict[entry.Key] = entry.Value;
+            {
+                if (entry.Value == null) continue;
+
+                if (_apiCompatibleTransformKeys.Contains(entry.Key))
+                {
+                    dict[entry.Key] = MapTransformToApi(entry.Key, entry.Value);
+                }
+                else
+                {
+                    dict[entry.Key] = entry.Value;
+                }
+            }
             if (dict.Count > 0) list.Add(dict);
         }
         return list.Count > 0 ? list : null;
+    }
+
+    /// <summary>
+    /// Convert appsettings.json-style descriptive transform values to the API/InMemory enum values
+    /// that YARP's InMemoryConfigProvider accepts. For example, X-Forwarded: For,Proto,Host,Prefix → Set.
+    /// </summary>
+    private static string MapTransformToApi(string key, string value)
+    {
+        if (string.Equals(key, "X-Forwarded", StringComparison.OrdinalIgnoreCase))
+        {
+            // In appsettings.json, "For,Proto,Host,Prefix" selects which X-Forwarded-* headers to set.
+            // In API mode, the enum ForwardedTransformActions uses Set/Append/Remove/Random.
+            // Any non-empty descriptive value → Set (which sets all standard X-Forwarded headers).
+            if (!string.IsNullOrWhiteSpace(value) &&
+                !string.Equals(value, "Set", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(value, "Append", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(value, "Remove", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(value, "Random", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Set";
+            }
+        }
+        return value;
     }
 }
