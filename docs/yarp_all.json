@@ -13,28 +13,38 @@
   "ReverseProxy": {
     // Routes inform the proxy which requests to forward
     "Routes": {
-      "minimumroute" : {
+      "minimumroute": {
         // Matches anything and routes to www.example.com
         "ClusterId": "minimumcluster",
         "Match": {
           "Path": "{**catch-all}"
         }
       },
-      "allrouteprops" : {
+      "allrouteprops": {
         // Matches /something/* and routes to "allclusterprops"
         "ClusterId": "allclusterprops", // Name of a cluster
-        "Order" : 100, // Lower numbers have higher precedence
-        "MaxRequestBodySize" : 1000000, // In bytes. An optional override of the server's limit (30MB default). Set to -1 to disable.
-        "AuthorizationPolicy" : "Anonymous", // Name of the policy or "Default", "Anonymous"
-        "CorsPolicy" : "Default", // Name of the CorsPolicy to apply to this route or "Default", "Disable"
+        "Order": 100, // Lower numbers have higher precedence
+        "MaxRequestBodySize": 1000000, // In bytes. An optional override of the server's limit (30MB default). Set to -1 to disable.
+        "AuthorizationPolicy": "Anonymous", // Name of the policy or "Default", "Anonymous"
+        "CorsPolicy": "Default", // Name of the CorsPolicy to apply to this route or "Default", "Disable"
         "Match": {
           "Path": "/something/{**remainder}", // Path to match by using ASP.NET syntax
-          "Hosts" : [ "www.aaaaa.com", "www.bbbbb.com"], // Host names to match, unspecified is any
-          "Methods" : [ "GET", "PUT" ], // HTTP methods that match, unspecified is all
+          "Hosts": [
+            "www.aaaaa.com",
+            "www.bbbbb.com"
+          ], // Host names to match, unspecified is any
+          "Methods": [
+            "GET",
+            "PUT"
+          ], // HTTP methods that match, unspecified is all
           "Headers": [ // Headers to match, unspecified is any
             {
               "Name": "MyCustomHeader", // Name of the header
-              "Values": [ "value1", "value2", "another value" ], // Match any of these values
+              "Values": [
+                "value1",
+                "value2",
+                "another value"
+              ], // Match any of these values
               "Mode": "ExactHeader", // Or, match "HeaderPrefix", "Exists" , "Contains", "NotContains", "NotExists"
               "IsCaseSensitive": true
             }
@@ -42,16 +52,20 @@
           "QueryParameters": [ // Query parameters to match, unspecified is any
             {
               "Name": "MyQueryParameter", // Name of the query parameter
-              "Values": [ "value1", "value2", "another value" ], // Match any of these values
+              "Values": [
+                "value1",
+                "value2",
+                "another value"
+              ], // Match any of these values
               "Mode": "Exact", // Or, match "Prefix", "Exists" , "Contains", "NotContains"
               "IsCaseSensitive": true
             }
           ]
         },
-        "Metadata" : { // List of key value pairs that can be used by custom extensions
-          "MyName" : "MyValue"
+        "Metadata": { // List of key value pairs that can be used by custom extensions
+          "MyName": "MyValue"
         },
-        "Transforms" : [ // List of transforms. See the Transforms article for more details
+        "Transforms": [ // List of transforms. See the Transforms article for more details
           {
             "RequestHeader": "MyHeader",
             "Set": "MyValue"
@@ -75,16 +89,16 @@
           },
           "another_destination": {
             "Address": "https://10.20.30.40",
-            "Health" : "https://10.20.30.40:12345/test" // Override for active health checks
+            "Health": "https://10.20.30.40:12345/test" // Override for active health checks
           }
         },
-        "LoadBalancingPolicy" : "PowerOfTwoChoices", // Alternatively "FirstAlphabetical", "Random", "RoundRobin", "LeastRequests"
+        "LoadBalancingPolicy": "PowerOfTwoChoices", // Alternatively "FirstAlphabetical", "Random", "RoundRobin", "LeastRequests"
         "SessionAffinity": {
           "Enabled": true, // Default is 'false'
           "Policy": "Cookie", // Default, alternatively "CustomHeader"
           "FailurePolicy": "Redistribute", // Default, alternatively "Return503Error"
-          "Settings" : {
-              "CustomHeaderName": "MySessionHeaderName" // Default is 'X-Yarp-Proxy-Affinity`
+          "Settings": {
+            "CustomHeaderName": "MySessionHeaderName" // Default is 'X-Yarp-Proxy-Affinity`
           }
         },
         "HealthCheck": {
@@ -98,27 +112,27 @@
           },
           "Passive": { // Disables destinations based on HTTP response codes
             "Enabled": true, // Default is false
-            "Policy" : "TransportFailureRateHealthPolicy", // Required
-            "ReactivationPeriod" : "00:00:10" // 10s
+            "Policy": "TransportFailureRateHealthPolicy", // Required
+            "ReactivationPeriod": "00:00:10" // 10s
           }
         },
-        "HttpClient" : { // Configuration of HttpClient instance used to contact destinations
-          "SSLProtocols" : "Tls13",
-          "DangerousAcceptAnyServerCertificate" : false,
-          "MaxConnectionsPerServer" : 1024,
-          "EnableMultipleHttp2Connections" : true,
-          "RequestHeaderEncoding" : "Latin1", // How to interpret non ASCII characters in request header values
-          "ResponseHeaderEncoding" : "Latin1" // How to interpret non ASCII characters in response header values
+        "HttpClient": { // Configuration of HttpClient instance used to contact destinations
+          "SSLProtocols": "Tls13",
+          "DangerousAcceptAnyServerCertificate": false,
+          "MaxConnectionsPerServer": 1024,
+          "EnableMultipleHttp2Connections": true,
+          "RequestHeaderEncoding": "Latin1", // How to interpret non ASCII characters in request header values
+          "ResponseHeaderEncoding": "Latin1" // How to interpret non ASCII characters in response header values
         },
-        "HttpRequest" : { // Options for sending request to destination
-          "ActivityTimeout" : "00:02:00",
-          "Version" : "2",
-          "VersionPolicy" : "RequestVersionOrLower",
-          "AllowResponseBuffering" : "false"
+        "HttpRequest": { // Options for sending request to destination
+          "ActivityTimeout": "00:02:00",
+          "Version": "2",
+          "VersionPolicy": "RequestVersionOrLower",
+          "AllowResponseBuffering": "false"
         },
-        "Metadata" : { // Custom Key value pairs
+        "Metadata": { // Custom Key value pairs
           "TransportFailureRateHealthPolicy.RateLimit": "0.5", // Used by Passive health policy
-          "MyKey" : "MyValue"
+          "MyKey": "MyValue"
         }
       }
     }

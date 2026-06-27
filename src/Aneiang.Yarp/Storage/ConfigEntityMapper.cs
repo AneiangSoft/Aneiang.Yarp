@@ -20,6 +20,7 @@ public static class ConfigEntityMapper
     {
         RouteUid = string.IsNullOrWhiteSpace(route.RouteUid) ? StableUidFromKey("route", route.RouteId) : route.RouteUid,
         RouteId = route.RouteId,
+        ClusterUid = route.ClusterUid,
         ClusterId = route.ClusterId,
         MatchPath = route.MatchPath,
         Order = route.Order,

@@ -1,4 +1,5 @@
 using Aneiang.Yarp.Models;
+using Microsoft.Extensions.Configuration;
 using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Services;
@@ -80,4 +81,11 @@ public interface IDynamicYarpConfigService
 
     /// <summary>Update circuit breaker configuration for a cluster.</summary>
     Task<bool> UpdateClusterCircuitBreakerAsync(string clusterId, Models.CircuitBreakerConfig? config);
+
+    /// <summary>
+    /// Reload static YARP config from <see cref="IConfiguration"/> (e.g. after appsettings.json hot-reload).
+    /// Parses the <c>ReverseProxy</c> config section into native YARP route/cluster objects,
+    /// merges with current dynamic overrides, and updates the in-memory provider.
+    /// </summary>
+    void ReloadStaticConfig(IConfiguration configuration);
 }

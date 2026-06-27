@@ -44,8 +44,8 @@ try
     // builder.Services.AddGatewayApiAuth();
 
     var app = builder.Build();
-
     app.UseRouting();
+    app.UseCors();
 
     // Register Dashboard middleware + MapReverseProxy (mode-aware).
     // Deployment-aware routing and health-check middleware are mounted automatically when deployment services are registered.
