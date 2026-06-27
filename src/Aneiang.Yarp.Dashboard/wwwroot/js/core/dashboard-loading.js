@@ -80,7 +80,7 @@
             'box-shadow:0 4px 12px rgba(0,0,0,0.15)',
             'display:none', 'max-width:80%', 'text-align:center'
         ].join(';');
-        slowBannerEl.textContent = '请求耗时较长，请耐心等待...';
+        slowBannerEl.textContent = __('loading.slowRequest');
 
         document.body.appendChild(barEl);
         document.body.appendChild(badgeEl);
@@ -108,25 +108,26 @@
         slowTimer = setTimeout(function() {
             if (!isVisible) return;
             slowBannerEl.style.display = 'block';
-            slowBannerEl.innerHTML = '<i class="bi bi-clock-history me-1"></i> 请求耗时较长，请耐心等待...';
+            slowBannerEl.innerHTML = '<i class="bi bi-clock-history me-1"></i> ' + __('loading.slowRequest');
             slowBannerEl.style.background = 'rgba(245,158,11,0.95)';
             slowBannerEl.style.cursor = 'default';
             // Escalate to "very slow" with retry at 10s
             verySlowTimer = setTimeout(function() {
                 if (!isVisible) return;
                 slowBannerEl.innerHTML =
-                    '<i class="bi bi-wifi-off me-1"></i> 网络可能有问题，仍在等待响应... ' +
+                    '<i class="bi bi-wifi-off me-1"></i> ' + __('loading.networkIssue') + ' ' +
                     '<button id="dashboard-network-retry-btn" type="button" ' +
                     'style="margin-left:10px;padding:2px 10px;border:1px solid #fff;border-radius:4px;background:transparent;color:#fff;font-size:12px;cursor:pointer;">' +
-                    '检查网络</button>';
+                    __('loading.checkNetwork') + '</button>';
                 slowBannerEl.style.background = 'rgba(220,38,38,0.95)';
                 var retryBtn = document.getElementById('dashboard-network-retry-btn');
                 if (retryBtn) {
                     retryBtn.addEventListener('click', function() {
                         if (window.DashboardModals) {
+                            var msg = __('loading.networkIssueDetail');
                             window.DashboardModals.showInfo
-                                ? window.DashboardModals.showInfo('请检查浏览器网络连接；如网络正常，可稍候片刻等待响应或刷新页面。')
-                                : alert('请检查浏览器网络连接；如网络正常，可稍候片刻等待响应或刷新页面。');
+                                ? window.DashboardModals.showInfo(msg)
+                                : alert(msg);
                         }
                     });
                 }
@@ -357,21 +358,21 @@
         wrap.innerHTML =
             '<div style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;background:#fee2e2;color:#dc2626;font-size:24px;margin-bottom:12px;">' +
             '<i class="bi bi-exclamation-triangle-fill"></i></div>' +
-            '<div style="font-size:14px;font-weight:500;color:#334155;margin-bottom:6px;">加载失败</div>' +
+            '<div style="font-size:14px;font-weight:500;color:#334155;margin-bottom:6px;">' + __('loading.loadFailed') + '</div>' +
             '<div style="font-size:13px;color:#64748b;margin-bottom:16px;max-width:480px;margin-left:auto;margin-right:auto;"></div>';
-        wrap.children[2].textContent = message || '请求失败，请稍后重试。';
+        wrap.children[2].textContent = message || __('loading.requestFailed');
 
         if (typeof onRetry === 'function') {
             var btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'btn btn-sm btn-primary';
-            btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>重试';
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>' + __('loading.retry');
             btn.addEventListener('click', function() {
-                if (window.DashboardLoading) window.DashboardLoading.setButton(btn, true, '重试中...');
+                if (window.DashboardLoading) window.DashboardLoading.setButton(btn, true, __('loading.retrying'));
                 Promise.resolve()
                     .then(onRetry)
                     .catch(function(e) {
-                        if (window.DashboardModals) window.DashboardModals.showError('重试失败：' + (e && e.message ? e.message : e));
+                        if (window.DashboardModals) window.DashboardModals.showError(__('loading.retryFailed') + (e && e.message ? e.message : e));
                     })
                     .then(function() {
                         if (window.DashboardLoading) window.DashboardLoading.setButton(btn, false);
@@ -404,7 +405,7 @@
                     'box-shadow:0 2px 8px rgba(0,0,0,0.15)',
                     'display:none', 'align-items:center', 'justify-content:center', 'gap:8px'
                 ].join(';');
-                networkBannerEl.innerHTML = '<i class="bi bi-wifi-off"></i><span>网络连接已断开，部分功能将不可用</span>';
+                networkBannerEl.innerHTML = '<i class="bi bi-wifi-off"></i><span>' + __('loading.networkDisconnected') + '</span>';
                 document.body.appendChild(networkBannerEl);
             }
             networkBannerEl.style.display = isOffline ? 'flex' : 'none';
@@ -433,7 +434,7 @@
             textEl.textContent = label || 'Loading';
             return;
         }
-        textEl.textContent = (label || '处理中') + ' ' + current + ' / ' + total + ' (' + Math.round(current / total * 100) + '%)';
+        textEl.textContent = (label || __('loading.processing')) + ' ' + current + ' / ' + total + ' (' + Math.round(current / total * 100) + '%)';
     };
 
     /**

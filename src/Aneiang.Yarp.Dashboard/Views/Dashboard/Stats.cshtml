@@ -168,8 +168,11 @@
     dash.basePath = '/' + '@prefix';
     dash.routePrefix = '@prefix';
     dash.token = localStorage.getItem('dashboard_token');
+    dash.CURRENT_LOCALE = '@ViewBag.Locale';
+    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
 
     document.addEventListener('DOMContentLoaded', function() {
+        window.DashboardI18n.init();
         window.DashboardApi.init();
         StatsPageModule.init();
     });

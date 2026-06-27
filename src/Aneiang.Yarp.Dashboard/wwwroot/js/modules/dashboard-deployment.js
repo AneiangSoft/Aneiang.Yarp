@@ -182,7 +182,7 @@
             const reasons = data.restartReasons || [];
             const messages = reasons.length
                 ? reasons.map(r => (r.title || 'Restart required') + ': ' + (r.message || r.configPath || r.key))
-                : ['部署配置已变更，需要重启进程才能生效'];
+                : [__('deployment.restartRequired')];
 
             messages.forEach(message => {
                 const div = document.createElement('div');

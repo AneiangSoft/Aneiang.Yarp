@@ -310,7 +310,7 @@
             if (refreshBtn) {
                 refreshBtn.addEventListener('click', function() {
                     if (window.DashboardLoading) {
-                        window.DashboardLoading.withButton(refreshBtn, '刷新中...', function() { return self.loadRoutes(true); });
+                        window.DashboardLoading.withButton(refreshBtn, __('loading.refreshing'), function() { return self.loadRoutes(true); });
                     } else {
                         self.loadRoutes(true);
                     }
@@ -929,7 +929,7 @@
 
             const renameBtn = window.DashboardDOM.create('button', {
                 className: 'btn btn-outline-secondary',
-                attributes: { title: '重命名 Route ID' },
+                attributes: { title: __('route.renameTitle') },
                 events: {
                     click: (e) => {
                         e.stopPropagation();
@@ -1920,7 +1920,7 @@
                     }
 
                     if (newId && newId !== routeId) {
-                        window.DashboardModals.showError('Route ID 不能在普通编辑中修改，请使用专用重命名功能。');
+                        window.DashboardModals.showError(__('route.renameOnly'));
                         return false;
                     }
 
@@ -1931,14 +1931,14 @@
         },
 
         showRenameModal: function(routeId) {
-            const newId = prompt('请输入新的 Route ID', routeId);
+            const newId = prompt(__('route.renamePrompt'), routeId);
             if (newId === null) return;
             const trimmed = newId.trim();
             if (!trimmed || trimmed === routeId) return;
 
             const route = (window.DashboardState.get('data.routes') || []).find(r => r.routeId === routeId);
             if (!route) {
-                window.DashboardModals.showError('未找到路由配置');
+                window.DashboardModals.showError(__('route.notFound'));
                 return;
             }
 

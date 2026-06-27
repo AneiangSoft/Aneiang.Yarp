@@ -166,7 +166,7 @@
             const processed = new Set();
 
             entries.forEach((entry, index) => {
-                if (entry.traceId && entry.eventType !== 'YarpEvent') {
+                if (entry.traceId) {
                     if (!traceIdMap.has(entry.traceId)) {
                         traceIdMap.set(entry.traceId, []);
                     }
@@ -249,7 +249,7 @@
 
         createVirtualLogItem: function(entry, index, entries, traceIdMap, processed) {
             // Try to find paired entry
-            if (entry.traceId && entry.eventType !== 'YarpEvent') {
+            if (entry.traceId) {
                 const group = traceIdMap.get(entry.traceId);
                 if (group && group.length > 1) {
                     const pairIndex = group.findIndex(x => x.index === index);
@@ -304,12 +304,6 @@
                             </div>
                         </div>
                         <div class="col-auto">
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-outline-primary" id="log-type-all-btn" title="${__('index.log.type.all')}">${__('index.log.type.all')}</button>
-                                <button type="button" class="btn btn-outline-primary" id="log-type-gateway-btn" title="${__('index.log.gatewayOnly')}"><i class="bi bi-globe"></i> ${__('index.log.gatewayOnly')}</button>
-                            </div>
-                        </div>
-                        <div class="col-auto">
                             <select class="form-select form-select-sm" id="log-count-select" style="width:75px;">
                                 <option value="50">50</option>
                                 <option value="100" selected>100</option>
@@ -353,22 +347,6 @@
             const listenBtn = window.DashboardDOM.safe('#log-listen-btn');
             if (listenBtn) {
                 listenBtn.onclick = () => this.togglePolling();
-            }
-
-            // Gateway-only toggle buttons
-            const allBtn = window.DashboardDOM.safe('#log-type-all-btn');
-            const gatewayBtn = window.DashboardDOM.safe('#log-type-gateway-btn');
-            if (allBtn && gatewayBtn) {
-                allBtn.onclick = () => {
-                    window.DashboardState.set('filters.logs.gatewayOnly', false);
-                    this.updateGatewayOnlyButtons(false);
-                    this.renderLogs();
-                };
-                gatewayBtn.onclick = () => {
-                    window.DashboardState.set('filters.logs.gatewayOnly', true);
-                    this.updateGatewayOnlyButtons(true);
-                    this.renderLogs();
-                };
             }
 
             // Count select
@@ -426,22 +404,6 @@
             }
 
             // Restore gateway-only toggle state
-            const gatewayOnly = state.get('filters.logs.gatewayOnly') || false;
-            this.updateGatewayOnlyButtons(gatewayOnly);
-        },
-
-        updateGatewayOnlyButtons: function(gatewayOnly) {
-            const allBtn = window.DashboardDOM.safe('#log-type-all-btn');
-            const gatewayBtn = window.DashboardDOM.safe('#log-type-gateway-btn');
-            if (allBtn && gatewayBtn) {
-                if (gatewayOnly) {
-                    allBtn.classList.remove('active');
-                    gatewayBtn.classList.add('active');
-                } else {
-                    allBtn.classList.add('active');
-                    gatewayBtn.classList.remove('active');
-                }
-            }
         },
 
         renderLogEntries: function(entries, container) {
@@ -457,7 +419,7 @@
 
             // Build traceId index: O(n)
             entries.forEach((entry, index) => {
-                if (entry.traceId && entry.eventType !== 'YarpEvent') {
+                if (entry.traceId) {
                     if (!traceIdMap.has(entry.traceId)) {
                         traceIdMap.set(entry.traceId, []);
                     }
@@ -470,7 +432,7 @@
                 if (processed.has(index)) return;
 
                 // Try to find paired entry by traceId using pre-built map
-                if (entry.traceId && entry.eventType !== 'YarpEvent') {
+                if (entry.traceId) {
                     const group = traceIdMap.get(entry.traceId);
                     if (group && group.length > 1) {
                         // Find the pair that hasn't been processed
@@ -653,17 +615,19 @@
             dtHtml.push('<div class="log-flow-section">');
             dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-up-right"></i> ${__('index.log.downstream.request')}</div>`);
             dtHtml.push('<div class="log-flow-body">');
-            const dsMethod = requestEntry.downstreamMethod || requestEntry.method;
+            const dsMethod = requestEntry.downstreamMethod || responseEntry.downstreamMethod || requestEntry.method;
             if (dsMethod) {
                 const methodColors = { 'GET': 'bg-success', 'POST': 'bg-primary', 'PUT': 'bg-info', 'DELETE': 'bg-danger', 'PATCH': 'bg-warning text-dark' };
                 dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.method')}</span><span class="badge ${methodColors[dsMethod] || 'bg-secondary'}">${dsMethod}</span></div>`);
             }
-            if (requestEntry.downstreamUrl) {
-                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.url')}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(requestEntry.downstreamUrl)}</code></div>`);
+            const dsUrl = requestEntry.downstreamUrl || responseEntry.downstreamUrl;
+            if (dsUrl) {
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.url')}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(dsUrl)}</code></div>`);
             }
-            if (requestEntry.downstreamBody) {
+            const dsBody = requestEntry.downstreamBody || responseEntry.downstreamBody;
+            if (dsBody) {
                 dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.body')}</span>`);
-                dtHtml.push(this.renderBodyContent(requestEntry.downstreamBody, requestEntry.downstreamBodyTruncated));
+                dtHtml.push(this.renderBodyContent(dsBody, requestEntry.downstreamBodyTruncated || responseEntry.downstreamBodyTruncated));
                 dtHtml.push('</div>');
             }
             dtHtml.push('</div></div>');
@@ -694,10 +658,12 @@
 
             dtHtml.push('</div>'); // end log-flow
 
-            // Metadata row
+            // Metadata row (RouteId/ClusterId from request or response fallback)
             dtHtml.push('<div class="log-meta-row">');
-            if (requestEntry.routeId) dtHtml.push(`<span><strong>RouteId:</strong> <code>${window.DashboardUtils.escapeHtml(requestEntry.routeId)}</code></span>`);
-            if (requestEntry.clusterId) dtHtml.push(`<span><strong>ClusterId:</strong> <code>${window.DashboardUtils.escapeHtml(requestEntry.clusterId)}</code></span>`);
+            const rtId = requestEntry.routeId || responseEntry.routeId;
+            if (rtId) dtHtml.push(`<span><strong>RouteId:</strong> <code>${window.DashboardUtils.escapeHtml(rtId)}</code></span>`);
+            const clId = requestEntry.clusterId || responseEntry.clusterId;
+            if (clId) dtHtml.push(`<span><strong>ClusterId:</strong> <code>${window.DashboardUtils.escapeHtml(clId)}</code></span>`);
             if (requestEntry.traceId) dtHtml.push(`<span><strong>TraceId:</strong> <code class="text-muted">${window.DashboardUtils.escapeHtml(requestEntry.traceId)}</code></span>`);
             dtHtml.push('</div>');
 
@@ -978,7 +944,6 @@
             else {
                 // Metadata row
                 dtHtml.push('<div class="log-meta-row">');
-                if (entry.category) dtHtml.push(`<span><strong>${__('index.log.category')}</strong> ${window.DashboardUtils.escapeHtml(entry.category)}</span>`);
                 if (entry.routeId) dtHtml.push(`<span><strong>RouteId:</strong> <code>${window.DashboardUtils.escapeHtml(entry.routeId)}</code></span>`);
                 if (entry.traceId) dtHtml.push(`<span><strong>TraceId:</strong> <code>${window.DashboardUtils.escapeHtml(entry.traceId)}</code></span>`);
                 dtHtml.push('</div>');
@@ -986,17 +951,6 @@
                 // Message (full content)
                 dtHtml.push(`<div class="mb-2"><strong>${__('index.log.message')}</strong><br>`);
                 dtHtml.push(`<span style="color:#475569;word-break:break-all;">${window.DashboardUtils.escapeHtml(entry.message || '')}</span></div>`);
-                
-                // Details (JSON)
-                if (entry.details) {
-                    dtHtml.push(`<div class="mt-2"><strong>${__('index.log.details')}</strong></div>`);
-                    try {
-                        const detailsObj = JSON.parse(entry.details);
-                        dtHtml.push(this.renderJsonBlock(detailsObj, 'Details JSON')); 
-                    } catch (err) {
-                        dtHtml.push(`<pre style="background:#f1f5f9;border:1px solid var(--border-color);border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:12px;color:#334155;">${window.DashboardUtils.escapeHtml(entry.details)}</pre>`);
-                    }
-                }
             }
 
             // Exception (for any type)
