@@ -1,6 +1,37 @@
 # 更新日志
 
 
+## [2.3.0.25] - 2026-06-30
+
+> 代码质量提升：消除同步等待死锁风险、重复代码抽取、类职责拆分
+
+### 🛡️ 代码质量
+
+- **消除 5 处 `GetAwaiter().GetResult()` 死锁风险**：`DynamicYarpConfigService` 启动加载链路全异步化（`LoadConfigFromRepositoryAsync` / `LoadDynamicConfigAsync` / `MarkStaticConfigAsync`），`WafSettingsPersistenceService` `Load()`/`Save()` 改为 `Task.Run` 安全包装
+- **`DynamicYarpConfigService` 职责拆分**：提取 ~200 行纯函数到 `DynamicYarpConfigHelpers`（7 个静态方法：序列化/补丁/健康检查/元数据合并/X-Forwarded 标准化），主文件行数显著减少
+- **统一 ClientIpResolver**：消除 5 处重复 IP 解析代码（WafMiddleware / RateLimitMiddleware / ConfigManagementController / IpBasedLoadBalancingPolicy / RateLimitConfigProvider），合并到 `Aneiang.Yarp.Infrastructure.ClientIpResolver`
+- **DI 注入修复**：`DashboardMvcOptionsSetup` 不再手动 `new DashboardAuthorizationService`，改为通过 DI 注入 `IDashboardAuthorizationService`
+- **静默异常加日志**：`DashboardRouteQueryService` 添加 `ILogger` 依赖，transform 提取失败时输出 `LogWarning`
+- **SQLite 表名校验**：`BackfillInBatchesAsync` 增加白名单校验（6 张合法表），防止内部代码注入
+- **移除废弃 API**：`AddAneiangYarpDeployment(IServiceCollection, IConfiguration)` 已无调用方，直接删除
+- **GC.Collect 注释补充**：`TriggerBackgroundGc()` 添加 Gen0 + Optimized 调用的性能理由注释
+- **移除未使用方法**：删除 `SanitizeClusters`（无调用方）
+
+### 🐛 修复
+
+- **Dashboard 路由/集群重启后消失**：修复 `MarkStaticConfigAsync` 启动时误删所有非 appsettings.json 来源的路由和集群（Source != "config"），并持久化删除到 SQLite。改为仅当 `Source == "config"` 且 ID 不在当前静态配置中时才清除（`DynamicYarpConfigService` 第 217 / 250 行）
+
+### 🗂️ 新增文件
+
+```
+src/Aneiang.Yarp/
+├── Infrastructure/
+│   └── ClientIpResolver.cs                         # 统一客户端 IP 解析
+└── Services/
+    └── DynamicYarpConfigHelpers.cs                  # 静态工具方法（序列化/元数据合并/健康检查等）
+```
+
+
 ## [2.3.0.24] - 2026-06-28
 
 > Dashboard 功能完善 + 全站国际化适配 + 代码精简

@@ -1,6 +1,7 @@
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Models;
 using Aneiang.Yarp.Services;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 
@@ -27,6 +28,7 @@ internal sealed class DashboardRouteQueryService : IDashboardRouteQueryService
 {
     private readonly DynamicYarpConfigService _dynamicConfig;
     private readonly IMemoryCache _memoryCache;
+    private readonly ILogger<DashboardRouteQueryService> _logger;
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(5);
 
     /// <summary>
@@ -34,12 +36,15 @@ internal sealed class DashboardRouteQueryService : IDashboardRouteQueryService
     /// </summary>
     /// <param name="dynamicConfig">Dynamic YARP config service.</param>
     /// <param name="memoryCache">Unified memory cache for all query services.</param>
+    /// <param name="logger">Logger instance.</param>
     public DashboardRouteQueryService(
         DynamicYarpConfigService dynamicConfig,
-        IMemoryCache memoryCache)
+        IMemoryCache memoryCache,
+        ILogger<DashboardRouteQueryService> logger)
     {
         _dynamicConfig = dynamicConfig;
         _memoryCache = memoryCache;
+        _logger = logger;
     }
 
     /// <inheritdoc />
@@ -109,9 +114,9 @@ internal sealed class DashboardRouteQueryService : IDashboardRouteQueryService
                 }
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Log transform extraction failure but continue rendering routes
+            _logger.LogWarning(ex, "Transform extraction failed, continuing route rendering without transform info");
         }
 
         return routes?

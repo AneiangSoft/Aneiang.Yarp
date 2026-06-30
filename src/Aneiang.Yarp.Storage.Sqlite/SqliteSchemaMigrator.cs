@@ -509,6 +509,13 @@ public sealed class SqliteSchemaMigrator : IHostedService
         return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
     }
 
+    /// <summary>Allowed table names for data backfill operations.</summary>
+    private static readonly HashSet<string> BackfillTableWhitelist = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "yarp_clusters", "yarp_routes", "gateway_policies",
+        "config_audit_logs", "proxy_logs", "notification_history"
+    };
+
     private async Task BackfillInBatchesAsync(
         SqliteConnection conn,
         string table,
@@ -516,6 +523,10 @@ public sealed class SqliteSchemaMigrator : IHostedService
         string whereClause,
         CancellationToken ct)
     {
+        // Guard: only allow known table names to prevent SQL injection via internals
+        if (!BackfillTableWhitelist.Contains(table))
+            throw new ArgumentException($"Table '{table}' is not in the backfill whitelist.", nameof(table));
+
         var countSql = $"SELECT COUNT(*) FROM {table} WHERE {whereClause}";
         var rowsToFix = await ExecuteScalarAsync(conn, countSql, ct);
         if (rowsToFix <= 0) return;

@@ -7,6 +7,7 @@ using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
 using Aneiang.Yarp.Storage;
+using Aneiang.Yarp.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -84,17 +85,7 @@ public class ConfigManagementController : ControllerBase
     /// </summary>
     private string? GetClientIp()
     {
-        var ip = HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(ip))
-        {
-            // X-Forwarded-For may contain multiple IPs, take the first one
-            return ip.Split(',', StringSplitOptions.TrimEntries)[0];
-        }
-
-        ip = HttpContext.Request.Headers["X-Real-IP"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(ip)) return ip;
-
-        return HttpContext.Connection.RemoteIpAddress?.ToString();
+        return ClientIpResolver.GetClientIp(HttpContext);
     }
 
     private static bool ContainsDifferentId(JsonElement config, string expectedId, params string[] propertyNames)

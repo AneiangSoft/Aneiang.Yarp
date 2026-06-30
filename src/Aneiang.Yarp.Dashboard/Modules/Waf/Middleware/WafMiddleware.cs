@@ -8,6 +8,7 @@ using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
+using Aneiang.Yarp.Infrastructure;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Yarp.ReverseProxy.Model;
 
@@ -403,24 +404,7 @@ public sealed class WafMiddleware
 
     private static string? GetClientIp(HttpContext context)
     {
-        if (context.Request.Headers.TryGetValue("X-Forwarded-For", out var forwardedFor))
-        {
-            var value = forwardedFor.FirstOrDefault();
-            if (!string.IsNullOrEmpty(value))
-            {
-                var commaIdx = value.IndexOf(',');
-                return commaIdx > 0 ? value.AsSpan(0, commaIdx).Trim().ToString() : value.Trim().ToString();
-            }
-        }
-
-        if (context.Request.Headers.TryGetValue("X-Real-IP", out var realIp))
-        {
-            var value = realIp.FirstOrDefault();
-            if (!string.IsNullOrEmpty(value))
-                return value.Trim().ToString();
-        }
-
-        return context.Connection.RemoteIpAddress?.ToString();
+        return ClientIpResolver.GetClientIp(context);
     }
 
     private static async Task BlockRequest(HttpContext context, string message)

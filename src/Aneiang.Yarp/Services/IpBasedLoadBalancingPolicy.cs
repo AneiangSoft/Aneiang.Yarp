@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Yarp.ReverseProxy.LoadBalancing;
 using Yarp.ReverseProxy.Model;
+using Aneiang.Yarp.Infrastructure;
 
 namespace Aneiang.Yarp.Services;
 
@@ -56,33 +57,7 @@ public sealed class IpBasedLoadBalancingPolicy : ILoadBalancingPolicy
 
     private static string? GetClientIpAddress(HttpContext context)
     {
-        // Prefer direct connection IP (most reliable, no parsing needed)
-        if (context.Connection.RemoteIpAddress != null)
-            return context.Connection.RemoteIpAddress.ToString();
-
-        // Fallback: check X-Forwarded-For header (if behind proxy)
-        if (context.Request.Headers.TryGetValue("X-Forwarded-For", out var forwardedFor))
-        {
-            var value = forwardedFor.FirstOrDefault();
-            if (!string.IsNullOrEmpty(value))
-            {
-                // Avoid Split() allocation: find first comma and trim
-                var commaIdx = value.IndexOf(',');
-                var ipSegment = commaIdx > 0 ? value.AsSpan(0, commaIdx).Trim() : value.AsSpan().Trim();
-
-                // Strip IPv6 port suffix (e.g. ::ffff:192.168.1.1:8080 → ::ffff:192.168.1.1)
-                var colonIdx = ipSegment.LastIndexOf(':');
-                if (colonIdx > 0 && !ipSegment.Slice(0, colonIdx).Contains(':'))
-                {
-                    // Only one colon → it's a port separator, not IPv6
-                    ipSegment = ipSegment.Slice(0, colonIdx);
-                }
-
-                return ipSegment.ToString();
-            }
-        }
-
-        return null;
+        return ClientIpResolver.GetConnectionIp(context);
     }
 
     /// <summary>

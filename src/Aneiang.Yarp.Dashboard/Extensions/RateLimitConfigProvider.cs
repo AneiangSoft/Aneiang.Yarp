@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Infrastructure;
+using Aneiang.Yarp.Infrastructure;
 using System.Threading.RateLimiting;
 
 namespace Aneiang.Yarp.Dashboard.Extensions;
@@ -138,17 +139,6 @@ internal sealed class RateLimitConfigProvider : IConfigureOptions<RateLimiterOpt
 
     private static string? GetClientIp(HttpContext context)
     {
-        // Check X-Forwarded-For header first
-        if (context.Request.Headers.TryGetValue("X-Forwarded-For", out var forwardedFor))
-        {
-            var value = forwardedFor.FirstOrDefault();
-            if (!string.IsNullOrEmpty(value))
-            {
-                var commaIdx = value.IndexOf(',');
-                return commaIdx > 0 ? value.AsSpan(0, commaIdx).Trim().ToString() : value.Trim().ToString();
-            }
-        }
-
-        return context.Connection.RemoteIpAddress?.ToString();
+        return ClientIpResolver.GetClientIp(context);
     }
 }
