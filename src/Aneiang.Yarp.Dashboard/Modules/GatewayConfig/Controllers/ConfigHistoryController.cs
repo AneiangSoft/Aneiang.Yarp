@@ -84,12 +84,22 @@ public class ConfigHistoryController : ConfigControllerBase
                 });
             }
 
-            var success = await PersistenceService.ImportFullConfigAsync(config, GetClientIp());
+            var importResult = await PersistenceService.ImportFullConfigAsync(config, GetClientIp());
 
-            if (success) InvalidateQueryCaches();
-            return success
-                ? Ok(new { code = 200, message = "Configuration imported successfully" })
-                : BadRequest(new { code = 400, message = "Failed to import configuration" });
+            if (importResult.Success) InvalidateQueryCaches();
+            return importResult.Success
+                ? Ok(new
+                {
+                    code = 200,
+                    message = importResult.Message ?? "Configuration imported successfully",
+                    data = importResult
+                })
+                : BadRequest(new
+                {
+                    code = 400,
+                    message = importResult.Message ?? "Failed to import configuration",
+                    data = importResult
+                });
         }
         catch (Exception ex)
         {

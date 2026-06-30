@@ -87,56 +87,112 @@ public class ConfigPersistenceService : IConfigPersistenceService
         return fullDoc.RootElement.Clone();
     }
 
-    public async Task<bool> ImportFullConfigAsync(JsonElement config, string? clientIp = null)
+    public async Task<ImportResult> ImportFullConfigAsync(JsonElement config, string? clientIp = null)
     {
+        var result = new ImportResult();
         try
         {
             await SaveSnapshotAsync("Before import", clientIp);
 
             bool hasReverseProxy = config.TryGetProperty("reverseProxy", out var rpCamel) ||
                                    config.TryGetProperty("ReverseProxy", out rpCamel);
-            if (!hasReverseProxy) return false;
+            if (!hasReverseProxy)
+            {
+                result.Message = "Missing 'ReverseProxy' section";
+                return result;
+            }
             var reverseProxy = rpCamel;
 
-            if (_dynamicConfig == null) return false;
+            if (_dynamicConfig == null)
+            {
+                result.Message = "Dynamic config service not available";
+                return result;
+            }
 
+            // Count entries first
             bool hasClusters = reverseProxy.TryGetProperty("clusters", out var cCamel) ||
                                reverseProxy.TryGetProperty("Clusters", out cCamel);
+            bool hasRoutes = reverseProxy.TryGetProperty("routes", out var rCamel) ||
+                             reverseProxy.TryGetProperty("Routes", out rCamel);
+
+            if (hasClusters)
+            {
+                foreach (var cluster in cCamel.EnumerateObject())
+                    result.TotalClusters++;
+            }
+            if (hasRoutes)
+            {
+                foreach (var route in rCamel.EnumerateObject())
+                    result.TotalRoutes++;
+            }
+
+            // Import clusters
             if (hasClusters)
             {
                 foreach (var cluster in cCamel.EnumerateObject())
                 {
                     var clusterConfig = Aneiang.Yarp.Serialization.YarpJsonConfig.DeserializeCluster(cluster.Value);
-                    if (clusterConfig == null) continue;
+                    if (clusterConfig == null)
+                    {
+                        result.SkippedClusters++;
+                        result.Errors.Add(new ImportItemError
+                            { Type = "Cluster", Name = cluster.Name, Error = "Deserialization failed" });
+                        continue;
+                    }
                     clusterConfig = clusterConfig with { ClusterId = cluster.Name };
-                    if (clusterConfig.Destinations == null || clusterConfig.Destinations.Count == 0) continue;
+                    if (clusterConfig.Destinations == null || clusterConfig.Destinations.Count == 0)
+                    {
+                        result.SkippedClusters++;
+                        result.Errors.Add(new ImportItemError
+                            { Type = "Cluster", Name = cluster.Name, Error = "No destinations" });
+                        continue;
+                    }
                     await _dynamicConfig.TryAddClusterConfig(clusterConfig, "import", "dashboard-user");
+                    result.ImportedClusters++;
                 }
             }
 
-            bool hasRoutes = reverseProxy.TryGetProperty("routes", out var rCamel) ||
-                             reverseProxy.TryGetProperty("Routes", out rCamel);
+            // Import routes
             if (hasRoutes)
             {
                 foreach (var route in rCamel.EnumerateObject())
                 {
                     var routeConfig = Aneiang.Yarp.Serialization.YarpJsonConfig.DeserializeRoute(route.Value);
-                    if (routeConfig == null) continue;
+                    if (routeConfig == null)
+                    {
+                        result.SkippedRoutes++;
+                        result.Errors.Add(new ImportItemError
+                            { Type = "Route", Name = route.Name, Error = "Deserialization failed" });
+                        continue;
+                    }
                     routeConfig = routeConfig with { RouteId = route.Name };
-                    if (string.IsNullOrWhiteSpace(routeConfig.ClusterId)) continue;
+                    if (string.IsNullOrWhiteSpace(routeConfig.ClusterId))
+                    {
+                        result.SkippedRoutes++;
+                        result.Errors.Add(new ImportItemError
+                            { Type = "Route", Name = route.Name, Error = "Missing ClusterId" });
+                        continue;
+                    }
                     await _dynamicConfig.TryAddRouteConfig(routeConfig, "import", "dashboard-user");
+                    result.ImportedRoutes++;
                 }
             }
 
-            _logger.LogInformation("Configuration imported successfully");
+            result.Success = true;
+            result.Message = $"Imported {result.ImportedRoutes} routes, {result.ImportedClusters} clusters"
+                + (result.SkippedRoutes > 0 || result.SkippedClusters > 0
+                    ? $" ({result.SkippedRoutes} routes, {result.SkippedClusters} clusters skipped)"
+                    : "");
+
+            _logger.LogInformation("Configuration imported: {Message}", result.Message);
             await SaveSnapshotAsync("After import", clientIp);
-            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to import configuration");
-            return false;
+            result.Message = $"Import failed: {ex.Message}";
         }
+        return result;
     }
 
     public async Task<ConfigSnapshot> SaveSnapshotAsync(string? description = null, string? clientIp = null)

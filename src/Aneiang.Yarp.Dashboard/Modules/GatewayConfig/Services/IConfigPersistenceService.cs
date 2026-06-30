@@ -12,8 +12,8 @@ public interface IConfigPersistenceService
     /// <summary>Export full configuration in standard YARP format.</summary>
     Task<JsonElement> ExportFullConfigAsync();
 
-    /// <summary>Import full configuration from standard YARP format.</summary>
-    Task<bool> ImportFullConfigAsync(JsonElement config, string? clientIp = null);
+    /// <summary>Import full configuration from standard YARP format. Returns detailed result.</summary>
+    Task<ImportResult> ImportFullConfigAsync(JsonElement config, string? clientIp = null);
 
     /// <summary>Save a configuration snapshot for version management.</summary>
     Task<ConfigSnapshot> SaveSnapshotAsync(string? description = null, string? clientIp = null);

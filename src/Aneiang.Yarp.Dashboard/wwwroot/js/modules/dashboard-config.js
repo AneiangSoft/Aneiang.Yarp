@@ -73,17 +73,17 @@
                                 <p style="margin-top:12px;color:#64748b;font-size:14px;">${__('config.dropFile')}</p>
                                 <input type="file" id="import-file-input" accept=".json" style="display:none;">
                             </div>
-                            <div id="import-preview" style="display:none;margin-top:16px;">
-                                <h6 style="font-weight:600;margin-bottom:8px;">${__('config.selectFile')}: <span id="import-file-name"></span></h6>
-                                <div id="import-json-preview" style="max-height:300px;overflow:auto;background:#1e293b;border-radius:8px;padding:12px;font-size:12px;color:#e2e8f0;font-family:monospace;"></div>
-                            </div>
+                            <div id="import-manifest" style="display:none;margin-top:16px;"></div>
                             <div id="import-errors" style="display:none;margin-top:16px;">
                                 <div class="alert alert-danger" style="border-radius:8px;"></div>
                             </div>
                         </div>
                         <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
-                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+                            <button type="button" class="btn btn-secondary btn-sm" id="import-cancel-btn" data-bs-dismiss="modal">
                                 ${__('modal.cancelBtn')}
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="import-back-btn" style="display:none;">
+                                <i class="bi bi-arrow-left me-1"></i>${__('config.importManifestBack')}
                             </button>
                             <button type="button" class="btn btn-primary btn-sm" id="import-btn" disabled>
                                 <i class="bi bi-upload me-1"></i>${__('config.import')}
@@ -103,11 +103,11 @@
         // Setup file drop zone
         const dropZone = document.getElementById('import-drop-zone');
         const fileInput = document.getElementById('import-file-input');
-        const preview = document.getElementById('import-preview');
-        const previewContent = document.getElementById('import-json-preview');
-        const fileName = document.getElementById('import-file-name');
+        const manifest = document.getElementById('import-manifest');
         const errors = document.getElementById('import-errors');
         const importBtn = document.getElementById('import-btn');
+        const backBtn = document.getElementById('import-back-btn');
+        const cancelBtn = document.getElementById('import-cancel-btn');
 
         // Click to select file
         dropZone.addEventListener('click', function() {
@@ -156,6 +156,11 @@
             }
 
             errors.style.display = 'none';
+            // Reset UI
+            manifest.style.display = 'none';
+            manifest.innerHTML = '';
+            importBtn.disabled = true;
+            backBtn.style.display = 'none';
 
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -173,11 +178,11 @@
                         return;
                     }
 
-                    // Show preview
-                    fileName.textContent = file.name;
-                    previewContent.textContent = JSON.stringify(importData, null, 2).slice(0, 500) + '...';
-                    preview.style.display = 'block';
+                    // Render import manifest
+                    renderManifest(importData);
                     importBtn.disabled = false;
+                    importBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>' + __('config.importManifestContinue');
+                    backBtn.style.display = 'inline-block';
 
                 } catch (err) {
                     errors.style.display = 'block';
@@ -188,58 +193,197 @@
             reader.readAsText(file);
         }
 
+        // ── Render import manifest (route/cluster preview before import) ──
+        function renderManifest(data) {
+            var rp = data.ReverseProxy || data.reverseProxy;
+            var routes = rp && (rp.Routes || rp.routes);
+            var clusters = rp && (rp.Clusters || rp.clusters);
+
+            // Normalize to arrays
+            var routeEntries = [];
+            if (routes) {
+                if (Array.isArray(routes)) {
+                    routeEntries = routes;
+                } else {
+                    Object.keys(routes).forEach(function(k) {
+                        var entry = Object.assign({ __routeId: k }, routes[k]);
+                        routeEntries.push(entry);
+                    });
+                }
+            }
+
+            var clusterEntries = [];
+            if (clusters) {
+                if (Array.isArray(clusters)) {
+                    clusterEntries = clusters;
+                } else {
+                    Object.keys(clusters).forEach(function(k) {
+                        var entry = Object.assign({ __clusterId: k }, clusters[k]);
+                        clusterEntries.push(entry);
+                    });
+                }
+            }
+
+            // Build routes table
+            var routesHtml = '';
+            if (routeEntries.length > 0) {
+                routesHtml = '<div style="margin-bottom:12px;">' +
+                    '<div class="fw-bold mb-2" style="font-size:13px;color:#1e293b;">' +
+                        '<i class="bi bi-signpost-split me-1" style="color:#6366f1;"></i>' +
+                        __('config.importManifestRoutes') +
+                        ' <span class="badge bg-primary rounded-pill" style="font-size:10px;">' + routeEntries.length + '</span>' +
+                    '</div>' +
+                    '<div style="max-height:180px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px;">' +
+                    '<table class="table table-sm table-borderless mb-0" style="font-size:12px;">' +
+                    '<thead style="background:#f8fafc;position:sticky;top:0;z-index:1;"><tr>' +
+                    '<th style="padding:6px 10px;color:#64748b;font-weight:600;width:32px;">#</th>' +
+                    '<th style="padding:6px 10px;color:#64748b;font-weight:600;">' + __('config.importColRouteId') + '</th>' +
+                    '<th style="padding:6px 10px;color:#64748b;font-weight:600;">' + __('config.importColCluster') + '</th>' +
+                    '<th style="padding:6px 10px;color:#64748b;font-weight:600;">' + __('config.importManifestMatchPath') + '</th>' +
+                    '</tr></thead><tbody>' +
+                    routeEntries.map(function(r, i) {
+                        var routeId = r.routeId || r.RouteId || r.__routeId || '-';
+                        var clusterId = r.clusterId || r.ClusterId || '-';
+                        var match = r.match || r.Match || {};
+                        var matchPath = match.path || match.Path || match.hosts || match.Hosts || '-';
+                        if (Array.isArray(matchPath)) matchPath = matchPath.join(', ');
+                        return '<tr>' +
+                            '<td style="padding:4px 10px;color:#94a3b8;">' + (i + 1) + '</td>' +
+                            '<td style="padding:4px 10px;"><code style="font-size:11px;">' + esc(routeId) + '</code></td>' +
+                            '<td style="padding:4px 10px;">' + (clusterId === '-' ? '<span class="text-muted">-</span>' : '<span class="badge bg-light text-dark border" style="font-size:10px;">' + esc(clusterId) + '</span>') + '</td>' +
+                            '<td style="padding:4px 10px;font-family:monospace;font-size:11px;word-break:break-all;">' + esc(String(matchPath)) + '</td>' +
+                            '</tr>';
+                    }).join('') +
+                    '</tbody></table></div></div>';
+            } else {
+                routesHtml = '<div class="text-muted small mb-2">' + (__('config.importManifestNoRoutes') || '(No routes)') + '</div>';
+            }
+
+            // Build clusters table
+            var clustersHtml = '';
+            if (clusterEntries.length > 0) {
+                clustersHtml = '<div>' +
+                    '<div class="fw-bold mb-2" style="font-size:13px;color:#1e293b;">' +
+                        '<i class="bi bi-hdd-network me-1" style="color:#8b5cf6;"></i>' +
+                        __('config.importManifestClusters') +
+                        ' <span class="badge bg-secondary rounded-pill" style="font-size:10px;">' + clusterEntries.length + '</span>' +
+                    '</div>' +
+                    '<div style="max-height:180px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px;">' +
+                    '<table class="table table-sm table-borderless mb-0" style="font-size:12px;">' +
+                    '<thead style="background:#f8fafc;position:sticky;top:0;z-index:1;"><tr>' +
+                    '<th style="padding:6px 10px;color:#64748b;font-weight:600;width:32px;">#</th>' +
+                    '<th style="padding:6px 10px;color:#64748b;font-weight:600;">' + __('config.importColClusterId') + '</th>' +
+                    '<th style="padding:6px 10px;color:#64748b;font-weight:600;">' + __('config.importManifestDestinations') + '</th>' +
+                    '</tr></thead><tbody>' +
+                    clusterEntries.map(function(c, i) {
+                        var clusterId = c.clusterId || c.ClusterId || c.__clusterId || '-';
+                        var dests = c.destinations || c.Destinations || {};
+                        var destCount = Array.isArray(dests) ? dests.length : Object.keys(dests).length;
+                        return '<tr>' +
+                            '<td style="padding:4px 10px;color:#94a3b8;">' + (i + 1) + '</td>' +
+                            '<td style="padding:4px 10px;"><code style="font-size:11px;">' + esc(clusterId) + '</code></td>' +
+                            '<td style="padding:4px 10px;"><span class="badge bg-light text-dark border" style="font-size:10px;">' + destCount + '</span></td>' +
+                            '</tr>';
+                    }).join('') +
+                    '</tbody></table></div></div>';
+            } else {
+                clustersHtml = '<div class="text-muted small">' + (__('config.importManifestNoClusters') || '(No clusters)') + '</div>';
+            }
+
+            // Summary line
+            var summary = __('config.importManifestCountSummary')
+                .replace('{0}', routeEntries.length)
+                .replace('{1}', clusterEntries.length);
+
+            manifest.innerHTML =
+                '<div style="padding:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;">' +
+                    '<div class="d-flex align-items-center gap-2 mb-2">' +
+                        '<i class="bi bi-list-check" style="font-size:20px;color:#16a34a;"></i>' +
+                        '<span class="fw-bold" style="font-size:14px;color:#166534;">' + __('config.importManifest') + '</span>' +
+                        '<span class="ms-auto text-muted" style="font-size:12px;">' + summary + '</span>' +
+                    '</div>' +
+                    '<p class="text-muted small mb-2" style="margin:0;">' + __('config.importManifestDesc') + '</p>' +
+                    routesHtml +
+                    clustersHtml +
+                '</div>';
+            manifest.style.display = 'block';
+        }
+
+        // ── Back button: reset file selection ──
+        backBtn.addEventListener('click', function() {
+            importData = null;
+            fileInput.value = '';
+            manifest.style.display = 'none';
+            manifest.innerHTML = '';
+            errors.style.display = 'none';
+            importBtn.disabled = true;
+            importBtn.innerHTML = '<i class="bi bi-upload me-1"></i>' + __('config.import');
+            backBtn.style.display = 'none';
+            dropZone.style.display = 'block';
+        });
+
         // Import button
         importBtn.addEventListener('click', async function() {
             if (!importData) return;
 
             try {
-                bsModal.hide();
+                // Disable the button and show spinner
+                importBtn.disabled = true;
+                importBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' + __('config.importing');
+                backBtn.style.display = 'none';
+                cancelBtn.style.display = 'none';
 
-                // Show full-screen overlay with stage progress. Backend import is one transaction,
-                // but we surface stages to give the user feedback during a potentially long run.
+                // Hide manifest and drop zone during import
+                manifest.style.display = 'none';
+                dropZone.style.display = 'none';
+
+                // Show full-screen overlay with stage progress
                 var stages = [
-                    __('config.importStageValidate') || '正在校验配置...',
-                    __('config.importStageApply') || '正在写入配置...',
-                    __('config.importStageReload') || '正在刷新页面...'
+                    __('config.importStageValidate'),
+                    __('config.importStageSending'),
+                    __('config.importStageApply'),
+                    __('config.importStageReload')
                 ];
-                var totalStages = stages.length + 1; // +1 for the import call itself
+                var totalStages = stages.length;
                 var stageIdx = 0;
 
                 if (window.DashboardLoading) {
                     window.DashboardLoading.overlay(stages[stageIdx]);
                     window.DashboardLoading.begin();
-                    window.DashboardLoading.setProgress(1, totalStages, __('config.importing') || '导入中');
+                    window.DashboardLoading.setProgress(1, totalStages, __('config.importing'));
                 }
 
                 var advance = function() {
                     stageIdx++;
-                    if (window.DashboardLoading) {
-                        window.DashboardLoading.setProgress(stageIdx + 1, totalStages, __('config.importing') || '导入中');
-                        if (stageIdx < stages.length) window.DashboardLoading.overlay(stages[stageIdx]);
+                    if (window.DashboardLoading && stageIdx < totalStages) {
+                        window.DashboardLoading.setProgress(stageIdx + 1, totalStages, __('config.importing'));
+                        window.DashboardLoading.overlay(stages[stageIdx]);
                     }
                 };
 
-                // Stage 1: validate (light, optional). Backend re-validates anyway; we just tick the bar.
+                // Stage 1: validate
                 advance();
-                await new Promise(function(r) { setTimeout(r, 50); });
+                await new Promise(function(r) { setTimeout(r, 80); });
 
-                // Stage 2: import (the actual call). Advance when complete.
+                // Stage 2: send request
+                advance();
+                await new Promise(function(r) { setTimeout(r, 80); });
+
+                // Stage 3: import (the actual call)
                 var response = await window.DashboardApi.endpoints.importConfig(importData);
                 advance();
-                await new Promise(function(r) { setTimeout(r, 50); });
 
-                window.DashboardModals.showSuccess(__('config.imported'));
+                // Stage 4: reload hint
+                await new Promise(function(r) { setTimeout(r, 80); });
 
-                // Stage 3: reload
-                advance();
-                setTimeout(function() {
-                    if (window.DashboardLoading) {
-                        // safety: clear overlays in case reload is delayed
-                        window.DashboardLoading.overlay(null);
-                        window.DashboardLoading.end();
-                    }
-                    window.location.reload();
-                }, 800);
+                // Clear loading overlay before showing result
+                if (window.DashboardLoading) {
+                    window.DashboardLoading.overlay(null);
+                    window.DashboardLoading.end();
+                }
+
+                // Show detailed import result
+                showImportResult(response);
 
             } catch (error) {
                 console.error('[Config] Import failed:', error);
@@ -247,9 +391,102 @@
                     window.DashboardLoading.overlay(null);
                     window.DashboardLoading.end();
                 }
-                window.DashboardModals.showError((__('config.importFailed') || '导入失败：') + (error.message || error));
+                // Restore UI on error
+                importBtn.disabled = false;
+                importBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>' + __('config.importManifestContinue');
+                backBtn.style.display = 'inline-block';
+                cancelBtn.style.display = 'inline-block';
+                manifest.style.display = 'block';
+                dropZone.style.display = 'block';
+                window.DashboardModals.showError(__('config.importFailed') + ': ' + (error.message || error));
             }
         });
+
+        // ── Show detailed import result ──
+        var esc = function(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+
+        function showImportResult(response) {
+            // Note: DashboardApi.request unwraps {code:200, data:{...}} and returns data directly.
+            // So 'response' IS the ImportResult: {success, totalRoutes, importedRoutes, skippedRoutes, ...}
+            var data = response;
+            var success = response && response.success;
+            var msg = response && response.message ? response.message : (success ? __('config.imported') : __('config.importFailed'));
+
+            // Build result HTML
+            var errorsHtml = '';
+            if (data && data.errors && data.errors.length > 0) {
+                errorsHtml = '<div style="margin-top:12px;max-height:200px;overflow:auto;">' +
+                    '<div class="text-muted small fw-bold mb-2">' + __('config.importErrors') + ':</div>' +
+                    data.errors.map(function(e) {
+                        return '<div class="d-flex align-items-center gap-2 mb-1" style="font-size:12px;">' +
+                            '<span class="badge ' + (e.type === 'Route' ? 'bg-info' : 'bg-warning') + '" style="font-size:10px;min-width:48px;">' + esc(e.type) + '</span>' +
+                            '<code style="font-size:11px;color:#334155;">' + esc(e.name) + '</code>' +
+                            '<span class="text-danger" style="font-size:11px;">' + esc(e.error) + '</span>' +
+                            '</div>';
+                    }).join('') +
+                    '</div>';
+            }
+
+            var statsRows = [];
+            if (data) {
+                if (data.totalRoutes > 0 || data.importedRoutes > 0) {
+                    statsRows.push(
+                        '<tr><td style="padding:4px 12px;font-size:13px;">' + __('config.importRoutes') + '</td>' +
+                        '<td style="padding:4px 12px;text-align:center;font-size:13px;">' + (data.totalRoutes || 0) + '</td>' +
+                        '<td style="padding:4px 12px;text-align:center;font-size:13px;color:' + (data.importedRoutes > 0 ? '#16a34a' : '#94a3b8') + ';font-weight:600;">' + (data.importedRoutes || 0) + '</td>' +
+                        '<td style="padding:4px 12px;text-align:center;font-size:13px;color:' + (data.skippedRoutes > 0 ? '#dc2626' : '#94a3b8') + ';">' + (data.skippedRoutes || 0) + '</td></tr>'
+                    );
+                }
+                if (data.totalClusters > 0 || data.importedClusters > 0) {
+                    statsRows.push(
+                        '<tr><td style="padding:4px 12px;font-size:13px;">' + __('config.importClusters') + '</td>' +
+                        '<td style="padding:4px 12px;text-align:center;font-size:13px;">' + (data.totalClusters || 0) + '</td>' +
+                        '<td style="padding:4px 12px;text-align:center;font-size:13px;color:' + (data.importedClusters > 0 ? '#16a34a' : '#94a3b8') + ';font-weight:600;">' + (data.importedClusters || 0) + '</td>' +
+                        '<td style="padding:4px 12px;text-align:center;font-size:13px;color:' + (data.skippedClusters > 0 ? '#dc2626' : '#94a3b8') + ';">' + (data.skippedClusters || 0) + '</td></tr>'
+                    );
+                }
+            }
+
+            var statsTable = statsRows.length > 0
+                ? '<table style="width:100%;margin-top:4px;border-collapse:collapse;">' +
+                  '<thead><tr style="border-bottom:2px solid #e2e8f0;">' +
+                  '<th style="padding:4px 12px;text-align:left;font-size:12px;color:#64748b;">' + __('config.importType') + '</th>' +
+                  '<th style="padding:4px 12px;text-align:center;font-size:12px;color:#64748b;">' + __('config.importTotal') + '</th>' +
+                  '<th style="padding:4px 12px;text-align:center;font-size:12px;color:#64748b;">' + __('config.importSuccess') + '</th>' +
+                  '<th style="padding:4px 12px;text-align:center;font-size:12px;color:#64748b;">' + __('config.importSkipped') + '</th>' +
+                  '</tr></thead><tbody>' + statsRows.join('') + '</tbody></table>'
+                : '';
+
+            // Replace modal body with result
+            var icon = success ? 'check-circle' : 'exclamation-triangle';
+            var iconColor = success ? '#16a34a' : '#dc2626';
+            var titleText = success ? __('config.imported') : __('config.importFailed');
+
+            var bodyEl = modalEl.querySelector('.modal-body');
+            bodyEl.innerHTML =
+                '<div class="text-center mb-3">' +
+                    '<i class="bi bi-' + icon + '" style="font-size:48px;color:' + iconColor + ';"></i>' +
+                    '<h5 style="margin-top:8px;font-weight:600;">' + titleText + '</h5>' +
+                    '<p class="text-muted small">' + esc(msg) + '</p>' +
+                '</div>' +
+                statsTable +
+                errorsHtml;
+
+            // Update footer buttons
+            var footerEl = modalEl.querySelector('.modal-footer');
+            footerEl.innerHTML =
+                '<button type="button" class="btn btn-secondary btn-sm" id="import-close-btn">' +
+                    __('modal.closeBtn') +
+                '</button>' +
+                '<button type="button" class="btn btn-primary btn-sm" id="import-reload-btn">' +
+                    '<i class="bi bi-arrow-repeat me-1"></i>' + __('config.importReload') +
+                '</button>';
+
+            var closeBtn = document.getElementById('import-close-btn');
+            var reloadBtn = document.getElementById('import-reload-btn');
+            if (closeBtn) closeBtn.addEventListener('click', function() { bsModal.hide(); });
+            if (reloadBtn) reloadBtn.addEventListener('click', function() { window.location.reload(); });
+        }
 
         // Remove modal on hide
         modalEl.addEventListener('hidden.bs.modal', function() {
