@@ -6,6 +6,9 @@ namespace Aneiang.Yarp.Models;
 /// </summary>
 public class BuiltinTransformOptions
 {
+    /// <summary>
+    /// The section name.
+    /// </summary>
     public const string SectionName = "Gateway:Transforms";
 
     /// <summary>Add X-Request-Id header to all proxy requests if not present. Default: true.</summary>

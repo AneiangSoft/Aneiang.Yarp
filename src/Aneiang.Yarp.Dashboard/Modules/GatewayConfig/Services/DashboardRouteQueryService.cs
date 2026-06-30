@@ -88,8 +88,8 @@ internal sealed class DashboardRouteQueryService : IDashboardRouteQueryService
                 routeSources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
                 var dynConfig = _dynamicConfig.GetDynamicConfig();
-                dynamicRoutes = dynConfig?.Routes.ToDictionary(r => r.RouteId, StringComparer.OrdinalIgnoreCase);
-                dynamicClusters = dynConfig?.Clusters.ToDictionary(c => c.ClusterId, StringComparer.OrdinalIgnoreCase);
+                dynamicRoutes = dynConfig?.Routes.ToDictionary(r => r.Config.RouteId ?? string.Empty, StringComparer.OrdinalIgnoreCase);
+                dynamicClusters = dynConfig?.Clusters.ToDictionary(c => c.Config.ClusterId ?? string.Empty, StringComparer.OrdinalIgnoreCase);
 
                 foreach (var r in routes)
                 {
@@ -101,7 +101,7 @@ internal sealed class DashboardRouteQueryService : IDashboardRouteQueryService
                     }
 
                     var dynRoute = dynConfig?.Routes.FirstOrDefault(dr =>
-                        string.Equals(dr.RouteId, r.RouteId, StringComparison.OrdinalIgnoreCase));
+                        string.Equals(dr.Config.RouteId, r.RouteId, StringComparison.OrdinalIgnoreCase));
                     if (dynRoute != null)
                     {
                         routeSources[r.RouteId] = dynRoute.Source;

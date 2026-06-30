@@ -42,7 +42,7 @@ internal static class GrpcGatewayRegistryMapper
                 ClusterName = clusterName,
                 MatchPath = paths[i],
                 DestinationAddress = primaryAddress,
-                Order = 50,
+                Order = int.MaxValue,
                 UseIpIsolation = false
             });
         }

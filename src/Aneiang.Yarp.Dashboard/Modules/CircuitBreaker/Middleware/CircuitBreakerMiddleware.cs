@@ -206,7 +206,7 @@ public sealed class CircuitBreakerMiddleware
     {
         var dynConfig = _yarpConfig.GetDynamicConfig();
         return dynConfig?.Clusters.FirstOrDefault(c =>
-            string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase))
+            string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase))
             ?.CircuitBreaker;
     }
 
@@ -214,7 +214,7 @@ public sealed class CircuitBreakerMiddleware
     {
         var dynConfig = _yarpConfig.GetDynamicConfig();
         return dynConfig?.Clusters.FirstOrDefault(c =>
-            string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase))
+            string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase))
             ?.ClusterUid;
     }
 

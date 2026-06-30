@@ -317,7 +317,11 @@ public class ConfigPersistenceService : IConfigPersistenceService
             {
                 var dynCluster = EntityMapper.ToClusterConfig(ce);
                 var destEntities = await _clusterRepo.GetDestinationsAsync(ce.ClusterId);
-                dynCluster.Destinations = EntityMapper.ToDestinations(destEntities);
+                dynCluster.Config = dynCluster.Config with
+                {
+                    Destinations = EntityMapper.ToDestinations(destEntities)
+                        .ToDictionary(kv => kv.Key, kv => new DestinationConfig { Address = kv.Value })
+                };
                 config.Clusters.Add(dynCluster);
             }
 

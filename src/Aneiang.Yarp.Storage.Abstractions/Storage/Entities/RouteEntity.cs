@@ -14,7 +14,7 @@ public class RouteEntity
     public string? ClusterUid { get; set; }
     public string ClusterId { get; set; } = string.Empty;
     public string MatchPath { get; set; } = string.Empty;
-    public int Order { get; set; } = 50;
+    public int Order { get; set; } = int.MaxValue;
     public string? Transforms { get; set; } // JSON
     public string Source { get; set; } = "dynamic";
     public string? CreatedBy { get; set; }

@@ -62,7 +62,7 @@ public class GatewayConfigController : ControllerBase
         {
             routeId = r.RouteId,
             clusterId = r.ClusterId,
-            path = r.Match?.Path,
+            path = r.Match.Path,
             order = r.Order
         });
         return Ok(new { code = 200, data });
@@ -98,13 +98,13 @@ public class GatewayConfigController : ControllerBase
                 RouteName = routeId,
                 ClusterName = clusterIdProp.GetString() ?? string.Empty,
                 MatchPath = matchPathProp.GetString() ?? string.Empty,
-                Order = config.TryGetProperty("order", out var orderProp) ? orderProp.GetInt32() : 50,
+                Order = config.TryGetProperty("order", out var orderProp) ? orderProp.GetInt32() : int.MaxValue,
                 Transforms = config.TryGetProperty("transforms", out var transformsProp)
                     ? transformsProp.Deserialize<List<Dictionary<string, string>>>()
                     : null
             };
 
-            var result = await _dynamicConfig.TryAddRoute(request, "dynamic");
+            var result = await _dynamicConfig.TryAddRoute(request);
             return result.Success
                 ? Ok(new { code = 200, message = result.Message })
                 : BadRequest(new { code = 400, message = result.Message });
@@ -185,7 +185,7 @@ public class GatewayConfigController : ControllerBase
         return Ok(new { code = 200, message = "heartbeat" });
     }
 
-    // ─── Batch Operations ──────────────────────────────────
+    #region Batch Operations
 
     /// <summary>Batch register routes and clusters in a single atomic operation.</summary>
     [HttpPost("batch/register")]
@@ -193,7 +193,7 @@ public class GatewayConfigController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> BatchRegister([FromBody] BatchRegisterRequest request)
     {
-        if (request.Routes == null || request.Routes.Count == 0)
+        if (request.Routes.Count == 0)
             return BadRequest(new { code = 400, message = "At least one route is required" });
 
         var results = new List<object>();
@@ -225,7 +225,7 @@ public class GatewayConfigController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public async Task<IActionResult> BatchDeleteRoutes([FromBody] BatchDeleteRoutesRequest request)
     {
-        if (request.RouteNames == null || request.RouteNames.Count == 0)
+        if (request.RouteNames.Count == 0)
             return BadRequest(new { code = 400, message = "At least one route name is required" });
 
         var results = new List<object>();
@@ -251,20 +251,40 @@ public class GatewayConfigController : ControllerBase
         var summary = allSucceeded ? "All operations succeeded" : "Some operations failed";
         return Ok(new { code = 200, message = summary, details = results });
     }
+
+    #endregion
 }
 
 /// <summary>Request model for batch register operation.</summary>
 public class BatchRegisterRequest
 {
+    /// <summary>
+    /// Gets or sets the routes.
+    /// </summary>
     public List<RegisterRouteRequest> Routes { get; set; } = new();
+    /// <summary>
+    /// Gets or sets the source.
+    /// </summary>
     public string? Source { get; set; }
+    /// <summary>
+    /// Gets or sets the created by.
+    /// </summary>
     public string? CreatedBy { get; set; }
 }
 
 /// <summary>Request model for batch delete routes operation.</summary>
 public class BatchDeleteRoutesRequest
 {
+    /// <summary>
+    /// Gets or sets the route names.
+    /// </summary>
     public List<string> RouteNames { get; set; } = new();
+    /// <summary>
+    /// Gets or sets the client ip.
+    /// </summary>
     public string? ClientIp { get; set; }
+    /// <summary>
+    /// Gets or sets a value indicating whether remove orphaned clusters.
+    /// </summary>
     public bool RemoveOrphanedClusters { get; set; } = true;
 }

@@ -5,7 +5,7 @@ namespace Aneiang.Yarp.Storage;
 /// </summary>
 public interface INotificationRepository
 {
-    // ─── Settings ──────────────────────────────────────────────────────────────
+    #region Settings
 
     /// <summary>Load all notification settings (channels, rules, global settings).</summary>
     Task<NotificationSettingsEntity?> LoadSettingsAsync(CancellationToken ct = default);
@@ -13,7 +13,10 @@ public interface INotificationRepository
     /// <summary>Save notification settings.</summary>
     Task SaveSettingsAsync(NotificationSettingsEntity settings, CancellationToken ct = default);
 
-    // ─── Channels ─────────────────────────────────────────────────────────────
+    #endregion
+
+
+    #region Channels
 
     /// <summary>Get all notification channels.</summary>
     Task<List<NotificationChannel>> GetChannelsAsync(CancellationToken ct = default);
@@ -27,7 +30,9 @@ public interface INotificationRepository
     /// <summary>Delete a channel by ID.</summary>
     Task DeleteChannelAsync(string channelId, CancellationToken ct = default);
 
-    // ─── Rules ────────────────────────────────────────────────────────────────
+    #endregion
+
+    #region Rules
 
     /// <summary>Get all notification rules.</summary>
     Task<List<NotificationRule>> GetRulesAsync(CancellationToken ct = default);
@@ -41,7 +46,9 @@ public interface INotificationRepository
     /// <summary>Delete a rule by ID.</summary>
     Task DeleteRuleAsync(string ruleId, CancellationToken ct = default);
 
-    // ─── Global Settings ──────────────────────────────────────────────────────
+    #endregion
+
+    #region Global Settings
 
     /// <summary>Get global notification settings.</summary>
     Task<NotificationGlobalSettings> GetGlobalSettingsAsync(CancellationToken ct = default);
@@ -49,7 +56,9 @@ public interface INotificationRepository
     /// <summary>Save global notification settings.</summary>
     Task SaveGlobalSettingsAsync(NotificationGlobalSettings settings, CancellationToken ct = default);
 
-    // ─── History ──────────────────────────────────────────────────────────────
+    #endregion
+
+    #region History
 
     /// <summary>Record a notification event to history.</summary>
     Task RecordNotificationAsync(NotificationHistory record, CancellationToken ct = default);
@@ -66,6 +75,8 @@ public interface INotificationRepository
 
     /// <summary>Clear notification history.</summary>
     Task ClearHistoryAsync(CancellationToken ct = default);
+
+    #endregion
 }
 
 /// <summary>

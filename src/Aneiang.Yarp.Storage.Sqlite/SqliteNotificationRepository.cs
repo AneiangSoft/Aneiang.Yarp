@@ -19,6 +19,7 @@ public sealed class SqliteNotificationRepository : INotificationRepository
     private bool _initialized;
     private readonly SemaphoreSlim _initLock = new(1, 1);
 
+    /// <inheritdoc cref="SqliteNotificationRepository" />
     public SqliteNotificationRepository(SqliteConnectionFactory connections, ILogger<SqliteNotificationRepository> logger)
     {
         _connections = connections;
@@ -45,7 +46,7 @@ public sealed class SqliteNotificationRepository : INotificationRepository
         _logger.LogDebug("SqliteNotificationRepository initialized");
     }
 
-    // ─── Settings ────────────────────────────────────────────────────────────────
+    #region Settings
 
     public async Task<NotificationSettingsEntity?> LoadSettingsAsync(CancellationToken ct = default)
     {
@@ -88,7 +89,10 @@ public sealed class SqliteNotificationRepository : INotificationRepository
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    // ─── Channels ──────────────────────────────────────────────────────────────
+    #endregion
+
+
+    #region Channels
 
     public async Task<List<NotificationChannel>> GetChannelsAsync(CancellationToken ct = default)
     {
@@ -136,7 +140,9 @@ public sealed class SqliteNotificationRepository : INotificationRepository
         await SaveSettingsAsync(settings, ct);
     }
 
-    // ─── Rules ────────────────────────────────────────────────────────────────
+    #endregion
+
+    #region Rules
 
     public async Task<List<NotificationRule>> GetRulesAsync(CancellationToken ct = default)
     {
@@ -184,7 +190,9 @@ public sealed class SqliteNotificationRepository : INotificationRepository
         await SaveSettingsAsync(settings, ct);
     }
 
-    // ─── Global Settings ──────────────────────────────────────────────────────
+    #endregion
+
+    #region Global Settings
 
     public async Task<NotificationGlobalSettings> GetGlobalSettingsAsync(CancellationToken ct = default)
     {
@@ -208,7 +216,9 @@ public sealed class SqliteNotificationRepository : INotificationRepository
         await SaveSettingsAsync(entity, ct);
     }
 
-    // ─── History ──────────────────────────────────────────────────────────────
+    #endregion
+
+    #region History
 
     public async Task RecordNotificationAsync(NotificationHistory record, CancellationToken ct = default)
     {
@@ -283,12 +293,14 @@ public sealed class SqliteNotificationRepository : INotificationRepository
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
+    #endregion
+
+    #region Helpers
 
     private static bool IsRealFilterValue(string? value)
-        => !string.IsNullOrEmpty(value)
-        && !string.Equals(value, "undefined", StringComparison.OrdinalIgnoreCase)
-        && !string.Equals(value, "null", StringComparison.OrdinalIgnoreCase);
+    => !string.IsNullOrEmpty(value)
+    && !string.Equals(value, "undefined", StringComparison.OrdinalIgnoreCase)
+    && !string.Equals(value, "null", StringComparison.OrdinalIgnoreCase);
 
     private static string BuildWhereClause(string? eventType, string? severity, string? dateStart, string? dateEnd)
     {
@@ -346,4 +358,6 @@ public sealed class SqliteNotificationRepository : INotificationRepository
         var ordinal = r.GetOrdinal(name);
         return r.IsDBNull(ordinal) ? null : r.GetString(ordinal);
     }
+
+    #endregion
 }

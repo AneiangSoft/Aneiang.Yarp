@@ -208,7 +208,7 @@ public sealed class SqliteSchemaMigrator : IHostedService
                 route_id TEXT PRIMARY KEY,
                 cluster_id TEXT NOT NULL,
                 match_path TEXT NOT NULL,
-                "order" INTEGER DEFAULT 50,
+                "order" INTEGER DEFAULT 2147483647,
                 transforms TEXT,
                 source TEXT DEFAULT 'dynamic',
                 created_by TEXT,

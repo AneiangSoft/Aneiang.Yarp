@@ -1,40 +1,29 @@
+using Yarp.ReverseProxy.Configuration;
+
 namespace Aneiang.Yarp.Models;
 
 /// <summary>
-/// Dynamic route configuration with metadata for persistence.
+/// Dynamic route configuration: holds the complete native YARP <see cref="RouteConfig"/>
+/// plus extension metadata that YARP itself does not track (UID, source, audit info, policy keys).
+/// The native config is the single source of truth for all YARP fields, so nothing is lost
+/// when new YARP properties are introduced.
 /// </summary>
-public class DynamicRouteConfig
+public sealed class DynamicRouteConfig
 {
+    /// <summary>
+    /// Complete native YARP <see cref="RouteConfig"/>. Carries all fields including advanced
+    /// properties (full Match criteria, Auth/Cors/RateLimiter/Timeout policies, MaxRequestBodySize, etc.).
+    /// </summary>
+    public RouteConfig Config { get; set; } = new() { RouteId = string.Empty, ClusterId = string.Empty };
+
     /// <summary>Internal immutable route UID.</summary>
     public string RouteUid { get; set; } = Guid.NewGuid().ToString("N");
-
-    /// <summary>Route key used as YARP RouteId.</summary>
-    public string RouteId { get; set; } = string.Empty;
-
-    /// <summary>Route key alias. Prefer this for internal semantics; RouteId is kept for compatibility.</summary>
-    public string RouteKey
-    {
-        get => RouteId;
-        set => RouteId = value;
-    }
 
     /// <summary>Display name for UI. Defaults to RouteKey when empty.</summary>
     public string? DisplayName { get; set; }
 
     /// <summary>Internal immutable cluster UID this route belongs to.</summary>
     public string? ClusterUid { get; set; }
-
-    /// <summary>Cluster key this route belongs to. Used as YARP ClusterId.</summary>
-    public string ClusterId { get; set; } = string.Empty;
-
-    /// <summary>Route match path pattern.</summary>
-    public string MatchPath { get; set; } = string.Empty;
-
-    /// <summary>Route order (lower = higher priority).</summary>
-    public int Order { get; set; } = 50;
-
-    /// <summary>Route transforms (path rewriting, header manipulation, etc.).</summary>
-    public List<Dictionary<string, string>>? Transforms { get; set; }
 
     /// <summary>Configuration source: "config" | "dynamic" | "auto-register".</summary>
     public string Source { get; set; } = "dynamic";
@@ -46,14 +35,9 @@ public class DynamicRouteConfig
     public string? CreatedBy { get; set; }
 
     /// <summary>
-    /// Route metadata for extensibility (e.g., circuit breaker, retry, rate-limit, WAF policy keys).
+    /// Policy metadata maintained by the policy engine (circuit breaker, retry, rate-limit, WAF keys).
+    /// Kept separate from <see cref="RouteConfig.Metadata"/>; merged into the native metadata only when
+    /// the route is pushed to YARP.
     /// </summary>
     public Dictionary<string, string> Metadata { get; set; } = new();
-
-    /// <summary>
-    /// Full native YARP RouteConfig serialized as PascalCase JSON. Carries all advanced
-    /// properties (full Match criteria, Auth/Cors/RateLimiter/Timeout policies, etc.) so that
-    /// nothing is lost when the route round-trips through persistence.
-    /// </summary>
-    public string? ConfigJson { get; set; }
 }

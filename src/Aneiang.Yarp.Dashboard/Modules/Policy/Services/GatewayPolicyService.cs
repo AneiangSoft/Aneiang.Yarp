@@ -332,7 +332,7 @@ public class GatewayPolicyService : IGatewayPolicyService
         // Remove in-memory circuit breaker state so it disappears from the dashboard immediately
         var dynConfig = _yarpConfig.GetDynamicConfig();
         var cluster = dynConfig?.Clusters.FirstOrDefault(c =>
-            string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
         CircuitBreakerMiddleware.RemoveCircuitsForCluster(clusterId, cluster?.ClusterUid);
 
         if (policy.AppliedClusters.Remove(clusterId))

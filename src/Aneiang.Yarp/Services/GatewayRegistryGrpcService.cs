@@ -158,15 +158,15 @@ public class GatewayRegistryGrpcService : GatewayGrpc.GatewayRegistryBase
             {
                 foreach (var route in dynamicConfig.Routes.Where(r => string.Equals(r.Source, "grpc", StringComparison.OrdinalIgnoreCase)))
                 {
-                    var cluster = dynamicConfig.Clusters.FirstOrDefault(c => string.Equals(c.ClusterId, route.ClusterId, StringComparison.OrdinalIgnoreCase));
+                    var cluster = dynamicConfig.Clusters.FirstOrDefault(c => string.Equals(c.Config.ClusterId, route.Config.ClusterId, StringComparison.OrdinalIgnoreCase));
                     if (request.ActiveOnly && cluster == null)
                         continue;
 
                     var serviceInfo = new ServiceInfo
                     {
-                        ServiceId = route.RouteId,
-                        ServiceName = route.ClusterId,
-                        ClusterId = route.ClusterId,
+                        ServiceId = route.Config.RouteId,
+                        ServiceName = route.Config.ClusterId,
+                        ClusterId = route.Config.ClusterId,
                         IsHealthy = true,
                         RegisteredAt = new DateTimeOffset(route.CreatedAt).ToUnixTimeSeconds(),
                         LastHeartbeat = cluster?.LastHeartbeat != null
@@ -174,17 +174,18 @@ public class GatewayRegistryGrpcService : GatewayGrpc.GatewayRegistryBase
                             : 0
                     };
 
-                    if (!string.IsNullOrWhiteSpace(route.MatchPath))
-                        serviceInfo.Paths.Add(route.MatchPath);
+                    var matchPath = route.Config.Match?.Path;
+                    if (!string.IsNullOrWhiteSpace(matchPath))
+                        serviceInfo.Paths.Add(matchPath);
 
-                    if (cluster?.Destinations != null)
+                    if (cluster?.Config.Destinations != null)
                     {
-                        foreach (var destination in cluster.Destinations)
+                        foreach (var destination in cluster.Config.Destinations)
                         {
                             serviceInfo.Destinations.Add(new DestinationInfo
                             {
                                 DestinationId = destination.Key,
-                                Address = destination.Value,
+                                Address = destination.Value.Address ?? string.Empty,
                                 IsHealthy = true,
                                 IsEnabled = true,
                                 HealthRatio = 1
