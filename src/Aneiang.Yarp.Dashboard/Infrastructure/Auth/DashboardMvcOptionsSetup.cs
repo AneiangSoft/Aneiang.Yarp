@@ -1,7 +1,5 @@
-using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Controllers;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Auth;
@@ -17,13 +15,16 @@ internal sealed class DashboardMvcOptionsSetup : IConfigureOptions<MvcOptions>
 {
     private readonly IOptions<DashboardOptions> _dashboardOptions;
     private readonly JwtSecretProvider _jwtSecretProvider;
+    private readonly IDashboardAuthorizationService _authService;
 
     public DashboardMvcOptionsSetup(
         IOptions<DashboardOptions> dashboardOptions,
-        JwtSecretProvider jwtSecretProvider)
+        JwtSecretProvider jwtSecretProvider,
+        IDashboardAuthorizationService authService)
     {
         _dashboardOptions = dashboardOptions;
         _jwtSecretProvider = jwtSecretProvider;
+        _authService = authService;
     }
 
     public void Configure(MvcOptions mvcOptions)
@@ -38,11 +39,7 @@ internal sealed class DashboardMvcOptionsSetup : IConfigureOptions<MvcOptions>
 
         if (opts.AuthMode != DashboardAuthMode.None || opts.AuthorizeRequest != null)
         {
-            var authFilter = new DashboardAuthFilter(
-                new DashboardAuthorizationService(
-                    Options.Create(opts),
-                    NullLogger<DashboardAuthorizationService>.Instance),
-                prefix);
+            var authFilter = new DashboardAuthFilter(_authService, prefix);
             mvcOptions.Filters.Add(authFilter);
         }
     }

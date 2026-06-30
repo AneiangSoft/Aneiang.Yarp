@@ -280,11 +280,4 @@ public static class DashboardServiceCollectionExtensions
         return services;
     }
 
-    /// <summary>
-    /// Register deployment-related services. The configuration parameter is no longer required and is ignored.
-    /// Kept for source compatibility.
-    /// </summary>
-    [Obsolete("Use AddAneiangYarpDeployment() instead. IConfiguration is resolved from DI.")]
-    public static IServiceCollection AddAneiangYarpDeployment(this IServiceCollection services, IConfiguration configuration)
-        => services.AddAneiangYarpDeployment();
 }

@@ -386,6 +386,11 @@ internal static class GcOptimizations
 
     /// <summary>
     /// Triggers background GC to avoid pauses during traffic spikes.
+    /// Only collects Gen 0 (short-lived objects) with <see cref="GCCollectionMode.Optimized"/>,
+    /// which is non-intrusive: the runtime may choose to defer the collection if it would
+    /// impact throughput. This is called at controlled points (e.g. after config reload)
+    /// where we know ephemeral allocations have just peaked, and a non-blocking hint helps
+    /// keep managed heap fragmentation low without adding latency to request processing.
     /// </summary>
     public static void TriggerBackgroundGc()
     {
