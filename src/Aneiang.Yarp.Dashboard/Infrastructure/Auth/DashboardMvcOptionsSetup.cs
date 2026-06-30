@@ -6,7 +6,7 @@ namespace Aneiang.Yarp.Dashboard.Infrastructure.Auth;
 
 /// <summary>
 /// Configures MVC conventions and filters for the Dashboard:
-/// - Sets <see cref="DashboardController.RoutePrefix"/> from options
+/// - Sets <see cref="DashboardPagesController.RoutePrefix"/> from options
 /// - Resolves JWT secret via <see cref="JwtSecretProvider"/>
 /// - Adds <see cref="DashboardRouteConvention"/> for route prefix
 /// - Adds <see cref="DashboardAuthFilter"/> when auth is enabled
@@ -32,7 +32,7 @@ internal sealed class DashboardMvcOptionsSetup : IConfigureOptions<MvcOptions>
         var opts = _dashboardOptions.Value;
         var prefix = opts.RoutePrefix.Trim('/');
 
-        DashboardController.RoutePrefix = prefix;
+        DashboardPagesController.RoutePrefix = prefix;
         opts.JwtSecret = _jwtSecretProvider.GetSecret(opts.JwtSecret);
 
         mvcOptions.Conventions.Add(new DashboardRouteConvention(prefix));

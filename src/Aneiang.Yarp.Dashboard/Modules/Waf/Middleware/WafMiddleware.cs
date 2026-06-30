@@ -1,10 +1,10 @@
-using System.Collections.Concurrent;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Infrastructure;
+using Aneiang.Yarp.Dashboard.Modules.Waf.Helpers;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
@@ -35,8 +35,7 @@ public sealed class WafMiddleware
     /// <summary>Ultra-tight timeout (5ms) prevents catastrophic backtracking while allowing benign input.</summary>
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(5);
 
-    // Cache for compiled wildcard IP regex patterns — avoids creating new Regex per request.
-    private static readonly ConcurrentDictionary<string, Regex> WildcardRegexCache = new();
+    // Cache for compiled wildcard IP regex patterns — no longer needed (now in IpMatcher).
 
     // SQL injection: checks for dangerous keywords and comment-based injection in URI/query.
     // Uses alternation with strict anchors to prevent backtracking on evil input.
@@ -275,7 +274,7 @@ public sealed class WafMiddleware
         _notificationService.NotifyWafBlock(clientIp ?? "unknown", eventType, requestUri);
     }
 
-    private bool CheckIp(HttpContext context, WafOptions opts)
+    private static bool CheckIp(HttpContext context, WafOptions opts)
     {
         var clientIp = GetClientIp(context);
         if (string.IsNullOrEmpty(clientIp))
@@ -283,40 +282,18 @@ public sealed class WafMiddleware
 
         if (opts.IpWhitelist.Count > 0)
         {
-            if (!opts.IpWhitelist.Any(ip => MatchesIp(ip.Trim(), clientIp)))
+            if (!opts.IpWhitelist.Any(ip => IpMatcher.Matches(ip.Trim(), clientIp)))
                 return false;
             return true;
         }
 
         if (opts.IpBlacklist.Count > 0)
         {
-            if (opts.IpBlacklist.Any(ip => MatchesIp(ip.Trim(), clientIp)))
+            if (opts.IpBlacklist.Any(ip => IpMatcher.Matches(ip.Trim(), clientIp)))
                 return false;
         }
 
         return true;
-    }
-
-    /// <summary>
-    /// Matches a client IP against an IP pattern (exact, CIDR, or wildcard).
-    /// Wildcard patterns use a cached compiled <see cref="Regex"/> to avoid GC pressure.
-    /// </summary>
-    private static bool MatchesIp(string pattern, string clientIp)
-    {
-        if (pattern.Contains('/'))
-            return IsInCidrRange(pattern, clientIp);
-
-        if (pattern.Contains('*'))
-        {
-            var cachedRegex = WildcardRegexCache.GetOrAdd(pattern, p =>
-                new Regex(
-                    "^" + Regex.Escape(p).Replace("\\*", ".*") + "$",
-                    RegexOptions.IgnoreCase,
-                    RegexTimeout));
-            return cachedRegex.IsMatch(clientIp);
-        }
-
-        return string.Equals(pattern, clientIp, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? ResolveUid(string prefix, string? uid, string? key)
