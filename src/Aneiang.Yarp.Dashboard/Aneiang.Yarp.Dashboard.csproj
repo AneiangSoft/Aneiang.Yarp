@@ -28,4 +28,9 @@
     <ProjectReference Include="..\Aneiang.Yarp.Storage.Sqlite\Aneiang.Yarp.Storage.Sqlite.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Infrastructure\I18n\zh-CN\*.json" />
+    <EmbeddedResource Include="Infrastructure\I18n\en-US\*.json" />
+  </ItemGroup>
+
 </Project>

@@ -1,15 +1,15 @@
-  Aneiang.Yarp.Storage.Abstractions -> d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Storage.Abstractions\bin\Debug\net9.0\Aneiang.Yarp.Storage.Abstractions.dll
-  Aneiang.Yarp.Storage.Abstractions -> d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Storage.Abstractions\bin\Debug\net8.0\Aneiang.Yarp.Storage.Abstractions.dll
+  Aneiang.Yarp.Storage.Abstractions -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Storage.Abstractions\bin\Debug\net9.0\Aneiang.Yarp.Storage.Abstractions.dll
+  Aneiang.Yarp.Storage.Abstractions -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Storage.Abstractions\bin\Debug\net8.0\Aneiang.Yarp.Storage.Abstractions.dll
   Aneiang.Yarp.Grpc -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Grpc\bin\Debug\net8.0\Aneiang.Yarp.Grpc.dll
   Aneiang.Yarp.Grpc -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Grpc\bin\Debug\net9.0\Aneiang.Yarp.Grpc.dll
-  Aneiang.Yarp.Storage.Sqlite -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Storage.Sqlite\bin\Debug\net9.0\Aneiang.Yarp.Storage.Sqlite.dll
-  Aneiang.Yarp.Client -> d:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Client\bin\Debug\net8.0\Aneiang.Yarp.Client.dll
-  Aneiang.Yarp.Client -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Client\bin\Debug\net9.0\Aneiang.Yarp.Client.dll
+  Aneiang.Yarp.Client -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Client\bin\Debug\net8.0\Aneiang.Yarp.Client.dll
   Aneiang.Yarp.Storage.Sqlite -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Storage.Sqlite\bin\Debug\net8.0\Aneiang.Yarp.Storage.Sqlite.dll
-  SampleLocalService -> D:\Codes\2026\aneiang-yarp\samples\SampleLocalService\bin\Debug\net8.0\SampleLocalService.dll
+  Aneiang.Yarp.Storage.Sqlite -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Storage.Sqlite\bin\Debug\net9.0\Aneiang.Yarp.Storage.Sqlite.dll
+  Aneiang.Yarp.Client -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Client\bin\Debug\net9.0\Aneiang.Yarp.Client.dll
 D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp\Services\RouteConfigManager.cs(179,55): warning CS8601: 可能的 null 引用赋值。 [D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp\Aneiang.Yarp.csproj::TargetFramework=net8.0]
   Aneiang.Yarp -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp\bin\Debug\net8.0\Aneiang.Yarp.dll
 D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp\Services\RouteConfigManager.cs(179,55): warning CS8601: 可能的 null 引用赋值。 [D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp\Aneiang.Yarp.csproj::TargetFramework=net9.0]
+  SampleLocalService -> D:\Codes\2026\aneiang-yarp\samples\SampleLocalService\bin\Debug\net8.0\SampleLocalService.dll
   Aneiang.Yarp -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp\bin\Debug\net9.0\Aneiang.Yarp.dll
 D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Infrastructure\Storage\EntityMapper.cs(29,25): warning CS8601: 可能的 null 引用赋值。 [D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net9.0]
 D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Infrastructure\Storage\EntityMapper.cs(49,25): warning CS8601: 可能的 null 引用赋值。 [D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net9.0]
@@ -17,8 +17,8 @@ D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Infrastructure\Performance
 D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Infrastructure\Storage\EntityMapper.cs(29,25): warning CS8601: 可能的 null 引用赋值。 [D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net8.0]
 D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Infrastructure\Storage\EntityMapper.cs(49,25): warning CS8601: 可能的 null 引用赋值。 [D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net8.0]
 D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Infrastructure\Performance\JitOptimizedServices.cs(418,6): warning CA2255: “ModuleInitializer” 属性仅用于应用程序代码或高级源生成器方案 (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca2255) [D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj::TargetFramework=net8.0]
-  Aneiang.Yarp.Dashboard -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\bin\Debug\net9.0\Aneiang.Yarp.Dashboard.dll
   Aneiang.Yarp.Dashboard -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\bin\Debug\net8.0\Aneiang.Yarp.Dashboard.dll
+  Aneiang.Yarp.Dashboard -> D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\bin\Debug\net9.0\Aneiang.Yarp.Dashboard.dll
   SampleGateway -> D:\Codes\2026\aneiang-yarp\samples\SampleGateway\bin\Debug\net8.0\SampleGateway.dll
 
 已成功生成。
@@ -34,4 +34,4 @@ D:\Codes\2026\aneiang-yarp\src\Aneiang.Yarp.Dashboard\Infrastructure\Performance
     8 个警告
     0 个错误
 
-已用时间 00:00:10.21
+已用时间 00:00:21.66

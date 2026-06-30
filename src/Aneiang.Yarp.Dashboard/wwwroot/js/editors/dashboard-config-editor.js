@@ -280,9 +280,16 @@
                 var response = await window.DashboardApi.endpoints.importConfig(config);
 
                 if (response.code === 200) {
-                    if (window.DashboardModals) window.DashboardModals.showSuccess('Import successful');
+                    var data = response.data;
+                    var msg = response.message || 'Import successful';
+                    if (data && (data.importedRoutes || data.importedClusters)) {
+                        msg += ' (' + (data.importedRoutes || 0) + ' routes, ' + (data.importedClusters || 0) + ' clusters)';
+                    }
+                    if (window.DashboardModals) window.DashboardModals.showSuccess(msg);
                     window.location.reload();
                     return true;
+                } else {
+                    if (window.DashboardModals) window.DashboardModals.showError(response.message || 'Import failed');
                 }
 
                 return false;
