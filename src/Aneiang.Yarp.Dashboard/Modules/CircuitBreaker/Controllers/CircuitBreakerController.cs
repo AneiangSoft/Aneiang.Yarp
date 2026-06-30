@@ -37,7 +37,7 @@ public class CircuitBreakerController : Controller
         var enriched = states.Select(s =>
         {
             var cluster = clusters?.FirstOrDefault(c =>
-                string.Equals(c.ClusterId, s.ClusterKeySnapshot, StringComparison.OrdinalIgnoreCase)
+                string.Equals(c.Config.ClusterId, s.ClusterKeySnapshot, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(c.ClusterUid, s.ClusterUid, StringComparison.OrdinalIgnoreCase));
             s.ClusterName = !string.IsNullOrWhiteSpace(cluster?.DisplayName)
                 ? cluster.DisplayName
@@ -70,7 +70,7 @@ public class CircuitBreakerController : Controller
         {
             if (cluster.CircuitBreaker is { Enabled: true } cbConfig)
             {
-                CircuitBreakerMiddleware.EnsureCircuitExists(cluster.ClusterId, cbConfig, cluster.ClusterUid);
+                CircuitBreakerMiddleware.EnsureCircuitExists(cluster.Config.ClusterId ?? string.Empty, cbConfig, cluster.ClusterUid);
             }
         }
     }
@@ -85,7 +85,7 @@ public class CircuitBreakerController : Controller
 
         var cbEnabledClusters = dynConfig.Clusters
             .Where(c => c.CircuitBreaker is { Enabled: true })
-            .Select(c => new { c.ClusterId, c.ClusterUid })
+            .Select(c => new { ClusterId = c.Config.ClusterId, c.ClusterUid })
             .ToList();
 
         var allStates = CircuitBreakerMiddleware.GetAllCircuitStates();

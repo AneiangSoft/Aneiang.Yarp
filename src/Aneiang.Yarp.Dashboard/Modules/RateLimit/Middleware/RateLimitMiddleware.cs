@@ -263,7 +263,7 @@ public sealed class RateLimitMiddleware
         if (string.IsNullOrWhiteSpace(routeKey)) return null;
 
         var routeUid = _yarpConfig?.GetDynamicConfig()?.Routes.FirstOrDefault(r =>
-            string.Equals(r.RouteId, routeKey, StringComparison.OrdinalIgnoreCase))?.RouteUid;
+            string.Equals(r.Config.RouteId, routeKey, StringComparison.OrdinalIgnoreCase))?.RouteUid;
 
         return string.IsNullOrWhiteSpace(routeUid) ? StableUidFromKey("route", routeKey) : routeUid;
     }

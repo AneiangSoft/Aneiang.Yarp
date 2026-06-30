@@ -40,7 +40,7 @@ internal static class RegistrationOptionsResolver
     }
 
     /// <summary>Gets the resolved route order. Default: 50.</summary>
-    public static int GetOrder(GatewayRegistrationOptions options) => options.Order ?? 50;
+    public static int GetOrder(GatewayRegistrationOptions options) => options.Order ?? int.MaxValue;
 
     /// <summary>Gets whether auto IP resolution is enabled. Default: true.</summary>
     public static bool GetAutoResolveIp(GatewayRegistrationOptions options) => options.AutoResolveIp ?? true;

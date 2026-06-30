@@ -14,9 +14,21 @@ public class ConfigChangeAudit
     /// <summary>Target of the action (e.g. route name, cluster ID).</summary>
     public string Target { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets or sets the target type.
+    /// </summary>
     public string? TargetType { get; set; }
+    /// <summary>
+    /// Gets or sets the target uid.
+    /// </summary>
     public string? TargetUid { get; set; }
+    /// <summary>
+    /// Gets or sets the target key snapshot.
+    /// </summary>
     public string? TargetKeySnapshot { get; set; }
+    /// <summary>
+    /// Gets or sets the target display name snapshot.
+    /// </summary>
     public string? TargetDisplayNameSnapshot { get; set; }
 
     /// <summary>Who initiated the change (e.g. "auto-register", "dashboard-user", "API").</summary>

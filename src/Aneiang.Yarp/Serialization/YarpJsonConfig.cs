@@ -22,6 +22,11 @@ public static class YarpJsonConfig
     /// <summary>Same as <see cref="Options"/> but with indentation for human-friendly output.</summary>
     public static JsonSerializerOptions IndentedOptions { get; } = BuildOptions(writeIndented: true);
 
+    /// <summary>
+    /// Builds the options.
+    /// </summary>
+    /// <param name="writeIndented">If true, write indented.</param>
+    /// <returns>A JsonSerializerOptions.</returns>
     private static JsonSerializerOptions BuildOptions(bool writeIndented)
     {
         var options = new JsonSerializerOptions
@@ -70,6 +75,13 @@ public static class YarpJsonConfig
     /// </summary>
     private sealed class VersionConverter : JsonConverter<Version>
     {
+        /// <summary>
+        /// Reads the.
+        /// </summary>
+        /// <param name="reader">The reader.</param>
+        /// <param name="typeToConvert">The type to convert.</param>
+        /// <param name="options">The options.</param>
+        /// <returns>A Version? .</returns>
         public override Version? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             var raw = reader.GetString();
@@ -78,6 +90,12 @@ public static class YarpJsonConfig
             return Version.TryParse(normalized, out var version) ? version : null;
         }
 
+        /// <summary>
+        /// Writes the.
+        /// </summary>
+        /// <param name="writer">The writer.</param>
+        /// <param name="value">The value.</param>
+        /// <param name="options">The options.</param>
         public override void Write(Utf8JsonWriter writer, Version value, JsonSerializerOptions options)
             => writer.WriteStringValue(value.ToString());
     }
@@ -91,6 +109,13 @@ public static class YarpJsonConfig
     /// </summary>
     private sealed class LenientBooleanConverter : JsonConverter<bool>
     {
+        /// <summary>
+        /// Reads the.
+        /// </summary>
+        /// <param name="reader">The reader.</param>
+        /// <param name="typeToConvert">The type to convert.</param>
+        /// <param name="options">The options.</param>
+        /// <returns>A bool.</returns>
         public override bool Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             switch (reader.TokenType)
@@ -112,6 +137,12 @@ public static class YarpJsonConfig
             }
         }
 
+        /// <summary>
+        /// Writes the.
+        /// </summary>
+        /// <param name="writer">The writer.</param>
+        /// <param name="value">If true, value.</param>
+        /// <param name="options">The options.</param>
         public override void Write(Utf8JsonWriter writer, bool value, JsonSerializerOptions options)
             => writer.WriteBooleanValue(value);
     }
@@ -125,6 +156,13 @@ public static class YarpJsonConfig
     /// </summary>
     private sealed class LenientStringConverter : JsonConverter<string>
     {
+        /// <summary>
+        /// Reads the.
+        /// </summary>
+        /// <param name="reader">The reader.</param>
+        /// <param name="typeToConvert">The type to convert.</param>
+        /// <param name="options">The options.</param>
+        /// <returns>A string? .</returns>
         public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return reader.TokenType switch
@@ -138,6 +176,12 @@ public static class YarpJsonConfig
             };
         }
 
+        /// <summary>
+        /// Writes the.
+        /// </summary>
+        /// <param name="writer">The writer.</param>
+        /// <param name="value">The value.</param>
+        /// <param name="options">The options.</param>
         public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options)
             => writer.WriteStringValue(value);
     }

@@ -1,15 +1,12 @@
 using Aneiang.Yarp.Controllers;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
-using Yarp.ReverseProxy;
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.LoadBalancing;
 
@@ -39,7 +36,7 @@ public static class AneiangYarpServiceCollectionExtensions
         bool enableRegistration = true)
     {
         // Guard: prevent double registration
-        if (services.Any(sd => sd.ServiceType == typeof(InMemoryConfigProvider)))
+        if (services.Any(sd => sd.ServiceType == typeof(AneiangProxyConfigProvider)))
         {
             return services;
         }
@@ -57,18 +54,19 @@ public static class AneiangYarpServiceCollectionExtensions
 
         configureReverseProxy?.Invoke(proxyBuilder);
 
-        // InMemoryConfigProvider: load static routes/clusters from IConfiguration
-        services.AddSingleton<InMemoryConfigProvider>(sp =>
+        // AneiangProxyConfigProvider: single source of truth (static config from IConfiguration +
+        // dynamic config loaded later by DynamicYarpConfigService). Replaces InMemoryConfigProvider.
+        services.AddSingleton<AneiangProxyConfigProvider>(sp =>
         {
             var config = sp.GetRequiredService<IConfiguration>();
             var section = config.GetSection("ReverseProxy");
-            return new InMemoryConfigProvider(
+            return new AneiangProxyConfigProvider(
                 YarpConfigParser.ParseRoutes(section.GetSection("Routes")),
                 YarpConfigParser.ParseClusters(section.GetSection("Clusters")));
         });
 
         // Sole config provider - both static + dynamic
-        services.AddSingleton<IProxyConfigProvider>(sp => sp.GetRequiredService<InMemoryConfigProvider>());
+        services.AddSingleton<IProxyConfigProvider>(sp => sp.GetRequiredService<AneiangProxyConfigProvider>());
 
         // Dynamic config service (depends on IRouteRepository, IClusterRepository and IConfigChangeAuditLog
         // which are registered by Dashboard when AddAneiangYarpDashboard is called)

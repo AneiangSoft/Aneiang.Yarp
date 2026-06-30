@@ -1,5 +1,4 @@
 using Aneiang.Yarp.Models;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Aneiang.Yarp.Extensions;

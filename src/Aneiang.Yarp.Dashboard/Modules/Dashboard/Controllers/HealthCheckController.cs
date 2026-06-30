@@ -18,7 +18,7 @@ public class HealthCheckController(DynamicYarpConfigService dynamicConfig) : Con
 
         var healthConfigs = config.Clusters.Select(c => new
         {
-            clusterId = c.ClusterId,
+            clusterId = c.Config.ClusterId,
             healthCheck = c.HealthCheck,
             lastHeartbeat = c.LastHeartbeat
         }).ToList();

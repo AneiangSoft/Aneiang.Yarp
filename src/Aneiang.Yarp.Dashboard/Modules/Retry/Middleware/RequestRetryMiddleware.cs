@@ -180,7 +180,7 @@ public sealed class RequestRetryMiddleware
     private string? ResolveClusterUid(string clusterId)
     {
         return _yarpConfig?.GetDynamicConfig()?.Clusters.FirstOrDefault(c =>
-            string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase))?.ClusterUid;
+            string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase))?.ClusterUid;
     }
 
     private async Task<byte[]?> ReadRequestBodyAsync(HttpRequest request)

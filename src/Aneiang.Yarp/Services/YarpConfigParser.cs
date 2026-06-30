@@ -21,7 +21,7 @@ internal static class YarpConfigParser
                 RouteId = child.Key,
                 ClusterId = child["ClusterId"]!,
                 Match = ParseMatch(child.GetSection("Match"))!,
-                Order = child["Order"] is { Length: > 0 } o && int.TryParse(o, out var order) ? order : null,
+                Order = child["Order"] is { Length: > 0 } o && int.TryParse(o, out var order) ? order : int.MaxValue,
                 MaxRequestBodySize = child["MaxRequestBodySize"] is { Length: > 0 } s && long.TryParse(s, out var size) ? size : null,
                 AuthorizationPolicy = child["AuthorizationPolicy"],
                 CorsPolicy = child["CorsPolicy"],

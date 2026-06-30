@@ -1,33 +1,27 @@
+using Yarp.ReverseProxy.Configuration;
+
 namespace Aneiang.Yarp.Models;
 
 /// <summary>
-/// Dynamic cluster configuration with metadata for persistence.
+/// Dynamic cluster configuration: holds the complete native YARP <see cref="ClusterConfig"/>
+/// plus extension metadata that YARP itself does not track (UID, source, heartbeat, circuit breaker).
+/// The native config is the single source of truth for all YARP fields.
 /// </summary>
-public class DynamicClusterConfig
+public sealed class DynamicClusterConfig
 {
+    /// <summary>
+    /// Complete native YARP <see cref="ClusterConfig"/>. Carries all fields including advanced
+    /// properties (SessionAffinity, HttpClient, HttpRequest, per-destination metadata, etc.).
+    /// </summary>
+    public ClusterConfig Config { get; set; } = new() { ClusterId = string.Empty };
+
     /// <summary>Internal immutable cluster UID.</summary>
     public string ClusterUid { get; set; } = Guid.NewGuid().ToString("N");
-
-    /// <summary>Cluster key used as YARP ClusterId.</summary>
-    public string ClusterId { get; set; } = string.Empty;
-
-    /// <summary>Cluster key alias. Prefer this for internal semantics; ClusterId is kept for compatibility.</summary>
-    public string ClusterKey
-    {
-        get => ClusterId;
-        set => ClusterId = value;
-    }
 
     /// <summary>Display name for UI. Defaults to ClusterKey when empty.</summary>
     public string? DisplayName { get; set; }
 
-    /// <summary>Destination addresses (load balancing targets).</summary>
-    public Dictionary<string, string> Destinations { get; set; } = new();
-
-    /// <summary>Load balancing policy: RoundRobin, PowerOfTwoChoices, Random, LeastRequests.</summary>
-    public string? LoadBalancingPolicy { get; set; }
-
-    /// <summary>Health check configuration.</summary>
+    /// <summary>Health check configuration (domain model, separate from native YARP HealthCheck).</summary>
     public HealthCheckConfig? HealthCheck { get; set; }
 
     /// <summary>Configuration source: "config" | "dynamic" | "auto-register".</summary>
@@ -44,11 +38,4 @@ public class DynamicClusterConfig
 
     /// <summary>Circuit breaker configuration at cluster level.</summary>
     public CircuitBreakerConfig? CircuitBreaker { get; set; }
-
-    /// <summary>
-    /// Full native YARP ClusterConfig serialized as PascalCase JSON. Carries all advanced
-    /// properties (SessionAffinity, HttpClient, HttpRequest, per-destination Health/Host/Metadata,
-    /// cluster Metadata, etc.) so that nothing is lost when the cluster round-trips through persistence.
-    /// </summary>
-    public string? ConfigJson { get; set; }
 }

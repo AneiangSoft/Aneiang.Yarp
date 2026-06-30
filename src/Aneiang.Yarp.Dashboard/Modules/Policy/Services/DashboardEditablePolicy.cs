@@ -16,7 +16,7 @@ internal sealed class DashboardEditablePolicy : IEditablePolicy
     {
         var dynConfig = dynamicConfig.GetDynamicConfig();
         var dynCluster = dynConfig?.Clusters.FirstOrDefault(dc =>
-            string.Equals(dc.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(dc.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
 
         if (dynCluster != null)
         {
@@ -33,7 +33,7 @@ internal sealed class DashboardEditablePolicy : IEditablePolicy
     {
         var dynConfig = dynamicConfig.GetDynamicConfig();
         var dynRoute = dynConfig?.Routes.FirstOrDefault(dr =>
-            string.Equals(dr.RouteId, routeId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(dr.Config.RouteId, routeId, StringComparison.OrdinalIgnoreCase));
 
         if (dynRoute != null)
         {

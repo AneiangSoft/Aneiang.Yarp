@@ -3,6 +3,7 @@ using Aneiang.Yarp.Dashboard.Modules.Policy.Models;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Models;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Storage;
+using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Storage;
 
@@ -22,12 +23,12 @@ internal static class EntityMapper
         return new RouteEntity
         {
             RouteUid = string.IsNullOrWhiteSpace(route.RouteUid) ? Guid.NewGuid().ToString("N") : route.RouteUid,
-            RouteId = route.RouteId,
+            RouteId = route.Config.RouteId ?? string.Empty,
             ClusterUid = route.ClusterUid,
-            ClusterId = route.ClusterId,
-            MatchPath = route.MatchPath,
-            Order = route.Order,
-            Transforms = route.Transforms is { Count: > 0 } ? JsonSerializer.Serialize(route.Transforms, _jsonOptions) : null,
+            ClusterId = route.Config.ClusterId ?? string.Empty,
+            MatchPath = route.Config.Match?.Path,
+            Order = route.Config.Order ?? int.MaxValue,
+            Transforms = route.Config.Transforms is { Count: > 0 } ? JsonSerializer.Serialize(route.Config.Transforms, _jsonOptions) : null,
             Source = route.Source,
             CreatedBy = route.CreatedBy,
             CreatedAt = route.CreatedAt,
@@ -41,12 +42,15 @@ internal static class EntityMapper
         return new DynamicRouteConfig
         {
             RouteUid = entity.RouteUid,
-            RouteId = entity.RouteId,
+            Config = new RouteConfig
+            {
+                RouteId = entity.RouteId,
+                ClusterId = entity.ClusterId,
+                Match = !string.IsNullOrEmpty(entity.MatchPath) ? new RouteMatch { Path = entity.MatchPath } : null,
+                Order = entity.Order,
+                Transforms = string.IsNullOrEmpty(entity.Transforms) ? null : JsonSerializer.Deserialize<IReadOnlyList<IReadOnlyDictionary<string, string>>>(entity.Transforms, _jsonOptions)
+            },
             ClusterUid = entity.ClusterUid,
-            ClusterId = entity.ClusterId,
-            MatchPath = entity.MatchPath,
-            Order = entity.Order,
-            Transforms = string.IsNullOrEmpty(entity.Transforms) ? null : JsonSerializer.Deserialize<List<Dictionary<string, string>>>(entity.Transforms, _jsonOptions),
             Source = entity.Source,
             CreatedBy = entity.CreatedBy,
             CreatedAt = entity.CreatedAt,
@@ -64,8 +68,8 @@ internal static class EntityMapper
         return new ClusterEntity
         {
             ClusterUid = string.IsNullOrWhiteSpace(cluster.ClusterUid) ? Guid.NewGuid().ToString("N") : cluster.ClusterUid,
-            ClusterId = cluster.ClusterId,
-            LoadBalancingPolicy = cluster.LoadBalancingPolicy,
+            ClusterId = cluster.Config.ClusterId ?? string.Empty,
+            LoadBalancingPolicy = cluster.Config.LoadBalancingPolicy,
             HealthCheckConfig = cluster.HealthCheck != null ? JsonSerializer.Serialize(cluster.HealthCheck, _jsonOptions) : null,
             CircuitBreakerConfig = cluster.CircuitBreaker != null ? JsonSerializer.Serialize(cluster.CircuitBreaker, _jsonOptions) : null,
             Source = cluster.Source,
@@ -81,15 +85,18 @@ internal static class EntityMapper
         return new DynamicClusterConfig
         {
             ClusterUid = entity.ClusterUid,
-            ClusterId = entity.ClusterId,
-            LoadBalancingPolicy = entity.LoadBalancingPolicy,
-            HealthCheck = string.IsNullOrEmpty(entity.HealthCheckConfig) ? null : JsonSerializer.Deserialize<HealthCheckConfig>(entity.HealthCheckConfig, _jsonOptions),
+            Config = new ClusterConfig
+            {
+                ClusterId = entity.ClusterId,
+                LoadBalancingPolicy = entity.LoadBalancingPolicy,
+                Destinations = new Dictionary<string, DestinationConfig>()
+            },
+            HealthCheck = string.IsNullOrEmpty(entity.HealthCheckConfig) ? null : JsonSerializer.Deserialize<Aneiang.Yarp.Models.HealthCheckConfig>(entity.HealthCheckConfig, _jsonOptions),
             CircuitBreaker = string.IsNullOrEmpty(entity.CircuitBreakerConfig) ? null : JsonSerializer.Deserialize<CircuitBreakerConfig>(entity.CircuitBreakerConfig, _jsonOptions),
             Source = entity.Source,
             CreatedBy = entity.CreatedBy,
             CreatedAt = entity.CreatedAt,
-            LastHeartbeat = entity.LastHeartbeat,
-            Destinations = new Dictionary<string, string>()
+            LastHeartbeat = entity.LastHeartbeat
         };
     }
 
@@ -275,4 +282,4 @@ internal static class EntityMapper
         return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
     }
 }
-
+

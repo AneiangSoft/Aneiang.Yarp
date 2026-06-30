@@ -38,7 +38,7 @@ internal static class DashboardClusterMapper
 
         var (isEditable, source) = GetClusterEditability(cluster.ClusterId, dynamicConfig);
         var dynamicCluster = dynamicConfig.GetDynamicConfig()?.Clusters.FirstOrDefault(c =>
-            string.Equals(c.ClusterId, cluster.ClusterId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(c.Config.ClusterId, cluster.ClusterId, StringComparison.OrdinalIgnoreCase));
 
         return new DashboardClusterResponse
         {
@@ -172,7 +172,7 @@ internal static class DashboardClusterMapper
     {
         var dynConfig = dynamicConfig.GetDynamicConfig();
         var dynCluster = dynConfig?.Clusters.FirstOrDefault(dc =>
-            string.Equals(dc.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(dc.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
 
         if (dynCluster != null)
         {
@@ -189,7 +189,7 @@ internal static class DashboardClusterMapper
     {
         var dynConfig = dynamicConfig.GetDynamicConfig();
         var dynCluster = dynConfig?.Clusters.FirstOrDefault(dc =>
-            string.Equals(dc.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(dc.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
 
         var cb = dynCluster?.CircuitBreaker;
         if (cb == null)
