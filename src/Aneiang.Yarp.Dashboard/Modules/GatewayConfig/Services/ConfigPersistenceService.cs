@@ -28,9 +28,7 @@ public class ConfigPersistenceService : IConfigPersistenceService
     private readonly IClusterRepository _clusterRepo;
     private readonly IOptionsMonitor<ConfigHistoryOptions> _options;
     private readonly ILogger<ConfigPersistenceService> _logger;
-    private readonly List<ConfigSnapshot> _history = new();
-    private readonly object _historyLock = new();
-    private bool _historyLoaded;
+    private readonly ConfigSnapshotManager _snapshotManager;
 
     public ConfigPersistenceService(
         ILogger<ConfigPersistenceService> logger,
@@ -46,32 +44,8 @@ public class ConfigPersistenceService : IConfigPersistenceService
         _options = options;
         _logger = logger;
         _dynamicConfig = dynamicConfig;
-    }
-
-    private int GetMaxSnapshots() => Math.Max(1, _options.CurrentValue.MaxSnapshots);
-
-    /// <summary>Load persisted snapshot history from repository on first access.</summary>
-    private async Task EnsureHistoryLoadedAsync()
-    {
-        if (_historyLoaded) return;
-        _historyLoaded = true;
-
-        try
-        {
-            var entities = await _historyRepo.GetConfigHistoryListAsync(GetMaxSnapshots());
-            lock (_historyLock)
-            {
-                foreach (var entity in entities)
-                {
-                    _history.Add(entity.ToConfigSnapshot());
-                }
-                _logger.LogDebug("Loaded {Count} snapshots from repository", entities.Count);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to load persisted snapshots");
-        }
+        _snapshotManager = new ConfigSnapshotManager(
+            historyRepo, options, logger, () => ExportFullConfigAsync());
     }
 
     public async Task<JsonElement> ExportFullConfigAsync()
@@ -166,65 +140,20 @@ public class ConfigPersistenceService : IConfigPersistenceService
     }
 
     public async Task<ConfigSnapshot> SaveSnapshotAsync(string? description = null, string? clientIp = null)
-    {
-        await EnsureHistoryLoadedAsync();
-
-        var config = await ExportFullConfigAsync();
-
-        var snapshot = new ConfigSnapshot
-        {
-            Description = description ?? "Manual snapshot",
-            ClientIp = clientIp,
-            Config = config
-        };
-
-        var maxSnapshots = GetMaxSnapshots();
-        lock (_historyLock)
-        {
-            _history.Add(snapshot);
-            while (_history.Count > maxSnapshots)
-                _history.RemoveAt(0);
-        }
-
-        var entity = snapshot.ToEntity("dashboard-user");
-        await _historyRepo.SaveConfigHistoryAsync(entity);
-        await _historyRepo.DeleteOldConfigHistoryAsync(maxSnapshots);
-
-        _logger.LogInformation("Snapshot saved: {VersionId}, Description: {Description}", snapshot.VersionId, snapshot.Description);
-        return snapshot;
-    }
+        => await _snapshotManager.SaveSnapshotAsync(description, clientIp);
 
     public async Task<IReadOnlyList<ConfigSnapshot>> GetHistoryAsync()
-    {
-        await EnsureHistoryLoadedAsync();
-        lock (_historyLock) { return _history.ToList().AsReadOnly(); }
-    }
+        => await _snapshotManager.GetHistoryAsync();
 
     public IReadOnlyList<ConfigSnapshot> GetHistory()
-    {
-        if (_historyLoaded && _history.Count > 0)
-            lock (_historyLock) { return _history.ToList().AsReadOnly(); }
-        return Array.Empty<ConfigSnapshot>();
-    }
+        => _snapshotManager.GetHistory();
 
     public async Task ClearHistoryAsync()
-    {
-        await EnsureHistoryLoadedAsync();
-        lock (_historyLock)
-        {
-            _history.Clear();
-        }
-
-        await _historyRepo.ClearConfigHistoryAsync();
-        _logger.LogInformation("Configuration history cleared");
-    }
+        => await _snapshotManager.ClearHistoryAsync();
 
     public async Task<bool> RollbackAsync(string versionId, string? clientIp = null)
     {
-        await EnsureHistoryLoadedAsync();
-
-        ConfigSnapshot? snapshot;
-        lock (_historyLock) { snapshot = _history.FirstOrDefault(s => s.VersionId == versionId); }
+        ConfigSnapshot? snapshot = await _snapshotManager.FindSnapshotAsync(versionId);
 
         if (snapshot == null)
         {

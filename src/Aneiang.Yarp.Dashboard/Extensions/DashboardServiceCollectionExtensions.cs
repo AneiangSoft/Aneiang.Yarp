@@ -18,6 +18,7 @@ using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage.Sqlite;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -119,13 +120,17 @@ public static class DashboardServiceCollectionExtensions
         // Comments and trailing commas are tolerated so route/cluster editors and config import
         // accept relaxed JSON (matching docs/yarp_all.json style).
         services.AddMvcCore()
-            .AddApplicationPart(typeof(DashboardController).Assembly)
+            .AddApplicationPart(typeof(DashboardPagesController).Assembly)
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
                 options.JsonSerializerOptions.ReadCommentHandling = System.Text.Json.JsonCommentHandling.Skip;
                 options.JsonSerializerOptions.AllowTrailingCommas = true;
             });
+
+        // Let DashboardAuth/DashboardPages controllers also search Views/Dashboard/
+        services.Configure<RazorViewEngineOptions>(o =>
+            o.ViewLocationExpanders.Add(new DashboardViewLocationExpander()));
 
         // Unified caching: single IMemoryCache instance shared by all query services.
         services.AddMemoryCache();
@@ -203,7 +208,9 @@ public static class DashboardServiceCollectionExtensions
         // ── WAF event store (in-memory ring buffer) ──────────────────────────────
         services.AddSingleton<WafEventStore>();
 
-        // ── Policy service (route + cluster policies via IPolicyRepository) ──────
+        // ── Policy services (route + cluster policies via IPolicyRepository) ──────
+        services.AddSingleton<RoutePolicyService>();
+        services.AddSingleton<ClusterPolicyService>();
         services.AddSingleton<IGatewayPolicyService, GatewayPolicyService>();
 
         // ── Plugin system ─────────────────────────────────────────────────────────
@@ -229,6 +236,7 @@ public static class DashboardServiceCollectionExtensions
         // ── Config persistence / identity services ───────────────────────────────
         services.AddSingleton<ConfigPersistenceService>();
         services.AddSingleton<IConfigPersistenceService>(sp => sp.GetRequiredService<ConfigPersistenceService>());
+        services.AddSingleton<IConfigDiffService, ConfigDiffService>();
         services.AddSingleton<ConfigSnapshotScheduler>();
         services.AddSingleton<IConfigSnapshotScheduler>(sp => sp.GetRequiredService<ConfigSnapshotScheduler>());
         services.AddHostedService(sp => sp.GetRequiredService<ConfigSnapshotScheduler>());

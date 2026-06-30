@@ -20,7 +20,7 @@ internal sealed class DashboardRouteConvention : IApplicationModelConvention
         foreach (var ctrl in application.Controllers)
         {
             // Only process controllers from the Dashboard assembly
-            if (ctrl.ControllerType.Assembly != typeof(DashboardController).Assembly)
+            if (ctrl.ControllerType.Assembly != typeof(DashboardPagesController).Assembly)
                 continue;
 
             var controllerSelector = ctrl.Selectors

@@ -354,11 +354,11 @@
                                 '<div class="text-muted small fw-bold mb-1"><i class="bi bi-info-circle me-1"></i>' + __('policy.wafRulesTitle') + '</div>' +
                                 '<ul class="text-muted small ps-3 mb-1">' +
                                     '<li>' + __('policy.wafRuleIp') + '</li>' +
-                                    '<li>' + __('policy.wafRuleSize') + '</li>' +
-                                    '<li>' + __('policy.wafRuleHeaders') + '</li>' +
+                                    '<li>' + __('policy.wafRuleBody') + '</li>' +
+                                    '<li>' + __('policy.wafRuleHeader') + '</li>' +
                                     '<li>' + __('policy.wafRuleUri') + '</li>' +
-                                    '<li>' + __('policy.wafRuleTraversal') + '</li>' +
-                                    '<li>' + __('policy.wafRuleSqli') + '</li>' +
+                                    '<li>' + __('policy.wafRulePath') + '</li>' +
+                                    '<li>' + __('policy.wafRuleSql') + '</li>' +
                                     '<li>' + __('policy.wafRuleXss') + '</li>' +
                                 '</ul>' +
                                 '<div class="text-muted small"><i class="bi bi-arrow-right me-1"></i>' + __('policy.wafRuleHint') + ' <a href="#" onclick="window.DashboardApp && DashboardApp.navigateTo(\'waf\'); return false;" style="color:#3b82f6;">' + __('policy.wafRuleSettingsLink') + '</a></div>' +
