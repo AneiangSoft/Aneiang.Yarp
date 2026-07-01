@@ -24,6 +24,9 @@ public class DashboardApiController : Controller
     private readonly string _defaultLocale;
     private readonly DashboardAuthMode _authMode;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DashboardApiController"/> class.
+    /// </summary>
     public DashboardApiController(
         IDashboardInfoQueryService infoQuery,
         IDashboardClusterQueryService clusterQuery,
@@ -43,8 +46,7 @@ public class DashboardApiController : Controller
         _authMode = opt.AuthMode;
     }
 
-    // ── Info ──
-
+    #region Info
     /// <summary>Gateway basic info.</summary>
     [HttpGet("api/info")]
     public IActionResult GetInfo()
@@ -53,7 +55,9 @@ public class DashboardApiController : Controller
         return Json(new { code = 200, data = info });
     }
 
-    // ── Clusters / Routes ──
+    #endregion
+
+    #region Clusters / Routes
 
     /// <summary>Cluster status and config.</summary>
     [HttpGet("api/clusters")]
@@ -335,4 +339,6 @@ public class DashboardApiController : Controller
         public string Name { get; set; } = string.Empty;
         public int Count { get; set; }
     }
+
+    #endregion
 }

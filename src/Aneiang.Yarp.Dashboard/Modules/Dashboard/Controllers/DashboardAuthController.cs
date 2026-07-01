@@ -29,6 +29,9 @@ public class DashboardAuthController : Controller
     private static readonly string _twoFactorStateFile = Path.Combine(AppContext.BaseDirectory, "twofactor-state.json");
     private static readonly object _twoFactorLock = new();
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DashboardAuthController"/> class.
+    /// </summary>
     public DashboardAuthController(
         IDashboardAuthorizationService authService,
         IOptions<DashboardOptions> dashboardOptions)
@@ -46,7 +49,7 @@ public class DashboardAuthController : Controller
         _minPasswordLength = opt.MinPasswordLength;
     }
 
-    // ── Login Page ──
+    #region Login Page
 
     /// <summary>Dashboard login page.</summary>
     [HttpGet("login")]
@@ -114,7 +117,9 @@ public class DashboardAuthController : Controller
         return Json(new { code = 200, message = "Logged out successfully" });
     }
 
-    // ── Two-Factor Authentication ──
+    #endregion
+
+    #region Two-Factor Authentication
 
     /// <summary>Get 2FA status.</summary>
     [HttpGet("api/2fa/status")]
@@ -199,7 +204,9 @@ public class DashboardAuthController : Controller
         public string? Secret { get; set; }
     }
 
-    // ── Auth Status ──
+    #endregion
+
+    #region Auth Status
 
     /// <summary>Get current authorization status and mode.</summary>
     [HttpGet("api/auth/status")]
@@ -220,4 +227,6 @@ public class DashboardAuthController : Controller
             }
         });
     }
+
+    #endregion
 }

@@ -38,6 +38,7 @@ public sealed class NotificationService : INotificationService
         };
     }
 
+    /// <summary>Preloads notification settings into memory cache.</summary>
     public async Task PreloadAsync(CancellationToken ct = default)
     {
         _cachedSettings = await _repository.LoadSettingsAsync(ct);
@@ -45,6 +46,7 @@ public sealed class NotificationService : INotificationService
         _logger.LogDebug("NotificationService preloaded");
     }
 
+    /// <summary>Gets notification settings with cache. Refreshes from repository when expired.</summary>
     private async Task<NotificationSettingsEntity> GetSettingsAsync(CancellationToken ct)
     {
         if (_cachedSettings != null && DateTime.UtcNow < _cacheExpiry)
@@ -75,6 +77,7 @@ public sealed class NotificationService : INotificationService
         }
     }
 
+    /// <summary>Invalidates the settings cache so the next access reloads from repository.</summary>
     public void InvalidateCache() => _cacheExpiry = DateTime.MinValue;
 
     /// <summary>
@@ -88,6 +91,7 @@ public sealed class NotificationService : INotificationService
         "RollbackConfig"
     };
 
+    /// <summary>Sends a notification event through all matching rules and records history.</summary>
     public async Task NotifyAsync(NotificationEvent evt, CancellationToken ct = default)
     {
         try
@@ -182,6 +186,7 @@ public sealed class NotificationService : INotificationService
         }
     }
 
+    /// <summary>Checks whether a notification event matches a rule's conditions.</summary>
     private bool MatchesRule(NotificationRule rule, NotificationEvent evt)
     {
         // Check event types (empty list = all events)
@@ -226,11 +231,13 @@ public sealed class NotificationService : INotificationService
         return true;
     }
 
+    /// <summary>Sends a test notification to a specific channel.</summary>
     public async Task<bool> TestChannelAsync(string channelId, CancellationToken ct = default)
     {
         return await _channelSender.TestChannelAsync(channelId, ct);
     }
 
+    /// <summary>Notifies a circuit breaker open event for the specified cluster.</summary>
     public void NotifyCircuitBreakerOpen(string clusterId, string? destinationId = null)
     {
         var destInfo = destinationId != null ? $" (destination: {destinationId})" : "";
@@ -246,6 +253,7 @@ public sealed class NotificationService : INotificationService
         });
     }
 
+    /// <summary>Notifies a retry exhausted event for the specified route and cluster.</summary>
     public void NotifyRetryExhausted(string clusterId, string routeId, int attempts, int statusCode)
     {
         _ = NotifyAsync(new NotificationEvent
@@ -265,6 +273,7 @@ public sealed class NotificationService : INotificationService
         });
     }
 
+    /// <summary>Notifies a WAF block event for the specified client IP.</summary>
     public void NotifyWafBlock(string clientIp, string blockReason, string? uri = null)
     {
         _ = NotifyAsync(new NotificationEvent
@@ -282,6 +291,7 @@ public sealed class NotificationService : INotificationService
         });
     }
 
+    /// <summary>Notifies a proxy error event for the specified cluster and destination.</summary>
     public void NotifyProxyError(string clusterId, string? destinationId, string errorMessage)
     {
         var destInfo = destinationId != null ? $" (destination: {destinationId})" : "";
@@ -355,6 +365,7 @@ public sealed class NotificationService : INotificationService
         });
     }
 
+    /// <summary>Sends a custom notification with the specified event type, title, and message.</summary>
     public void NotifyCustom(string eventType, string title, string message)
     {
         _ = NotifyAsync(new NotificationEvent

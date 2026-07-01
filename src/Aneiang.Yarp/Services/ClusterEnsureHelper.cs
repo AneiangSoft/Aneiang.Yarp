@@ -14,8 +14,16 @@ internal static class ClusterEnsureHelper
     public static string GetDestinationKey(string clientIp) =>
         $"ip-{clientIp.Replace(".", "-")}";
 
-    // ── IP-isolation cluster ──────────────────────────────────────────────
+    #region IP-isolation cluster
 
+    /// <summary>
+    /// Ensures an IP-isolation cluster exists with the given destination.
+    /// </summary>
+    /// <param name="clusters">The clusters.</param>
+    /// <param name="clusterName">The cluster name.</param>
+    /// <param name="clientIp">The client IP.</param>
+    /// <param name="destinationAddress">The destination address.</param>
+    /// <returns>A list of ClusterConfigs.</returns>
     public static List<ClusterConfig> EnsureIpCluster(
         List<ClusterConfig> clusters,
         string clusterName,
@@ -67,8 +75,17 @@ internal static class ClusterEnsureHelper
         return clusters;
     }
 
-    // ── Normal (non-IP) cluster ───────────────────────────────────────────
+    #endregion
 
+    #region Normal (non-IP) cluster
+
+    /// <summary>
+    /// Ensures a normal cluster exists with the given destination.
+    /// </summary>
+    /// <param name="clusters">The clusters.</param>
+    /// <param name="clusterName">The cluster name.</param>
+    /// <param name="destinationAddress">The destination address.</param>
+    /// <returns>A list of ClusterConfigs.</returns>
     public static List<ClusterConfig> EnsureNormalCluster(
         List<ClusterConfig> clusters,
         string clusterName,
@@ -111,7 +128,9 @@ internal static class ClusterEnsureHelper
         return clusters;
     }
 
-    // ── IP destination removal (used by TryRemoveRoute) ────────────────────
+    #endregion
+
+    #region IP destination removal
 
     /// <summary>
     /// Remove the IP-specific destination from the cluster.
@@ -159,4 +178,6 @@ internal static class ClusterEnsureHelper
 
         return (mutable, destKey, false, true);
     }
+
+    #endregion
 }

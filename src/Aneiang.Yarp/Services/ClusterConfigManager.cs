@@ -18,6 +18,16 @@ internal class ClusterConfigManager : IClusterConfigManager
     private readonly IConfigChangeAuditLog _auditLog;
     private readonly ILogger<ClusterConfigManager> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ClusterConfigManager"/> class.
+    /// </summary>
+    /// <param name="configProvider">The config provider.</param>
+    /// <param name="state">The state.</param>
+    /// <param name="semaphore">The semaphore.</param>
+    /// <param name="persister">The persister.</param>
+    /// <param name="publisher">The publisher.</param>
+    /// <param name="auditLog">The audit log.</param>
+    /// <param name="logger">The logger.</param>
     public ClusterConfigManager(
         AneiangProxyConfigProvider configProvider,
         DynamicConfigState state,
@@ -36,8 +46,16 @@ internal class ClusterConfigManager : IClusterConfigManager
         _logger = logger;
     }
 
-    // ── TryAddClusterConfig (full native config) ─────────────────────────
 
+    #region TryAddClusterConfig (full native config)
+
+    /// <summary>
+    /// Tries the add cluster config.
+    /// </summary>
+    /// <param name="cluster">The cluster.</param>
+    /// <param name="source">The source.</param>
+    /// <param name="createdBy">The created by.</param>
+    /// <returns>A Task.</returns>
     public async Task<RouteOperationResult> TryAddClusterConfig(
         ClusterConfig cluster, string source = "dashboard", string? createdBy = "dashboard-user")
     {
@@ -94,8 +112,20 @@ internal class ClusterConfigManager : IClusterConfigManager
         }
     }
 
-    // ── TryAddCluster (basic overload) ───────────────────────────────────
+    #endregion
 
+    #region TryAddCluster (basic overload)
+
+    /// <summary>
+    /// Tries the add cluster.
+    /// </summary>
+    /// <param name="clusterId">The cluster id.</param>
+    /// <param name="destinations">The destinations.</param>
+    /// <param name="loadBalancingPolicy">The load balancing policy.</param>
+    /// <param name="healthCheck">The health check.</param>
+    /// <param name="source">The source.</param>
+    /// <param name="createdBy">The created by.</param>
+    /// <returns>A Task.</returns>
     public async Task<RouteOperationResult> TryAddCluster(string clusterId, Dictionary<string, string> destinations,
         string? loadBalancingPolicy = null, Models.HealthCheckConfig? healthCheck = null,
         string source = "dynamic", string? createdBy = null)
@@ -152,8 +182,17 @@ internal class ClusterConfigManager : IClusterConfigManager
         }
     }
 
-    // ── TryAddCluster (CreateClusterRequest) ─────────────────────────────
+    #endregion
 
+    #region TryAddCluster (CreateClusterRequest)
+
+    /// <summary>
+    /// Tries the add cluster.
+    /// </summary>
+    /// <param name="request">The request.</param>
+    /// <param name="source">The source.</param>
+    /// <param name="createdBy">The created by.</param>
+    /// <returns>A Task.</returns>
     public async Task<RouteOperationResult> TryAddCluster(CreateClusterRequest request,
         string source = "dynamic", string? createdBy = null)
     {
@@ -172,8 +211,10 @@ internal class ClusterConfigManager : IClusterConfigManager
             var hc = request.HealthCheck;
             var dmHc = hc != null ? new Models.HealthCheckConfig
             {
-                Active = hc.Active?.Enabled ?? false, Endpoint = hc.Active?.Path,
-                Passive = hc.Passive?.Enabled ?? false, PassivePolicy = hc.Passive?.Policy,
+                Active = hc.Active?.Enabled ?? false,
+                Endpoint = hc.Active?.Path,
+                Passive = hc.Passive?.Enabled ?? false,
+                PassivePolicy = hc.Passive?.Policy,
                 PassiveReactivationPeriod = TimeSpan.TryParse(hc.Passive?.ReactivationPeriod, out var rp) ? rp : TimeSpan.FromSeconds(30),
                 AvailableDestinationsPolicy = hc.AvailableDestinationsPolicy
             } : null;
@@ -209,8 +250,16 @@ internal class ClusterConfigManager : IClusterConfigManager
         }
     }
 
-    // ── TryUpdateCluster ─────────────────────────────────────────────────
+    #endregion
 
+    #region TryUpdateCluster
+
+    /// <summary>
+    /// Tries the update cluster.
+    /// </summary>
+    /// <param name="clusterId">The cluster id.</param>
+    /// <param name="request">The request.</param>
+    /// <returns>A Task.</returns>
     public async Task<RouteOperationResult> TryUpdateCluster(string clusterId, UpdateClusterRequest request)
     {
         if (string.IsNullOrWhiteSpace(clusterId))
@@ -236,8 +285,10 @@ internal class ClusterConfigManager : IClusterConfigManager
                 HealthCheck = hc != null
                     ? DynamicYarpConfigHelpers.BuildClusterHealthCheck(new Models.HealthCheckConfig
                     {
-                        Active = hc.Active?.Enabled ?? false, Endpoint = hc.Active?.Path,
-                        Passive = hc.Passive?.Enabled ?? false, PassivePolicy = hc.Passive?.Policy,
+                        Active = hc.Active?.Enabled ?? false,
+                        Endpoint = hc.Active?.Path,
+                        Passive = hc.Passive?.Enabled ?? false,
+                        PassivePolicy = hc.Passive?.Policy,
                         PassiveReactivationPeriod = TimeSpan.TryParse(hc.Passive?.ReactivationPeriod, out var rp) ? rp : TimeSpan.FromSeconds(30),
                         AvailableDestinationsPolicy = hc.AvailableDestinationsPolicy
                     }) : existing.HealthCheck
@@ -251,8 +302,10 @@ internal class ClusterConfigManager : IClusterConfigManager
                 dc.Config = updated;
                 if (hc != null) dc.HealthCheck = new Models.HealthCheckConfig
                 {
-                    Active = hc.Active?.Enabled ?? false, Endpoint = hc.Active?.Path,
-                    Passive = hc.Passive?.Enabled ?? false, PassivePolicy = hc.Passive?.Policy,
+                    Active = hc.Active?.Enabled ?? false,
+                    Endpoint = hc.Active?.Path,
+                    Passive = hc.Passive?.Enabled ?? false,
+                    PassivePolicy = hc.Passive?.Policy,
                     PassiveReactivationPeriod = TimeSpan.TryParse(hc.Passive?.ReactivationPeriod, out var rp2) ? rp2 : TimeSpan.FromSeconds(30),
                     AvailableDestinationsPolicy = hc.AvailableDestinationsPolicy
                 };
@@ -275,8 +328,15 @@ internal class ClusterConfigManager : IClusterConfigManager
         }
     }
 
-    // ── TryRemoveCluster ─────────────────────────────────────────────────
+    #endregion
 
+    #region TryRemoveCluster
+
+    /// <summary>
+    /// Tries the remove cluster.
+    /// </summary>
+    /// <param name="clusterId">The cluster id.</param>
+    /// <returns>A Task.</returns>
     public async Task<RouteOperationResult> TryRemoveCluster(string clusterId)
     {
         if (string.IsNullOrWhiteSpace(clusterId)) return new RouteOperationResult(false, "Cluster ID cannot be empty");
@@ -313,8 +373,21 @@ internal class ClusterConfigManager : IClusterConfigManager
         }
     }
 
-    // ── TryRenameCluster ─────────────────────────────────────────────────
+    #endregion
 
+    #region TryRenameCluster
+
+    /// <summary>
+    /// Tries the rename cluster.
+    /// </summary>
+    /// <param name="oldClusterId">The old cluster id.</param>
+    /// <param name="newClusterId">The new cluster id.</param>
+    /// <param name="destinations">The destinations.</param>
+    /// <param name="loadBalancingPolicy">The load balancing policy.</param>
+    /// <param name="healthCheck">The health check.</param>
+    /// <param name="source">The source.</param>
+    /// <param name="createdBy">The created by.</param>
+    /// <returns>A Task.</returns>
     public async Task<RouteOperationResult> TryRenameCluster(string oldClusterId, string newClusterId,
         Dictionary<string, string> destinations, string? loadBalancingPolicy = null,
         Models.HealthCheckConfig? healthCheck = null, string source = "dashboard", string? createdBy = "dashboard-user")
@@ -353,10 +426,16 @@ internal class ClusterConfigManager : IClusterConfigManager
                 if (string.Equals(newRoutes[i].ClusterId, oldClusterId, StringComparison.OrdinalIgnoreCase))
                 {
                     newRoutes[i] = new RouteConfig
-                    { RouteId = newRoutes[i].RouteId, ClusterId = newClusterId, Match = newRoutes[i].Match,
-                      Order = newRoutes[i].Order, Transforms = newRoutes[i].Transforms,
-                      AuthorizationPolicy = newRoutes[i].AuthorizationPolicy, CorsPolicy = newRoutes[i].CorsPolicy,
-                      Metadata = newRoutes[i].Metadata };
+                    {
+                        RouteId = newRoutes[i].RouteId,
+                        ClusterId = newClusterId,
+                        Match = newRoutes[i].Match,
+                        Order = newRoutes[i].Order,
+                        Transforms = newRoutes[i].Transforms,
+                        AuthorizationPolicy = newRoutes[i].AuthorizationPolicy,
+                        CorsPolicy = newRoutes[i].CorsPolicy,
+                        Metadata = newRoutes[i].Metadata
+                    };
                     updatedRouteCount++;
                 }
             }
@@ -366,9 +445,13 @@ internal class ClusterConfigManager : IClusterConfigManager
             var oldDc = _state.Config.Clusters.FirstOrDefault(c => string.Equals(c.Config.ClusterId, oldClusterId, StringComparison.OrdinalIgnoreCase));
             _state.Config.Clusters.Add(new DynamicClusterConfig
             {
-                Config = newCluster, ClusterUid = oldDc?.ClusterUid ?? Guid.NewGuid().ToString("N"),
-                HealthCheck = healthCheck ?? oldDc?.HealthCheck, CircuitBreaker = oldDc?.CircuitBreaker,
-                Source = source, CreatedAt = DateTime.UtcNow, CreatedBy = createdBy
+                Config = newCluster,
+                ClusterUid = oldDc?.ClusterUid ?? Guid.NewGuid().ToString("N"),
+                HealthCheck = healthCheck ?? oldDc?.HealthCheck,
+                CircuitBreaker = oldDc?.CircuitBreaker,
+                Source = source,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = createdBy
             });
             foreach (var dr in _state.Config.Routes.Where(r => string.Equals(r.Config.ClusterId, oldClusterId, StringComparison.OrdinalIgnoreCase)))
             {
@@ -396,8 +479,16 @@ internal class ClusterConfigManager : IClusterConfigManager
         }
     }
 
-    // ── UpdateClusterCircuitBreakerAsync ─────────────────────────────────
+    #endregion
 
+    #region UpdateClusterCircuitBreakerAsync
+
+    /// <summary>
+    /// Updates the cluster circuit breaker async.
+    /// </summary>
+    /// <param name="clusterId">The cluster id.</param>
+    /// <param name="config">The config.</param>
+    /// <returns>A Task.</returns>
     public async Task<bool> UpdateClusterCircuitBreakerAsync(string clusterId, CircuitBreakerConfig? config)
     {
         if (string.IsNullOrWhiteSpace(clusterId)) return false;
@@ -426,8 +517,14 @@ internal class ClusterConfigManager : IClusterConfigManager
         return true;
     }
 
-    // ── Query methods ────────────────────────────────────────────────────
+    #endregion
 
+    #region Query methods
+
+    /// <summary>
+    /// Gets the clusters.
+    /// </summary>
+    /// <returns>A list of ClusterConfigs.</returns>
     public IReadOnlyList<ClusterConfig> GetClusters()
     {
         _semaphore.Wait();
@@ -435,9 +532,17 @@ internal class ClusterConfigManager : IClusterConfigManager
         finally { _semaphore.Release(); }
     }
 
+    /// <summary>
+    /// Gets the cluster.
+    /// </summary>
+    /// <param name="clusterId">The cluster id.</param>
+    /// <returns>A ClusterConfig? .</returns>
     public ClusterConfig? GetCluster(string clusterId)
     {
         var clusters = GetClusters();
         return clusters.FirstOrDefault(c => string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
     }
+
+    #endregion
+
 }

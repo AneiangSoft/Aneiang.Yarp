@@ -193,7 +193,7 @@
             reader.readAsText(file);
         }
 
-        // ── Render import manifest (route/cluster preview before import) ──
+        // #region Render import manifest (route/cluster preview before import)
         function renderManifest(data) {
             var rp = data.ReverseProxy || data.reverseProxy;
             var routes = rp && (rp.Routes || rp.routes);
@@ -308,8 +308,11 @@
                 '</div>';
             manifest.style.display = 'block';
         }
+        // #endregion
 
-        // ── Back button: reset file selection ──
+        // #endregion
+
+        // #region Back button: reset file selection
         backBtn.addEventListener('click', function() {
             importData = null;
             fileInput.value = '';
@@ -402,7 +405,7 @@
             }
         });
 
-        // ── Show detailed import result ──
+        // #region Show detailed import result
         var esc = function(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
 
         function showImportResult(response) {
@@ -495,6 +498,7 @@
 
         bsModal.show();
     };
+    // #endregion
 
     window.DashboardConfig.showHistoryModal = async function() {
         const self = this;

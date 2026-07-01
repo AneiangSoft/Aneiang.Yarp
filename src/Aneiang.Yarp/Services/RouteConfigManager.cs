@@ -18,6 +18,16 @@ internal class RouteConfigManager : IRouteConfigManager
     private readonly IConfigChangeAuditLog _auditLog;
     private readonly ILogger<RouteConfigManager> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RouteConfigManager"/> class.
+    /// </summary>
+    /// <param name="configProvider">The config provider.</param>
+    /// <param name="state">The state.</param>
+    /// <param name="semaphore">The semaphore.</param>
+    /// <param name="persister">The persister.</param>
+    /// <param name="publisher">The publisher.</param>
+    /// <param name="auditLog">The audit log.</param>
+    /// <param name="logger">The logger.</param>
     public RouteConfigManager(
         AneiangProxyConfigProvider configProvider,
         DynamicConfigState state,
@@ -36,12 +46,19 @@ internal class RouteConfigManager : IRouteConfigManager
         _logger = logger;
     }
 
-    // ── TryAddRoute ──────────────────────────────────────────────────────
+    #region TryAddRoute
 
+    /// <summary>
+    /// Tries the add route.
+    /// </summary>
+    /// <param name="request">The request.</param>
+    /// <param name="source">The source.</param>
+    /// <param name="createdBy">The created by.</param>
+    /// <returns>A Task.</returns>
     public async Task<RouteOperationResult> TryAddRoute(
-        RegisterRouteRequest request,
-        string source = "dynamic",
-        string? createdBy = null)
+    RegisterRouteRequest request,
+    string source = "dynamic",
+    string? createdBy = null)
     {
         bool saveNeeded = false;
         await _semaphore.WaitAsync();
@@ -63,12 +80,6 @@ internal class RouteConfigManager : IRouteConfigManager
             var existingRouteIdx = newRoutes.FindIndex(r =>
                 string.Equals(r.RouteId, request.RouteName, StringComparison.OrdinalIgnoreCase));
 
-            Dictionary<string, string>? existingMetadata = null;
-            if (existingRouteIdx >= 0)
-            {
-                existingMetadata = newRoutes[existingRouteIdx].Metadata as Dictionary<string, string>;
-            }
-
             bool isNew;
             if (existingRouteIdx >= 0)
             {
@@ -76,27 +87,23 @@ internal class RouteConfigManager : IRouteConfigManager
                 newRoutes[existingRouteIdx] = oldRoute with
                 {
                     ClusterId = request.ClusterName,
-                    Match = oldRoute.Match != null
-                        ? new RouteMatch
-                        {
-                            Path = request.MatchPath,
-                            Hosts = oldRoute.Match.Hosts,
-                            Methods = oldRoute.Match.Methods,
-                            Headers = oldRoute.Match.Headers,
-                            QueryParameters = oldRoute.Match.QueryParameters
-                        }
-                        : new RouteMatch { Path = request.MatchPath },
+                    Match = new RouteMatch
+                    {
+                        Path = request.MatchPath,
+                        Hosts = oldRoute.Match.Hosts,
+                        Methods = oldRoute.Match.Methods,
+                        Headers = oldRoute.Match.Headers,
+                        QueryParameters = oldRoute.Match.QueryParameters
+                    },
                     Order = request.Order ?? int.MaxValue,
                     Transforms = request.Transforms?.Select(t => (IReadOnlyDictionary<string, string>)t).ToList() ?? oldRoute.Transforms
                 };
                 isNew = false;
-                _logger.LogDebug("Route '{RouteName}' exists, updating", request.RouteName);
             }
             else
             {
                 newRoutes.Add(routeConfig);
                 isNew = true;
-                _logger.LogDebug("Route '{RouteName}' is new, adding", request.RouteName);
             }
 
             // Cluster: create or update via helper
@@ -222,12 +229,21 @@ internal class RouteConfigManager : IRouteConfigManager
         }
     }
 
-    // ── TryAddRouteConfig (full native config) ───────────────────────────
+    #endregion
 
+    #region TryAddRouteConfig (full native config)
+
+    /// <summary>
+    /// Tries the add route config.
+    /// </summary>
+    /// <param name="route">The route.</param>
+    /// <param name="source">The source.</param>
+    /// <param name="createdBy">The created by.</param>
+    /// <returns>A Task.</returns>
     public async Task<RouteOperationResult> TryAddRouteConfig(
-        RouteConfig route,
-        string source = "dashboard",
-        string? createdBy = "dashboard-user")
+    RouteConfig route,
+    string source = "dashboard",
+    string? createdBy = "dashboard-user")
     {
         if (string.IsNullOrWhiteSpace(route.RouteId))
             return new RouteOperationResult(false, "Route ID cannot be empty");
@@ -317,8 +333,18 @@ internal class RouteConfigManager : IRouteConfigManager
         }
     }
 
-    // ── TryRemoveRoute ───────────────────────────────────────────────────
 
+    #endregion
+
+    #region TryRemoveRoute
+
+    /// <summary>
+    /// Tries the remove route.
+    /// </summary>
+    /// <param name="routeName">The route name.</param>
+    /// <param name="clientIp">The client ip.</param>
+    /// <param name="removeOrphanedCluster">If true, remove orphaned cluster.</param>
+    /// <returns>A Task.</returns>
     public async Task<RouteOperationResult> TryRemoveRoute(string routeName, string? clientIp = null, bool removeOrphanedCluster = true)
     {
         if (string.IsNullOrWhiteSpace(routeName))
@@ -419,8 +445,21 @@ internal class RouteConfigManager : IRouteConfigManager
         }
     }
 
-    // ── TryRenameRoute ──────────────────────────────────────────────────
 
+    #endregion
+
+
+    #region TryRenameRoute
+
+    /// <summary>
+    /// Tries the rename route.
+    /// </summary>
+    /// <param name="oldRouteId">The old route id.</param>
+    /// <param name="newRouteId">The new route id.</param>
+    /// <param name="request">The request.</param>
+    /// <param name="source">The source.</param>
+    /// <param name="createdBy">The created by.</param>
+    /// <returns>A Task.</returns>
     public async Task<RouteOperationResult> TryRenameRoute(
         string oldRouteId,
         string newRouteId,
@@ -530,8 +569,16 @@ internal class RouteConfigManager : IRouteConfigManager
         }
     }
 
-    // ── UpdateRouteMetadataAsync ─────────────────────────────────────────
+    #endregion
 
+    #region UpdateRouteMetadataAsync
+
+    /// <summary>
+    /// Updates the route metadata async.
+    /// </summary>
+    /// <param name="routeId">The route id.</param>
+    /// <param name="metadata">The metadata.</param>
+    /// <returns>A Task.</returns>
     public async Task<bool> UpdateRouteMetadataAsync(string routeId, Dictionary<string, string> metadata)
     {
         if (string.IsNullOrWhiteSpace(routeId) || metadata.Count == 0)
@@ -579,8 +626,14 @@ internal class RouteConfigManager : IRouteConfigManager
         return true;
     }
 
-    // ── Query methods ────────────────────────────────────────────────────
+    #endregion
 
+    #region Query methods
+
+    /// <summary>
+    /// Gets the routes.
+    /// </summary>
+    /// <returns>A list of RouteConfigs.</returns>
     public IReadOnlyList<RouteConfig> GetRoutes()
     {
         _semaphore.Wait();
@@ -591,5 +644,11 @@ internal class RouteConfigManager : IRouteConfigManager
         finally { _semaphore.Release(); }
     }
 
+    /// <summary>
+    /// Gets the dynamic config.
+    /// </summary>
+    /// <returns>A GatewayDynamicConfig.</returns>
     public GatewayDynamicConfig GetDynamicConfig() => _state.Config;
+
+    #endregion
 }

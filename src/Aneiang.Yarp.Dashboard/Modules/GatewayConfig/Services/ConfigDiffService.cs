@@ -230,8 +230,9 @@ public class ConfigDiffService : IConfigDiffService
         return diffs;
     }
 
-    // ── Private helpers ──
+    #region Private helpers
 
+    /// <summary>Resolves the ReverseProxy section from a config JSON element.</summary>
     private static JsonElement GetReverseProxySection(JsonElement config)
     {
         if (config.ValueKind == JsonValueKind.Object &&
@@ -242,6 +243,7 @@ public class ConfigDiffService : IConfigDiffService
         return default;
     }
 
+    /// <summary>Parses a single snapshot route entry from a JSON element.</summary>
     private static SnapshotRoute ParseSnapshotRoute(JsonElement route, string? fallbackRouteId)
     {
         var routeId = route.TryGetProperty("routeId", out var rid) ? rid.GetString() ?? string.Empty :
@@ -269,6 +271,7 @@ public class ConfigDiffService : IConfigDiffService
         };
     }
 
+    /// <summary>Builds a diff item object for the diff result list.</summary>
     private static object GetDiffItem(string entityType, string path, string diffType, string? oldValue = null, string? newValue = null)
     {
         return new
@@ -279,4 +282,6 @@ public class ConfigDiffService : IConfigDiffService
             newValue
         };
     }
+
+    #endregion
 }
