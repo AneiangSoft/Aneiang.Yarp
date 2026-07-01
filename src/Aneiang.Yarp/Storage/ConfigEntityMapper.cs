@@ -15,8 +15,13 @@ public static class ConfigEntityMapper
         WriteIndented = false
     };
 
-    // ── Route ──────────────────────────────────────────────────────────
+    #region Route
 
+    /// <summary>
+    /// Converts a <see cref="DynamicRouteConfig"/> to a <see cref="RouteEntity"/>.
+    /// </summary>
+    /// <param name="route">The route.</param>
+    /// <returns>A RouteEntity.</returns>
     public static RouteEntity ToEntity(this DynamicRouteConfig route) => new()
     {
         RouteUid = string.IsNullOrWhiteSpace(route.RouteUid) ? StableUidFromKey("route", route.Config.RouteId ?? string.Empty) : route.RouteUid,
@@ -83,8 +88,15 @@ public static class ConfigEntityMapper
     public static List<DynamicRouteConfig> ToRouteConfigs(this IEnumerable<RouteEntity> entities)
         => entities.Select(e => e.ToRouteConfig()).ToList();
 
-    // ── Cluster ────────────────────────────────────────────────────────
+    #endregion
 
+    #region Cluster
+
+    /// <summary>
+    /// Converts a <see cref="DynamicClusterConfig"/> to a <see cref="ClusterEntity"/>.
+    /// </summary>
+    /// <param name="cluster">The cluster.</param>
+    /// <returns>A ClusterEntity.</returns>
     public static ClusterEntity ToEntity(this DynamicClusterConfig cluster) => new()
     {
         ClusterUid = string.IsNullOrWhiteSpace(cluster.ClusterUid) ? StableUidFromKey("cluster", cluster.Config.ClusterId ?? string.Empty) : cluster.ClusterUid,
@@ -139,8 +151,16 @@ public static class ConfigEntityMapper
     public static List<DynamicClusterConfig> ToClusterConfigs(this IEnumerable<ClusterEntity> entities)
         => entities.Select(e => e.ToClusterConfig()).ToList();
 
-    // ── Destination ────────────────────────────────────────────────────
+    #endregion
 
+    #region Destination
+
+    /// <summary>
+    /// Converts a destination key-value pair to a <see cref="DestinationEntity"/>.
+    /// </summary>
+    /// <param name="dest">The destination.</param>
+    /// <param name="clusterId">The cluster id.</param>
+    /// <returns>A DestinationEntity.</returns>
     public static DestinationEntity ToEntity(this KeyValuePair<string, string> dest, string clusterId) => new()
     {
         DestinationId = dest.Key,
@@ -152,8 +172,15 @@ public static class ConfigEntityMapper
     public static Dictionary<string, string> ToDestinations(this IEnumerable<DestinationEntity> entities)
         => entities.ToDictionary(e => e.DestinationId, e => e.Address);
 
-    // ── AuditLog ───────────────────────────────────────────────────────
+    #endregion
 
+    #region AuditLog
+
+    /// <summary>
+    /// Converts a <see cref="ConfigChangeAudit"/> to an <see cref="AuditLogEntity"/>.
+    /// </summary>
+    /// <param name="audit">The audit.</param>
+    /// <returns>An AuditLogEntity.</returns>
     public static AuditLogEntity ToEntity(this ConfigChangeAudit audit) => new()
     {
         Id = audit.Id,
@@ -190,4 +217,6 @@ public static class ConfigEntityMapper
         var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(prefix + ":" + key));
         return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
     }
+
+    #endregion
 }

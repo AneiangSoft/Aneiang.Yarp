@@ -243,7 +243,7 @@
         }
     };
 
-    // ── Button-level loading helper ─────────────────────────────────────
+    // #region Button-level loading helper
 
     /**
      * Sets a button into a loading state (spinner + text) and disables it.
@@ -294,8 +294,9 @@
             this.setButton(btn, false);
         }
     };
+    // #endregion
 
-    // ── Table-level progress bar (#1) ──────────────────────────────────
+    // #region Table-level progress bar (#1)
 
     /**
      * Shows a 2px progress bar overlaid on the top edge of a container (e.g. a table).
@@ -341,8 +342,9 @@
         // Trigger transition
         requestAnimationFrame(function() { el.style.opacity = '1'; });
     };
+    // #endregion
 
-    // ── Retryable error display (#4) ────────────────────────────────────
+    // #region Retryable error display (#4)
 
     /**
      * Renders a styled error block with a retry button inside the given container.
@@ -383,8 +385,9 @@
 
         container.appendChild(wrap);
     };
+    // #endregion
 
-    // ── Network status (#3) ─────────────────────────────────────────────
+    // #region Network status (#3)
 
     /**
      * Sets up online/offline event listeners. When the browser goes offline, a persistent
@@ -415,8 +418,9 @@
         window.addEventListener('offline', updateOffline);
         updateOffline();
     };
+    // #endregion
 
-    // ── Import/batch progress (#6) ──────────────────────────────────────
+    // #region Import/batch progress (#6)
 
     /**
      * Shows a determinate progress bar with a label (e.g. "导入中... 3 / 10").
@@ -471,4 +475,5 @@
             this.end();
         }
     };
+    // #endregion
 })();

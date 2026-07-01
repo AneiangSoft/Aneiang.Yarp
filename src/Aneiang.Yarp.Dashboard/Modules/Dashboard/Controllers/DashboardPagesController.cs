@@ -27,6 +27,9 @@ public class DashboardPagesController : Controller
     private readonly bool _enableProxyLogging;
     private readonly string _defaultLocale;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DashboardPagesController"/> class.
+    /// </summary>
     public DashboardPagesController(
         IDashboardInfoQueryService infoQuery,
         IDashboardClusterQueryService clusterQuery,
@@ -46,6 +49,9 @@ public class DashboardPagesController : Controller
         _defaultLocale = opt.Locale;
     }
 
+    /// <summary>
+    /// Sets common ViewBag properties.
+    /// </summary>
     private void SetCommonViewBag(string? currentPage = null)
     {
         ViewBag.DashboardRoutePrefix = RoutePrefix;
@@ -55,6 +61,9 @@ public class DashboardPagesController : Controller
         ViewBag.CurrentPage = currentPage ?? "overview";
     }
 
+    /// <summary>
+    /// Resolves the locale from cookie or default.
+    /// </summary>
     private string ResolveLocale()
     {
         var cookieLocale = Request.Cookies["dashboard_locale"];
@@ -63,8 +72,9 @@ public class DashboardPagesController : Controller
         return _defaultLocale == "en-US" ? "en-US" : "zh-CN";
     }
 
-    // ── 17 View pages ──
+    #region 17 View pages
 
+    /// <summary>Overview page.</summary>
     [HttpGet("")]
     public IActionResult Overview() { SetCommonViewBag("overview"); return View(); }
 
@@ -113,7 +123,9 @@ public class DashboardPagesController : Controller
     [HttpGet("deployment")]
     public IActionResult Deployment() { SetCommonViewBag("deployment"); return View(); }
 
-    // ── DB Download ──
+    #endregion
+
+    #region DB Download
 
     /// <summary>Download the SQLite database file for local inspection.</summary>
     [HttpGet("api/settings/database")]
@@ -151,4 +163,6 @@ public class DashboardPagesController : Controller
 
         return value;
     }
+
+    #endregion
 }

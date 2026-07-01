@@ -25,6 +25,7 @@ public sealed class StartupWarmupService : IHostedService
         _logger = logger;
     }
 
+    /// <summary>Runs all warmup tasks in parallel to eliminate cold-start latency.</summary>
     public async Task StartAsync(CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
@@ -42,6 +43,7 @@ public sealed class StartupWarmupService : IHostedService
         _logger.LogInformation("Application warmup completed in {ElapsedMs}ms", sw.ElapsedMilliseconds);
     }
 
+    /// <summary>Stops the warmup service (no-op).</summary>
     public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
 
     private async Task WarmupRepositoryAsync(CancellationToken ct)
@@ -76,6 +78,7 @@ public sealed class StartupWarmupService : IHostedService
         }
     }
 
+    /// <summary>Warms up dashboard query cache entries.</summary>
     private async Task WarmupQueryCacheAsync(CancellationToken ct)
     {
         try
@@ -117,6 +120,7 @@ public sealed class StartupWarmupService : IHostedService
     }
 
 
+    /// <summary>Warms up notification rules and seeds a default rule if none exist.</summary>
     private async Task WarmupNotificationRulesAsync(CancellationToken ct)
     {
         try

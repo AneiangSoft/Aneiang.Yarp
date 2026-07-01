@@ -52,11 +52,21 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
         _state.StaticClusters = initialConfig.Clusters ?? Array.Empty<ClusterConfig>();
     }
 
-    // ── IHostedService ───────────────────────────────────────────────────
+    #region IHostedService
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DynamicYarpConfigService"/> class.
+    /// </summary>
     async Task IHostedService.StartAsync(CancellationToken cancellationToken) => await LoadDynamicConfigAsync();
+
+    /// <summary>
+    /// Stops the hosted service.
+    /// </summary>
     Task IHostedService.StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+    /// <summary>
+    /// Loads the dynamic configuration from persistence on startup.
+    /// </summary>
     private async Task LoadDynamicConfigAsync()
     {
         try
@@ -74,6 +84,9 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
         }
     }
 
+    /// <summary>
+    /// Marks static routes and clusters from the appsettings config.
+    /// </summary>
     private async Task MarkStaticConfigAsync()
     {
         try
@@ -128,8 +141,11 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
         catch (Exception ex) { _logger.LogWarning(ex, "Failed to mark static config"); }
     }
 
-    // ── IDynamicYarpConfigService delegation ─────────────────────────────
+    #endregion
 
+    #region IDynamicYarpConfigService delegation
+
+    /// <inheritdoc />
     public IReadOnlyList<RouteConfig> GetRoutes() => _routeManager.GetRoutes();
     public IReadOnlyList<ClusterConfig> GetClusters() => _clusterManager.GetClusters();
     public ClusterConfig? GetCluster(string clusterId) => _clusterManager.GetCluster(clusterId);
@@ -174,8 +190,13 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
     public Task<bool> UpdateClusterCircuitBreakerAsync(string clusterId, CircuitBreakerConfig? config)
         => _clusterManager.UpdateClusterCircuitBreakerAsync(clusterId, config);
 
-    // ── RefreshConfig / SaveDynamicConfig ────────────────────────────────
+    #endregion
 
+    #region RefreshConfig / SaveDynamicConfig
+
+    /// <summary>
+    /// Refreshes the configuration by republishing the current state.
+    /// </summary>
     public void RefreshConfig()
     {
         _semaphore.Wait();
@@ -183,6 +204,9 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
         finally { _semaphore.Release(); }
     }
 
+    /// <summary>
+    /// Saves the dynamic configuration to persistence.
+    /// </summary>
     public async Task SaveDynamicConfig()
     {
         await _semaphore.WaitAsync();
@@ -190,8 +214,18 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
         finally { _semaphore.Release(); }
     }
 
-    // ── ReplaceAllConfig ─────────────────────────────────────────────────
+    #endregion
 
+    #region ReplaceAllConfig
+
+    /// <summary>
+    /// Replaces all routes and clusters in the configuration.
+    /// </summary>
+    /// <param name="newRoutes">The new routes.</param>
+    /// <param name="newClusters">The new clusters.</param>
+    /// <param name="source">The source.</param>
+    /// <param name="createdBy">The created by.</param>
+    /// <returns>A Task.</returns>
     public async Task ReplaceAllConfig(IReadOnlyList<RouteConfig> newRoutes, IReadOnlyList<ClusterConfig> newClusters,
         string source = "rollback", string? createdBy = "dashboard-user")
     {
@@ -225,8 +259,16 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
         finally { _semaphore.Release(); }
     }
 
-    // ── Heartbeat ────────────────────────────────────────────────────────
+    #endregion
 
+    #region Heartbeat
+
+    /// <summary>
+    /// Updates the heartbeat timestamp for a route's cluster.
+    /// </summary>
+    /// <param name="routeName">The route name.</param>
+    /// <param name="clientIp">The client IP.</param>
+    /// <returns>True if the heartbeat was updated.</returns>
     public bool UpdateHeartbeat(string routeName, string? clientIp = null)
     {
         _semaphore.Wait();
@@ -241,4 +283,6 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
         }
         finally { _semaphore.Release(); }
     }
+
+    #endregion
 }

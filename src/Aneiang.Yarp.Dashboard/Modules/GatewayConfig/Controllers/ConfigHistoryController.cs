@@ -38,7 +38,7 @@ public class ConfigHistoryController : ConfigControllerBase
         _wafPersistence = wafPersistence;
     }
 
-    // ── Export / Import ──
+    #region Export / Import
 
     /// <summary>
     /// Export full configuration in standard YARP format.
@@ -108,7 +108,9 @@ public class ConfigHistoryController : ConfigControllerBase
         }
     }
 
-    // ── History ──
+    #endregion
+
+    #region History
 
     /// <summary>
     /// Get configuration history snapshots.
@@ -208,7 +210,9 @@ public class ConfigHistoryController : ConfigControllerBase
         }
     }
 
-    // ── Rollback ──
+    #endregion
+
+    #region Rollback
 
     /// <summary>
     /// Rollback configuration to a specific version.
@@ -279,7 +283,9 @@ public class ConfigHistoryController : ConfigControllerBase
         });
     }
 
-    // ── Diff ──
+    #endregion
+
+    #region Diff
 
     /// <summary>
     /// Diff a historical version against the current live configuration.
@@ -348,7 +354,9 @@ public class ConfigHistoryController : ConfigControllerBase
         }
     }
 
-    // ── WAF Settings ──
+    #endregion
+
+    #region WAF Settings
 
     /// <summary>
     /// Get current WAF settings.
@@ -409,4 +417,6 @@ public class ConfigHistoryController : ConfigControllerBase
             return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Operation failed", ex) });
         }
     }
+
+    #endregion
 }

@@ -96,13 +96,15 @@ public static class DashboardServiceCollectionExtensions
                 options.SnapshotQueueCapacity = Math.Max(1, options.SnapshotQueueCapacity);
             });
 
-        // ── Deployment options ────────────────────────────────────────────────────
+        #region Deployment options
         // BindConfiguration provides the raw config values. AddAneiangYarpDeployment
         // (if called) will PostConfigure to normalize Mode (Auto→Split/AllInOne).
         services.AddOptions<DeploymentOptions>()
             .BindConfiguration(DeploymentOptions.SectionName);
 
-        // ── Alert service (no-op default; can be replaced by user's implementation) ──
+        #endregion
+
+        #region Alert service (no-op default; can be replaced by user's implementation)
         services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Alert.IGatewayAlertService,
             Aneiang.Yarp.Dashboard.Infrastructure.Alert.NullGatewayAlertService>();
 
@@ -162,29 +164,39 @@ public static class DashboardServiceCollectionExtensions
             options.Level = System.IO.Compression.CompressionLevel.Optimal;
         });
 
-        // ── Storage backend ──────────────────────────────────────────────────────
+        #endregion
+
+        #region Storage backend
         services.AddAneiangStorage();
 
         // Register DynamicYarpConfigService as HostedService AFTER SqliteSchemaMigrator
         // so that SQLite tables exist when it loads config from repository.
         services.AddHostedService(sp => sp.GetRequiredService<Aneiang.Yarp.Services.DynamicYarpConfigService>());
 
-        // ── Audit log ─────────────────────────────────────────────────────────────
+        #endregion
+
+        #region Audit log
         services.AddSingleton<IConfigChangeAuditLog, ConfigChangeAuditLog>();
         services.AddSingleton<ConfigChangeAuditLog>(sp => (ConfigChangeAuditLog)sp.GetRequiredService<IConfigChangeAuditLog>());
         services.AddSingleton<ConfigChangeEventDispatcher>();
         services.AddHostedService(sp => sp.GetRequiredService<ConfigChangeEventDispatcher>());
 
-        // ── Rate limiting ─────────────────────────────────────────────────────────
+        #endregion
+
+        #region Rate limiting
         services.AddSingleton<RateLimitConfigProvider>();
         services.AddRateLimiter(_ => { });
 
-        // ── Gateway API auth ──────────────────────────────────────────────────────
+        #endregion
+
+        #region Gateway API auth
         Aneiang.Yarp.Extensions.AneiangYarpServiceCollectionExtensions.AddGatewayApiAuth(services);
         services.AddSingleton<GatewayApiAuthFilter>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<MvcOptions>, GatewayApiAuthMvcOptionsSetup>());
 
-        // ── Proxy log store ───────────────────────────────────────────────────────
+        #endregion
+
+        #region Proxy log store
         services.AddSingleton<IProxyLogStore>(sp =>
         {
             var opts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
@@ -193,47 +205,65 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<ProxyLogStore>(sp => (ProxyLogStore)sp.GetRequiredService<IProxyLogStore>());
         services.AddSingleton<LogSanitizer>();
 
-        // ── Downstream capture transform ──────────────────────────────────────────
+        #endregion
+
+        #region Downstream capture transform
         services.AddSingleton<ITransformProvider, DownstreamCaptureTransformProvider>();
 
-        // ── Dashboard query services ──────────────────────────────────────────────
+        #endregion
+
+        #region Dashboard query services
         services.AddSingleton<IDashboardInfoQueryService, DashboardInfoQueryService>();
         services.AddSingleton<IDashboardClusterQueryService, DashboardClusterQueryService>();
         services.AddSingleton<IDashboardRouteQueryService, DashboardRouteQueryService>();
         services.AddSingleton<IDashboardLogQueryService, DashboardLogQueryService>();
 
-        // ── Editable policy ───────────────────────────────────────────────────────
+        #endregion
+
+        #region Editable policy
         services.AddSingleton<IEditablePolicy, DashboardEditablePolicy>();
 
-        // ── WAF event store (in-memory ring buffer) ──────────────────────────────
-        services.AddSingleton<WafEventStore>();
+        #endregion
 
-        // ── Policy services (route + cluster policies via IPolicyRepository) ──────
+        #region WAF event store (in-memory ring buffer)
+        services.AddSingleton<WafEventStore>();
+        #endregion
+
+        #region Policy services (route + cluster policies via IPolicyRepository)
         services.AddSingleton<RoutePolicyService>();
         services.AddSingleton<ClusterPolicyService>();
         services.AddSingleton<IGatewayPolicyService, GatewayPolicyService>();
 
-        // ── Plugin system ─────────────────────────────────────────────────────────
+        #endregion
+
+        #region Plugin system
         services.AddSingleton<IGatewayPlugin, CircuitBreakerPlugin>();
         services.AddSingleton<IGatewayPlugin, RequestRetryPlugin>();
         services.AddSingleton<IGatewayPlugin, RateLimitPlugin>();
         services.AddSingleton<IGatewayPlugin, WafPlugin>();
         services.AddSingleton<IGatewayPluginManager, GatewayPluginManager>();
+        #endregion
 
-        // ── Authorization service ─────────────────────────────────────────────────
+        #region Authorization service
         services.AddSingleton<IDashboardAuthorizationService, DashboardAuthorizationService>();
 
-        // ── New Unified Notification System ─────────────────────────────────────
+        #endregion
+
+        #region New Unified Notification System
         // INotificationRepository is registered by AddAneiangStorage above.
         services.AddHttpClient("notification");
         services.AddSingleton<INotificationService, NotificationService>();
         services.AddBackgroundHostedService<NotificationWarmupService>();
 
-        // ── WAF settings persistence ──────────────────────────────────────────
+        #endregion
+
+        #region WAF settings persistence
         services.AddSingleton<WafSettingsPersistenceService>();
         services.AddSingleton<IWafSettingsPersistenceService>(sp => sp.GetRequiredService<WafSettingsPersistenceService>());
 
-        // ── Config persistence / identity services ───────────────────────────────
+        #endregion
+
+        #region Config persistence / identity services
         services.AddSingleton<ConfigPersistenceService>();
         services.AddSingleton<IConfigPersistenceService>(sp => sp.GetRequiredService<ConfigPersistenceService>());
         services.AddSingleton<IConfigDiffService, ConfigDiffService>();
@@ -242,24 +272,38 @@ public static class DashboardServiceCollectionExtensions
         services.AddHostedService(sp => sp.GetRequiredService<ConfigSnapshotScheduler>());
         services.AddSingleton<IGatewayIdentityService, GatewayIdentityService>();
 
-        // ── Default health check service (background — non-blocking) ──────────────
+        #endregion
+
+        #region Default health check service (background — non-blocking)
         services.AddBackgroundHostedService<DefaultHealthCheckService>();
 
-        // ── Circuit breaker warmup (background — non-blocking) ─────────────────────
+        #endregion
+
+        #region Circuit breaker warmup (background — non-blocking)
         services.AddBackgroundHostedService<CircuitBreakerWarmupService>();
 
-        // ── Startup warmup (background — non-blocking) ─────────────────────────────
+        #endregion
+
+        #region Startup warmup (background — non-blocking)
         services.AddBackgroundHostedService<StartupWarmupService>();
 
-        // ── Real-time traffic broadcast ───────────────────────────────────────────
+        #endregion
+
+        #region Real-time traffic broadcast
         services.AddSingleton<TrafficBroadcastService>();
         services.AddHostedService<TrafficBroadcastService>();
 
-        // ── JWT secret provider ───────────────────────────────────────────────────
+        #endregion
+
+        #region JWT secret provider
         services.AddSingleton<JwtSecretProvider>();
 
-        // ── Route prefix + auth conventions ────────────────────────────────────────
+        #endregion
+
+        #region Route prefix + auth conventions
         services.AddSingleton<IConfigureOptions<MvcOptions>, DashboardMvcOptionsSetup>();
+
+        #endregion
 
         return services;
     }
