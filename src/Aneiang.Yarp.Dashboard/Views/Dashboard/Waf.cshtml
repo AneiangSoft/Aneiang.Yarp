@@ -4,6 +4,267 @@
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
+<style>
+    .waf-status-banner {
+        border-radius: 10px;
+        padding: 18px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: all 0.3s ease;
+    }
+    .waf-status-banner.enabled {
+        background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+        color: #fff;
+    }
+    .waf-status-banner.disabled {
+        background: linear-gradient(135deg, #6b7280 0%, #9ca3af 100%);
+        color: #fff;
+    }
+    .waf-status-banner .form-check-input {
+        width: 3em;
+        height: 1.5em;
+        cursor: pointer;
+    }
+    .waf-status-banner.disabled .form-check-input {
+        background-color: rgba(255,255,255,0.3);
+        border-color: rgba(255,255,255,0.4);
+    }
+
+    .waf-flow-steps {
+        display: flex;
+        align-items: flex-start;
+        gap: 0;
+        overflow-x: auto;
+        padding: 8px 0;
+    }
+    .waf-flow-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: relative;
+        min-width: 90px;
+        flex-shrink: 0;
+    }
+    .waf-flow-step .step-circle {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        border: 2px solid #e5e7eb;
+        background: #fff;
+        color: #6b7280;
+        transition: all 0.3s ease;
+        position: relative;
+        z-index: 1;
+    }
+    .waf-flow-step .step-circle.has-count {
+        border-color: #ef4444;
+        background: #fef2f2;
+        color: #dc2626;
+    }
+    .waf-flow-step .step-label {
+        font-size: 11px;
+        color: #6b7280;
+        text-align: center;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+    .waf-flow-step .step-count {
+        font-size: 10px;
+        color: #9ca3af;
+        margin-top: 2px;
+    }
+    .waf-flow-step .step-count.has-count {
+        color: #dc2626;
+        font-weight: 600;
+    }
+    .waf-flow-arrow {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        padding: 0 2px;
+        margin-top: 11px;
+        color: #d1d5db;
+        font-size: 14px;
+    }
+
+    .waf-rule-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 18px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        transition: box-shadow 0.2s ease;
+    }
+    .waf-rule-card:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .waf-rule-card .rule-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+    .waf-rule-card .rule-header .rule-title {
+        font-weight: 600;
+        font-size: 14px;
+    }
+    .waf-rule-card .rule-desc {
+        font-size: 12px;
+        color: #6b7280;
+        margin-bottom: 10px;
+        line-height: 1.4;
+    }
+    .waf-rule-card .rule-example {
+        background: #f8f9fa;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+        font-size: 12px;
+        color: #dc2626;
+        margin-bottom: 14px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .waf-rule-card .rule-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: auto;
+        padding-top: 12px;
+        border-top: 1px solid #f3f4f6;
+    }
+    .waf-rule-card .rule-footer .form-check-input {
+        cursor: pointer;
+    }
+
+    .waf-count-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    .waf-count-badge.has-count {
+        background: #fef2f2;
+        color: #dc2626;
+        border: 1px solid #fecaca;
+    }
+    .waf-count-badge.no-count {
+        background: #f9fafb;
+        color: #9ca3af;
+        border: 1px solid #e5e7eb;
+    }
+
+    .waf-section-title {
+        font-size: 15px;
+        font-weight: 600;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    /* --- Security Events Panel in WAF page --- */
+    .waf-event-panel { margin-top: 0; }
+    .waf-event-panel .event-entry {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: #fafafa;
+        border: 1px solid #f3f4f6;
+        transition: background 0.15s;
+        font-size: 12px;
+    }
+    .waf-event-panel .event-entry:hover { background: #f3f4f6; }
+    .waf-event-panel .event-entry + .event-entry { margin-top: 5px; }
+    .waf-event-panel .event-time {
+        color: #9ca3af;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        min-width: 60px;
+    }
+    .waf-event-panel .event-type-badge {
+        min-width: 72px;
+        text-align: center;
+    }
+    .waf-event-panel .event-ip {
+        color: #374151;
+        font-family: 'Cascadia Code', 'Fira Code', monospace;
+        font-size: 11px;
+        min-width: 110px;
+    }
+    .waf-event-panel .event-target {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #6b7280;
+        font-size: 11px;
+    }
+    .waf-event-panel .event-target code {
+        font-size: 11px;
+        background: none;
+        padding: 0;
+        color: inherit;
+    }
+    .waf-ip-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 0;
+        font-size: 12px;
+    }
+    .waf-ip-bar .ip-addr {
+        font-family: 'Cascadia Code', 'Fira Code', monospace;
+        font-size: 11px;
+        min-width: 120px;
+        color: #374151;
+    }
+    .waf-ip-bar .ip-bar-track {
+        flex: 1;
+        height: 6px;
+        background: #f3f4f6;
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    .waf-ip-bar .ip-bar-fill {
+        height: 100%;
+        border-radius: 3px;
+        background: linear-gradient(90deg, #ef4444, #f97316);
+        transition: width 0.5s ease;
+    }
+    .waf-ip-bar .ip-count {
+        min-width: 32px;
+        text-align: right;
+        color: #6b7280;
+        font-variant-numeric: tabular-nums;
+        font-size: 11px;
+    }
+    .waf-empty-small {
+        padding: 24px 0;
+        text-align: center;
+        color: #d1d5db;
+        font-size: 12px;
+    }
+</style>
+
 <div class="card-panel mb-4">
     <div class="card-header">
         <span><i class="bi bi-shield-lock me-2" style="color:#ef4444;"></i><span data-i18n="waf.title">WAF 防火墙设置</span></span>
@@ -14,34 +275,115 @@
         </div>
     </div>
     <div class="card-body" id="waf-settings-body">
-        <div class="loading-state">
+        <div class="loading-state" id="waf-loading">
             <div class="loading-spinner"></div>
             <div class="loading-text" data-i18n="security.loading">加载中...</div>
         </div>
-    </div>
-</div>
 
-<!-- WAF rule descriptions -->
-<div class="card-panel mb-4">
-    <div class="card-header">
-        <span><i class="bi bi-info-circle me-2" style="color:#3b82f6;"></i><span data-i18n="waf.ruleDescriptions">触发规则说明</span></span>
-    </div>
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-md-6">
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item px-0"><i class="bi bi-geo-alt me-2 text-primary"></i><strong data-i18n="policy.wafRuleIp">IP 黑名单/白名单</strong><br><small class="text-muted" data-i18n="policy.wafRuleIpHint">根据配置的 IP 列表阻止或放行访问</small></li>
-                    <li class="list-group-item px-0"><i class="bi bi-file-earmark me-2 text-warning"></i><strong data-i18n="policy.wafRuleBody">请求体大小限制</strong><br><small class="text-muted" data-i18n="policy.wafRuleBodyHint">超过限制的请求将被拦截</small></li>
-                    <li class="list-group-item px-0"><i class="bi bi-card-heading me-2 text-info"></i><strong data-i18n="policy.wafRuleHeader">请求头限制</strong><br><small class="text-muted" data-i18n="policy.wafRuleHeaderHint">请求头数量或单个头部大小超限时拦截</small></li>
-                </ul>
+        <div id="waf-content" style="display:none;">
+            <!-- Status Banner -->
+            <div id="waf-status-banner" class="mb-4"></div>
+
+            <!-- Check Flow Pipeline -->
+            <div class="mb-4">
+                <div class="waf-section-title">
+                    <i class="bi bi-diagram-3" style="color:#3b82f6;"></i>
+                    <span data-i18n="waf.flowTitle">检查流水线</span>
+                </div>
+                <p class="text-muted small mb-3" data-i18n="waf.flowDesc">请求到达时，WAF 按以下顺序依次执行 7 层安全检查，任意一层拦截即阻断请求</p>
+                <div class="waf-flow-steps" id="waf-flow-steps"></div>
             </div>
-            <div class="col-md-6">
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item px-0"><i class="bi bi-link-45deg me-2 text-secondary"></i><strong data-i18n="policy.wafRuleUri">URI 长度限制</strong><br><small class="text-muted" data-i18n="policy.wafRuleUriHint">超过 4096 字符的请求路径将被拦截</small></li>
-                    <li class="list-group-item px-0"><i class="bi bi-folder2-open me-2 text-danger"></i><strong data-i18n="policy.wafRulePath">路径遍历检测</strong><br><small class="text-muted" data-i18n="policy.wafRulePathHint">拦截 ../ 等目录穿越攻击</small></li>
-                    <li class="list-group-item px-0"><i class="bi bi-database me-2 text-danger"></i><strong data-i18n="policy.wafRuleSql">SQL 注入检测</strong><br><small class="text-muted" data-i18n="policy.wafRuleSqlHint">拦截 SELECT/UNION/DROP 等危险关键词及注入值</small></li>
-                    <li class="list-group-item px-0"><i class="bi bi-code-slash me-2 text-danger"></i><strong data-i18n="policy.wafRuleXss">XSS 检测</strong><br><small class="text-muted" data-i18n="policy.wafRuleXssHint">拦截 script 事件处理器等危险标签</small></li>
-                </ul>
+
+            <!-- Rule Cards -->
+            <div class="mb-4">
+                <div class="waf-section-title">
+                    <i class="bi bi-shield-exclamation" style="color:#ef4444;"></i>
+                    <span data-i18n="waf.detectionRules">威胁检测规则</span>
+                </div>
+                <div class="row g-3" id="waf-rule-cards"></div>
+            </div>
+
+            <!-- Request Limits -->
+            <div class="mb-4">
+                <div class="waf-section-title">
+                    <i class="bi bi-rulers" style="color:#8b5cf6;"></i>
+                    <span data-i18n="waf.requestLimits">请求限制</span>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-medium" for="waf-max-body" data-i18n="waf.maxBodySize">请求体大小上限 (MB)</label>
+                        <div class="input-group input-group-sm">
+                            <input type="number" class="form-control" id="waf-max-body" min="1" value="10">
+                            <span class="input-group-text">MB</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-medium" for="waf-max-headers" data-i18n="waf.maxHeaderCount">请求头数量上限</label>
+                        <input type="number" class="form-control form-control-sm" id="waf-max-headers" min="1" value="64">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-medium" for="waf-max-header-size" data-i18n="waf.maxHeaderSize">单个请求头大小上限 (字节)</label>
+                        <div class="input-group input-group-sm">
+                            <input type="number" class="form-control" id="waf-max-header-size" min="256" value="8192">
+                            <span class="input-group-text">bytes</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- IP Lists -->
+            <div class="mb-3">
+                <div class="waf-section-title">
+                    <i class="bi bi-geo-alt" style="color:#f59e0b;"></i>
+                    <span data-i18n="waf.ipWhitelist">IP 白名单</span> / <span data-i18n="waf.ipBlacklist">IP 黑名单</span>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small" for="waf-whitelist" data-i18n="waf.ipWhitelist.help">每行一个 IP 或 CIDR，如 192.168.1.0/24</label>
+                        <textarea class="form-control form-control-sm" id="waf-whitelist" rows="4" placeholder="192.168.1.0/24"></textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small" for="waf-blacklist" data-i18n="waf.ipBlacklist.help">每行一个 IP 或 CIDR</label>
+                        <textarea class="form-control form-control-sm" id="waf-blacklist" rows="4" placeholder="10.0.0.5"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Route Override Hint -->
+            <div class="alert alert-info py-2 px-3 mb-4 small d-flex align-items-center" role="alert">
+                <i class="bi bi-info-circle me-2 flex-shrink-0"></i>
+                <span data-i18n="waf.routeOverrideHint">提示：路由级 WAF 设置可覆盖全局配置（在路由策略中配置）</span>
+            </div>
+
+            <!-- Security Events Panel (Linked Events) -->
+            <div class="waf-section-title">
+                <i class="bi bi-shield-fill-exclamation" style="color:#ef4444;"></i>
+                <span data-i18n="waf.recentEvents">实时安全事件</span>
+                <button class="btn btn-sm btn-outline-danger ms-2" id="waf-test-event-btn" title="生成测试事件">
+                    <i class="bi bi-bug"></i> <span data-i18n="waf.testEvent">模拟攻击</span>
+                </button>
+                <span class="badge bg-secondary ms-2" id="waf-event-badge" style="font-size:11px;display:none;"></span>
+                <span class="text-muted small ms-2" id="waf-event-refresh-time" style="font-size:11px;"></span>
+            </div>
+            <p class="text-muted small mb-3" data-i18n="waf.recentEventsDesc">以下展示最新触发的安全事件，与安全事件页面实时同步</p>
+            <div class="row g-3 waf-event-panel">
+                <div class="col-lg-8">
+                    <div class="border rounded-3 p-3" style="background:#fcfcfc;">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="small fw-medium" data-i18n="waf.recentBlocks">最近拦截</span>
+                            <span class="small text-muted" id="waf-event-summary-total"></span>
+                        </div>
+                        <div id="waf-recent-events"><div class="waf-empty-small"><i class="bi bi-shield-check me-1"></i><span data-i18n="waf.noRecentEvents">暂无安全事件，发动一次模拟攻击试试</span></div></div>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="border rounded-3 p-3" style="background:#fcfcfc;">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="small fw-medium" data-i18n="security.topIps">Top 攻击源IP</span>
+                        </div>
+                        <div id="waf-top-ips"><div class="waf-empty-small"><i class="bi bi-info-circle me-1"></i><span data-i18n="waf.noIpData">暂无数据</span></div></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -51,101 +393,384 @@
 @{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
 
 <script>
-    // WAF Settings Module
-    window.DashboardWafSettings = {
-        _data: null,
+window.DashboardWafSettings = {
+    _data: null,
+    _eventCounts: null,
 
-        init: async function() {
-            try {
-            var resp = await DashboardApi.endpoints.getWafSettings();
-            this._data = resp || {};
-                this.render();
-            } catch (e) {
-                console.error('[WafSettings] Load failed:', e);
-                var el = document.getElementById('waf-settings-body');
-                if (el) el.innerHTML = '<div class="alert alert-danger">' + __('waf.loadFailed') + '</div>';
-            }
-        },
+    _steps: [
+        { key:'ip', icon:'bi-geo-alt',     eventTypes:['IpBlocked'] },
+        { key:'requestSize', icon:'bi-file-earmark', eventTypes:['RequestSizeBlocked'] },
+        { key:'headers', icon:'bi-card-heading',     eventTypes:['MalformedHeadersBlocked'] },
+        { key:'uriLength', icon:'bi-link-45deg',     eventTypes:['UriTooLongBlocked'] },
+        { key:'pathTraversal', icon:'bi-folder2-open', eventTypes:['PathTraversalBlocked','PathTraversalInQueryBlocked'] },
+        { key:'sqlInjection', icon:'bi-database',    eventTypes:['SqlInjectionBlocked','SqlInjectionValueBlocked'] },
+        { key:'xss', icon:'bi-code-slash',           eventTypes:['XssBlocked'] }
+    ],
 
-        render: function() {
-            var d = this._data || {};
-            var mb = Math.round((d.maxRequestBodySize || 10485760) / (1024 * 1024));
-            var el = document.getElementById('waf-settings-body');
-            if (!el) return;
+    _rules: [
+        { key:'sqli',    icon:'bi-database',   titleKey:'waf.sqlInjection',     descKey:'waf.sqlInjection.desc',     exampleKey:'waf.sqlInjection.example',     id:'waf-sqli',    dataField:'enableSqlInjectionDetection',  eventTypes:['SqlInjectionBlocked','SqlInjectionValueBlocked'] },
+        { key:'xss',     icon:'bi-code-slash', titleKey:'waf.xss',              descKey:'waf.xss.desc',              exampleKey:'waf.xss.example',              id:'waf-xss',     dataField:'enableXssDetection',            eventTypes:['XssBlocked'] },
+        { key:'path',    icon:'bi-folder2-open',titleKey:'waf.pathTraversal',   descKey:'waf.pathTraversal.desc',    exampleKey:'waf.pathTraversal.example',    id:'waf-path',    dataField:'enablePathTraversalDetection',  eventTypes:['PathTraversalBlocked','PathTraversalInQueryBlocked'] },
+        { key:'ip',      icon:'bi-geo-alt',    titleKey:'waf.ipCheck',          descKey:'waf.ipCheck.desc',          exampleKey:'waf.ipCheck.example',          id:'waf-ip-check', dataField:'enableIpCheck',                 eventTypes:['IpBlocked'] }
+    ],
 
-            el.innerHTML =
-                '<div class="row g-4">' +
-                    '<div class="col-md-6">' +
-                        '<div class="d-flex align-items-center justify-content-between p-3 border rounded mb-3">' +
-                            '<div><strong>' + __('waf.globalSwitch') + '</strong></div>' +
-                            '<div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="waf-enabled" style="width:3em;height:1.5em;" ' + (d.enabled ? 'checked' : '') + '></div>' +
-                        '</div>' +
-                        '<h6 class="mb-2"><i class="bi bi-bug me-1"></i>' + __('waf.detectionRules') + '</h6>' +
-                        '<div class="list-group mb-3">' +
-                            '<label class="list-group-item d-flex justify-content-between align-items-center">' + __('waf.ipCheck') + '<input class="form-check-input" type="checkbox" id="waf-ip-check" ' + (d.enableIpCheck !== false ? 'checked' : '') + '></label>' +
-                            '<label class="list-group-item d-flex justify-content-between align-items-center">' + __('waf.sqlInjection') + '<input class="form-check-input" type="checkbox" id="waf-sqli" ' + (d.enableSqlInjectionDetection !== false ? 'checked' : '') + '></label>' +
-                            '<label class="list-group-item d-flex justify-content-between align-items-center">' + __('waf.xss') + '<input class="form-check-input" type="checkbox" id="waf-xss" ' + (d.enableXssDetection !== false ? 'checked' : '') + '></label>' +
-                            '<label class="list-group-item d-flex justify-content-between align-items-center">' + __('waf.pathTraversal') + '<input class="form-check-input" type="checkbox" id="waf-path" ' + (d.enablePathTraversalDetection !== false ? 'checked' : '') + '></label>' +
-                        '</div>' +
-                        '<h6 class="mb-2"><i class="bi bi-rulers me-1"></i>' + __('waf.requestLimits') + '</h6>' +
-                        '<div class="row g-3">' +
-                            '<div class="col-4"><label class="form-label small">' + __('waf.maxBodySize') + '</label><input type="number" class="form-control form-control-sm" id="waf-max-body" value="' + mb + '" min="1"></div>' +
-                            '<div class="col-4"><label class="form-label small">' + __('waf.maxHeaderCount') + '</label><input type="number" class="form-control form-control-sm" id="waf-max-headers" value="' + (d.maxHeaderCount || 64) + '" min="1"></div>' +
-                            '<div class="col-4"><label class="form-label small">' + __('waf.maxHeaderSize') + '</label><input type="number" class="form-control form-control-sm" id="waf-max-header-size" value="' + (d.maxHeaderSize || 8192) + '" min="256"></div>' +
-                        '</div>' +
+    init: async function() {
+        try {
+            var results = await Promise.all([
+                DashboardApi.endpoints.getWafSettings(),
+                DashboardApi.endpoints.getSecurityEventSummary(),
+                DashboardApi.endpoints.getSecurityEvents(20)
+            ]);
+            this._data = results[0] || {};
+            var summary = results[1];
+            var eventsResult = results[2] || {};
+            this._eventCounts = (summary && summary.typeCounts) ? summary.typeCounts : {};
+            this._recentEvents = eventsResult.entries || [];
+            this._topIps = (summary && summary.topIps) ? summary.topIps : {};
+            this.render();
+            this._startAutoRefresh();
+            this._bindEventButtons();
+        } catch (e) {
+            console.error('[WafSettings] Load failed:', e);
+            document.getElementById('waf-loading').style.display = 'none';
+            document.getElementById('waf-settings-body').innerHTML = '<div class="alert alert-danger m-3">' + __('waf.loadFailed') + '</div>';
+        }
+    },
+
+    render: function() {
+        document.getElementById('waf-loading').style.display = 'none';
+        document.getElementById('waf-content').style.display = 'block';
+        this._renderStatusBanner();
+        this._renderFlowSteps();
+        this._renderRuleCards();
+        this._fillFormFields();
+    },
+
+    _getCount: function(eventTypes) {
+        var counts = this._eventCounts || {};
+        var total = 0;
+        for (var i = 0; i < eventTypes.length; i++) {
+            total += counts[eventTypes[i]] || 0;
+        }
+        return total;
+    },
+
+    _renderStatusBanner: function() {
+        var d = this._data || {};
+        var enabled = d.enabled !== false;
+        document.getElementById('waf-status-banner').innerHTML =
+            '<div class="waf-status-banner ' + (enabled ? 'enabled' : 'disabled') + '">' +
+                '<div class="d-flex align-items-center gap-3">' +
+                    '<i class="bi bi-' + (enabled ? 'shield-check' : 'shield-slash') + ' fs-3"></i>' +
+                    '<div>' +
+                        '<div class="fw-semibold">' + __('waf.globalSwitch') + '</div>' +
+                        '<div class="small opacity-75">' + (enabled ? __('waf.globalSwitch.on') : __('waf.globalSwitch.off')) + '</div>' +
                     '</div>' +
-                    '<div class="col-md-6">' +
-                        '<h6 class="mb-2"><i class="bi bi-geo-alt me-1"></i>' + __('waf.ipWhitelist') + '</h6>' +
-                        '<textarea class="form-control form-control-sm mb-1" id="waf-whitelist" rows="4" placeholder="' + __('waf.ipWhitelist.help') + '">' + this._escapeList(d.ipWhitelist) + '</textarea>' +
-                        '<div class="text-muted small mb-3">' + __('waf.ipWhitelist.help') + '</div>' +
-                        '<h6 class="mb-2"><i class="bi bi-ban me-1"></i>' + __('waf.ipBlacklist') + '</h6>' +
-                        '<textarea class="form-control form-control-sm mb-1" id="waf-blacklist" rows="4" placeholder="' + __('waf.ipBlacklist.help') + '">' + this._escapeList(d.ipBlacklist) + '</textarea>' +
-                        '<div class="text-muted small">' + __('waf.ipBlacklist.help') + '</div>' +
+                '</div>' +
+                '<div class="form-check form-switch mb-0">' +
+                    '<input class="form-check-input" type="checkbox" id="waf-enabled" ' + (enabled ? 'checked' : '') + '>' +
+                '</div>' +
+            '</div>';
+
+        // Bind toggle event
+        document.getElementById('waf-enabled').addEventListener('change', function() {
+            DashboardWafSettings._data.enabled = this.checked;
+            DashboardWafSettings._renderStatusBanner();
+        });
+    },
+
+    _renderFlowSteps: function() {
+        var html = '';
+        var steps = this._steps;
+        for (var i = 0; i < steps.length; i++) {
+            var s = steps[i];
+            var cnt = this._getCount(s.eventTypes);
+            var hasCount = cnt > 0;
+            html +=
+                '<div class="waf-flow-step">' +
+                    '<div class="step-circle' + (hasCount ? ' has-count' : '') + '">' +
+                        '<i class="bi ' + s.icon + '"></i>' +
+                    '</div>' +
+                    '<div class="step-label">' + __('waf.step.' + s.key) + '</div>' +
+                    '<div class="step-count' + (hasCount ? ' has-count' : '') + '">' +
+                        (hasCount ? cnt + 'x' : '') +
                     '</div>' +
                 '</div>';
-        },
-
-        _escapeList: function(arr) {
-            if (!arr || !arr.length) return '';
-            return arr.map(function(s) { return window.DashboardUtils ? DashboardUtils.escapeHtml(s) : s; }).join('\n');
-        },
-
-        save: async function() {
-            var mbVal = parseInt(document.getElementById('waf-max-body').value) || 10;
-            var data = {
-                enabled: document.getElementById('waf-enabled').checked,
-                enableIpCheck: document.getElementById('waf-ip-check').checked,
-                ipWhitelist: this._parseArea(document.getElementById('waf-whitelist').value),
-                ipBlacklist: this._parseArea(document.getElementById('waf-blacklist').value),
-                enableRequestSizeValidation: true,
-                maxRequestBodySize: mbVal * 1024 * 1024,
-                maxHeaderCount: parseInt(document.getElementById('waf-max-headers').value) || 64,
-                maxHeaderSize: parseInt(document.getElementById('waf-max-header-size').value) || 8192,
-                enableSqlInjectionDetection: document.getElementById('waf-sqli').checked,
-                enableXssDetection: document.getElementById('waf-xss').checked,
-                enablePathTraversalDetection: document.getElementById('waf-path').checked
-            };
-
-            var btn = document.querySelector('[onclick="DashboardWafSettings.save()"]');
-            if (btn) { btn.disabled = true; btn.querySelector('span') && (btn.querySelector('span').textContent = __('waf.saving')); }
-
-            try {
-                await DashboardApi.endpoints.saveWafSettings(data);
-                this._data = data;
-                if (window.DashboardModals) DashboardModals.showToast(__('waf.saved'), 'success');
-            } catch (e) {
-                console.error('[WafSettings] Save failed:', e);
-                if (window.DashboardModals) DashboardModals.showError(__('waf.saveFailed'));
-            } finally {
-                if (btn) { btn.disabled = false; var sp = btn.querySelector('span'); if (sp) sp.textContent = __('waf.save'); }
+            if (i < steps.length - 1) {
+                html += '<div class="waf-flow-arrow"><i class="bi bi-chevron-right"></i></div>';
             }
-        },
-
-        _parseArea: function(text) {
-            if (!text) return [];
-            return text.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 0; });
         }
-    };
+        document.getElementById('waf-flow-steps').innerHTML = html;
+    },
+
+    _renderRuleCards: function() {
+        var html = '';
+        var rules = this._rules;
+        for (var i = 0; i < rules.length; i++) {
+            var r = rules[i];
+            var cnt = this._getCount(r.eventTypes);
+            var hasCount = cnt > 0;
+            var d = this._data || {};
+            var checked = d[r.dataField] !== false;
+            html +=
+                '<div class="col-md-6 col-lg-3">' +
+                    '<div class="waf-rule-card">' +
+                        '<div class="rule-header">' +
+                            '<span class="rule-title"><i class="bi ' + r.icon + ' me-1" style="color:#ef4444;"></i>' + __('' + r.titleKey) + '</span>' +
+                        '</div>' +
+                        '<div class="rule-desc">' + __('' + r.descKey) + '</div>' +
+                        '<div class="rule-example" title="' + __('' + r.exampleKey) + '">' +
+                            '<i class="bi bi-lightning-fill me-1" style="color:#f59e0b;font-size:10px;"></i>' + __('' + r.exampleKey) +
+                        '</div>' +
+                        '<div class="rule-footer">' +
+                            '<div class="form-check form-switch mb-0">' +
+                                '<input class="form-check-input" type="checkbox" id="' + r.id + '" ' + (checked ? 'checked' : '') + '>' +
+                            '</div>' +
+                            '<span class="waf-count-badge ' + (hasCount ? 'has-count' : 'no-count') + '">' +
+                                '<i class="bi bi-' + (hasCount ? 'exclamation-triangle' : 'check-circle') + '"></i> ' +
+                                (hasCount ? __('waf.triggerCount').replace('{count}', cnt) : __('waf.neverTriggered')) +
+                            '</span>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+        }
+        document.getElementById('waf-rule-cards').innerHTML = html;
+    },
+
+    _fillFormFields: function() {
+        var d = this._data || {};
+        var mb = Math.round((d.maxRequestBodySize || 10485760) / (1024 * 1024));
+        var el = document.getElementById('waf-max-body');
+        if (el) el.value = mb;
+        el = document.getElementById('waf-max-headers');
+        if (el) el.value = d.maxHeaderCount || 64;
+        el = document.getElementById('waf-max-header-size');
+        if (el) el.value = d.maxHeaderSize || 8192;
+        el = document.getElementById('waf-whitelist');
+        if (el) el.value = this._listToText(d.ipWhitelist);
+        el = document.getElementById('waf-blacklist');
+        if (el) el.value = this._listToText(d.ipBlacklist);
+    },
+
+    _listToText: function(arr) {
+        if (!arr || !arr.length) return '';
+        return arr.join('\n');
+    },
+
+    save: async function() {
+        var mbVal = parseInt(document.getElementById('waf-max-body').value) || 10;
+        var data = {
+            enabled: document.getElementById('waf-enabled').checked,
+            enableIpCheck: document.getElementById('waf-ip-check').checked,
+            ipWhitelist: this._textToList(document.getElementById('waf-whitelist').value),
+            ipBlacklist: this._textToList(document.getElementById('waf-blacklist').value),
+            enableRequestSizeValidation: true,
+            maxRequestBodySize: mbVal * 1024 * 1024,
+            maxHeaderCount: parseInt(document.getElementById('waf-max-headers').value) || 64,
+            maxHeaderSize: parseInt(document.getElementById('waf-max-header-size').value) || 8192,
+            enableSqlInjectionDetection: document.getElementById('waf-sqli').checked,
+            enableXssDetection: document.getElementById('waf-xss').checked,
+            enablePathTraversalDetection: document.getElementById('waf-path').checked
+        };
+
+        var btn = document.querySelector('[onclick="DashboardWafSettings.save()"]');
+        if (btn) { btn.disabled = true; var sp = btn.querySelector('span'); if (sp) sp.textContent = __('waf.saving'); }
+
+        try {
+            await DashboardApi.endpoints.saveWafSettings(data);
+            this._data = data;
+            if (window.DashboardModals) DashboardModals.showToast(__('waf.saved'), 'success');
+        } catch (e) {
+            console.error('[WafSettings] Save failed:', e);
+            if (window.DashboardModals) DashboardModals.showError(__('waf.saveFailed'));
+        } finally {
+            if (btn) { btn.disabled = false; var sp = btn.querySelector('span'); if (sp) sp.textContent = __('waf.save'); }
+        }
+    },
+
+    _textToList: function(text) {
+        if (!text) return [];
+        return text.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 0; });
+    },
+
+    // --- Security Event Panel ---
+    _recentEvents: [],
+    _topIps: {},
+    _refreshTimer: null,
+
+    _eventTypeLabels: {
+        SqlInjectionBlocked: { label: 'SQLi', cls: 'bg-danger', icon: 'bi-database' },
+        SqlInjectionValueBlocked: { label: 'SQLi', cls: 'bg-danger', icon: 'bi-database' },
+        XssBlocked: { label: 'XSS', cls: 'bg-warning text-dark', icon: 'bi-code-slash' },
+        PathTraversalBlocked: { label: 'PathTrav', cls: 'bg-info', icon: 'bi-folder2-open' },
+        PathTraversalInQueryBlocked: { label: 'PathTrav', cls: 'bg-info', icon: 'bi-folder2-open' },
+        IpBlocked: { label: 'IP Block', cls: 'bg-dark', icon: 'bi-geo-alt' },
+        RequestSizeBlocked: { label: 'Size', cls: 'bg-secondary', icon: 'bi-file-earmark' },
+        MalformedHeadersBlocked: { label: 'Headers', cls: 'bg-secondary', icon: 'bi-card-heading' },
+        UriTooLongBlocked: { label: 'URI', cls: 'bg-secondary', icon: 'bi-link-45deg' }
+    },
+
+    _getTypeInfo: function(eventType) {
+        return this._eventTypeLabels[eventType] || { label: eventType, cls: 'bg-secondary', icon: 'bi-shield' };
+    },
+
+    _startAutoRefresh: function() {
+        this._stopAutoRefresh();
+        var self = this;
+        this._refreshTimer = setInterval(function() { self._refreshEvents(); }, 10000);
+    },
+
+    _stopAutoRefresh: function() {
+        if (this._refreshTimer) { clearInterval(this._refreshTimer); this._refreshTimer = null; }
+    },
+
+    _refreshEvents: async function() {
+        try {
+            var results = await Promise.all([
+                DashboardApi.endpoints.getSecurityEventSummary(),
+                DashboardApi.endpoints.getSecurityEvents(20)
+            ]);
+            var summary = results[0];
+            var eventsResult = results[1] || {};
+            if (summary) {
+                this._eventCounts = summary.typeCounts || {};
+                this._topIps = summary.topIps || {};
+            }
+            this._recentEvents = eventsResult.entries || [];
+            this._updateEventPanel();
+            this._renderFlowSteps();
+            this._renderRuleCards();
+        } catch (e) { /* Silently refresh */ }
+    },
+
+    _updateEventPanel: function() {
+        this._renderEventTotal();
+        this._renderTopIps();
+        var container = document.getElementById('waf-recent-events');
+        if (!container) return;
+        var events = this._recentEvents || [];
+        if (events.length === 0) {
+            container.innerHTML = '<div class="waf-empty-small"><i class="bi bi-shield-check me-1"></i><span data-i18n="waf.noRecentEvents">暂无安全事件，发动一次模拟攻击试试</span></div>';
+            return;
+        }
+        var html = '';
+        var showCount = Math.min(events.length, 10);
+        for (var i = 0; i < showCount; i++) {
+            var ev = events[i];
+            var ti = this._getTypeInfo(ev.eventType);
+            var timeStr = this._fmtRelTime(ev.timestamp);
+            html +=
+                '<div class="event-entry">' +
+                    '<span class="event-time" title="' + this._eH(ev.timestamp) + '">' + timeStr + '</span>' +
+                    '<span class="event-type-badge"><span class="badge ' + ti.cls + '" style="font-size:10px;">' + ti.label + '</span></span>' +
+                    '<span class="event-ip"><i class="bi bi-geo-alt me-1" style="font-size:9px;color:#9ca3af;"></i>' + this._eH(ev.clientIp) + '</span>' +
+                    '<span class="event-target"><code>' + this._eH(ev.requestMethod || 'GET') + ' ' + this._eH(this._truncate(ev.requestUri, 50)) + '</code></span>' +
+                '</div>';
+        }
+        container.innerHTML = html;
+    },
+
+    _renderTopIps: function() {
+        var container = document.getElementById('waf-top-ips');
+        if (!container) return;
+        var ips = this._topIps || {};
+        var keys = Object.keys(ips);
+        if (keys.length === 0) {
+            container.innerHTML = '<div class="waf-empty-small"><i class="bi bi-info-circle me-1"></i><span data-i18n="waf.noIpData">暂无数据</span></div>';
+            return;
+        }
+        var maxCount = ips[keys[0]] || 1;
+        var html = '';
+        var showKeys = keys.slice(0, 8);
+        for (var i = 0; i < showKeys.length; i++) {
+            var ip = showKeys[i];
+            var cnt = ips[ip];
+            var pct = Math.min(100, (cnt / maxCount) * 100);
+            html +=
+                '<div class="waf-ip-bar">' +
+                    '<span class="ip-addr"><i class="bi bi-geo-alt me-1" style="font-size:9px;color:#9ca3af;"></i>' + this._eH(ip) + '</span>' +
+                    '<div class="ip-bar-track"><div class="ip-bar-fill" style="width:' + pct + '%"></div></div>' +
+                    '<span class="ip-count">' + cnt + '</span>' +
+                '</div>';
+        }
+        container.innerHTML = html;
+    },
+
+    _renderEventTotal: function() {
+        var badge = document.getElementById('waf-event-badge');
+        var refreshTime = document.getElementById('waf-event-refresh-time');
+        if (badge) {
+            var total = 0;
+            var counts = this._eventCounts || {};
+            var keys = Object.keys(counts);
+            for (var k = 0; k < keys.length; k++) total += counts[keys[k]] || 0;
+            if (total > 0) {
+                badge.textContent = total + ' total';
+                badge.style.display = 'inline-block';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+        if (refreshTime) {
+            refreshTime.textContent = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+    },
+
+    _fmtRelTime: function(timestamp) {
+        if (!timestamp) return '-';
+        var diff = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000);
+        if (diff < 5) return '\u521a\u521a';
+        if (diff < 60) return diff + 's';
+        if (diff < 3600) return Math.floor(diff / 60) + 'm';
+        if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+        return Math.floor(diff / 86400) + 'd';
+    },
+
+    _eH: function(str) {
+        if (typeof str !== 'string') return str || '';
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    },
+
+    _truncate: function(str, maxLen) {
+        if (!str) return '';
+        return str.length <= maxLen ? str : str.substring(0, maxLen) + '...';
+    },
+
+    _bindEventButtons: function() {
+        var btn = document.getElementById('waf-test-event-btn');
+        if (btn) {
+            btn.addEventListener('click', function() { DashboardWafSettings._fireTestEvent(); });
+        }
+    },
+
+    _fireTestEvent: async function() {
+        var types = ['SqlInjection', 'Xss', 'PathTraversal'];
+        var uris = ['/api/users?id=1%27%20UNION%20SELECT%20*%20FROM%20users--', '/search?q=%3Cscript%3Ealert(1)%3C/script%3E', '/../../../etc/passwd'];
+        var methods = ['GET', 'GET', 'GET'];
+        var matchedValues = ["1' UNION SELECT * FROM users--", '<scr' + 'ipt>alert(1)<' + '/scr' + 'ipt>', '../../../etc/passwd'];
+        var idx = Math.floor(Math.random() * types.length);
+        var btn = document.getElementById('waf-test-event-btn');
+        if (btn) btn.disabled = true;
+        try {
+            var payload = {
+                clientIp: '192.168.' + Math.floor(Math.random() * 255) + '.' + Math.floor(Math.random() * 255),
+                eventType: types[idx],
+                uri: uris[idx],
+                method: methods[idx],
+                matchedValue: matchedValues[idx]
+            };
+            await DashboardApi.post('/api/security-events/test', payload);
+            await this._refreshEvents();
+            if (window.DashboardModals) DashboardModals.showToast(__('waf.eventGenerated'), 'success');
+        } catch (e) {
+            console.error('[WafSettings] Test event failed:', e);
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+};
 </script>
 
 @await Html.PartialAsync("_DashboardPageInit")
@@ -162,7 +787,6 @@
 
         document.dispatchEvent(new CustomEvent('dashboard:ready'));
 
-        // Load WAF settings
         try { await DashboardWafSettings.init(); } catch (e) { console.error('[Waf] Load failed:', e); }
     })();
 </script>
