@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -32,42 +33,57 @@ public sealed class WafMiddleware
     private readonly IWafSettingsPersistenceService? _wafPersistence;
     private readonly INotificationService _notificationService;
 
-    /// <summary>Ultra-tight timeout (5ms) prevents catastrophic backtracking while allowing benign input.</summary>
-    private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(5);
+    /// <summary>
+    /// Tight timeout (50ms) prevents ReDoS while allowing legitimate inputs to complete.
+    /// 5ms was too aggressive — even normal regex evaluation on non-trivial inputs could trigger it.
+    /// </summary>
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(50);
 
-    // Cache for compiled wildcard IP regex patterns — no longer needed (now in IpMatcher).
-
-    // SQL injection: checks for dangerous keywords and comment-based injection in URI/query.
-    // Uses alternation with strict anchors to prevent backtracking on evil input.
+    /// <summary>
+    /// SQL keyword + comment injection detection.
+    /// Atomic groups prevent catastrophic backtracking on long inputs.
+    /// Trailing \B removed from the keyword list because a keyword followed by a
+    /// space forms a word boundary (\b), not a non-word boundary (\B).
+    /// </summary>
     private static readonly Regex SqlInjectionPattern = new(
-        @"(?i)\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|UNION|EXEC|EXECUTE|XP_|SP_)
-        |\B--|\B/\*|\*/",
-        RegexOptions.Compiled | RegexOptions.Multiline,
+        @"(?i)(?>\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|UNION|EXEC|EXECUTE|XP_|SP_))" +
+        @"|(?>\B--|\B/\*|\*/)",
+        RegexOptions.Compiled,
         RegexTimeout);
 
-    // SQL injection: checks for string-escape attacks in query parameter values (e.g., ' OR '1'='1)
+    /// <summary>
+    /// SQL injection value pattern: detects ' OR '1'='1 and ; DROP TABLE style attacks.
+    /// Atomic groups prevent backtracking into optional whitespace/quote paths.
+    /// </summary>
     private static readonly Regex SqlInjectionValuePattern = new(
-        @"(?i)'(\s*(?:OR|AND)\s*['""]?\w+[""']?\s*(?:=|LIKE|<|>)|;\s*(?:DROP|DELETE|INSERT|UPDATE))",
+        @"(?i)'(?>\s*(?:OR|AND)\s*)['""]?\w+['""]?(?>\s*)(?:=|LIKE|<|>)" +
+        @"|;(?>\s*)(?:DROP|DELETE|INSERT|UPDATE)(?:\b|$)",
         RegexOptions.Compiled,
         RegexTimeout);
 
-    // XSS: common script injection and event-handler patterns
+    /// <summary>
+    /// XSS: script/iframe tags, javascript: protocol, and event-handler attributes.
+    /// on\w+ wrapped in atomic group to avoid backtracking over long word sequences.
+    /// </summary>
     private static readonly Regex XssPattern = new(
-        @"(?i)<script[^>]*>|</script>|javascript:|data:text/html|<iframe[^>]*>|on\w+\s*=",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase,
+        @"(?i)<script[^>]*>|</script>|javascript:|data:text/html|<iframe[^>]*>|on(?>\w+)(?>\s*)=",
+        RegexOptions.Compiled,
         RegexTimeout);
 
-    // Path traversal: encoded and raw variants
+    /// <summary>
+    /// Path traversal: raw ../ and URL-encoded variants (%2e%2e/, %252e%252e).
+    /// Simple alternation with no quantifiers — inherently safe.
+    /// </summary>
     private static readonly Regex PathTraversalPattern = new(
-        @"(?i)(\.\.[/%5c\\])|(%2e%2e[%/%5c\\])|(%252e%252e)",
+        @"(?i)(?>\.\.[/%5c\\])|(?>%2e%2e[%/%5c\\])|(?>%252e%252e)",
         RegexOptions.Compiled,
         RegexTimeout);
 
-    // Database error message fingerprinting (blocks responses that reveal DB errors)
-    private static readonly Regex DbErrorPattern = new(
-        @"(?i)(SQL syntax|MySQL|ORA-\d{4,}|SQLServer|ODBC|PostgreSQL|sqlite_error|mysql_\w+\(\)|Microsoft SQL Server)",
-        RegexOptions.Compiled,
-        RegexTimeout);
+    // Response body scanning (reserved for future use — would require response buffering)
+    // private static readonly Regex DbErrorPattern = new(
+    //     @"(?i)(SQL syntax|MySQL|ORA-\d{4,}|SQLServer|ODBC|PostgreSQL|sqlite_error|mysql_\w+\(\)|Microsoft SQL Server)",
+    //     RegexOptions.Compiled,
+    //     RegexTimeout);
 
     /// <summary>
     /// Content root path for the Dashboard static files. Used to skip logging for frontend resources.
@@ -130,6 +146,17 @@ public sealed class WafMiddleware
 
         var path = context.Request.Path.Value ?? "";
 
+        // Use the raw un-normalized request path for path traversal detection.
+        // ASP.NET Core normalizes away "../" segments in Path.Value before our
+        // middleware sees them, so we read RawTarget from the HTTP feature.
+        var rawRequestPath = context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpRequestFeature>()?.RawTarget;
+        if (!string.IsNullOrEmpty(rawRequestPath))
+        {
+            var qIdx = rawRequestPath.IndexOf('?');
+            if (qIdx >= 0) rawRequestPath = rawRequestPath[..qIdx];
+        }
+        var scanPath = !string.IsNullOrEmpty(rawRequestPath) ? rawRequestPath : path;
+
         var proxyFeature = context.Features.Get<IReverseProxyFeature>();
         var routeMeta = proxyFeature?.Route?.Config?.Metadata;
 
@@ -184,14 +211,18 @@ public sealed class WafMiddleware
             return;
         }
 
-        if (opts.EnablePathTraversalDetection && PathTraversalPattern.IsMatch(path))
+        if (opts.EnablePathTraversalDetection && PathTraversalPattern.IsMatch(scanPath))
         {
             RecordSecurityEvent(context, "PathTraversalBlocked", path);
             await BlockRequest(context, "Blocked by security policy");
             return;
         }
 
-        var queryString = context.Request.QueryString.Value ?? "";
+        // URL-decode the query string before regex matching.
+        // HttpRequest.QueryString.Value returns the raw URL-encoded string (e.g. %3Cscript%3E),
+        // but our regex patterns look for decoded text like <script>.
+        var rawQuery = context.Request.QueryString.Value ?? "";
+        var queryString = string.IsNullOrEmpty(rawQuery) ? "" : WebUtility.UrlDecode(rawQuery.TrimStart('?'));
         if (!string.IsNullOrEmpty(queryString))
         {
             if (opts.EnableSqlInjectionDetection)
@@ -215,6 +246,53 @@ public sealed class WafMiddleware
                 RecordSecurityEvent(context, "PathTraversalInQueryBlocked", queryString);
                 await BlockRequest(context, "Blocked by security policy");
                 return;
+            }
+
+            // XSS detection in query string (was missing entirely)
+            if (opts.EnableXssDetection && XssPattern.IsMatch(queryString))
+            {
+                RecordSecurityEvent(context, "XssBlocked", queryString);
+                await BlockRequest(context, "Blocked by security policy");
+                return;
+            }
+        }
+
+        // Scan request body for injection attacks (POST/PUT/PATCH only)
+        if ((opts.EnableSqlInjectionDetection || opts.EnableXssDetection) &&
+            context.Request.ContentLength.HasValue && context.Request.ContentLength.Value > 0 &&
+            (HttpMethods.IsPost(context.Request.Method) || HttpMethods.IsPut(context.Request.Method) || HttpMethods.IsPatch(context.Request.Method)))
+        {
+            var bodyText = await ReadBodyAsync(context);
+            if (!string.IsNullOrEmpty(bodyText))
+            {
+                // URL-decode form-urlencoded bodies (e.g., username=admin%20OR%20'1'='1)
+                if (context.Request.ContentType?.IndexOf("urlencoded", StringComparison.OrdinalIgnoreCase) >= 0)
+                    bodyText = WebUtility.UrlDecode(bodyText);
+            }
+            if (!string.IsNullOrEmpty(bodyText))
+            {
+                if (opts.EnableSqlInjectionDetection)
+                {
+                    if (SqlInjectionPattern.IsMatch(bodyText))
+                    {
+                        RecordSecurityEvent(context, "SqlInjectionBlocked", TruncateValue(bodyText));
+                        await BlockRequest(context, "Blocked by security policy");
+                        return;
+                    }
+                    if (SqlInjectionValuePattern.IsMatch(bodyText))
+                    {
+                        RecordSecurityEvent(context, "SqlInjectionValueBlocked", TruncateValue(bodyText));
+                        await BlockRequest(context, "Blocked by security policy");
+                        return;
+                    }
+                }
+
+                if (opts.EnableXssDetection && XssPattern.IsMatch(bodyText))
+                {
+                    RecordSecurityEvent(context, "XssBlocked", TruncateValue(bodyText));
+                    await BlockRequest(context, "Blocked by security policy");
+                    return;
+                }
             }
         }
 
@@ -382,6 +460,44 @@ public sealed class WafMiddleware
     private static string? GetClientIp(HttpContext context)
     {
         return ClientIpResolver.GetClientIp(context);
+    }
+
+    /// <summary>Truncates a value to a maximum length, appending "..." if cut.</summary>
+    private static string TruncateValue(string value, int maxLength = 200)
+    {
+        return value.Length <= maxLength ? value : value[..maxLength] + "...";
+    }
+
+    /// <summary>
+    /// Buffers and reads the request body as text for injection scanning.
+    /// Resets the stream position so downstream middleware can read it again.
+    /// Limits scan to 100KB to avoid memory pressure on large uploads.
+    /// </summary>
+    private static async Task<string?> ReadBodyAsync(HttpContext context)
+    {
+        context.Request.EnableBuffering();
+
+        try
+        {
+            using var reader = new StreamReader(
+                context.Request.Body,
+                Encoding.UTF8,
+                detectEncodingFromByteOrderMarks: false,
+                bufferSize: 4096,
+                leaveOpen: true);
+
+            var maxScanBytes = Math.Min(context.Request.ContentLength ?? 0, 100 * 1024);
+            var buffer = new char[maxScanBytes];
+            var read = await reader.ReadAsync(buffer, 0, buffer.Length);
+            context.Request.Body.Position = 0;
+
+            return new string(buffer, 0, read);
+        }
+        catch
+        {
+            context.Request.Body.Position = 0;
+            return null;
+        }
     }
 
     private static async Task BlockRequest(HttpContext context, string message)

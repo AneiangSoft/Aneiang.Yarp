@@ -10,7 +10,10 @@
             <span><i class="bi bi-shield-lock me-2" style="color:#ef4444;"></i><span data-i18n="security.title">WAF 安全事件</span></span>
             <div class="card-header-actions">
                 <span id="security-refresh-time" class="refresh-badge"></span>
-                <button class="btn btn-sm btn-outline-danger" onclick="SecurityModule.clearAll()" title="清空">
+                <button class="btn btn-sm btn-outline-danger me-1" id="sec-test-event-btn" title="生成测试事件">
+                    <i class="bi bi-bug"></i> <span data-i18n="waf.testEvent">模拟攻击</span>
+                </button>
+                <button class="btn btn-sm btn-outline-danger me-1" onclick="SecurityModule.clearAll()" title="清空">
                     <i class="bi bi-trash"></i> <span data-i18n="security.clear">清空</span>
                 </button>
                 <button class="btn btn-sm btn-outline-secondary btn-icon-only" onclick="SecurityModule.load()" title="刷新">
