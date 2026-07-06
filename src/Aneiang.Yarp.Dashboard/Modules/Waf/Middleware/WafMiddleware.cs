@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -472,6 +473,8 @@ public sealed class WafMiddleware
     /// Buffers and reads the request body as text for injection scanning.
     /// Resets the stream position so downstream middleware can read it again.
     /// Limits scan to 100KB to avoid memory pressure on large uploads.
+    /// Memory optimization (v2.4): Uses ArrayPool&lt;char&gt; instead of new char[]
+    /// to eliminate per-request 100KB allocations on the heap.
     /// </summary>
     private static async Task<string?> ReadBodyAsync(HttpContext context)
     {
@@ -486,12 +489,19 @@ public sealed class WafMiddleware
                 bufferSize: 4096,
                 leaveOpen: true);
 
-            var maxScanBytes = Math.Min(context.Request.ContentLength ?? 0, 100 * 1024);
-            var buffer = new char[maxScanBytes];
-            var read = await reader.ReadAsync(buffer, 0, buffer.Length);
-            context.Request.Body.Position = 0;
-
-            return new string(buffer, 0, read);
+            var maxScanBytes = (int)Math.Min(context.Request.ContentLength ?? 0, 100 * 1024);
+            if (maxScanBytes <= 0) maxScanBytes = 4096; // fallback for unknown content length
+            var buffer = ArrayPool<char>.Shared.Rent(maxScanBytes);
+            try
+            {
+                var read = await reader.ReadAsync(buffer, 0, maxScanBytes);
+                context.Request.Body.Position = 0;
+                return new string(buffer, 0, read);
+            }
+            finally
+            {
+                ArrayPool<char>.Shared.Return(buffer);
+            }
         }
         catch
         {

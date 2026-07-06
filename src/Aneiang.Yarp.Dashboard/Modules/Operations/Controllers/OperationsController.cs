@@ -2,8 +2,12 @@ using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
+using Aneiang.Yarp.Dashboard.Infrastructure;
+using Aneiang.Yarp.Dashboard.Infrastructure.Performance;
+using Aneiang.Yarp.Storage;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Operations.Controllers;
 
@@ -18,27 +22,45 @@ public class OperationsController : ControllerBase
     private readonly IDashboardLogQueryService _logQuery;
     private readonly IDashboardClusterQueryService _clusterQuery;
     private readonly IMemoryCache _memoryCache;
+    private readonly IProxyLogRepository _logRepository;
+    private readonly LockFreeStatistics _statistics;
+    private readonly DashboardOptions _options;
 
     public OperationsController(
         IDashboardLogQueryService logQuery,
         IDashboardClusterQueryService clusterQuery,
-        IMemoryCache memoryCache)
+        IMemoryCache memoryCache,
+        IProxyLogRepository logRepository,
+        LockFreeStatistics statistics,
+        IOptions<DashboardOptions> options)
     {
         _logQuery = logQuery;
         _clusterQuery = clusterQuery;
         _memoryCache = memoryCache;
+        _logRepository = logRepository;
+        _statistics = statistics;
+        _options = options.Value;
     }
 
     /// <summary>
-    /// Get alert summary for top alert bar.
+    /// Get alert summary for top alert bar. Cached for 10 seconds.
     /// 获取告警摘要数据（顶部告警栏）
     /// </summary>
     [HttpGet("alert-summary")]
     public IActionResult GetAlertSummary()
     {
+        var data = _memoryCache.GetOrCreate("ops:alert-summary", entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(10);
+            return ComputeAlertSummary();
+        })!;
+        return Ok(new { code = 200, data });
+    }
+
+    private AlertSummaryData ComputeAlertSummary()
+    {
         var clusters = _clusterQuery.GetClusters();
-        var logSnapshot = _logQuery.GetLogs(1000);
-        
+
         // Count unhealthy destinations
         int unhealthyCount = 0;
         int totalDestinations = 0;
@@ -57,42 +79,108 @@ public class OperationsController : ControllerBase
             }
         }
 
-        // Calculate recent error count (last 5 minutes)
-        var fiveMinAgo = DateTime.Now.AddMinutes(-5);
-        int recentErrors = logSnapshot.Entries.Count(e => 
-            e.EventType == LogEventType.ProxyResponse && 
-            e.Timestamp >= fiveMinAgo &&
-            e.StatusCode >= 500);
+        // Calculate recent 5xx errors — priority: LockFreeStatistics → SQL → in-memory
+        int recentErrors;
+        var statsSnapshot = _statistics.GetSnapshot();
 
-        // Get circuit breaker status (simulated - can be extended with real data)
+        // Sum all 5xx status codes from LockFreeStatistics (cumulative, fast O(1) read)
+        var total5xx = statsSnapshot.StatusCodes
+            .Where(kvp => kvp.Key >= 500)
+            .Sum(kvp => kvp.Value);
+
+        if (_options.LogPersistenceEnabled)
+        {
+            // SQL gives us recent-5min count (more accurate for "recent" window)
+            try { recentErrors = _logRepository.GetRecent5xxCountAsync(5).GetAwaiter().GetResult(); }
+            catch { recentErrors = (int)total5xx; }
+        }
+        else
+        {
+            // No persistence: use in-memory buffer for recent window
+            var logSnapshot = _logQuery.GetLogs(1000);
+            var fiveMinAgo = DateTime.Now.AddMinutes(-5);
+            recentErrors = logSnapshot.Entries.Count(e =>
+                e.EventType == LogEventType.ProxyResponse &&
+                e.Timestamp >= fiveMinAgo &&
+                e.StatusCode >= 500);
+        }
+
+        // Get circuit breaker status
         int circuitBreakerCount = CountCircuitBreakers();
 
-        var data = new AlertSummaryData
+        return new AlertSummaryData
         {
             UnhealthyCount = unhealthyCount,
             UnhealthyTotal = totalDestinations,
             CircuitBreakerCount = circuitBreakerCount,
             RecentErrors = recentErrors,
-            UnhandledEvents = recentErrors + unhealthyCount, // Simplified event count
+            UnhandledEvents = recentErrors + unhealthyCount,
             LastUpdated = DateTime.Now
         };
-
-        return Ok(new { code = 200, data });
     }
 
     /// <summary>
-    /// Get traffic time series data for charts.
+    /// Get traffic time series data for charts. Cached for 10 seconds.
     /// 获取流量时序数据（用于图表）
     /// </summary>
     [HttpGet("traffic")]
     public IActionResult GetTrafficData([FromQuery] int minutes = 15)
     {
-        var logSnapshot = _logQuery.GetLogs(5000);
+        var data = _memoryCache.GetOrCreate($"ops:traffic:{minutes}", entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(10);
+            return ComputeTrafficData(minutes);
+        })!;
+        return Ok(new { code = 200, data });
+    }
+
+    private TrafficData ComputeTrafficData(int minutes)
+    {
+        // Prefer SQL aggregation when persistence is enabled
+        if (_options.LogPersistenceEnabled)
+        {
+            try
+            {
+                var sqlStartTime = DateTime.Now.AddMinutes(-minutes);
+                var buckets = _logRepository.GetTrafficDataAsync(sqlStartTime).GetAwaiter().GetResult();
+                if (buckets.Count == 0)
+                {
+                    return new TrafficData
+                    {
+                        Labels = Array.Empty<string>().ToList(),
+                        Qps = Array.Empty<int>().ToList(),
+                        Errors = Array.Empty<int>().ToList(),
+                        CurrentQps = 0,
+                        TimeRange = minutes
+                    };
+                }
+
+                return new TrafficData
+                {
+                    Labels = buckets.Select(b => b.TimeBucket.ToString("HH:mm")).ToList(),
+                    Qps = buckets.Select(b => b.RequestCount).ToList(),
+                    Errors = buckets.Select(b => b.ErrorCount).ToList(),
+                    CurrentQps = buckets.Count > 0 ? buckets.Last().RequestCount : 0,
+                    TimeRange = minutes
+                };
+            }
+            catch { /* fall back to in-memory */ }
+        }
+
+        // Fallback: in-memory buffer traversal
+        var logSnapshot = _logQuery.GetLogs(_options.LogBufferCapacity);
         var entries = logSnapshot.Entries.Where(e => e.EventType == LogEventType.ProxyResponse).ToList();
         
         if (entries.Count == 0)
         {
-            return Ok(new { code = 200, data = new { labels = Array.Empty<string>(), qps = Array.Empty<int>(), errors = Array.Empty<int>(), currentQps = 0 } });
+            return new TrafficData
+            {
+                Labels = Array.Empty<string>().ToList(),
+                Qps = Array.Empty<int>().ToList(),
+                Errors = Array.Empty<int>().ToList(),
+                CurrentQps = 0,
+                TimeRange = minutes
+            };
         }
 
         var endTime = DateTime.Now;
@@ -117,7 +205,7 @@ public class OperationsController : ControllerBase
         var oneMinAgo = endTime.AddMinutes(-1);
         var currentQps = entries.Count(e => e.Timestamp >= oneMinAgo);
 
-        var data = new TrafficData
+        return new TrafficData
         {
             Labels = labels,
             Qps = qpsData,
@@ -125,23 +213,61 @@ public class OperationsController : ControllerBase
             CurrentQps = currentQps,
             TimeRange = minutes
         };
-
-        return Ok(new { code = 200, data });
     }
 
     /// <summary>
-    /// Get top error routes and slow clusters for overview page.
+    /// Get top error routes and slow clusters for overview page. Cached for 30 seconds.
     /// 获取异常路由和延迟集群排行（Overview页面）
     /// </summary>
     [HttpGet("top-issues")]
     public IActionResult GetTopIssues([FromQuery] int count = 5)
     {
-        var logSnapshot = _logQuery.GetLogs(5000);
+        var data = _memoryCache.GetOrCreate($"ops:top-issues:{count}", entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(30);
+            return ComputeTopIssues(count);
+        })!;
+        return Ok(new { code = 200, data });
+    }
+
+    private TopIssuesData ComputeTopIssues(int count)
+    {
+        // Prefer SQL aggregation when persistence is enabled
+        if (_options.LogPersistenceEnabled)
+        {
+            try
+            {
+                var startTime = DateTime.Now.AddMinutes(-15);
+                var issues = _logRepository.GetTopIssuesAsync(startTime, count).GetAwaiter().GetResult();
+
+                var errorRoutes = issues.Select(i => new ErrorRouteItem
+                {
+                    RouteId = i.RouteId ?? "unknown",
+                    ErrorCount = i.ErrorCount,
+                    TotalCount = i.TotalCount,
+                    RecentErrors = i.ErrorCount // Approximation — SQL data is already filtered by time
+                }).ToList();
+
+                return new TopIssuesData
+                {
+                    ErrorRoutes = errorRoutes,
+                    SlowClusters = new List<SlowClusterItem>() // P99 latency needs separate query — placeholder
+                };
+            }
+            catch { /* fall back to in-memory */ }
+        }
+
+        // Fallback: in-memory buffer traversal
+        var logSnapshot = _logQuery.GetLogs(_options.LogBufferCapacity);
         var entries = logSnapshot.Entries.Where(e => e.EventType == LogEventType.ProxyResponse).ToList();
         
         if (entries.Count == 0)
         {
-            return Ok(new { code = 200, data = new { errorRoutes = Array.Empty<object>(), slowClusters = Array.Empty<object>() } });
+            return new TopIssuesData
+            {
+                ErrorRoutes = new List<ErrorRouteItem>(),
+                SlowClusters = new List<SlowClusterItem>()
+            };
         }
 
         // Top error routes
@@ -181,13 +307,11 @@ public class OperationsController : ControllerBase
             .Take(count)
             .ToList();
 
-        var data = new TopIssuesData
+        return new TopIssuesData
         {
             ErrorRoutes = routeErrors,
             SlowClusters = clusterLatencies
         };
-
-        return Ok(new { code = 200, data });
     }
 
     /// <summary>

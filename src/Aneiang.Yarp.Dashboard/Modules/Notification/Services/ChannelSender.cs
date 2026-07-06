@@ -20,6 +20,16 @@ internal sealed class ChannelSender
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _channelLocks = new();
 
+    /// <summary>
+    /// Remove the lock for a channel that has been deleted.
+    /// Prevents SemaphoreSlim objects from accumulating indefinitely.
+    /// </summary>
+    public static void RemoveChannelLock(string channelId)
+    {
+        if (_channelLocks.TryRemove(channelId, out var semaphore))
+            semaphore.Dispose();
+    }
+
     public ChannelSender(
         INotificationRepository repository,
         IHttpClientFactory httpClientFactory,

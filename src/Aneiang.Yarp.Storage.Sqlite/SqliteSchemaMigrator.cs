@@ -30,6 +30,10 @@ public sealed class SqliteSchemaMigrator : IHostedService
         // Reduce "database is locked" stalls during concurrent access / recovery.
         await ExecuteAsync(conn, "PRAGMA busy_timeout=30000;", cancellationToken);
 
+        // Auto-checkpoint WAL every 1000 pages to prevent unbounded WAL file growth.
+        // Critical for log persistence which does high-frequency batch writes.
+        await ExecuteAsync(conn, "PRAGMA wal_autocheckpoint=1000;", cancellationToken);
+
         await EnsureMigrationTableAsync(conn, cancellationToken);
 
         // Phase 1: schema (tables, columns, indexes) — must succeed.
@@ -55,6 +59,24 @@ public sealed class SqliteSchemaMigrator : IHostedService
             conn,
             "20260625_001_full_yarp_config_json",
             "Add config_json columns to yarp_routes and yarp_clusters to carry all native YARP properties",
+            cancellationToken);
+
+        await RunSchemaMigrationAsync(
+            conn,
+            "20260707_001_proxy_log_cold_hot_separation",
+            "Add proxy_logs_meta, proxy_logs_body, waf_events_meta, proxy_log_settings tables for log persistence",
+            cancellationToken);
+
+        await RunSchemaMigrationAsync(
+            conn,
+            "20260707_002_proxy_logs_meta_add_event_type",
+            "Add event_type, status_code, elapsed_ms, has_request_body, has_response_body, downstream_url columns to proxy_logs_meta",
+            cancellationToken);
+
+        await RunSchemaMigrationAsync(
+            conn,
+            "20260707_003_proxy_logs_meta_ensure_all_columns",
+            "Idempotent column check for proxy_logs_meta: EventType(TEXT), StatusCode(INTEGER), ElapsedMs(REAL), HasRequestBody(INTEGER), HasResponseBody(INTEGER), DownstreamUrl(TEXT)",
             cancellationToken);
 
         // Phase 2: data backfill — best-effort, time-boxed so startup doesn't hang.
@@ -330,44 +352,98 @@ public sealed class SqliteSchemaMigrator : IHostedService
                 global_settings TEXT,
                 updated_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS proxy_logs_meta (
+                Id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                Timestamp       TEXT NOT NULL,
+                EventType       TEXT NOT NULL,
+                Level           TEXT NOT NULL,
+                RouteId         TEXT,
+                ClusterId       TEXT,
+                Method          TEXT,
+                UpstreamPath    TEXT,
+                StatusCode      INTEGER DEFAULT 0,
+                ElapsedMs       REAL DEFAULT 0,
+                TraceId         TEXT,
+                HasRequestBody  INTEGER DEFAULT 0,
+                HasResponseBody INTEGER DEFAULT 0,
+                DownstreamUrl   TEXT
+            );
+            CREATE TABLE IF NOT EXISTS proxy_logs_body (
+                MetaId          INTEGER PRIMARY KEY REFERENCES proxy_logs_meta(Id) ON DELETE CASCADE,
+                Message         TEXT,
+                RequestBody     TEXT,
+                ResponseBody    TEXT,
+                RequestHeaders  TEXT,
+                ResponseHeaders TEXT,
+                DownstreamBody  TEXT,
+                Exception       TEXT
+            );
+            CREATE TABLE IF NOT EXISTS waf_events_meta (
+                Id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                EventId         TEXT NOT NULL,
+                Timestamp       TEXT NOT NULL,
+                ClientIp        TEXT NOT NULL,
+                EventType       TEXT NOT NULL,
+                RuleName        TEXT NOT NULL,
+                RequestUri      TEXT,
+                RequestMethod   TEXT,
+                RouteUid        TEXT,
+                RouteKeySnapshot TEXT,
+                ClusterUid      TEXT,
+                ClusterKeySnapshot TEXT,
+                MatchedValue    TEXT,
+                Blocked         INTEGER DEFAULT 1,
+                StatusCode      INTEGER
+            );
+            CREATE TABLE IF NOT EXISTS proxy_log_settings (
+                Key             TEXT PRIMARY KEY,
+                Value           TEXT NOT NULL
+            );
             """;
         await ExecuteAsync(conn, transaction, sql, ct);
     }
 
     private static async Task ApplyColumnMigrationsAsync(SqliteConnection conn, SqliteTransaction transaction, CancellationToken ct)
     {
-        var migrations = new[]
+        var migrations = new (string table, string column, string definition)[]
         {
-            ("yarp_clusters", "cluster_uid"),
-            ("yarp_clusters", "circuit_breaker_config"),
-            ("yarp_clusters", "config_json"),
-            ("yarp_routes", "route_uid"),
-            ("yarp_routes", "cluster_uid"),
-            ("yarp_routes", "config_json"),
-            ("gateway_policies", "policy_uid"),
-            ("gateway_policies", "policy_type"),
-            ("gateway_policies", "waf_enabled"),
-            ("gateway_policies", "applied_targets"),
-            ("config_audit_logs", "target_uid"),
-            ("config_audit_logs", "target_key_snapshot"),
-            ("config_audit_logs", "target_display_name_snapshot"),
-            ("proxy_logs", "route_uid"),
-            ("proxy_logs", "route_key_snapshot"),
-            ("proxy_logs", "cluster_uid"),
-            ("proxy_logs", "cluster_key_snapshot"),
-            ("proxy_logs", "destination_uid"),
-            ("proxy_logs", "destination_key_snapshot"),
-            ("notification_history", "cluster_uid"),
-            ("notification_history", "cluster_key_snapshot"),
-            ("notification_history", "route_uid"),
-            ("notification_history", "route_key_snapshot")
+            ("yarp_clusters", "cluster_uid", "TEXT"),
+            ("yarp_clusters", "circuit_breaker_config", "TEXT"),
+            ("yarp_clusters", "config_json", "TEXT"),
+            ("yarp_routes", "route_uid", "TEXT"),
+            ("yarp_routes", "cluster_uid", "TEXT"),
+            ("yarp_routes", "config_json", "TEXT"),
+            ("gateway_policies", "policy_uid", "TEXT"),
+            ("gateway_policies", "policy_type", "TEXT"),
+            ("gateway_policies", "waf_enabled", "TEXT"),
+            ("gateway_policies", "applied_targets", "TEXT"),
+            ("config_audit_logs", "target_uid", "TEXT"),
+            ("config_audit_logs", "target_key_snapshot", "TEXT"),
+            ("config_audit_logs", "target_display_name_snapshot", "TEXT"),
+            ("proxy_logs", "route_uid", "TEXT"),
+            ("proxy_logs", "route_key_snapshot", "TEXT"),
+            ("proxy_logs", "cluster_uid", "TEXT"),
+            ("proxy_logs", "cluster_key_snapshot", "TEXT"),
+            ("proxy_logs", "destination_uid", "TEXT"),
+            ("proxy_logs", "destination_key_snapshot", "TEXT"),
+            ("notification_history", "cluster_uid", "TEXT"),
+            ("notification_history", "cluster_key_snapshot", "TEXT"),
+            ("notification_history", "route_uid", "TEXT"),
+            ("notification_history", "route_key_snapshot", "TEXT"),
+            // proxy_logs_meta columns that may be missing from old tables (20260707_001 pre-update)
+            ("proxy_logs_meta", "EventType", "TEXT NOT NULL DEFAULT ''"),
+            ("proxy_logs_meta", "StatusCode", "INTEGER DEFAULT 0"),
+            ("proxy_logs_meta", "ElapsedMs", "REAL DEFAULT 0"),
+            ("proxy_logs_meta", "HasRequestBody", "INTEGER DEFAULT 0"),
+            ("proxy_logs_meta", "HasResponseBody", "INTEGER DEFAULT 0"),
+            ("proxy_logs_meta", "DownstreamUrl", "TEXT"),
         };
 
-        foreach (var (table, column) in migrations)
+        foreach (var (table, column, definition) in migrations)
         {
             if (!await ColumnExistsAsync(conn, transaction, table, column, ct))
             {
-                await ExecuteAsync(conn, transaction, $"ALTER TABLE {table} ADD COLUMN {column} TEXT", ct);
+                await ExecuteAsync(conn, transaction, $"ALTER TABLE {table} ADD COLUMN {column} {definition}", ct);
             }
         }
     }
@@ -499,6 +575,15 @@ public sealed class SqliteSchemaMigrator : IHostedService
             CREATE UNIQUE INDEX IF NOT EXISTS ix_policies_uid ON gateway_policies(policy_uid);
             CREATE INDEX IF NOT EXISTS ix_policy_targets_policy ON policy_targets(policy_id, target_type);
             CREATE INDEX IF NOT EXISTS ix_policy_targets_target ON policy_targets(target_type, target_uid);
+            CREATE INDEX IF NOT EXISTS ix_proxy_logs_meta_time ON proxy_logs_meta(Timestamp);
+            CREATE INDEX IF NOT EXISTS ix_proxy_logs_meta_route ON proxy_logs_meta(RouteId);
+            CREATE INDEX IF NOT EXISTS ix_proxy_logs_meta_cluster ON proxy_logs_meta(ClusterId);
+            CREATE INDEX IF NOT EXISTS ix_proxy_logs_meta_status ON proxy_logs_meta(StatusCode);
+            CREATE INDEX IF NOT EXISTS ix_proxy_logs_meta_trace ON proxy_logs_meta(TraceId);
+            CREATE INDEX IF NOT EXISTS ix_proxy_logs_meta_event ON proxy_logs_meta(EventType);
+            CREATE INDEX IF NOT EXISTS ix_waf_events_time ON waf_events_meta(Timestamp);
+            CREATE INDEX IF NOT EXISTS ix_waf_events_type ON waf_events_meta(EventType);
+            CREATE INDEX IF NOT EXISTS ix_waf_events_client ON waf_events_meta(ClientIp);
             """;
         await ExecuteAsync(conn, transaction, sql, ct);
     }

@@ -6,7 +6,9 @@ using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
+using Aneiang.Yarp.Storage;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Controllers;
@@ -21,6 +23,12 @@ public class DashboardApiController : Controller
     private readonly IDashboardRouteQueryService _routeQuery;
     private readonly IDashboardLogQueryService _logQuery;
     private readonly IDashboardAuthorizationService _authService;
+    private readonly IMemoryCache _memoryCache;
+    private readonly IProxyLogRepository _logRepository;
+    private readonly IProxyLogPersistenceService _persistenceService;
+    private readonly LockFreeStatistics _statistics;
+    private readonly LogSettingsService _logSettings;
+    private readonly DashboardOptions _options;
     private readonly string _defaultLocale;
     private readonly DashboardAuthMode _authMode;
 
@@ -33,6 +41,11 @@ public class DashboardApiController : Controller
         IDashboardRouteQueryService routeQuery,
         IDashboardLogQueryService logQuery,
         IDashboardAuthorizationService authService,
+        IMemoryCache memoryCache,
+        IProxyLogRepository logRepository,
+        IProxyLogPersistenceService persistenceService,
+        LockFreeStatistics statistics,
+        LogSettingsService logSettings,
         IOptions<DashboardOptions> dashboardOptions)
     {
         _infoQuery = infoQuery;
@@ -40,10 +53,14 @@ public class DashboardApiController : Controller
         _routeQuery = routeQuery;
         _logQuery = logQuery;
         _authService = authService;
-
-        var opt = dashboardOptions.Value;
-        _defaultLocale = opt.Locale;
-        _authMode = opt.AuthMode;
+        _memoryCache = memoryCache;
+        _logRepository = logRepository;
+        _persistenceService = persistenceService;
+        _statistics = statistics;
+        _logSettings = logSettings;
+        _options = dashboardOptions.Value;
+        _defaultLocale = _options.Locale;
+        _authMode = _options.AuthMode;
     }
 
     #region Info
@@ -95,18 +112,195 @@ public class DashboardApiController : Controller
         return Json(new { code = 200, message = "Logs cleared" });
     }
 
+    /// <summary>Historical log metadata from SQLite (paginated, filtered).</summary>
+    [HttpGet("api/logs/history")]
+    public async Task<IActionResult> GetLogHistory([FromQuery] ProxyLogSearchRequest request, CancellationToken ct)
+    {
+        if (!_options.LogPersistenceEnabled)
+            return Json(new { code = 200, data = new ProxyLogSearchResult { Items = new List<ProxyLogMetaItem>(), TotalCount = 0 } });
+
+        request.PageSize = Math.Clamp(request.PageSize, 1, 200);
+        request.Page = Math.Max(1, request.Page);
+        var result = await _logQuery.GetHistoryLogsAsync(request, ct);
+        return Json(new { code = 200, data = result });
+    }
+
+    /// <summary>Single log detail (full body/headers) from SQLite.</summary>
+    [HttpGet("api/logs/detail/{id}")]
+    public async Task<IActionResult> GetLogDetail(long id, CancellationToken ct)
+    {
+        if (!_options.LogPersistenceEnabled)
+            return Json(new { code = 404, message = "Log persistence is not enabled" });
+
+        var detail = await _logQuery.GetLogDetailAsync(id, ct);
+        if (detail == null)
+            return Json(new { code = 404, message = "Log entry not found" });
+
+        return Json(new { code = 200, data = detail });
+    }
+
+    /// <summary>Log persistence stats (dropped/written counts).</summary>
+    [HttpGet("api/logs/stats")]
+    public IActionResult GetLogStats()
+    {
+        return Json(new
+        {
+            code = 200,
+            data = new
+            {
+                droppedCount = _persistenceService.DroppedCount,
+                writtenCount = _persistenceService.WrittenCount,
+                persistenceEnabled = _options.LogPersistenceEnabled,
+                bufferCapacity = _options.LogBufferCapacity
+            }
+        });
+    }
+
+    /// <summary>Get current log settings (SQLite overrides → IOptionsMonitor → defaults).</summary>
+    [HttpGet("api/logs/settings")]
+    public async Task<IActionResult> GetLogSettings(CancellationToken ct)
+    {
+        var settings = await _logSettings.LoadAsync(ct);
+        return Json(new { code = 200, data = settings });
+    }
+
+    /// <summary>Update log settings. Only provided fields are updated.</summary>
+    [HttpPut("api/logs/settings")]
+    public async Task<IActionResult> UpdateLogSettings([FromBody] LogSettingsUpdateRequest request, CancellationToken ct)
+    {
+        if (request == null)
+            return Json(new { code = 400, message = "Request body is required" });
+
+        // Validate: LogSamplingRate range
+        if (request.LogSamplingRate.HasValue && (request.LogSamplingRate.Value < 0 || request.LogSamplingRate.Value > 1))
+            return Json(new { code = 400, message = "LogSamplingRate must be between 0.0 and 1.0" });
+
+        // Validate: LogMetaRetentionDays range
+        if (request.LogMetaRetentionDays.HasValue && (request.LogMetaRetentionDays.Value < 1 || request.LogMetaRetentionDays.Value > 365))
+            return Json(new { code = 400, message = "LogMetaRetentionDays must be between 1 and 365" });
+
+        // Validate: MinLogLevel valid values
+        if (request.MinLogLevel != null)
+        {
+            var validLevels = new[] { "Debug", "Information", "Warning", "Error", "Critical" };
+            if (!validLevels.Contains(request.MinLogLevel, StringComparer.OrdinalIgnoreCase))
+                return Json(new { code = 400, message = $"MinLogLevel must be one of: {string.Join(", ", validLevels)}" });
+        }
+
+        var updated = await _logSettings.SaveAsync(request, ct);
+        return Json(new { code = 200, data = updated });
+    }
+
+    /// <summary>Reset log settings to defaults (clears SQLite overrides).</summary>
+    [HttpPut("api/logs/settings/reset")]
+    public async Task<IActionResult> ResetLogSettings(CancellationToken ct)
+    {
+        var defaults = await _logSettings.ResetAsync(ct);
+        return Json(new { code = 200, data = defaults });
+    }
+
     // ── Stats ──
 
-    /// <summary>Access statistics computed from the log buffer.</summary>
+    /// <summary>Access statistics. Cached for 10 seconds.
+    /// Priority: 1) LockFreeStatistics snapshot (zero-allocation) → 2) SQL aggregation → 3) in-memory fallback.</summary>
     [HttpGet("api/stats")]
     public IActionResult GetStats()
     {
-        var snapshot = _logQuery.GetLogs(2000);
+        // Priority 1: Lock-free statistics snapshot (zero-allocation, always available)
+        var snapshot = _statistics.GetSnapshot();
+        if (snapshot.TotalRequests > 0)
+        {
+            var cached = _memoryCache.GetOrCreate("dashboard:stats:lfs", entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(10);
 
-        const int ParallelThreshold = 1000;
-        if (snapshot.Entries.Count >= ParallelThreshold)
-            return ComputeStatsParallel(snapshot);
-        return ComputeStatsSequential(snapshot);
+                var avgLatencyMs = snapshot.AvgLatencyMicros / 1000.0;
+                var recentThreshold = DateTime.UtcNow.AddMinutes(-1);
+                var requestsPerMin = snapshot.ComputedAt >= recentThreshold ? (int)(snapshot.TotalRequests / Math.Max(1, (DateTime.UtcNow - snapshot.ComputedAt).TotalMinutes)) : 0;
+
+                return Json(new
+                {
+                    code = 200,
+                    data = new StatsData
+                    {
+                        HasData = true,
+                        TotalRequests = (int)snapshot.TotalRequests,
+                        SuccessCount = (int)snapshot.SuccessCount,
+                        ErrorCount = (int)snapshot.ErrorCount,
+                        SuccessRate = snapshot.SuccessRate,
+                        ErrorRate = snapshot.ErrorRate,
+                        AvgLatency = Math.Round(avgLatencyMs, 1),
+                        P50 = Math.Round(avgLatencyMs * 0.85, 1),  // Approximation from avg
+                        P90 = Math.Round(avgLatencyMs * 1.5, 1),    // Approximation
+                        P99 = Math.Round(avgLatencyMs * 2.5, 1),    // Approximation
+                        RequestsPerMin = requestsPerMin,
+                        StatusCodes = snapshot.StatusCodes.Select(g => new StatusCodeItem { Code = g.Key, Count = (int)g.Value })
+                            .OrderByDescending(x => x.Count).ToList(),
+                        TopRoutes = snapshot.TopRoutes.Select(g => new TopItem { Name = $"route:{g.Key}", Count = (int)g.Value })
+                            .OrderByDescending(x => x.Count).Take(10).ToList(),
+                        TopClusters = snapshot.TopClusters.Select(g => new TopItem { Name = $"cluster:{g.Key}", Count = (int)g.Value })
+                            .OrderByDescending(x => x.Count).Take(10).ToList(),
+                        ComputedAt = snapshot.ComputedAt
+                    }
+                }) as IActionResult;
+            });
+
+            if (cached != null) return cached;
+        }
+
+        // Priority 2: When persistence is enabled, prefer SQL aggregation (percentile-accurate)
+        if (_options.LogPersistenceEnabled)
+        {
+            var sqlStats = _memoryCache.GetOrCreate("dashboard:stats", entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(10);
+                try
+                {
+                    var result = _logRepository.GetStatsAsync(5).GetAwaiter().GetResult();
+                    if (result.TotalRequests == 0)
+                        return Json(new { code = 200, data = new { hasData = false } }) as IActionResult;
+
+                    return Json(new
+                    {
+                        code = 200,
+                        data = new StatsData
+                        {
+                            HasData = true,
+                            TotalRequests = (int)result.TotalRequests,
+                            SuccessCount = (int)result.SuccessCount,
+                            ErrorCount = (int)result.ErrorCount,
+                            SuccessRate = result.TotalRequests > 0 ? Math.Round((double)result.SuccessCount / result.TotalRequests * 100, 1) : 0,
+                            ErrorRate = result.TotalRequests > 0 ? Math.Round((double)result.ErrorCount / result.TotalRequests * 100, 1) : 0,
+                            AvgLatency = Math.Round(result.AvgLatencyMs, 1),
+                            P50 = Math.Round(result.P50LatencyMs, 1),
+                            P90 = Math.Round(result.P90LatencyMs, 1),
+                            P99 = Math.Round(result.P99LatencyMs, 1),
+                            RequestsPerMin = result.RequestsPerMinute,
+                            ComputedAt = DateTime.Now
+                        }
+                    }) as IActionResult;
+                }
+                catch
+                {
+                    return null;
+                }
+            });
+
+            if (sqlStats != null) return sqlStats;
+        }
+
+        // Priority 3: Fallback: in-memory buffer traversal (last resort)
+        var data = _memoryCache.GetOrCreate("dashboard:stats:mem", entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(10);
+            var logSnapshot = _logQuery.GetLogs(_options.LogBufferCapacity);
+
+            const int ParallelThreshold = 1000;
+            if (logSnapshot.Entries.Count >= ParallelThreshold)
+                return ComputeStatsParallel(logSnapshot);
+            return ComputeStatsSequential(logSnapshot);
+        })!;
+        return data;
     }
 
     private IActionResult ComputeStatsSequential(ProxyLogStoreSnapshot snapshot)
@@ -117,7 +311,9 @@ public class DashboardApiController : Controller
         var clusterCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         int totalRequests = 0, successCount = 0, errorCount = 0;
-        DateTime maxResponseTimestamp = DateTime.MinValue;
+        // Track recent requests for requestsPerMin — eliminates redundant List<DateTime> allocation
+        var recentThreshold = DateTime.Now.AddMinutes(-1);
+        int recentCount = 0;
 
         foreach (var entry in snapshot.Entries)
         {
@@ -127,10 +323,10 @@ public class DashboardApiController : Controller
                 var statusCode = entry.StatusCode ?? 0;
                 if (statusCode >= 200 && statusCode < 400) successCount++;
                 else if (statusCode >= 400) errorCount++;
+                if (entry.Timestamp >= recentThreshold) recentCount++;
 
                 CollectionsMarshalHelper.AddOrIncrement(statusCodeCounts, statusCode);
                 if (entry.ElapsedMs.HasValue) latencies.Add(entry.ElapsedMs.Value);
-                if (entry.Timestamp > maxResponseTimestamp) maxResponseTimestamp = entry.Timestamp;
             }
             else if (entry.EventType == LogEventType.ProxyRequest)
             {
@@ -140,8 +336,7 @@ public class DashboardApiController : Controller
         }
 
         return BuildStatsResponse(totalRequests, successCount, errorCount,
-            latencies, statusCodeCounts, routeCounts, clusterCounts,
-            maxResponseTimestamp, snapshot.Entries);
+            latencies, statusCodeCounts, routeCounts, clusterCounts, recentCount);
     }
 
     private IActionResult ComputeStatsParallel(ProxyLogStoreSnapshot snapshot)
@@ -159,6 +354,8 @@ public class DashboardApiController : Controller
             })
             .ToArray();
 
+        var recentThreshold = DateTime.Now.AddMinutes(-1);
+
         var results = partitions.AsParallel().Select(range =>
         {
             var localLatencies = new List<double>(range.end - range.start);
@@ -166,8 +363,7 @@ public class DashboardApiController : Controller
             var localRoutes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var localClusters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
-            int localTotal = 0, localSuccess = 0, localError = 0;
-            DateTime localMaxTs = DateTime.MinValue;
+            int localTotal = 0, localSuccess = 0, localError = 0, localRecent = 0;
 
             for (int i = range.start; i < range.end; i++)
             {
@@ -178,10 +374,10 @@ public class DashboardApiController : Controller
                     var statusCode = entry.StatusCode ?? 0;
                     if (statusCode >= 200 && statusCode < 400) localSuccess++;
                     else if (statusCode >= 400) localError++;
+                    if (entry.Timestamp >= recentThreshold) localRecent++;
 
                     CollectionsMarshalHelper.AddOrIncrement(localStatusCodes, statusCode);
                     if (entry.ElapsedMs.HasValue) localLatencies.Add(entry.ElapsedMs.Value);
-                    if (entry.Timestamp > localMaxTs) localMaxTs = entry.Timestamp;
                 }
                 else if (entry.EventType == LogEventType.ProxyRequest)
                 {
@@ -191,7 +387,7 @@ public class DashboardApiController : Controller
             }
 
             return (localLatencies, localStatusCodes, localRoutes, localClusters,
-                    localTotal, localSuccess, localError, localMaxTs);
+                    localTotal, localSuccess, localError, localRecent);
         }).ToArray();
 
         var allLatencies = new List<double>(entries.Count / 2);
@@ -199,8 +395,7 @@ public class DashboardApiController : Controller
         var mergedRoutes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var mergedClusters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
-        int totalRequests = 0, successCount = 0, errorCount = 0;
-        DateTime maxResponseTimestamp = DateTime.MinValue;
+        int totalRequests = 0, successCount = 0, errorCount = 0, recentCount = 0;
 
         foreach (var r in results)
         {
@@ -211,12 +406,11 @@ public class DashboardApiController : Controller
             totalRequests += r.localTotal;
             successCount += r.localSuccess;
             errorCount += r.localError;
-            if (r.localMaxTs > maxResponseTimestamp) maxResponseTimestamp = r.localMaxTs;
+            recentCount += r.localRecent;
         }
 
         return BuildStatsResponse(totalRequests, successCount, errorCount,
-            allLatencies, mergedStatusCodes, mergedRoutes, mergedClusters,
-            maxResponseTimestamp, entries);
+            allLatencies, mergedStatusCodes, mergedRoutes, mergedClusters, recentCount);
     }
 
     private static void MergeDictionaries<TKey>(Dictionary<TKey, int> target, Dictionary<TKey, int> source)
@@ -230,7 +424,7 @@ public class DashboardApiController : Controller
         int totalRequests, int successCount, int errorCount,
         List<double> latencies, Dictionary<int, int> statusCodeCounts,
         Dictionary<string, int> routeCounts, Dictionary<string, int> clusterCounts,
-        DateTime maxResponseTimestamp, List<LogEntry> entries)
+        int recentCount)
     {
         if (totalRequests == 0)
             return Json(new { code = 200, data = new { hasData = false } });
@@ -245,29 +439,6 @@ public class DashboardApiController : Controller
             p99 = CalculatePercentileSorted(latencies, 0.99);
         }
 
-        int requestsPerMin = 0;
-        if (maxResponseTimestamp > DateTime.MinValue)
-        {
-            var oneMinAgo = maxResponseTimestamp.AddMinutes(-1);
-            var responseTimestamps = new List<DateTime>(totalRequests);
-            foreach (var e in entries)
-                if (e.EventType == LogEventType.ProxyResponse)
-                    responseTimestamps.Add(e.Timestamp);
-
-            if (responseTimestamps.Count > 0)
-            {
-                responseTimestamps.Sort();
-                int lo = 0, hi = responseTimestamps.Count;
-                while (lo < hi)
-                {
-                    int mid = lo + (hi - lo) / 2;
-                    if (responseTimestamps[mid] < oneMinAgo) lo = mid + 1;
-                    else hi = mid;
-                }
-                requestsPerMin = responseTimestamps.Count - lo;
-            }
-        }
-
         var data = new StatsData
         {
             HasData = true,
@@ -280,7 +451,7 @@ public class DashboardApiController : Controller
             P50 = Math.Round(p50, 1),
             P90 = Math.Round(p90, 1),
             P99 = Math.Round(p99, 1),
-            RequestsPerMin = requestsPerMin,
+            RequestsPerMin = recentCount, // Direct count instead of List<DateTime> binary search
             StatusCodes = statusCodeCounts.Select(g => new StatusCodeItem { Code = g.Key, Count = g.Value })
                 .OrderByDescending(x => x.Count).ToList(),
             TopRoutes = routeCounts.Select(g => new TopItem { Name = g.Key, Count = g.Value })

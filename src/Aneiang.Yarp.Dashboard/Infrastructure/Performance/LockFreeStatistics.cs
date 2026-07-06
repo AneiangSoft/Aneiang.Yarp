@@ -7,8 +7,9 @@ namespace Aneiang.Yarp.Dashboard.Infrastructure.Performance;
 /// <summary>
 /// Lock-free statistics accumulator using Interlocked operations.
 /// Provides high-throughput concurrent counting with minimal contention.
+/// Registered as singleton — every proxy request records via RecordRequest().
 /// </summary>
-internal sealed class LockFreeStatistics
+public sealed class LockFreeStatistics
 {
     // Per-counter aligned storage to prevent false sharing
     [StructLayout(LayoutKind.Explicit, Size = 128)]
@@ -123,7 +124,7 @@ internal sealed class LockFreeStatistics
 /// Concurrent int-int dictionary using striped locking.
 /// Optimized for high-contention counting scenarios.
 /// </summary>
-internal sealed class ConcurrentIntDictionary
+public sealed class ConcurrentIntDictionary
 {
     private const int StripeCount = 16;
     private readonly Dictionary<int, long>[] _stripes;
@@ -249,7 +250,7 @@ public readonly struct StatisticsSnapshot
 /// SIMD-accelerated batch statistics computation.
 /// Uses Vector128/256 for parallel processing when available.
 /// </summary>
-internal static class SimdStatistics
+public static class SimdStatistics
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int Sum(ReadOnlySpan<int> values)

@@ -11,6 +11,22 @@
         pollTimer: null,
         wasPollingBeforeHidden: false,
 
+        // Tab state
+        activeTab: 'realtime', // 'realtime' or 'history'
+
+        // History search state
+        historySearch: {
+            page: 1,
+            pageSize: 50,
+            totalCount: 0,
+            hasMore: false,
+            items: [],
+            persistenceEnabled: null // null=unknown, true/false
+        },
+
+        // Detail loading cache (id → Promise | result)
+        detailCache: new Map(),
+
         // Virtual scrolling state
         virtualScroll: {
             enabled: true,
@@ -41,6 +57,489 @@
         destroy: function() {
             this.stopPolling();
             this.initialized = false;
+        },
+
+        // ── Tab switching ──
+
+        switchTab: function(tab) {
+            if (tab === this.activeTab) return;
+            this.activeTab = tab;
+
+            // Update tab button styles
+            const realtimeBtn = window.DashboardDOM.safe('#log-tab-realtime');
+            const historyBtn = window.DashboardDOM.safe('#log-tab-history');
+            const realtimeContent = window.DashboardDOM.safe('#log-tab-content-realtime');
+            const historyContent = window.DashboardDOM.safe('#log-tab-content-history');
+
+            if (realtimeBtn) realtimeBtn.classList.toggle('active', tab === 'realtime');
+            if (historyBtn) historyBtn.classList.toggle('active', tab === 'history');
+
+            if (realtimeContent) realtimeContent.style.display = tab === 'realtime' ? '' : 'none';
+            if (historyContent) historyContent.style.display = tab === 'history' ? '' : 'none';
+
+            if (tab === 'realtime') {
+                // Resume polling if it was active before
+                if (window.DashboardState.get('filters.logs.autoRefresh')) {
+                    this.startPolling();
+                }
+            } else if (tab === 'history') {
+                // Stop realtime polling when viewing history
+                this.stopPolling();
+                // Check persistence status on first visit
+                if (this.historySearch.persistenceEnabled === null) {
+                    this.checkPersistenceStatus();
+                }
+                // Load history if persistence is enabled
+                if (this.historySearch.persistenceEnabled) {
+                    this.searchHistory();
+                }
+            }
+        },
+
+        checkPersistenceStatus: async function() {
+            try {
+                const stats = await window.DashboardApi.endpoints.getLogStats();
+                this.historySearch.persistenceEnabled = stats.persistenceEnabled;
+                if (!stats.persistenceEnabled) {
+                    this.showPersistenceOffBanner();
+                }
+            } catch (e) {
+                console.error('[Logs] Failed to check persistence status:', e);
+                this.historySearch.persistenceEnabled = false;
+                this.showPersistenceOffBanner();
+            }
+        },
+
+        showPersistenceOffBanner: function() {
+            const container = window.DashboardDOM.safe('#log-history-entries');
+            if (!container) return;
+            container.innerHTML = `
+                <div class="log-persistence-off">
+                    <i class="bi bi-database-x"></i>
+                    <div>
+                        <strong>${__('index.log.persistenceOff')}</strong><br>
+                        <span style="font-size:12px;">${__('index.log.persistenceOffDesc')}</span>
+                    </div>
+                </div>
+            `;
+            const pagination = window.DashboardDOM.safe('#log-history-pagination');
+            if (pagination) pagination.style.display = 'none';
+        },
+
+        // ── History search ──
+
+        searchHistory: async function() {
+            if (!this.historySearch.persistenceEnabled) {
+                this.showPersistenceOffBanner();
+                return;
+            }
+
+            const container = window.DashboardDOM.safe('#log-history-entries');
+            if (!container) return;
+
+            window.DashboardDOM.showLoading(container, __('index.log.loading'));
+
+            // Gather search parameters
+            const params = this.buildHistorySearchParams();
+
+            try {
+                const result = await window.DashboardApi.endpoints.getLogHistory(params);
+                this.historySearch.items = result.items || [];
+                this.historySearch.totalCount = result.totalCount || 0;
+                this.historySearch.page = result.page || params.page;
+                this.historySearch.pageSize = result.pageSize || params.pageSize;
+                this.historySearch.hasMore = result.hasMore || false;
+
+                this.renderHistoryItems();
+                this.renderHistoryPagination();
+            } catch (error) {
+                console.error('[Logs] History search failed:', error);
+                window.DashboardDOM.showError(container, __('index.log.searchFailed'));
+            }
+        },
+
+        buildHistorySearchParams: function() {
+            const startTimeEl = window.DashboardDOM.safe('#history-start-time');
+            const endTimeEl = window.DashboardDOM.safe('#history-end-time');
+            const levelEl = window.DashboardDOM.safe('#history-level-select');
+            const eventTypeEl = window.DashboardDOM.safe('#history-event-type-select');
+            const keywordEl = window.DashboardDOM.safe('#history-keyword-input');
+            const routeIdEl = window.DashboardDOM.safe('#history-route-id');
+            const clusterIdEl = window.DashboardDOM.safe('#history-cluster-id');
+            const statusMinEl = window.DashboardDOM.safe('#history-status-min');
+            const statusMaxEl = window.DashboardDOM.safe('#history-status-max');
+            const pageSizeEl = window.DashboardDOM.safe('#history-page-size');
+
+            const params = {
+                page: this.historySearch.page,
+                pageSize: parseInt(pageSizeEl?.value) || this.historySearch.pageSize
+            };
+
+            // Time range
+            const startTime = startTimeEl?.value;
+            const endTime = endTimeEl?.value;
+            if (startTime) params.startTime = startTime;
+            if (endTime) params.endTime = endTime;
+
+            // Level
+            const level = levelEl?.value;
+            if (level) params.level = level;
+
+            // Event type
+            const eventType = eventTypeEl?.value;
+            if (eventType) params.eventType = eventType;
+
+            // Keyword
+            const keyword = keywordEl?.value?.trim();
+            if (keyword) params.keyword = keyword;
+
+            // RouteId / ClusterId
+            const routeId = routeIdEl?.value?.trim();
+            if (routeId) params.routeId = routeId;
+            const clusterId = clusterIdEl?.value?.trim();
+            if (clusterId) params.clusterId = clusterId;
+
+            // StatusCode range
+            const statusMin = parseInt(statusMinEl?.value);
+            const statusMax = parseInt(statusMaxEl?.value);
+            if (statusMin > 0) params.statusCodeMin = statusMin;
+            if (statusMax > 0) params.statusCodeMax = statusMax;
+
+            return params;
+        },
+
+        renderHistoryItems: function() {
+            const container = window.DashboardDOM.safe('#log-history-entries');
+            if (!container) return;
+
+            const items = this.historySearch.items;
+            if (!items || items.length === 0) {
+                window.DashboardDOM.showEmpty(container, __('index.log.noHistory'), 'bi bi-clock-history');
+                return;
+            }
+
+            container.classList.add('log-entries-container');
+            const fragment = document.createDocumentFragment();
+
+            items.forEach(item => {
+                fragment.appendChild(this.createHistoryItem(item));
+            });
+
+            container.innerHTML = '';
+            container.appendChild(fragment);
+        },
+
+        createHistoryItem: function(meta) {
+            // Level class mapping
+            const levelClassMap = {
+                'Information': 'level-info', 'Warning': 'level-warning',
+                'Error': 'level-error', 'Critical': 'level-critical', 'Debug': 'level-debug'
+            };
+            const levelClass = levelClassMap[meta.level] || 'level-info';
+
+            const item = window.DashboardDOM.create('div', {
+                className: `log-item log-history-item ${levelClass}`,
+                attributes: { 'data-log-id': meta.id, 'data-log-key': `history:${meta.id}` }
+            });
+
+            const row = window.DashboardDOM.create('div', {
+                className: 'log-row',
+                events: { click: (e) => this.toggleHistoryEntry(meta.id, e) }
+            });
+
+            // Time
+            const timeSpan = window.DashboardDOM.create('span', {
+                textContent: window.DashboardI18n.formatTime(new Date(meta.timestamp)),
+                style: { color: '#64748b', whiteSpace: 'nowrap', minWidth: '70px', fontSize: '12px' }
+            });
+
+            // Level badge
+            const badge = this.createLevelBadge(meta.level);
+
+            // Event type tag
+            let eventTypeTag = '';
+            if (meta.eventType === 'ProxyRequest') {
+                eventTypeTag = `<span class="log-event-tag log-event-request">${__('index.log.eventType.request')}</span>`;
+            } else if (meta.eventType === 'ProxyResponse') {
+                eventTypeTag = `<span class="log-event-tag log-event-response">${__('index.log.eventType.response')}</span>`;
+            }
+
+            // Method + Path
+            const methodColors = { 'GET': 'bg-success', 'POST': 'bg-primary', 'PUT': 'bg-info', 'DELETE': 'bg-danger', 'PATCH': 'bg-warning text-dark' };
+            let pathContent = '';
+            if (meta.method) {
+                const mClass = methodColors[meta.method] || 'bg-secondary';
+                pathContent += `<span class="badge ${mClass}" style="min-width:45px;text-align:center;font-size:10px;font-weight:700">${meta.method}</span>`;
+            }
+            if (meta.upstreamPath) {
+                pathContent += `<code style="background:#f1f5f9;padding:1px 6px;border-radius:3px;font-size:11px;color:#0f172a;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${window.DashboardUtils.escapeHtml(meta.upstreamPath)}</code>`;
+            }
+
+            // Status code (for responses)
+            let statusBadge = null;
+            if (meta.statusCode != null) {
+                statusBadge = window.DashboardDOM.create('span', {
+                    className: `badge ${this.getStatusCodeBadge(meta.statusCode)}`,
+                    textContent: meta.statusCode,
+                    style: { minWidth: '40px', textAlign: 'center', fontSize: '11px' }
+                });
+            }
+
+            // Duration
+            let durationSpan = null;
+            if (meta.elapsedMs != null) {
+                const elapsedClass = meta.elapsedMs < 200 ? 'text-success' : meta.elapsedMs < 1000 ? 'text-warning' : 'text-danger';
+                durationSpan = window.DashboardDOM.create('span', {
+                    className: elapsedClass,
+                    textContent: `${meta.elapsedMs.toFixed(0)}ms`,
+                    style: { fontSize: '11px', fontWeight: '600', minWidth: '50px', textAlign: 'right', whiteSpace: 'nowrap' }
+                });
+            }
+
+            // Body indicators
+            let bodyIndicator = '';
+            if (meta.hasRequestBody || meta.hasResponseBody) {
+                const parts = [];
+                if (meta.hasRequestBody) parts.push(__('index.log.hasRequestBody'));
+                if (meta.hasResponseBody) parts.push(__('index.log.hasResponseBody'));
+                bodyIndicator = `<span class="log-history-meta" title="${parts.join(', ')}"><i class="bi bi-file-earmark-text"></i></span>`;
+            }
+
+            // Arrow
+            const arrowSpan = window.DashboardDOM.create('i', {
+                className: 'bi bi-chevron-right log-arrow',
+                style: { color: '#94a3b8', fontSize: '12px', transition: 'transform 0.2s ease' }
+            });
+
+            row.appendChild(timeSpan);
+            row.appendChild(badge);
+
+            // Add event type tag
+            const eventTypeSpan = document.createElement('span');
+            eventTypeSpan.innerHTML = eventTypeTag;
+            if (eventTypeSpan.firstChild) row.appendChild(eventTypeSpan.firstChild);
+
+            // Add method + path
+            const pathSpan = document.createElement('span');
+            pathSpan.innerHTML = pathContent;
+            pathSpan.style.cssText = 'display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;';
+            while (pathSpan.firstChild) row.appendChild(pathSpan.firstChild);
+
+            if (statusBadge) row.appendChild(statusBadge);
+            if (durationSpan) row.appendChild(durationSpan);
+
+            // Body indicator
+            const bodySpan = document.createElement('span');
+            bodySpan.innerHTML = bodyIndicator;
+            if (bodySpan.firstChild) row.appendChild(bodySpan.firstChild);
+
+            row.appendChild(arrowSpan);
+
+            // Placeholder detail (will be loaded on demand)
+            const detail = window.DashboardDOM.create('div', {
+                className: 'log-detail',
+                attributes: { 'data-history-detail-id': meta.id }
+            });
+            detail.innerHTML = `<div class="log-detail-loading"><i class="bi bi-arrow-down-circle me-1"></i>${__('index.log.viewDetail')}</div>`;
+
+            item.appendChild(row);
+            item.appendChild(detail);
+
+            return item;
+        },
+
+        toggleHistoryEntry: async function(id, event) {
+            const logKey = `history:${id}`;
+            const state = window.DashboardState;
+            const current = state.get(`ui.expandedLogs.${logKey}`) || false;
+
+            state.set(`ui.expandedLogs.${logKey}`, !current);
+
+            const logItem = document.querySelector(`.log-item[data-log-key="${CSS.escape(logKey)}"]`);
+            if (logItem) {
+                const arrow = logItem.querySelector('.log-arrow');
+                const detail = logItem.querySelector('.log-detail');
+
+                if (!current) {
+                    // Expanding — load detail if not already loaded
+                    if (arrow) arrow.classList.add('expanded');
+                    if (detail) detail.classList.add('expanded');
+
+                    // Check if detail content has been loaded
+                    const loaded = detail.getAttribute('data-detail-loaded');
+                    if (!loaded) {
+                        await this.loadHistoryDetail(id, detail);
+                    }
+                } else {
+                    // Collapsing
+                    if (arrow) arrow.classList.remove('expanded');
+                    if (detail) detail.classList.remove('expanded');
+                }
+            }
+        },
+
+        loadHistoryDetail: async function(id, detailEl) {
+            // Show loading state
+            detailEl.innerHTML = `<div class="log-detail-loading"><i class="bi bi-spinner-border spinning me-1"></i>${__('index.log.loadingDetail')}</div>`;
+
+            // Check cache first
+            if (this.detailCache.has(id)) {
+                const cached = this.detailCache.get(id);
+                if (cached) {
+                    this.renderHistoryDetailContent(cached, detailEl);
+                    detailEl.setAttribute('data-detail-loaded', 'true');
+                    return;
+                }
+            }
+
+            try {
+                const detail = await window.DashboardApi.endpoints.getLogDetail(id);
+                this.detailCache.set(id, detail);
+                this.renderHistoryDetailContent(detail, detailEl);
+                detailEl.setAttribute('data-detail-loaded', 'true');
+            } catch (error) {
+                console.error('[Logs] Failed to load detail:', error);
+                detailEl.innerHTML = `<div style="color:#dc2626;padding:12px;"><i class="bi bi-x-circle me-1"></i>${__('index.log.loadDetailFailed')}</div>`;
+            }
+        },
+
+        renderHistoryDetailContent: function(detail, detailEl) {
+            // Reuse the existing detail rendering logic based on eventType
+            // ProxyLogDetailResult has the same fields as LogEntry for rendering
+            const dtHtml = [];
+
+            if (detail.eventType === 'ProxyRequest') {
+                dtHtml.push('<div class="log-flow">');
+                dtHtml.push('<div class="log-flow-section">');
+                dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-in-down"></i> ${__('index.log.upstream')}</div>`);
+                dtHtml.push('<div class="log-flow-body">');
+                if (detail.method) {
+                    const methodColors = { 'GET': 'bg-success', 'POST': 'bg-primary', 'PUT': 'bg-info', 'DELETE': 'bg-danger', 'PATCH': 'bg-warning text-dark' };
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.method')}</span><span class="badge ${methodColors[detail.method] || 'bg-secondary'}">${detail.method}</span></div>`);
+                }
+                if (detail.upstreamPath) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.path')}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(detail.upstreamPath)}</code></div>`);
+                }
+                if (detail.requestBody) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.body')}</span>`);
+                    dtHtml.push(this.renderBodyContent(detail.requestBody));
+                    dtHtml.push('</div>');
+                }
+                if (detail.requestHeaders && Object.keys(detail.requestHeaders).length > 0) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.headers')}</span>`);
+                    dtHtml.push(this.renderHeadersInline(detail.requestHeaders));
+                    dtHtml.push('</div>');
+                }
+                dtHtml.push('</div></div>');
+                dtHtml.push('<div class="log-flow-arrow"><i class="bi bi-arrow-down-circle-fill"></i></div>');
+                dtHtml.push('<div class="log-flow-section">');
+                dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-up-right"></i> ${__('index.log.downstream')}</div>`);
+                dtHtml.push('<div class="log-flow-body">');
+                if (detail.downstreamUrl) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.url')}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(detail.downstreamUrl)}</code></div>`);
+                }
+                dtHtml.push('</div></div>');
+                dtHtml.push('</div>'); // end log-flow
+            }
+            else if (detail.eventType === 'ProxyResponse') {
+                dtHtml.push('<div class="log-flow">');
+                dtHtml.push('<div class="log-flow-section">');
+                dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-up-right"></i> ${__('index.log.downstream.response')}</div>`);
+                dtHtml.push('<div class="log-flow-body">');
+                if (detail.downstreamUrl) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.url')}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(detail.downstreamUrl)}</code></div>`);
+                }
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.status')}</span><span class="badge ${this.getStatusCodeBadge(detail.statusCode)}">${detail.statusCode}</span></div>`);
+                if (detail.elapsedMs != null) {
+                    const elapsedClass = detail.elapsedMs < 200 ? 'text-success' : detail.elapsedMs < 1000 ? 'text-warning' : 'text-danger';
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.duration')}</span><strong class="${elapsedClass}">${detail.elapsedMs.toFixed(1)} ms</strong></div>`);
+                }
+                if (detail.responseBody) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.body')}</span>`);
+                    dtHtml.push(this.renderBodyContent(detail.responseBody));
+                    dtHtml.push('</div>');
+                }
+                if (detail.responseHeaders && Object.keys(detail.responseHeaders).length > 0) {
+                    dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.headers')}</span>`);
+                    dtHtml.push(this.renderHeadersInline(detail.responseHeaders));
+                    dtHtml.push('</div>');
+                }
+                dtHtml.push('</div></div>');
+                dtHtml.push('</div>'); // end log-flow
+            }
+            else {
+                // Non-proxy log entry
+                if (detail.message) {
+                    dtHtml.push(`<div class="mb-2"><strong>${__('index.log.message')}</strong><br><span style="color:#475569;word-break:break-all;">${window.DashboardUtils.escapeHtml(detail.message)}</span></div>`);
+                }
+            }
+
+            // Metadata row
+            dtHtml.push('<div class="log-meta-row">');
+            if (detail.routeId) dtHtml.push(`<span><strong>RouteId:</strong> <code>${window.DashboardUtils.escapeHtml(detail.routeId)}</code></span>`);
+            if (detail.clusterId) dtHtml.push(`<span><strong>ClusterId:</strong> <code>${window.DashboardUtils.escapeHtml(detail.clusterId)}</code></span>`);
+            if (detail.traceId) dtHtml.push(`<span><strong>TraceId:</strong> <code class="text-muted">${window.DashboardUtils.escapeHtml(detail.traceId)}</code></span>`);
+            dtHtml.push(`<span><strong>ID:</strong> <code>${detail.id}</code></span>`);
+            dtHtml.push('</div>');
+
+            // Exception
+            if (detail.exception) {
+                dtHtml.push(`<div style="color:#dc2626;margin-top:6px"><strong>${__('index.log.exception')}</strong></div>`);
+                dtHtml.push(`<pre style="background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:11px;color:#991b1b;">${window.DashboardUtils.escapeHtml(detail.exception)}</pre>`);
+            }
+
+            detailEl.innerHTML = dtHtml.join('');
+        },
+
+        renderHistoryPagination: function() {
+            const pagination = window.DashboardDOM.safe('#log-history-pagination');
+            const pageInfo = window.DashboardDOM.safe('#history-page-info');
+            const prevBtn = window.DashboardDOM.safe('#history-prev-btn');
+            const nextBtn = window.DashboardDOM.safe('#history-next-btn');
+
+            if (!pagination) return;
+
+            const hs = this.historySearch;
+            if (hs.totalCount === 0) {
+                pagination.style.display = 'none';
+                return;
+            }
+
+            pagination.style.display = '';
+
+            // Page info text
+            const totalPages = Math.ceil(hs.totalCount / hs.pageSize);
+            if (pageInfo) {
+                pageInfo.textContent = `${__('index.log.pagination.total').replace('{total}', hs.totalCount)} · ${__('index.log.pagination.page').replace('{page}', hs.page)}/${totalPages}`;
+            }
+
+            // Prev/Next button states
+            if (prevBtn) prevBtn.disabled = hs.page <= 1;
+            if (nextBtn) nextBtn.disabled = !hs.hasMore;
+        },
+
+        prevHistoryPage: function() {
+            if (this.historySearch.page <= 1) return;
+            this.historySearch.page--;
+            this.searchHistory();
+        },
+
+        nextHistoryPage: function() {
+            if (!this.historySearch.hasMore) return;
+            this.historySearch.page++;
+            this.searchHistory();
+        },
+
+        // ── Persistence status indicator ──
+
+        showPersistenceStats: async function() {
+            try {
+                const stats = await window.DashboardApi.endpoints.getLogStats();
+                // Could display dropped/written counts somewhere if needed
+                return stats;
+            } catch (e) {
+                return null;
+            }
         },
 
         initVirtualScroll: function() {
@@ -273,7 +772,9 @@
             // Single entry
             if (!processed.has(index)) {
                 processed.add(index);
-                const logKey = `${entry.timestamp}|${entry.level}|${(entry.message || '').substring(0, 80)}`;
+                // logKey: use EventType+Method+Path when Message is null (memory optimization)
+                const logKeyPart = entry.message || `${entry.eventType}:${entry.method}:${entry.upstreamPath}`;
+                const logKey = `${entry.timestamp}|${entry.level}|${logKeyPart.substring(0, 80)}`;
                 const isExpanded = window.DashboardState.get(`ui.expandedLogs.${logKey}`) || false;
                 return this.createLogItem(entry, logKey, isExpanded);
             }
@@ -376,6 +877,32 @@
                 };
             }
 
+            // History search: Enter key triggers search
+            const historyKeyword = window.DashboardDOM.safe('#history-keyword-input');
+            if (historyKeyword) {
+                historyKeyword.onkeydown = (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        this.historySearch.page = 1;
+                        this.searchHistory();
+                    }
+                };
+            }
+
+            // History search: RouteId/ClusterId Enter key
+            const historyRouteId = window.DashboardDOM.safe('#history-route-id');
+            const historyClusterId = window.DashboardDOM.safe('#history-cluster-id');
+            if (historyRouteId) {
+                historyRouteId.onkeydown = (e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); this.historySearch.page = 1; this.searchHistory(); }
+                };
+            }
+            if (historyClusterId) {
+                historyClusterId.onkeydown = (e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); this.historySearch.page = 1; this.searchHistory(); }
+                };
+            }
+
             // Restore filter values from state
             this.restoreFilterValues();
         },
@@ -460,7 +987,8 @@
                 }
 
                 // No pair found - render as single entry
-                const logKey = `${entry.timestamp}|${entry.level}|${(entry.message || '').substring(0, 80)}`;
+                const logKeyPart = entry.message || `${entry.eventType}:${entry.method}:${entry.upstreamPath}`;
+                const logKey = `${entry.timestamp}|${entry.level}|${logKeyPart.substring(0, 80)}`;
                 const isExpanded = window.DashboardState.get(`ui.expandedLogs.${logKey}`) || false;
                 const item = self.createLogItem(entry, logKey, isExpanded);
                 fragment.appendChild(item);
@@ -725,11 +1253,24 @@
                 eventTypeTag = `<span class="log-event-tag log-event-yarp">YARP</span>`;
             }
 
-            // Message (main content) - enrich for proxy events
-            let displayMessage = entry.message || '';
+            // Message (main content) - derive from structured fields when Message is null
+            // Memory optimization: ProxyRequest/ProxyResponse entries no longer store the redundant
+            // Message string — frontend derives "[Request] GET /path" or "[Response] 200 GET /path"
+            let displayMessage = entry.message;
+            if (!displayMessage) {
+                if (entry.eventType === 'ProxyRequest') {
+                    displayMessage = `[Request] ${entry.method || ''} ${entry.upstreamPath || ''}`;
+                } else if (entry.eventType === 'ProxyResponse') {
+                    displayMessage = `[Response] ${entry.statusCode || ''} ${entry.method || ''} ${entry.upstreamPath || ''}`;
+                } else {
+                    displayMessage = '';
+                }
+            }
+            // Append elapsed time for ProxyResponse entries
             if (entry.eventType === 'ProxyResponse' && entry.elapsedMs != null) {
                 displayMessage += ` (${entry.elapsedMs.toFixed(0)}ms)`;
             }
+
             const msgSpan = window.DashboardDOM.create('span', {
                 textContent: displayMessage,
                 style: {
@@ -1198,12 +1739,22 @@
         setupEvents: function() {
             // Refresh shortcut
             document.addEventListener('dashboard:shortcut:refresh', async () => {
-                await this.loadLogs();
+                if (this.activeTab === 'realtime') {
+                    await this.loadLogs();
+                } else {
+                    this.historySearch.page = 1;
+                    await this.searchHistory();
+                }
             });
 
             // Locale change
             document.addEventListener('dashboard:localeChange', () => {
-                this.renderLogs();
+                if (this.activeTab === 'realtime') {
+                    this.renderLogs();
+                } else {
+                    this.renderHistoryItems();
+                    this.renderHistoryPagination();
+                }
             });
 
             // Page Visibility API - pause polling when tab is hidden to save resources

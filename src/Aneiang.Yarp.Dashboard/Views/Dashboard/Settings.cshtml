@@ -55,6 +55,16 @@
     </div>
 </div>
 
+<!-- Log Settings section -->
+<div class="card-panel mb-4">
+    <div class="card-header">
+        <span><i class="bi bi-journal-text me-2" style="color:#6366f1;"></i><span data-i18n="config.logSettings">日志设置</span></span>
+    </div>
+    <div class="card-body" id="log-settings-content">
+        <!-- Dynamically rendered by dashboard-log-settings.js -->
+    </div>
+</div>
+
 <!-- Security & 2FA section -->
 <div class="card-panel mb-4">
     <div class="card-header">
@@ -158,6 +168,7 @@
 <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-validation-panel.js?v=@v"></script>
 
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-config.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-log-settings.js?v=@v"></script>
 
 @await Html.PartialAsync("_DashboardPageInit")
 
@@ -294,6 +305,13 @@
             if (window.TwoFactorSetup) await TwoFactorSetup.refreshStatus();
         } catch (e) {
             console.error('[Settings] Load failed:', e);
+        }
+
+        // Load log settings
+        try {
+            if (window.DashboardLogSettings) await DashboardLogSettings.init();
+        } catch (e) {
+            console.error('[Settings] LogSettings load failed:', e);
         }
 
         document.dispatchEvent(new CustomEvent('dashboard:ready'));

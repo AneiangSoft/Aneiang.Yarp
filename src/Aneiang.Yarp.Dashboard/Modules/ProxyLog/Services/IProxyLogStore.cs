@@ -25,4 +25,12 @@ public interface IProxyLogStore
     /// Clear all entries. Thread-safe.
     /// </summary>
     void Clear();
+
+    /// <summary>
+    /// Number of log entries dropped because the persistence Channel was full.
+    /// Logs are operational data — when the Channel is full (high throughput),
+    /// newest entries are dropped rather than blocking the proxy request thread.
+    /// This counter tracks how many entries were lost, for frontend display.
+    /// </summary>
+    long DroppedCount { get; }
 }
