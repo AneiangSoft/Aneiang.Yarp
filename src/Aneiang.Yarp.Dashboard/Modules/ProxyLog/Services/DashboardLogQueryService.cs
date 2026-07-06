@@ -1,27 +1,32 @@
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
+using Aneiang.Yarp.Storage;
+using Aneiang.Yarp.Storage.Entities;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 
 /// <summary>
 /// Implementation of dashboard log query service.
+/// Supports both in-memory real-time queries and SQLite historical queries.
+/// Real-time: reads from ProxyLogStore ring buffer (max 64 entries).
+/// Historical: reads from proxy_logs_meta SQLite table (paginated, filtered).
+/// Detail: reads from proxy_logs_body SQLite table (single row, large fields).
 /// </summary>
 internal sealed class DashboardLogQueryService : IDashboardLogQueryService
 {
     private readonly ProxyLogStore _logStore;
+    private readonly IProxyLogRepository _logRepository;
     private readonly DashboardOptions _options;
 
-    /// <summary>
-    /// Initializes a new instance of DashboardLogQueryService.
-    /// </summary>
-    /// <param name="logStore">Proxy log store.</param>
-    /// <param name="options">Dashboard options.</param>
     public DashboardLogQueryService(
         ProxyLogStore logStore,
+        IProxyLogRepository logRepository,
         IOptions<DashboardOptions> options)
     {
         _logStore = logStore;
+        _logRepository = logRepository;
         _options = options.Value;
     }
 
@@ -83,5 +88,93 @@ internal sealed class DashboardLogQueryService : IDashboardLogQueryService
         {
             _logStore.Clear();
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<ProxyLogSearchResult> GetHistoryLogsAsync(ProxyLogSearchRequest request, CancellationToken ct = default)
+    {
+        if (!_options.LogPersistenceEnabled)
+            return new ProxyLogSearchResult { Items = new(), TotalCount = 0, Page = request.Page, PageSize = request.PageSize, HasMore = false };
+
+        var (items, totalCount) = await _logRepository.SearchAsync(
+            request.Page, request.PageSize,
+            request.RouteId, request.ClusterId, request.Level,
+            request.StatusCodeMin, request.StatusCodeMax,
+            request.StartTime, request.EndTime,
+            request.Keyword, request.EventType, ct);
+
+        var metaItems = items.Select(MapToMetaItem).ToList();
+        var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)request.PageSize);
+
+        return new ProxyLogSearchResult
+        {
+            Items = metaItems,
+            TotalCount = totalCount,
+            Page = request.Page,
+            PageSize = request.PageSize,
+            HasMore = request.Page < totalPages
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<ProxyLogDetailResult?> GetLogDetailAsync(long metaId, CancellationToken ct = default)
+    {
+        if (!_options.LogPersistenceEnabled) return null;
+
+        var meta = await _logRepository.GetMetaByIdAsync(metaId, ct);
+        if (meta == null) return null;
+
+        var body = await _logRepository.GetBodyByMetaIdAsync(metaId, ct);
+
+        return new ProxyLogDetailResult
+        {
+            Id = meta.Id,
+            Timestamp = DateTime.Parse(meta.Timestamp),
+            EventType = meta.EventType,
+            Level = meta.Level,
+            RouteId = meta.RouteId,
+            ClusterId = meta.ClusterId,
+            Method = meta.Method,
+            UpstreamPath = meta.UpstreamPath,
+            StatusCode = meta.StatusCode,
+            ElapsedMs = meta.ElapsedMs,
+            TraceId = meta.TraceId,
+            HasRequestBody = meta.HasRequestBody != 0,
+            HasResponseBody = meta.HasResponseBody != 0,
+            DownstreamUrl = meta.DownstreamUrl,
+            // Body fields
+            Message = body?.Message,
+            RequestBody = body?.RequestBody,
+            ResponseBody = body?.ResponseBody,
+            RequestHeaders = DeserializeHeaders(body?.RequestHeaders),
+            ResponseHeaders = DeserializeHeaders(body?.ResponseHeaders),
+            DownstreamBody = body?.DownstreamBody,
+            Exception = body?.Exception
+        };
+    }
+
+    private static ProxyLogMetaItem MapToMetaItem(ProxyLogMetaEntity meta) => new()
+    {
+        Id = meta.Id,
+        Timestamp = DateTime.Parse(meta.Timestamp),
+        EventType = meta.EventType,
+        Level = meta.Level,
+        RouteId = meta.RouteId,
+        ClusterId = meta.ClusterId,
+        Method = meta.Method,
+        UpstreamPath = meta.UpstreamPath,
+        StatusCode = meta.StatusCode,
+        ElapsedMs = meta.ElapsedMs,
+        TraceId = meta.TraceId,
+        HasRequestBody = meta.HasRequestBody != 0,
+        HasResponseBody = meta.HasResponseBody != 0,
+        DownstreamUrl = meta.DownstreamUrl
+    };
+
+    private static HeaderList? DeserializeHeaders(string? json)
+    {
+        if (string.IsNullOrEmpty(json)) return null;
+        try { return JsonSerializer.Deserialize<HeaderList>(json); }
+        catch { return null; }
     }
 }

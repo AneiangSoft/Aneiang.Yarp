@@ -1,5 +1,6 @@
 using Aneiang.Yarp.Dashboard.Infrastructure.Performance;
 using Aneiang.Yarp.Dashboard.Infrastructure;
+using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
@@ -66,23 +67,24 @@ public sealed class LogSanitizer
 
     /// <summary>
     /// Sanitizes request/response headers by removing blacklisted headers.
-    /// Uses pre-allocated capacity for efficiency.
+    /// Returns HeaderList (lightweight List of KeyValuePair) instead of Dictionary
+    /// to eliminate Dictionary hash table overhead (buckets + entries arrays).
+    /// For 5-10 headers, saves ~200-400 bytes per instance.
     /// </summary>
     /// <param name="headers">Original headers.</param>
-    /// <returns>Sanitized headers.</returns>
-    public Dictionary<string, string>? SanitizeHeaders(IHeaderDictionary? headers)
+    /// <returns>Sanitized headers as HeaderList.</returns>
+    public HeaderList? SanitizeHeaders(IHeaderDictionary? headers)
     {
         if (headers == null)
             return null;
 
-        // Pre-allocate with expected capacity
-        var sanitized = new Dictionary<string, string>(headers.Count);
+        var sanitized = new HeaderList(headers.Count);
 
         foreach (var header in headers)
         {
-            sanitized[header.Key] = _headerBlacklist.Contains(header.Key)
+            sanitized.Add(header.Key, _headerBlacklist.Contains(header.Key)
                 ? "***REDACTED***"
-                : header.Value.ToString();
+                : header.Value.ToString());
         }
 
         return sanitized;

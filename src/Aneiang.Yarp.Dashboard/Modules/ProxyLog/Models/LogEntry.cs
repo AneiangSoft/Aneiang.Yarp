@@ -30,8 +30,13 @@ public class LogEntry
     /// <summary>Log level: Information, Warning, Error.</summary>
     public string Level { get; init; } = string.Empty;
 
-    /// <summary>Brief log message shown in the log list.</summary>
-    public string Message { get; init; } = string.Empty;
+    /// <summary>
+    /// Brief log message shown in the log list.
+    /// Nullable for ProxyRequest/ProxyResponse entries — the frontend derives the display text
+    /// from EventType + Method + UpstreamPath + StatusCode when Message is null,
+    /// saving ~50-100 bytes per LogEntry (redundant string elimination).
+    /// </summary>
+    public string? Message { get; init; }
 
     /// <summary>Trace identifier for correlating request and response.</summary>
     public string? TraceId { get; init; }
@@ -55,7 +60,7 @@ public class LogEntry
     public string? DownstreamMethod { get; init; }
 
     /// <summary>Downstream request body after transforms (captured by DownstreamCaptureTransform).</summary>
-    public string? DownstreamBody { get; init; }
+    public string? DownstreamBody { get; set; }
 
     /// <summary>Indicates if downstream body was truncated.</summary>
     public bool DownstreamBodyTruncated { get; init; }
@@ -66,26 +71,26 @@ public class LogEntry
     /// <summary>Elapsed time in milliseconds (for response events).</summary>
     public double? ElapsedMs { get; init; }
 
-    /// <summary>Request headers (sanitized).</summary>
-    public Dictionary<string, string>? RequestHeaders { get; init; }
+    /// <summary>Request headers (sanitized). Uses HeaderList to avoid Dictionary hash table overhead.</summary>
+    public HeaderList? RequestHeaders { get; set; }
 
-    /// <summary>Response headers.</summary>
-    public Dictionary<string, string>? ResponseHeaders { get; init; }
+    /// <summary>Response headers. Uses HeaderList to avoid Dictionary hash table overhead.</summary>
+    public HeaderList? ResponseHeaders { get; set; }
 
     /// <summary>Request body (truncated if exceeds limit).</summary>
-    public string? RequestBody { get; init; }
+    public string? RequestBody { get; set; }
 
     /// <summary>Indicates if request body was truncated.</summary>
     public bool RequestBodyTruncated { get; init; }
 
     /// <summary>Response body (truncated if exceeds limit).</summary>
-    public string? ResponseBody { get; init; }
+    public string? ResponseBody { get; set; }
 
     /// <summary>Indicates if response body was truncated.</summary>
     public bool ResponseBodyTruncated { get; init; }
 
     /// <summary>Exception details (stack trace), null if no exception.</summary>
-    public string? Exception { get; init; }
+    public string? Exception { get; set; }
 }
 
 /// <summary>
@@ -102,6 +107,12 @@ public class ProxyLogStoreSnapshot
     /// Total number of entries that have been evicted from the buffer since startup.
     /// </summary>
     public long EvictedCount { get; set; }
+
+    /// <summary>
+    /// Number of log entries dropped because the persistence Channel was full.
+    /// These entries were written to the in-memory buffer but never persisted to SQLite.
+    /// </summary>
+    public long DroppedCount { get; set; }
 
     /// <summary>
     /// Current number of entries in the buffer.

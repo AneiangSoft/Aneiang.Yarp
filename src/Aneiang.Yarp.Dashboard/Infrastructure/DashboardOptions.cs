@@ -107,10 +107,35 @@ public class DashboardOptions
 
     /// <summary>
     /// Maximum number of log entries kept in the in-memory ring buffer.
-    /// Minimum: 100. When the buffer is full, oldest entries are overwritten.
-    /// Default: 500.
+    /// Rounded up to next power of 2 internally (e.g., 50 → 64, 100 → 128).
+    /// Minimum: 16. When the buffer is full, oldest entries are overwritten.
+    /// ⚠️ This setting is ONLY effective at startup — changing it at runtime requires a service restart,
+    /// because ProxyLogStore allocates a fixed-size buffer at construction time.
+    /// Default: 50 (aligned to 64 internally).
     /// </summary>
-    public int LogBufferCapacity { get; set; } = 500;
+    public int LogBufferCapacity { get; set; } = 50;
+
+    /// <summary>
+    /// Enable log persistence to SQLite. When enabled, log entries are batched and written
+    /// to SQLite tables (proxy_logs_meta + proxy_logs_body) by a background service.
+    /// The in-memory buffer is reduced to a small real-time window for UI display only.
+    /// Default: true.
+    /// </summary>
+    public bool LogPersistenceEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Number of days to retain lightweight log metadata (proxy_logs_meta table).
+    /// After this period, metadata rows are automatically deleted (cascade deletes body rows).
+    /// Default: 7.
+    /// </summary>
+    public int LogMetaRetentionDays { get; set; } = 7;
+
+    /// <summary>
+    /// Number of days to retain large-field log details (proxy_logs_body table).
+    /// Must be ≤ LogMetaRetentionDays (enforced by cascade delete).
+    /// Default: 3.
+    /// </summary>
+    public int LogBodyRetentionDays { get; set; } = 3;
 
     /// <summary>
     /// Enable built-in rate limiting middleware for proxy routes.

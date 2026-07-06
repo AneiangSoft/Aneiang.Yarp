@@ -21,6 +21,11 @@ public sealed class AneiangProxyConfigProvider : IProxyConfigProvider
     private readonly ConcurrentDictionary<string, DateTime> _heartbeats = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _swapLock = new();
 
+    // Heartbeat cleanup: remove entries for clusters no longer in current config
+    private static readonly TimeSpan MaxHeartbeatAge = TimeSpan.FromHours(2);
+    private DateTime _lastHeartbeatCleanup = DateTime.UtcNow;
+    private static readonly TimeSpan HeartbeatCleanupInterval = TimeSpan.FromMinutes(5);
+
     /// <summary>Initializes the provider with static routes/clusters from configuration.</summary>
     public AneiangProxyConfigProvider(
         IReadOnlyList<RouteConfig> initialRoutes,
@@ -136,11 +141,30 @@ public sealed class AneiangProxyConfigProvider : IProxyConfigProvider
         oldSource.Dispose();
     }
 
-    /// <summary>Update heartbeat for a cluster (lock-free, no YARP reload).</summary>
+    /// <summary>Update heartbeat for a cluster (lock-free, no YARP reload).
+    /// Also performs periodic cleanup of stale heartbeat entries.</summary>
     public bool UpdateHeartbeat(string clusterId)
     {
         if (string.IsNullOrWhiteSpace(clusterId)) return false;
         _heartbeats[clusterId] = DateTime.UtcNow;
+
+        // Periodic cleanup: remove heartbeat entries for clusters not in current config
+        // or entries older than MaxHeartbeatAge
+        var now = DateTime.UtcNow;
+        if (now - _lastHeartbeatCleanup > HeartbeatCleanupInterval)
+        {
+            _lastHeartbeatCleanup = now;
+            var activeClusterIds = new HashSet<string>(
+                _current.Clusters.Select(c => c.ClusterId ?? string.Empty),
+                StringComparer.OrdinalIgnoreCase);
+            foreach (var kvp in _heartbeats)
+            {
+                // Remove if cluster no longer exists in config OR entry is too old
+                if (!activeClusterIds.Contains(kvp.Key) || now - kvp.Value > MaxHeartbeatAge)
+                    _heartbeats.TryRemove(kvp.Key, out _);
+            }
+        }
+
         return true;
     }
 

@@ -215,6 +215,12 @@
         // Logs
         getLogs: (count = 100) => DashboardApi.get('/api/logs', { count }),
         clearLogs: () => DashboardApi.delete('/api/logs'),
+        getLogHistory: (params) => DashboardApi.get('/api/logs/history', params),
+        getLogDetail: (id) => DashboardApi.get(`/api/logs/detail/${id}`),
+        getLogStats: () => DashboardApi.get('/api/logs/stats'),
+        getLogSettings: () => DashboardApi.get('/api/logs/settings'),
+        updateLogSettings: (data) => DashboardApi.put('/api/logs/settings', data),
+        resetLogSettings: () => DashboardApi.put('/api/logs/settings/reset', {}),
 
         // Statistics
         getStats: () => DashboardApi.get('/api/stats'),
@@ -330,5 +336,9 @@
 
     window.DashboardApi.getNotificationSettings = () => DashboardApi.endpoints.getNotificationSettings();
     window.DashboardApi.saveNotificationSettings = (data) => DashboardApi.endpoints.saveNotificationSettings(data);
+
+    window.DashboardApi.getLogSettings = () => DashboardApi.endpoints.getLogSettings();
+    window.DashboardApi.updateLogSettings = (data) => DashboardApi.endpoints.updateLogSettings(data);
+    window.DashboardApi.resetLogSettings = () => DashboardApi.endpoints.resetLogSettings();
 
 })();

@@ -9,6 +9,41 @@
     #log-filter-container .card-body { padding: 10px 16px !important; }
     #log-filter-container .row { gap: 6px 10px; }
 
+    /* ── Tab nav ── */
+    .log-tab-nav { display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 0; }
+    .log-tab-btn {
+        padding: 8px 20px; font-size: 13px; font-weight: 500;
+        color: #64748b; background: transparent; border: none;
+        border-bottom: 2px solid transparent; cursor: pointer;
+        transition: all .2s ease; margin-bottom: -2px;
+    }
+    .log-tab-btn:hover { color: #334155; }
+    .log-tab-btn.active {
+        color: #8b5cf6; border-bottom-color: #8b5cf6;
+        font-weight: 600;
+    }
+
+    /* ── History search panel ── */
+    #log-history-search .card-body { padding: 10px 16px !important; }
+    #log-history-search .row { gap: 6px 10px; }
+    #log-history-search input[type="datetime-local"] { font-size: 12px; }
+
+    /* ── Pagination ── */
+    .log-pagination { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 0; font-size: 13px; }
+    .log-pagination .btn { min-width: 80px; }
+    .log-pagination .page-info { color: #64748b; }
+
+    /* ── History item lightweight row ── */
+    .log-history-item { border-radius: 6px; border: 1px solid transparent; }
+    .log-history-item .log-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 12px; cursor: pointer;
+        transition: background .15s;
+    }
+    .log-history-item .log-row:hover { background: rgba(148,163,184,.08); }
+    .log-history-meta { font-size: 11px; color: #94a3b8; }
+    .log-detail-loading { padding: 12px 16px; text-align: center; color: #64748b; font-size: 12px; }
+
     /* ── Log scroll container ── */
     .log-scroll-wrap {
         height: calc(100vh - 280px); min-height: 300px; overflow-y: auto;
@@ -18,6 +53,7 @@
         .log-scroll-wrap { height: calc(100vh - 220px); }
     }
     #log-entries { display: flex; flex-direction: column; gap: 6px; }
+    #log-history-entries { display: flex; flex-direction: column; gap: 6px; }
 
     /* ── Log item row (each entry) ── */
     .log-item { border-radius: 6px; border: 1px solid transparent; }
@@ -42,6 +78,13 @@
     .log-flow-body > div { margin-bottom: 3px; }
     .log-meta-row { display: flex; gap: 14px; flex-wrap: wrap; padding: 4px 0; font-size: 12px; }
     .log-flow-arrow { text-align: center; font-size: 14px; color: #94a3b8; padding: 2px 0; }
+
+    /* ── Persistence off banner ── */
+    .log-persistence-off {
+        display: flex; align-items: center; gap: 8px; justify-content: center;
+        padding: 40px 20px; color: #64748b; font-size: 14px;
+    }
+    .log-persistence-off i { font-size: 24px; color: #94a3b8; }
 </style>
 
 <!-- Log panel -->
@@ -55,16 +98,116 @@
         </div>
     </div>
     
-    <!-- Filter toolbar container -->
-    <div id="log-filter-container"></div>
-    
-    <div class="log-scroll-wrap" id="log-scroll-container">
-        <div id="log-entries" class="log-entries-container">
-            <div class="empty-state">
-                <div class="empty-state-icon"><i class="bi bi-journal-text"></i></div>
-                <div class="empty-state-title" data-i18n="index.log.empty">暂无日志</div>
-                <div class="empty-state-desc">等待请求流量进入网关后，日志将实时显示此处</div>
+    <!-- Tab navigation -->
+    <div class="log-tab-nav" style="padding: 0 16px;">
+        <button class="log-tab-btn active" id="log-tab-realtime" onclick="LogsModule.switchTab('realtime')">
+            <i class="bi bi-broadcast me-1"></i><span data-i18n="index.log.realtimeTab">实时日志</span>
+        </button>
+        <button class="log-tab-btn" id="log-tab-history" onclick="LogsModule.switchTab('history')">
+            <i class="bi bi-clock-history me-1"></i><span data-i18n="index.log.historyTab">历史日志</span>
+        </button>
+    </div>
+
+    <!-- Realtime tab content -->
+    <div id="log-tab-content-realtime">
+        <!-- Filter toolbar container -->
+        <div id="log-filter-container"></div>
+        
+        <div class="log-scroll-wrap" id="log-scroll-container">
+            <div id="log-entries" class="log-entries-container">
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i class="bi bi-journal-text"></i></div>
+                    <div class="empty-state-title" data-i18n="index.log.empty">暂无日志</div>
+                    <div class="empty-state-desc">等待请求流量进入网关后，日志将实时显示此处</div>
+                </div>
             </div>
+        </div>
+    </div>
+
+    <!-- History tab content (hidden by default) -->
+    <div id="log-tab-content-history" style="display:none;">
+        <!-- History search panel -->
+        <div id="log-history-search">
+            <div class="card-body py-2 border-bottom">
+                <div class="row g-2 align-items-center">
+                    <div class="col-auto">
+                        <input type="datetime-local" class="form-control form-control-sm" id="history-start-time" style="width:170px;" placeholder="@(((ViewBag.Locale as string) == "en-US") ? "From" : "开始时间")">
+                    </div>
+                    <div class="col-auto">
+                        <input type="datetime-local" class="form-control form-control-sm" id="history-end-time" style="width:170px;" placeholder="@(((ViewBag.Locale as string) == "en-US") ? "To" : "结束时间")">
+                    </div>
+                    <div class="col-auto">
+                        <select class="form-select form-select-sm" id="history-level-select" style="width:110px;">
+                            <option value="">@(((ViewBag.Locale as string) == "en-US") ? "All Levels" : "所有级别")</option>
+                            <option value="Information">Information</option>
+                            <option value="Warning">Warning</option>
+                            <option value="Error">Error</option>
+                            <option value="Critical">Critical</option>
+                            <option value="Debug">Debug</option>
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <select class="form-select form-select-sm" id="history-event-type-select" style="width:110px;">
+                            <option value="">@(((ViewBag.Locale as string) == "en-US") ? "All Types" : "全部类型")</option>
+                            <option value="ProxyRequest">@(((ViewBag.Locale as string) == "en-US") ? "Request" : "请求")</option>
+                            <option value="ProxyResponse">@(((ViewBag.Locale as string) == "en-US") ? "Response" : "响应")</option>
+                        </select>
+                    </div>
+                    <div class="col">
+                        <input type="text" class="form-control form-control-sm" id="history-keyword-input" placeholder="@(((ViewBag.Locale as string) == "en-US") ? "Keyword..." : "关键词...")">
+                    </div>
+                    <div class="col-auto">
+                        <button class="btn btn-sm btn-outline-primary" id="history-search-btn" onclick="LogsModule.searchHistory()">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                </div>
+                <!-- Second row: RouteId, ClusterId, StatusCode range -->
+                <div class="row g-2 align-items-center mt-1">
+                    <div class="col-auto">
+                        <input type="text" class="form-control form-control-sm" id="history-route-id" style="width:140px;" placeholder="@(((ViewBag.Locale as string) == "en-US") ? "Route ID" : "路由ID")">
+                    </div>
+                    <div class="col-auto">
+                        <input type="text" class="form-control form-control-sm" id="history-cluster-id" style="width:140px;" placeholder="@(((ViewBag.Locale as string) == "en-US") ? "Cluster ID" : "集群ID")">
+                    </div>
+                    <div class="col-auto">
+                        <div class="input-group input-group-sm" style="width:180px;">
+                            <input type="number" class="form-control" id="history-status-min" placeholder="Min" min="100" max="600">
+                            <span class="input-group-text">-</span>
+                            <input type="number" class="form-control" id="history-status-max" placeholder="Max" min="100" max="600">
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <select class="form-select form-select-sm" id="history-page-size" style="width:80px;">
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="200">200</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History entries list -->
+        <div class="log-scroll-wrap" id="log-history-scroll-container">
+            <div id="log-history-entries" class="log-entries-container">
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i class="bi bi-clock-history"></i></div>
+                    <div class="empty-state-title" data-i18n="index.log.noHistory">暂无历史日志</div>
+                    <div class="empty-state-desc" data-i18n="index.log.noHistoryDesc">持久化未启用或尚未写入历史数据</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        <div id="log-history-pagination" class="log-pagination" style="display:none;">
+            <button class="btn btn-sm btn-outline-secondary" id="history-prev-btn" onclick="LogsModule.prevHistoryPage()">
+                <i class="bi bi-chevron-left"></i> <span data-i18n="index.log.pagination.prev">上一页</span>
+            </button>
+            <span class="page-info" id="history-page-info"></span>
+            <button class="btn btn-sm btn-outline-secondary" id="history-next-btn" onclick="LogsModule.nextHistoryPage()">
+                <span data-i18n="index.log.pagination.next">下一页</span> <i class="bi bi-chevron-right"></i>
+            </button>
         </div>
     </div>
 </div>

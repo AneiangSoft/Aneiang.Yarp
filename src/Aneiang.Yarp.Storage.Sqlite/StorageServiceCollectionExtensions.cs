@@ -28,6 +28,8 @@ public static class StorageServiceCollectionExtensions
         services.AddSingleton<IAuditLogRepository, SqliteAuditLogRepository>();
         services.AddSingleton<IWafSettingsRepository, SqliteWafSettingsRepository>();
         services.AddSingleton<INotificationRepository, SqliteNotificationRepository>();
+        services.AddSingleton<IProxyLogRepository, SqliteProxyLogRepository>();
+        services.AddSingleton<ILogSettingsRepository, SqliteLogSettingsRepository>();
 
         return services;
     }

@@ -1,6 +1,7 @@
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Auth;
 using Aneiang.Yarp.Dashboard.Infrastructure.HostedServices;
+using Aneiang.Yarp.Dashboard.Infrastructure.Performance;
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Services;
 using Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
@@ -26,6 +27,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.IO;
 using Yarp.ReverseProxy.Transforms.Builder;
 
 namespace Aneiang.Yarp.Dashboard.Extensions;
@@ -196,6 +198,10 @@ public static class DashboardServiceCollectionExtensions
 
         #endregion
 
+        #region RecyclableMemoryStream (LOH fragmentation elimination)
+        services.AddSingleton<RecyclableMemoryStreamManager>();
+        #endregion
+
         #region Proxy log store
         services.AddSingleton<IProxyLogStore>(sp =>
         {
@@ -204,6 +210,24 @@ public static class DashboardServiceCollectionExtensions
         });
         services.AddSingleton<ProxyLogStore>(sp => (ProxyLogStore)sp.GetRequiredService<IProxyLogStore>());
         services.AddSingleton<LogSanitizer>();
+
+        #endregion
+
+        #region Lock-free statistics accumulator (zero-allocation hot path)
+        services.AddSingleton<LockFreeStatistics>();
+
+        #endregion
+
+        #region Log persistence — SqliteProxyLogWriter + AsyncLogPersistenceService
+        // SqliteProxyLogWriter: converts LogEntry → Entity and delegates to IProxyLogRepository
+        services.AddSingleton<SqliteProxyLogWriter>();
+        // AsyncLogPersistenceService: background service that reads from Channel and writes batches to SQLite
+        services.AddSingleton<AsyncLogPersistenceService>();
+        services.AddSingleton<IProxyLogPersistenceService>(sp => sp.GetRequiredService<AsyncLogPersistenceService>());
+        services.AddHostedService(sp => sp.GetRequiredService<AsyncLogPersistenceService>());
+
+        // LogSettingsService: UI-configurable log settings (SQLite overrides + IOptionsMonitor + cache)
+        services.AddSingleton<LogSettingsService>();
 
         #endregion
 
@@ -225,8 +249,10 @@ public static class DashboardServiceCollectionExtensions
 
         #endregion
 
-        #region WAF event store (in-memory ring buffer)
+        #region WAF event store (in-memory ring buffer + persistence)
         services.AddSingleton<WafEventStore>();
+        services.AddHostedService<WafEventPersistenceService>();
+
         #endregion
 
         #region Policy services (route + cluster policies via IPolicyRepository)

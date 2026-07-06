@@ -29,9 +29,13 @@ public sealed class RateLimitMiddleware
 
     private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
 
-    private static readonly ConcurrentDictionary<string, RateLimiter> Limiters = new();
+    // Memory optimization (v2.4): Reduced max limiters from 10000 to 2000
+    // and improved cleanup strategy — evict stale entries instead of deleting half
+    private static readonly ConcurrentDictionary<string, RateLimiterWithTimestamp> Limiters = new();
 
+    private const int MaxLimiterCount = 2000; // Down from 10000 — prevents memory exhaustion
     private static readonly TimeSpan DefaultCleanupInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan StaleLimiterThreshold = TimeSpan.FromMinutes(5); // Inactive for 5min → evict
     private static DateTime _lastCleanup = DateTime.UtcNow;
 
     public RateLimitMiddleware(
@@ -194,7 +198,9 @@ public sealed class RateLimitMiddleware
     {
         TryCleanup();
 
-        return Limiters.GetOrAdd(key, _ => CreateLimiter(key, config));
+        var wrapper = Limiters.GetOrAdd(key, _ => new RateLimiterWithTimestamp(CreateLimiter(key, config)));
+        wrapper.LastAccessedAt = DateTime.UtcNow;
+        return wrapper.Limiter;
     }
 
     private RateLimiter CreateLimiter(string key, RouteRateLimitConfig config)
@@ -248,14 +254,30 @@ public sealed class RateLimitMiddleware
 
         _lastCleanup = DateTime.UtcNow;
 
-        if (Limiters.Count <= 10000)
-            return;
-
-        var keysToRemove = Limiters.Keys.Take(Limiters.Count / 2).ToList();
-        foreach (var k in keysToRemove)
+        // Memory optimization (v2.4): Evict stale entries (LastAccessedAt > 5min ago)
+        // instead of bluntly deleting the first half. Much safer and more memory-efficient.
+        var now = DateTime.UtcNow;
+        foreach (var kvp in Limiters)
         {
-            if (Limiters.TryRemove(k, out var limiter))
-                limiter.Dispose();
+            if (now - kvp.Value.LastAccessedAt > StaleLimiterThreshold)
+            {
+                if (Limiters.TryRemove(kvp.Key, out var wrapper))
+                    wrapper.Limiter.Dispose();
+            }
+        }
+
+        // Safety fallback: if still too many after stale eviction, evict oldest half
+        if (Limiters.Count > MaxLimiterCount)
+        {
+            var oldestKeys = Limiters.OrderBy(k => k.Value.LastAccessedAt)
+                .Take(Limiters.Count / 2)
+                .Select(k => k.Key)
+                .ToList();
+            foreach (var k in oldestKeys)
+            {
+                if (Limiters.TryRemove(k, out var wrapper))
+                    wrapper.Limiter.Dispose();
+            }
         }
     }
 
@@ -341,5 +363,20 @@ public sealed class RateLimitMiddleware
         public string Window { get; set; } = "1m";
         public int QueueLimit { get; set; } = 0;
         public string PartitionKey { get; set; } = "IpAddress";
+    }
+
+    /// <summary>
+    /// Wrapper tracking last access time for stale-eviction cleanup strategy.
+    /// </summary>
+    private sealed class RateLimiterWithTimestamp
+    {
+        public RateLimiter Limiter { get; }
+        public DateTime LastAccessedAt { get; set; }
+
+        public RateLimiterWithTimestamp(RateLimiter limiter)
+        {
+            Limiter = limiter;
+            LastAccessedAt = DateTime.UtcNow;
+        }
     }
 }

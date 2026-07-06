@@ -6,6 +6,7 @@ using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using System.Buffers;
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
 using Aneiang.Yarp.Services;
+using Microsoft.IO;
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Model;
 
@@ -15,6 +16,11 @@ namespace Aneiang.Yarp.Dashboard.Modules.Retry.Middleware;
 /// Request retry middleware for failed proxy requests.
 /// Retries 502/503/504 responses with exponential backoff + jitter.
 /// Supports cross-destination retry and circuit-breaker awareness.
+/// 
+/// Memory optimization (v2.4): Uses RecyclableMemoryStream for request/response
+/// body buffering in retry loop — eliminates LOH fragmentation from repeated
+/// MemoryStream allocations. Also fixes ArrayPool.Rent + .ToArray() contradiction
+/// by storing the pooled buffer directly with a length marker.
 /// </summary>
 public sealed class RequestRetryMiddleware
 {
@@ -24,6 +30,8 @@ public sealed class RequestRetryMiddleware
     private readonly IGatewayPluginManager _pluginManager;
     private readonly IDynamicYarpConfigService? _yarpConfig;
     private readonly string _dashPrefix;
+    private readonly RecyclableMemoryStreamManager _memoryStreamManager;
+
     /// <summary>
     /// Content root path for the Dashboard static files. Used to skip logging for frontend resources.
     /// </summary>
@@ -41,12 +49,14 @@ public sealed class RequestRetryMiddleware
         IOptions<RetryOptions> options,
         IOptions<DashboardOptions> dashOptions,
         IGatewayPluginManager pluginManager,
+        RecyclableMemoryStreamManager memoryStreamManager,
         IDynamicYarpConfigService? yarpConfig = null)
     {
         _next = next;
         _logger = logger;
         _options = options.Value;
         _pluginManager = pluginManager;
+        _memoryStreamManager = memoryStreamManager;
         _yarpConfig = yarpConfig;
         _dashPrefix = "/" + dashOptions.Value.RoutePrefix.Trim('/');
     }
@@ -92,9 +102,11 @@ public sealed class RequestRetryMiddleware
             return;
         }
 
-        // Read and buffer the request body once - this allows multiple retries without re-consuming the stream
+        // Read and buffer the request body once — pooled buffer stored for retry loop reuse
         context.Request.EnableBuffering();
-        var requestBody = await ReadRequestBodyAsync(context.Request);
+        var requestBodyResult = await ReadRequestBodyPooledAsync(context.Request);
+        byte[]? requestBodyBuffer = requestBodyResult.Buffer;
+        int requestBodyLength = requestBodyResult.Length;
 
         int attempt = 0;
         int? lastStatusCode = null;
@@ -111,16 +123,17 @@ public sealed class RequestRetryMiddleware
                 }
             }
 
-            // Restore request body from buffered bytes for each retry attempt
-            // This avoids issues with non-seekable streams (e.g., PushStreamContent)
-            if (requestBody != null)
+            // Restore request body from pooled buffer for each retry attempt
+            // Memory optimization (v2.4): Uses pooled byte[] directly instead of .ToArray() copy
+            if (requestBodyBuffer != null)
             {
-                context.Request.Body = new MemoryStream(requestBody);
-                context.Request.ContentLength = requestBody.Length;
+                context.Request.Body = new MemoryStream(requestBodyBuffer, 0, requestBodyLength, writable: false);
+                context.Request.ContentLength = requestBodyLength;
             }
 
             var originalResponseBody = context.Response.Body;
-            using var responseStream = new MemoryStream();
+            // Memory optimization (v2.4): RecyclableMemoryStream eliminates LOH fragmentation
+            using var responseStream = _memoryStreamManager.GetStream("RequestRetry-ResponseBody");
             context.Response.Body = responseStream;
 
             try
@@ -183,17 +196,23 @@ public sealed class RequestRetryMiddleware
             string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase))?.ClusterUid;
     }
 
-    private async Task<byte[]?> ReadRequestBodyAsync(HttpRequest request)
+    /// <summary>
+    /// Read request body into a pooled buffer, returning the buffer and length directly.
+    /// Memory optimization (v2.4): No .ToArray() — stores pooled buffer + length marker.
+    /// The buffer is NOT returned to the pool during retry; it's reused for each attempt.
+    /// It will be GC'd naturally after the retry loop completes (acceptable trade-off for correctness).
+    /// </summary>
+    private async Task<RequestBodyBuffer> ReadRequestBodyPooledAsync(HttpRequest request)
     {
         if (request.ContentLength is null or 0)
-            return null;
+            return default;
 
         // Hard size limit — prevents OOM on multi-GB uploads
         if (request.ContentLength > MaxRetryBodySizeBytes)
         {
             _logger.LogDebug("Request body ({Size} bytes) exceeds retry buffer limit ({Limit} bytes), skipping retry",
                 request.ContentLength, MaxRetryBodySizeBytes);
-            return null;
+            return default;
         }
 
         request.Body.Position = 0;
@@ -210,11 +229,28 @@ public sealed class RequestRetryMiddleware
             }
             // Reset position for downstream middleware
             request.Body.Position = 0;
-            return buffer.AsSpan(0, read).ToArray();
+            return new RequestBodyBuffer(buffer, read);
         }
-        finally
+        catch
         {
+            // On error, return buffer to pool
             pool.Return(buffer);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Lightweight struct to carry pooled buffer + length (avoids async out parameter limitation).
+    /// </summary>
+    private readonly struct RequestBodyBuffer
+    {
+        public readonly byte[]? Buffer;
+        public readonly int Length;
+
+        public RequestBodyBuffer(byte[]? buffer, int length)
+        {
+            Buffer = buffer;
+            Length = length;
         }
     }
 

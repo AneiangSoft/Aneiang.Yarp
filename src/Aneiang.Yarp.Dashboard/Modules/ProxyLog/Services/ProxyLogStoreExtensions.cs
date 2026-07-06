@@ -5,42 +5,45 @@ namespace Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 
 /// <summary>
 /// Extension methods for IProxyLogStore to support real-time log streaming via WebSocket.
+/// Memory optimization (v2.4): Uses immutable array swap pattern instead of lock+ToArray()
+/// for lock-free reads on the hot path (NotifySubscribers). Write operations (subscribe/unsubscribe)
+/// use ConcurrentDictionary.AddOrUpdate with copy-on-write semantics.
 /// </summary>
 internal static class ProxyLogStoreExtensions
 {
-    private static readonly ConcurrentDictionary<IProxyLogStore, List<Action<LogEntry>>> _subscriberMap = new();
-    private static readonly object _lock = new();
+    private static readonly ConcurrentDictionary<IProxyLogStore, Action<LogEntry>[]?> _subscriberMap = new();
 
     /// <summary>
     /// Subscribe to new log entries. Returns an IDisposable to unsubscribe.
+    /// Uses copy-on-write: creates a new array with the callback appended and atomically swaps the reference.
     /// </summary>
     public static IDisposable OnNewEntry(this IProxyLogStore store, Action<LogEntry> callback)
     {
-        var subscribers = _subscriberMap.GetOrAdd(store, _ => new List<Action<LogEntry>>());
-
-        lock (_lock)
-        {
-            subscribers.Add(callback);
-        }
+        _subscriberMap.AddOrUpdate(store,
+            _ => new Action<LogEntry>[] { callback },
+            (_, existing) =>
+            {
+                if (existing == null || existing.Length == 0)
+                    return new Action<LogEntry>[] { callback };
+                var newArr = new Action<LogEntry>[existing.Length + 1];
+                existing.CopyTo(newArr, 0);
+                newArr[existing.Length] = callback;
+                return newArr;
+            });
 
         return new Subscription(store, callback);
     }
 
     /// <summary>
     /// Notify all subscribers of a new log entry. Called by ProxyLogStore.Add().
+    /// Lock-free: reads the immutable array reference via TryGetValue, no lock contention.
     /// </summary>
     internal static void NotifySubscribers(IProxyLogStore store, LogEntry entry)
     {
-        if (!_subscriberMap.TryGetValue(store, out var subscribers))
+        if (!_subscriberMap.TryGetValue(store, out var subscribers) || subscribers == null)
             return;
 
-        Action<LogEntry>[] callbacks;
-        lock (_lock)
-        {
-            callbacks = subscribers.ToArray();
-        }
-
-        foreach (var callback in callbacks)
+        foreach (var callback in subscribers)
         {
             try
             {
@@ -70,18 +73,23 @@ internal static class ProxyLogStoreExtensions
             if (_disposed) return;
             _disposed = true;
 
-            if (_subscriberMap.TryGetValue(_store, out var subscribers))
-            {
-                lock (_lock)
+            _subscriberMap.AddOrUpdate(_store,
+                _ => Array.Empty<Action<LogEntry>>(),
+                (_, existing) =>
                 {
-                    subscribers.Remove(_callback);
-                    // Clean up empty subscriber lists to prevent memory leak
-                    if (subscribers.Count == 0)
-                    {
-                        _subscriberMap.TryRemove(_store, out _);
-                    }
-                }
-            }
+                    if (existing == null || existing.Length == 0)
+                        return Array.Empty<Action<LogEntry>>();
+                    var newArr = new Action<LogEntry>[existing.Length - 1];
+                    int j = 0;
+                    for (int i = 0; i < existing.Length; i++)
+                        if (existing[i] != _callback)
+                            newArr[j++] = existing[i];
+                    return newArr.Length == 0 ? Array.Empty<Action<LogEntry>>() : newArr;
+                });
+
+            // Clean up empty subscriber lists to prevent memory leak
+            if (_subscriberMap.GetValueOrDefault(_store)?.Length == 0)
+                _subscriberMap.TryRemove(_store, out _);
         }
     }
 }

@@ -7,6 +7,10 @@ namespace Aneiang.Yarp.Dashboard.Modules.Waf.Helpers;
 /// <summary>
 /// Zero-allocation IP matching utilities (exact, CIDR, wildcard).
 /// Extracted from <see cref="Middleware.WafMiddleware"/> for reuse.
+/// 
+/// Memory optimization (v2.4): WildcardRegexCache Clear() method added
+/// to allow rebuilding the cache when WAF IP rules change, preventing
+/// stale Regex objects from accumulating indefinitely.
 /// </summary>
 public static class IpMatcher
 {
@@ -14,6 +18,16 @@ public static class IpMatcher
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(5);
 
     private static readonly ConcurrentDictionary<string, Regex> WildcardRegexCache = new();
+
+    /// <summary>
+    /// Clear the wildcard regex cache. Should be called when WAF IP rules
+    /// are updated (e.g., IpWhitelist/IpBlacklist configuration changes)
+    /// to prevent stale patterns from accumulating in memory.
+    /// </summary>
+    public static void ClearWildcardRegexCache()
+    {
+        WildcardRegexCache.Clear();
+    }
 
     /// <summary>
     /// Matches a client IP against a pattern (exact, CIDR, or wildcard).
