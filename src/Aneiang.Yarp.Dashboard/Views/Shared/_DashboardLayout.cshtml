@@ -2305,6 +2305,31 @@
             animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
             box-shadow: 0 0 8px rgba(16,185,129,0.4);
         }
+
+        /* SignalR connection status indicator */
+        .signalr-indicator {
+            display: inline-flex;
+            align-items: center;
+            margin-right: 8px;
+            font-size: 11px;
+            color: #94a3b8;
+        }
+        .signalr-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #cbd5e1;
+            transition: background 0.3s;
+        }
+        .signalr-on .signalr-dot {
+            background: #22c55e;
+            box-shadow: 0 0 6px rgba(34,197,94,0.5);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+        .signalr-off .signalr-dot {
+            background: #cbd5e1;
+        }
         
         /* Scrollbar */
         ::-webkit-scrollbar {

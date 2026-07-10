@@ -17,6 +17,9 @@
                 <span><i class="bi bi-pc-display"></i><span data-i18n="index.label.host">主机：</span><strong id="info-machine">-</strong></span>
             </div>
             <div class="info-bar-actions card-header-actions">
+                <span id="signalr-status" class="signalr-indicator signalr-off" title="SignalR 断开">
+                    <span class="signalr-dot"></span>
+                </span>
                 <button class="btn btn-sm btn-outline-secondary btn-icon-only" onclick="overviewRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
                     <i class="bi bi-arrow-clockwise"></i>
                 </button>
@@ -283,6 +286,8 @@
 
 <!-- Chart.js for traffic chart -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- SignalR client for real-time overview push -->
+<script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@8/dist/signalr.min.js"></script>
 
 <!-- Home module (for stat bar — version, clusters, routes, QPS) -->
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js"></script>
@@ -290,6 +295,11 @@
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-operations.js"></script>
 
 <script>
+    var _signalrConnected = false;
+    var _signalrConnection = null;
+    var _pollingFallbackId = null;
+    var _prefix = '@(prefix)';
+
     (async function() {
         try {
             if (window.DashboardApi) DashboardApi.init();
@@ -350,10 +360,188 @@
             if (window.OpsModule?.loadSystemHealth) await OpsModule.loadSystemHealth();
 
             document.dispatchEvent(new CustomEvent('dashboard:ready'));
+
+            // --- SignalR real-time push ---
+            initSignalR();
         } catch (err) {
             console.error('[Overview] Init failed:', err);
         }
     })();
+
+    /**
+     * Initialize SignalR connection for real-time overview updates.
+     * Falls back to HTTP polling if SignalR is unavailable.
+     */
+    function initSignalR() {
+        if (!window.signalR) {
+            console.warn('[Overview] SignalR client not loaded, starting polling fallback');
+            startPollingFallback();
+            return;
+        }
+
+        var hubUrl = '/' + _prefix + '/hubs/overview';
+        var connection = new signalR.HubConnectionBuilder()
+            .withUrl(hubUrl)
+            .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+            .build();
+
+        _signalrConnection = connection;
+
+        connection.on('OverviewUpdate', function(snapshot) {
+            if (snapshot) updateOverviewFromSnapshot(snapshot);
+        });
+
+        connection.onreconnected(function() {
+            console.log('[Overview] SignalR reconnected');
+            setSignalRStatus(true);
+            stopPollingFallback();
+        });
+
+        connection.onreconnecting(function() {
+            console.warn('[Overview] SignalR reconnecting...');
+            setSignalRStatus(false);
+            startPollingFallback();
+        });
+
+        connection.onclose(function() {
+            console.warn('[Overview] SignalR closed');
+            setSignalRStatus(false);
+            startPollingFallback();
+        });
+
+        connection.start()
+            .then(function() {
+                console.log('[Overview] SignalR connected to', hubUrl);
+                setSignalRStatus(true);
+                stopPollingFallback();
+            })
+            .catch(function(err) {
+                console.warn('[Overview] SignalR unavailable, falling back to polling:', err.message);
+                setSignalRStatus(false);
+                startPollingFallback();
+            });
+    }
+
+    function setSignalRStatus(connected) {
+        _signalrConnected = connected;
+        var el = document.getElementById('signalr-status');
+        if (!el) return;
+        el.classList.remove('signalr-on', 'signalr-off');
+        el.classList.add(connected ? 'signalr-on' : 'signalr-off');
+        el.title = connected ? 'SignalR 实时连接' : 'SignalR 断开，轮询中';
+    }
+
+    /**
+     * Update all overview DOM elements from a server-pushed snapshot.
+     */
+    function updateOverviewFromSnapshot(s) {
+        var setText = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
+
+        // Stat cards
+        setText('stat-clusters', s.clusterCount);
+        setText('stat-healthy', s.healthyCount + ' / ' + s.unknownCount + ' / ' + s.unhealthyCount);
+        setText('stat-routes', s.routeCount);
+        if (s.currentQps != null) setText('stat-qps', s.currentQps);
+
+        // QPS badge in chart header
+        var qpsBadge = document.getElementById('current-qps');
+        if (qpsBadge && s.currentQps != null) qpsBadge.textContent = s.currentQps + ' req/s';
+
+        // System health panel
+        if (s.cpuUsage != null) {
+            setText('sys-cpu-value', s.cpuUsage + '%');
+            var cpuBar = document.getElementById('sys-cpu-bar');
+            if (cpuBar) cpuBar.style.width = Math.min(100, s.cpuUsage) + '%';
+        }
+        if (s.memoryMb != null) {
+            setText('sys-mem-value', s.memoryMb + ' MB');
+            var memBar = document.getElementById('sys-mem-bar');
+            if (memBar) memBar.style.width = Math.min(100, Math.round(s.memoryMb / 80)) + '%';
+        }
+        if (s.gcCount != null) setText('sys-gc-value', s.gcCount);
+        if (s.threadCount != null) setText('sys-thread-value', s.threadCount);
+
+        // System health status badge
+        var healthBadge = document.getElementById('sys-health-status');
+        if (healthBadge) {
+            var hasIssue = s.unhealthyCount > 0 || s.cpuUsage > 80;
+            healthBadge.className = 'badge ' + (hasIssue ? 'bg-warning text-dark' : 'bg-success');
+            healthBadge.textContent = hasIssue ? '注意' : '健康';
+        }
+
+        // Top error routes table
+        var errTbody = document.getElementById('error-routes-tbody');
+        var errBadge = document.getElementById('error-routes-count');
+        if (errTbody && s.topErrorRoutes) {
+            if (errBadge) errBadge.textContent = s.topErrorRoutes.length;
+            if (s.topErrorRoutes.length === 0) {
+                errTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">' +
+                    (window.I18N && I18N['overview.top.empty'] ? I18N['overview.top.empty'] : '暂无数据') + '</td></tr>';
+            } else {
+                var html = '';
+                s.topErrorRoutes.forEach(function(r) {
+                    var cls = r.errorRate >= 50 ? 'text-danger' : r.errorRate >= 20 ? 'text-warning' : 'text-muted';
+                    html += '<tr>' +
+                        '<td style="padding:10px 16px;"><code>' + escapeHtml(r.routeId) + '</code></td>' +
+                        '<td style="padding:10px 16px;"><span class="badge bg-danger">' + r.errorCount + '</span></td>' +
+                        '<td style="padding:10px 16px;"><span class="' + cls + '">' + r.errorRate + '%</span></td>' +
+                        '</tr>';
+                });
+                errTbody.innerHTML = html;
+            }
+        }
+
+        // Top slow clusters table
+        var slowTbody = document.getElementById('slow-clusters-tbody');
+        var slowBadge = document.getElementById('slow-clusters-count');
+        if (slowTbody && s.topSlowClusters) {
+            if (slowBadge) slowBadge.textContent = s.topSlowClusters.length;
+            if (s.topSlowClusters.length === 0) {
+                slowTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">' +
+                    (window.I18N && I18N['overview.top.empty'] ? I18N['overview.top.empty'] : '暂无数据') + '</td></tr>';
+            } else {
+                var slowHtml = '';
+                s.topSlowClusters.forEach(function(c) {
+                    var p99Cls = c.p99Latency >= 1000 ? 'text-danger' : c.p99Latency >= 500 ? 'text-warning' : 'text-muted';
+                    slowHtml += '<tr>' +
+                        '<td style="padding:10px 16px;"><code>' + escapeHtml(c.clusterId) + '</code></td>' +
+                        '<td style="padding:10px 16px;">' + c.avgLatency.toFixed(0) + 'ms</td>' +
+                        '<td style="padding:10px 16px;"><span class="' + p99Cls + '">' + c.p99Latency.toFixed(0) + 'ms</span></td>' +
+                        '</tr>';
+                });
+                slowTbody.innerHTML = slowHtml;
+            }
+        }
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        var d = document.createElement('div');
+        d.textContent = text;
+        return d.innerHTML;
+    }
+
+    /**
+     * Polling fallback: re-fetch stat cards + system health via HTTP every 10s.
+     * Only active when SignalR is not connected.
+     */
+    function startPollingFallback() {
+        if (_pollingFallbackId) return;
+        _pollingFallbackId = setInterval(async function() {
+            if (_signalrConnected) { stopPollingFallback(); return; }
+            try {
+                if (window.OpsModule?.loadAlertSummary) await OpsModule.loadAlertSummary();
+                if (window.OpsModule?.loadSystemHealth) await OpsModule.loadSystemHealth();
+            } catch (_) { /* ignore */ }
+        }, 10000);
+    }
+
+    function stopPollingFallback() {
+        if (_pollingFallbackId) {
+            clearInterval(_pollingFallbackId);
+            _pollingFallbackId = null;
+        }
+    }
 
     window.overviewRefresh = async function(btn) {
         var originalText = btn.innerHTML;

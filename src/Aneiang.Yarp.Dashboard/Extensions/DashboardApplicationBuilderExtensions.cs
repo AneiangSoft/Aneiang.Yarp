@@ -167,6 +167,7 @@ public static class DashboardApplicationBuilderExtensions
                 });
 
                 endpoints.MapHub<TrafficHub>("/hubs/traffic");
+                endpoints.MapHub<OverviewHub>("/hubs/overview");
             }
 
             if (proxyActive)
