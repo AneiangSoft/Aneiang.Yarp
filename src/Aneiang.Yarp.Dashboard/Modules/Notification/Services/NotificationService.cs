@@ -237,11 +237,25 @@ public sealed class NotificationService : INotificationService
         return await _channelSender.TestChannelAsync(channelId, ct);
     }
 
+    /// <summary>
+    /// Fire-and-forget helper: schedules the task and logs any unhandled exception.
+    /// Prevents Task-level exceptions (including <see cref="OperationCanceledException"/>)
+    /// from being silently swallowed.
+    /// </summary>
+    private void FireAndForget(Task task)
+    {
+        task.ContinueWith(t =>
+        {
+            if (t.IsFaulted)
+                _logger.LogError(t.Exception, "Notification fire-and-forget failed");
+        }, TaskContinuationOptions.OnlyOnFaulted);
+    }
+
     /// <summary>Notifies a circuit breaker open event for the specified cluster.</summary>
     public void NotifyCircuitBreakerOpen(string clusterId, string? destinationId = null)
     {
         var destInfo = destinationId != null ? $" (destination: {destinationId})" : "";
-        _ = NotifyAsync(new NotificationEvent
+        FireAndForget(NotifyAsync(new NotificationEvent
         {
             EventType = "CircuitBreakerOpen",
             Title = NotificationI18n.GetTitle("CircuitBreakerOpen", _locale, clusterId),
@@ -250,13 +264,13 @@ public sealed class NotificationService : INotificationService
             Severity = NotificationSeverity.Warning,
             ClusterId = clusterId,
             Metadata = destinationId != null ? new() { ["destinationId"] = destinationId } : new()
-        });
+        }));
     }
 
     /// <summary>Notifies a retry exhausted event for the specified route and cluster.</summary>
     public void NotifyRetryExhausted(string clusterId, string routeId, int attempts, int statusCode)
     {
-        _ = NotifyAsync(new NotificationEvent
+        FireAndForget(NotifyAsync(new NotificationEvent
         {
             EventType = "RetryExhausted",
             Title = NotificationI18n.GetTitle("RetryExhausted", _locale),
@@ -270,13 +284,13 @@ public sealed class NotificationService : INotificationService
                 ["attempts"] = attempts.ToString(),
                 ["lastStatusCode"] = statusCode.ToString()
             }
-        });
+        }));
     }
 
     /// <summary>Notifies a WAF block event for the specified client IP.</summary>
     public void NotifyWafBlock(string clientIp, string blockReason, string? uri = null)
     {
-        _ = NotifyAsync(new NotificationEvent
+        FireAndForget(NotifyAsync(new NotificationEvent
         {
             EventType = "WafBlock",
             Title = NotificationI18n.GetTitle("WafBlock", _locale),
@@ -288,14 +302,14 @@ public sealed class NotificationService : INotificationService
                 ["blockReason"] = blockReason,
                 ["requestUri"] = uri ?? "N/A"
             }
-        });
+        }));
     }
 
     /// <summary>Notifies a proxy error event for the specified cluster and destination.</summary>
     public void NotifyProxyError(string clusterId, string? destinationId, string errorMessage)
     {
         var destInfo = destinationId != null ? $" (destination: {destinationId})" : "";
-        _ = NotifyAsync(new NotificationEvent
+        FireAndForget(NotifyAsync(new NotificationEvent
         {
             EventType = "ProxyError",
             Title = NotificationI18n.GetTitle("ProxyError", _locale, clusterId),
@@ -308,13 +322,13 @@ public sealed class NotificationService : INotificationService
                 ["errorMessage"] = errorMessage,
                 ["destinationId"] = destinationId ?? ""
             }
-        });
+        }));
     }
 
     public void NotifyRateLimitExceeded(string clientIp, string? routeId = null)
     {
         var routeInfo = routeId != null ? $" on route '{routeId}'" : "";
-        _ = NotifyAsync(new NotificationEvent
+        FireAndForget(NotifyAsync(new NotificationEvent
         {
             EventType = "RateLimitExceeded",
             Title = NotificationI18n.GetTitle("RateLimitExceeded", _locale),
@@ -323,7 +337,7 @@ public sealed class NotificationService : INotificationService
             Severity = NotificationSeverity.Warning,
             ClientIp = clientIp,
             RouteId = routeId
-        });
+        }));
     }
 
     /// <summary>Notify config change event (AddRoute, UpdateRoute, RemoveRoute, etc.).</summary>
@@ -350,7 +364,7 @@ public sealed class NotificationService : INotificationService
         var body = NotificationI18n.GetBody("configChange", _locale, op, target, eventLabel)
                    + (detailsStr != null ? $"\nDetails: {detailsStr}" : "");
 
-        _ = NotifyAsync(new NotificationEvent
+        FireAndForget(NotifyAsync(new NotificationEvent
         {
             EventType = eventType,
             Title = NotificationI18n.GetTitle("configChange", _locale, eventLabel),
@@ -362,81 +376,18 @@ public sealed class NotificationService : INotificationService
                 ["target"] = target,
                 ["details"] = detailsStr ?? ""
             }
-        });
+        }));
     }
 
     /// <summary>Sends a custom notification with the specified event type, title, and message.</summary>
     public void NotifyCustom(string eventType, string title, string message)
     {
-        _ = NotifyAsync(new NotificationEvent
+        FireAndForget(NotifyAsync(new NotificationEvent
         {
             EventType = eventType,
             Title = title,
             Message = message,
             Severity = NotificationSeverity.Info
-        });
+        }));
     }
-}
-
-/// <summary>
-/// Interface for the notification service.
-/// </summary>
-public interface INotificationService
-{
-    /// <summary>Preload settings into memory cache.</summary>
-    Task PreloadAsync(CancellationToken ct = default);
-
-    /// <summary>Invalidate the settings cache.</summary>
-    void InvalidateCache();
-
-    /// <summary>Send a notification event through all matching rules.</summary>
-    Task NotifyAsync(NotificationEvent evt, CancellationToken ct = default);
-
-    /// <summary>Send a test notification to a specific channel.</summary>
-    Task<bool> TestChannelAsync(string channelId, CancellationToken ct = default);
-
-    /// <summary>Notify circuit breaker open event.</summary>
-    void NotifyCircuitBreakerOpen(string clusterId, string? destinationId = null);
-
-    /// <summary>Notify retry exhausted event.</summary>
-    void NotifyRetryExhausted(string clusterId, string routeId, int attempts, int statusCode);
-
-    /// <summary>Notify WAF block event.</summary>
-    void NotifyWafBlock(string clientIp, string blockReason, string? uri = null);
-
-    /// <summary>Notify proxy error event.</summary>
-    void NotifyProxyError(string clusterId, string? destinationId, string errorMessage);
-
-    /// <summary>Notify rate limit exceeded event.</summary>
-    void NotifyRateLimitExceeded(string clientIp, string? routeId = null);
-
-    /// <summary>Notify config change event (AddRoute, UpdateRoute, RemoveRoute, etc.).</summary>
-    void NotifyConfigChange(string eventType, string target, string? operatorName = null, object? details = null);
-
-    /// <summary>Send a custom notification.</summary>
-    void NotifyCustom(string eventType, string title, string message);
-}
-
-/// <summary>
-/// No-op notification service used when <see cref="INotificationService"/> is not available.
-/// All methods are no-ops; callers should use the null-conditional pattern (e.g.,
-/// <c>notificationService ?? NullNotificationService.Instance</c>).
-/// </summary>
-public sealed class NullNotificationService : INotificationService
-{
-    public static readonly NullNotificationService Instance = new();
-
-    private NullNotificationService() { }
-
-    public Task PreloadAsync(CancellationToken ct = default) => Task.CompletedTask;
-    public void InvalidateCache() { }
-    public Task NotifyAsync(NotificationEvent evt, CancellationToken ct = default) => Task.CompletedTask;
-    public Task<bool> TestChannelAsync(string channelId, CancellationToken ct = default) => Task.FromResult(false);
-    public void NotifyCircuitBreakerOpen(string clusterId, string? destinationId = null) { }
-    public void NotifyRetryExhausted(string clusterId, string routeId, int attempts, int statusCode) { }
-    public void NotifyWafBlock(string clientIp, string blockReason, string? uri = null) { }
-    public void NotifyProxyError(string clusterId, string? destinationId, string errorMessage) { }
-    public void NotifyRateLimitExceeded(string clientIp, string? routeId = null) { }
-    public void NotifyConfigChange(string eventType, string target, string? operatorName = null, object? details = null) { }
-    public void NotifyCustom(string eventType, string title, string message) { }
 }
