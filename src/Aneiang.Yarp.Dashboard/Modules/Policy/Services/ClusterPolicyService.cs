@@ -1,5 +1,5 @@
+using Aneiang.Yarp.Dashboard.Infrastructure.State;
 using Aneiang.Yarp.Dashboard.Infrastructure.Storage;
-using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
 using Aneiang.Yarp.Dashboard.Modules.Policy.Models;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
@@ -13,14 +13,18 @@ namespace Aneiang.Yarp.Dashboard.Modules.Policy.Services;
 /// </summary>
 public class ClusterPolicyService : PolicyServiceBase
 {
+    private readonly ICircuitStateStore _circuitStore;
+
     public ClusterPolicyService(
         IPolicyRepository policyRepo,
         IRouteRepository routeRepo,
         IClusterRepository clusterRepo,
         DynamicYarpConfigService yarpConfig,
+        ICircuitStateStore circuitStore,
         ILogger<ClusterPolicyService> logger)
         : base(policyRepo, routeRepo, clusterRepo, yarpConfig, logger)
     {
+        _circuitStore = circuitStore;
     }
 
     public async Task<IReadOnlyList<ClusterPolicy>> GetAllClusterPoliciesAsync()
@@ -143,7 +147,7 @@ public class ClusterPolicyService : PolicyServiceBase
         var dynConfig = YarpConfig.GetDynamicConfig();
         var cluster = dynConfig?.Clusters.FirstOrDefault(c =>
             string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
-        CircuitBreakerMiddleware.RemoveCircuitsForCluster(clusterId, cluster?.ClusterUid);
+        _circuitStore.RemoveForCluster(clusterId, cluster?.ClusterUid);
 
         if (policy.AppliedClusters.Remove(clusterId))
             await DeletePolicyTargetByKeyAsync(policy.PolicyId, "cluster", clusterId);

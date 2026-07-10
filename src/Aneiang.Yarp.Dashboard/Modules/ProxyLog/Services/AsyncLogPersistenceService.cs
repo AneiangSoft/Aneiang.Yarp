@@ -92,16 +92,13 @@ public sealed class AsyncLogPersistenceService : IHostedService, IProxyLogPersis
 
             try
             {
-                // Wait for first entry or timeout 500ms
-                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(500));
-
-                var first = await reader.ReadAsync(timeoutCts.Token);
-                batch.Add(first);
-
-                // Drain as many entries as possible (up to 100)
-                while (batch.Count < 100 && reader.TryRead(out var entry))
-                    batch.Add(entry);
+                // Wait for first entry using WaitToReadAsync — no exception on idle
+                if (await reader.WaitToReadAsync(ct))
+                {
+                    // Drain as many entries as possible (up to 100)
+                    while (batch.Count < 100 && reader.TryRead(out var entry))
+                        batch.Add(entry);
+                }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -109,11 +106,6 @@ public sealed class AsyncLogPersistenceService : IHostedService, IProxyLogPersis
                 if (batch.Count > 0)
                     await FlushBatchAsync(batch, CancellationToken.None);
                 break;
-            }
-            catch (OperationCanceledException)
-            {
-                // 500ms timeout — no new entries, flush if we have something from TryRead
-                // The timeout just means "no more items queued", which is normal
             }
 
             if (batch.Count > 0)

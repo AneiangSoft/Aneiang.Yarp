@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Infrastructure;
+using Aneiang.Yarp.Dashboard.Infrastructure.Middleware;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
@@ -20,14 +21,11 @@ namespace Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
 /// Settings are loaded from <see cref="IWafSettingsPersistenceService"/> when available,
 /// falling back to <see cref="WafOptions"/> from configuration.
 /// </summary>
-public sealed class WafMiddleware
+public sealed class WafMiddleware : GatewayMiddlewareBase
 {
-    private readonly RequestDelegate _next;
     private readonly ILogger<WafMiddleware> _logger;
     private readonly WafOptions _wafOptions;
-    private readonly string _dashPrefix;
     private readonly WafEventStore _eventStore;
-    private readonly IGatewayPluginManager _pluginManager;
     private readonly IWafSettingsPersistenceService? _wafPersistence;
     private readonly INotificationService _notificationService;
 
@@ -44,8 +42,6 @@ public sealed class WafMiddleware
         XssRuleChecker.Instance,
     ];
 
-    private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
-
     public WafMiddleware(
         RequestDelegate next,
         ILogger<WafMiddleware> logger,
@@ -55,16 +51,15 @@ public sealed class WafMiddleware
         IGatewayPluginManager pluginManager,
         IWafSettingsPersistenceService? wafPersistence = null,
         INotificationService? notificationService = null)
+        : base(next, dashOptions, pluginManager)
     {
-        _next = next;
         _logger = logger;
         _wafOptions = wafOptions.Value;
         var prefix = _wafOptions.DashboardRoutePrefix;
         if (string.IsNullOrWhiteSpace(prefix) || prefix == "apigateway")
             prefix = dashOptions.Value.RoutePrefix;
-        _dashPrefix = "/" + prefix.Trim('/');
+        DashPrefix = "/" + prefix.Trim('/');
         _eventStore = eventStore;
-        _pluginManager = pluginManager;
         _wafPersistence = wafPersistence;
         _notificationService = notificationService ?? NullNotificationService.Instance;
     }
@@ -75,23 +70,22 @@ public sealed class WafMiddleware
         var path = context.Request.Path.Value ?? "";
 
         // Fast-path: WAF disabled globally or per-route
-        bool globallyEnabled = opts.Enabled && _pluginManager.IsPluginEnabled("waf");
+        bool globallyEnabled = opts.Enabled && IsPluginEnabled("waf");
         if (!globallyEnabled)
         {
             var routeMeta = context.Features.Get<IReverseProxyFeature>()?.Route?.Config?.Metadata;
             if (routeMeta == null || !routeMeta.TryGetValue("Waf:Enabled", out var v) ||
                 !bool.TryParse(v, out var parsed) || !parsed)
             {
-                await _next(context);
+                await Next(context);
                 return;
             }
         }
 
         // Skip dashboard static content and UI routes
-        if (path.StartsWith(_dashPrefix, StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith(ContentRoot, StringComparison.OrdinalIgnoreCase))
+        if (IsDashboardRequest(context))
         {
-            await _next(context);
+            await Next(context);
             return;
         }
 
@@ -136,7 +130,7 @@ public sealed class WafMiddleware
             }
         }
 
-        await _next(context);
+        await Next(context);
     }
 
     #region Private helpers

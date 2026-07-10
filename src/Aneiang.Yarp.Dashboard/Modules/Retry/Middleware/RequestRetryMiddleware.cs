@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Infrastructure;
+using Aneiang.Yarp.Dashboard.Infrastructure.Middleware;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
+using Aneiang.Yarp.Dashboard.Infrastructure.State;
 using System.Buffers;
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
 using Aneiang.Yarp.Services;
@@ -22,20 +24,13 @@ namespace Aneiang.Yarp.Dashboard.Modules.Retry.Middleware;
 /// MemoryStream allocations. Also fixes ArrayPool.Rent + .ToArray() contradiction
 /// by storing the pooled buffer directly with a length marker.
 /// </summary>
-public sealed class RequestRetryMiddleware
+public sealed class RequestRetryMiddleware : GatewayMiddlewareBase
 {
-    private readonly RequestDelegate _next;
     private readonly ILogger<RequestRetryMiddleware> _logger;
     private readonly RetryOptions _options;
-    private readonly IGatewayPluginManager _pluginManager;
     private readonly IDynamicYarpConfigService? _yarpConfig;
-    private readonly string _dashPrefix;
     private readonly RecyclableMemoryStreamManager _memoryStreamManager;
-
-    /// <summary>
-    /// Content root path for the Dashboard static files. Used to skip logging for frontend resources.
-    /// </summary>
-    private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
+    private readonly ICircuitStateStore _circuitStore;
 
 
     private static readonly HashSet<string> NonIdempotentMethods = new(StringComparer.OrdinalIgnoreCase)
@@ -50,32 +45,28 @@ public sealed class RequestRetryMiddleware
         IOptions<DashboardOptions> dashOptions,
         IGatewayPluginManager pluginManager,
         RecyclableMemoryStreamManager memoryStreamManager,
+        ICircuitStateStore circuitStore,
         IDynamicYarpConfigService? yarpConfig = null)
+        : base(next, dashOptions, pluginManager, yarpConfig)
     {
-        _next = next;
         _logger = logger;
         _options = options.Value;
-        _pluginManager = pluginManager;
         _memoryStreamManager = memoryStreamManager;
+        _circuitStore = circuitStore;
         _yarpConfig = yarpConfig;
-        _dashPrefix = "/" + dashOptions.Value.RoutePrefix.Trim('/');
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Skip Dashboard UI and API requests - they should not go through retry logic
-        var path = context.Request.Path.Value ?? "";
-        if (path.StartsWith(_dashPrefix, StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith(ContentRoot, StringComparison.OrdinalIgnoreCase))
+        if (IsDashboardRequest(context))
         {
-            await _next(context);
+            await Next(context);
             return;
         }
 
-        // Respect plugin toggle state
-        if (!_pluginManager.IsPluginEnabled("request-retry"))
+        if (!IsPluginEnabled("request-retry"))
         {
-            await _next(context);
+            await Next(context);
             return;
         }
 
@@ -85,7 +76,7 @@ public sealed class RequestRetryMiddleware
 
         if (routeConfig == null || !IsRetryEnabled(routeConfig))
         {
-            await _next(context);
+            await Next(context);
             return;
         }
 
@@ -98,7 +89,7 @@ public sealed class RequestRetryMiddleware
 
         if (!retryNonIdempotent && NonIdempotentMethods.Contains(context.Request.Method))
         {
-            await _next(context);
+            await Next(context);
             return;
         }
 
@@ -116,7 +107,7 @@ public sealed class RequestRetryMiddleware
             // Check circuit breaker before retry
             if (attempt > 0 && !string.IsNullOrEmpty(clusterId))
             {
-                if (CircuitBreakerMiddleware.IsCircuitOpen(clusterId, clusterUid: ResolveClusterUid(clusterId)))
+                if (_circuitStore.IsCircuitOpen(clusterId, clusterUid: ResolveClusterUid(clusterId)))
                 {
                     _logger.LogDebug("Circuit breaker is open, skipping retry");
                     break;
@@ -138,7 +129,7 @@ public sealed class RequestRetryMiddleware
 
             try
             {
-                await _next(context);
+                await Next(context);
             }
             finally
             {
@@ -190,11 +181,6 @@ public sealed class RequestRetryMiddleware
     /// <summary>Maximum request body size for retry buffering. Prevents OOM from large uploads.</summary>
     private const int MaxRetryBodySizeBytes = 1024 * 1024; // 1MB hard limit
 
-    private string? ResolveClusterUid(string clusterId)
-    {
-        return _yarpConfig?.GetDynamicConfig()?.Clusters.FirstOrDefault(c =>
-            string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase))?.ClusterUid;
-    }
 
     /// <summary>
     /// Read request body into a pooled buffer, returning the buffer and length directly.

@@ -1,6 +1,7 @@
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Auth;
 using Aneiang.Yarp.Dashboard.Infrastructure.HostedServices;
+using Aneiang.Yarp.Dashboard.Infrastructure.State;
 using Aneiang.Yarp.Dashboard.Infrastructure.Performance;
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Services;
 using Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
@@ -16,7 +17,6 @@ using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
-using Aneiang.Yarp.Storage.Sqlite;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Razor;
@@ -101,6 +101,18 @@ public static class DashboardServiceCollectionExtensions
             .BindConfiguration("Gateway:Dashboard:RateLimit");
         services.AddOptions<WafOptions>()
             .BindConfiguration("Gateway:Dashboard:Waf");
+
+        // Sub-options: Auth and ProxyLog can be injected independently
+        services.AddOptions<DashboardAuthOptions>()
+            .BindConfiguration("Gateway:Dashboard:Auth");
+        services.AddOptions<ProxyLogOptions>()
+            .BindConfiguration("Gateway:Dashboard:ProxyLog");
+
+        // Sync facade: copy flat DashboardOptions values to sub-options if sub-options weren't set via config
+        services.AddSingleton<IConfigureOptions<DashboardAuthOptions>>(sp =>
+            new AuthOptionsSync(sp.GetRequiredService<IOptions<DashboardOptions>>()));
+        services.AddSingleton<IConfigureOptions<ProxyLogOptions>>(sp =>
+            new ProxyLogOptionsSync(sp.GetRequiredService<IOptions<DashboardOptions>>()));
         services.AddOptions<ConfigHistoryOptions>()
             .BindConfiguration(ConfigHistoryOptions.SectionName)
             .PostConfigure(options =>
@@ -189,10 +201,11 @@ public static class DashboardServiceCollectionExtensions
 
     private static IServiceCollection AddDashboardStorageAndAudit(this IServiceCollection services)
     {
-        services.AddAneiangStorage();
+        // Storage backend (e.g. AddAneiangStorage) is registered by the host application.
+        // Dashboard only depends on Aneiang.Yarp.Storage.Abstractions interfaces.
 
-        // DynamicYarpConfigService loads config from SQLite on StartAsync.
-        // Schema migration is now triggered lazily by SqliteConnectionFactory on first
+        // DynamicYarpConfigService loads config from storage on StartAsync.
+        // Schema migration is triggered lazily by the connection factory on first
         // connection use, so tables are guaranteed to exist regardless of registration order.
         services.AddHostedService(sp => sp.GetRequiredService<Aneiang.Yarp.Services.DynamicYarpConfigService>());
 
@@ -203,6 +216,11 @@ public static class DashboardServiceCollectionExtensions
 
         services.AddSingleton<RateLimitConfigProvider>();
         services.AddRateLimiter(_ => { });
+
+        // In-memory state stores (singleton to share state across middleware instances)
+        services.AddSingleton<ICircuitStateStore, InMemoryCircuitStateStore>();
+        services.AddSingleton<IRateLimiterStore, InMemoryRateLimiterStore>();
+        services.AddSingleton<CooldownManager>();
 
         return services;
     }
@@ -237,6 +255,11 @@ public static class DashboardServiceCollectionExtensions
         });
         services.AddSingleton<ProxyLogStore>(sp => (ProxyLogStore)sp.GetRequiredService<IProxyLogStore>());
         services.AddSingleton<LogSanitizer>();
+
+        // Log sampling + filtering (extracted from YarpRequestCaptureMiddleware)
+        services.AddSingleton<ILogSampler, LogSampler>();
+        services.AddSingleton<ILogFilter, LogFilter>();
+        services.AddSingleton<IProxyLogCapture, ProxyLogCapture>();
 
         // SqliteProxyLogWriter: converts LogEntry → Entity and delegates to IProxyLogRepository
         services.AddSingleton<SqliteProxyLogWriter>();
@@ -291,7 +314,7 @@ public static class DashboardServiceCollectionExtensions
 
     private static IServiceCollection AddDashboardNotificationAndPlugins(this IServiceCollection services)
     {
-        // INotificationRepository is registered by AddAneiangStorage above.
+        // INotificationRepository is registered by the host application's storage backend (e.g. AddAneiangStorage).
         services.AddHttpClient("notification");
         services.AddSingleton<INotificationService, NotificationService>();
         services.AddBackgroundHostedService<NotificationWarmupService>();

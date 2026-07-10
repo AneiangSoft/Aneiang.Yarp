@@ -20,6 +20,7 @@ public static class StorageServiceCollectionExtensions
         // connection use (via Lazy<Task> in SqliteConnectionFactory), eliminating the
         // startup race condition that existed when migrator was a parallel IHostedService.
         services.AddSingleton<SqliteConnectionFactory>();
+        services.AddSingleton<IDbConnectionFactory>(sp => sp.GetRequiredService<SqliteConnectionFactory>());
 
         // Individual repositories
         services.AddSingleton<IRouteRepository, SqliteRouteRepository>();

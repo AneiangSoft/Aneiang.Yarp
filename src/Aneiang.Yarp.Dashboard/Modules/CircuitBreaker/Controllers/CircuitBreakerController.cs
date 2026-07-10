@@ -1,4 +1,4 @@
-using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
+using Aneiang.Yarp.Dashboard.Infrastructure.State;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -12,10 +12,12 @@ namespace Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Controllers;
 public class CircuitBreakerController : Controller
 {
     private readonly IDynamicYarpConfigService _yarpConfig;
+    private readonly ICircuitStateStore _circuitStore;
 
-    public CircuitBreakerController(IDynamicYarpConfigService yarpConfig)
+    public CircuitBreakerController(IDynamicYarpConfigService yarpConfig, ICircuitStateStore circuitStore)
     {
         _yarpConfig = yarpConfig;
+        _circuitStore = circuitStore;
     }
 
     /// <summary>
@@ -30,7 +32,7 @@ public class CircuitBreakerController : Controller
         // Remove circuits for clusters that no longer have CB enabled
         CleanupStaleCircuits();
 
-        var states = CircuitBreakerMiddleware.GetAllCircuitStates();
+        var states = _circuitStore.GetAllStateInfos();
         var dynConfig = _yarpConfig.GetDynamicConfig();
         var clusters = dynConfig?.Clusters;
 
@@ -54,7 +56,7 @@ public class CircuitBreakerController : Controller
     [HttpPost("reset")]
     public IActionResult ResetCircuitBreakers()
     {
-        CircuitBreakerMiddleware.ResetAll();
+        _circuitStore.ResetAll();
         return Json(new { code = 200, message = "All circuit breakers reset" });
     }
 
@@ -70,7 +72,7 @@ public class CircuitBreakerController : Controller
         {
             if (cluster.CircuitBreaker is { Enabled: true } cbConfig)
             {
-                CircuitBreakerMiddleware.EnsureCircuitExists(cluster.Config.ClusterId ?? string.Empty, cbConfig, cluster.ClusterUid);
+                _circuitStore.EnsureCircuitExists(cluster.Config.ClusterId ?? string.Empty, cbConfig, cluster.ClusterUid);
             }
         }
     }
@@ -88,7 +90,7 @@ public class CircuitBreakerController : Controller
             .Select(c => new { ClusterId = c.Config.ClusterId, c.ClusterUid })
             .ToList();
 
-        var allStates = CircuitBreakerMiddleware.GetAllCircuitStates();
+        var allStates = _circuitStore.GetAllStateInfos();
         foreach (var state in allStates)
         {
             var stillEnabled = cbEnabledClusters.Any(c =>
@@ -98,7 +100,7 @@ public class CircuitBreakerController : Controller
 
             if (!stillEnabled)
             {
-                CircuitBreakerMiddleware.RemoveCircuitsForCluster(state.ClusterKeySnapshot, state.ClusterUid);
+                _circuitStore.RemoveForCluster(state.ClusterKeySnapshot, state.ClusterUid);
             }
         }
     }

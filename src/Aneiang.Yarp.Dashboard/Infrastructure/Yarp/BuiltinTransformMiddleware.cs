@@ -1,3 +1,4 @@
+using Aneiang.Yarp.Dashboard.Infrastructure.Middleware;
 using Aneiang.Yarp.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
@@ -9,30 +10,21 @@ namespace Aneiang.Yarp.Dashboard.Infrastructure.Yarp;
 /// Adds common headers, removes security-sensitive headers, and applies global transforms.
 /// Runs before YARP proxy pipeline.
 /// </summary>
-internal sealed class BuiltinTransformMiddleware
+internal sealed class BuiltinTransformMiddleware : GatewayMiddlewareBase
 {
-    private readonly RequestDelegate _next;
     private readonly BuiltinTransformOptions _options;
-    private readonly string _dashPrefix;
-    /// <summary>
-    /// Content root path for the Dashboard static files. Used to skip logging for frontend resources.
-    /// </summary>
-    private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
 
     public BuiltinTransformMiddleware(RequestDelegate next, IOptions<BuiltinTransformOptions> options, IOptions<DashboardOptions> dashboardOptions)
+        : base(next, dashboardOptions)
     {
-        _next = next;
         _options = options.Value;
-        _dashPrefix = "/" + dashboardOptions.Value.RoutePrefix.Trim('/');
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
-        //Skip Dashboard requests
-        if (context.Request.Path.StartsWithSegments(_dashPrefix, StringComparison.OrdinalIgnoreCase) ||
-            context.Request.Path.StartsWithSegments(ContentRoot, StringComparison.OrdinalIgnoreCase))
+        if (IsDashboardRequest(context))
         {
-            await _next(context);
+            await Next(context);
             return;
         }
 
@@ -56,7 +48,7 @@ internal sealed class BuiltinTransformMiddleware
             }
         }
 
-        await _next(context);
+        await Next(context);
 
         // Remove Server header
         if (_options.RemoveServerHeader)
@@ -95,4 +87,4 @@ internal sealed class BuiltinTransformMiddleware
         }
     }
 }
-
+

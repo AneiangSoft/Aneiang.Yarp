@@ -5,25 +5,25 @@ namespace Aneiang.Yarp.Dashboard.Modules.Notification.Services;
 
 /// <summary>
 /// Manages per-rule-per-channel cooldown windows to prevent notification spam.
-/// Extracted from <see cref="NotificationService"/> for single responsibility.
+/// Registered as a Singleton service so state lifecycle is DI-controlled.
 /// 
 /// Memory optimization (v2.4): Periodic cleanup of expired cooldown entries
 /// to prevent unbounded growth of the ConcurrentDictionary.
 /// </summary>
-internal static class CooldownManager
+public sealed class CooldownManager
 {
-    private static readonly ConcurrentDictionary<string, DateTime> _cooldowns = new();
+    private readonly ConcurrentDictionary<string, DateTime> _cooldowns = new();
 
     // Maximum cooldown duration across all rules (used as cleanup threshold).
     // Entries older than this are guaranteed expired and safe to remove.
-    private static TimeSpan _maxCooldown = TimeSpan.FromMinutes(30);
-    private static DateTime _lastCleanup = DateTime.UtcNow;
+    private TimeSpan _maxCooldown = TimeSpan.FromMinutes(30);
+    private DateTime _lastCleanup = DateTime.UtcNow;
     private static readonly TimeSpan CleanupInterval = TimeSpan.FromMinutes(5);
 
     /// <summary>
     /// Sets the maximum cooldown duration (called when notification rules are loaded).
     /// </summary>
-    public static void SetMaxCooldown(TimeSpan maxCooldown)
+    public void SetMaxCooldown(TimeSpan maxCooldown)
     {
         _maxCooldown = maxCooldown > TimeSpan.Zero ? maxCooldown : TimeSpan.FromMinutes(30);
     }
@@ -42,7 +42,7 @@ internal static class CooldownManager
     /// and updates the timestamp. Returns false if still in cooldown.
     /// Also performs periodic cleanup of expired entries.
     /// </summary>
-    public static bool TryAcquire(string key, TimeSpan cooldown)
+    public bool TryAcquire(string key, TimeSpan cooldown)
     {
         var now = DateTime.UtcNow;
 

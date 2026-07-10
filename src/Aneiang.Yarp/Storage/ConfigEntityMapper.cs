@@ -24,7 +24,7 @@ public static class ConfigEntityMapper
     /// <returns>A RouteEntity.</returns>
     public static RouteEntity ToEntity(this DynamicRouteConfig route) => new()
     {
-        RouteUid = string.IsNullOrWhiteSpace(route.RouteUid) ? StableUidFromKey("route", route.Config.RouteId ?? string.Empty) : route.RouteUid,
+        RouteUid = string.IsNullOrWhiteSpace(route.RouteUid) ? StableUid.FromKey("route", route.Config.RouteId ?? string.Empty) : route.RouteUid,
         RouteId = route.Config.RouteId ?? string.Empty,
         ClusterUid = route.ClusterUid,
         ClusterId = route.Config.ClusterId ?? string.Empty,
@@ -99,7 +99,7 @@ public static class ConfigEntityMapper
     /// <returns>A ClusterEntity.</returns>
     public static ClusterEntity ToEntity(this DynamicClusterConfig cluster) => new()
     {
-        ClusterUid = string.IsNullOrWhiteSpace(cluster.ClusterUid) ? StableUidFromKey("cluster", cluster.Config.ClusterId ?? string.Empty) : cluster.ClusterUid,
+        ClusterUid = string.IsNullOrWhiteSpace(cluster.ClusterUid) ? StableUid.FromKey("cluster", cluster.Config.ClusterId ?? string.Empty) : cluster.ClusterUid,
         ClusterId = cluster.Config.ClusterId ?? string.Empty,
         LoadBalancingPolicy = cluster.Config.LoadBalancingPolicy,
         HealthCheckConfig = cluster.HealthCheck != null ? JsonSerializer.Serialize(cluster.HealthCheck, _jsonOptions) : null,
@@ -186,6 +186,10 @@ public static class ConfigEntityMapper
         Id = audit.Id,
         Action = audit.Action,
         Target = audit.Target,
+        TargetType = audit.TargetType,
+        TargetUid = audit.TargetUid,
+        TargetKeySnapshot = audit.TargetKeySnapshot ?? audit.Target,
+        TargetDisplayNameSnapshot = audit.TargetDisplayNameSnapshot,
         Operator = audit.Operator,
         ClientIp = audit.ClientIp,
         BeforeData = audit.Before,
@@ -211,12 +215,5 @@ public static class ConfigEntityMapper
 
     public static List<ConfigChangeAudit> ToConfigChangeAudits(this IEnumerable<AuditLogEntity> entities)
         => entities.Select(e => e.ToConfigChangeAudit()).ToList();
-
-    private static string StableUidFromKey(string prefix, string key)
-    {
-        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(prefix + ":" + key));
-        return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
-    }
-
     #endregion
 }
