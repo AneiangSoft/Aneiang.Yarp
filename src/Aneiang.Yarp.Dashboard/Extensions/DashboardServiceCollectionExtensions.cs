@@ -337,6 +337,9 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<TrafficBroadcastService>();
         services.AddHostedService<TrafficBroadcastService>();
 
+        services.AddSingleton<OverviewBroadcastService>();
+        services.AddHostedService<OverviewBroadcastService>();
+
         services.AddSingleton<RecyclableMemoryStreamManager>();
         services.AddSingleton<LockFreeStatistics>();
         services.AddSingleton<ITransformProvider, DownstreamCaptureTransformProvider>();
