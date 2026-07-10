@@ -220,7 +220,7 @@
 
         setupTabs: function() {
             var self = this;
-            document.querySelectorAll('.tab-btn[data-tab]').forEach(function(btn) {
+            document.querySelectorAll('.nav-tab-btn[data-tab]').forEach(function(btn) {
                 btn.addEventListener('click', function() {
                     var tab = this.getAttribute('data-tab');
                     self.switchTab(tab);
@@ -229,7 +229,7 @@
         },
 
         switchTab: function(tab) {
-            document.querySelectorAll('.tab-btn').forEach(function(b) {
+            document.querySelectorAll('.nav-tab-btn').forEach(function(b) {
                 b.classList.toggle('active', b.getAttribute('data-tab') === tab);
                 b.setAttribute('aria-selected', b.getAttribute('data-tab') === tab ? 'true' : 'false');
             });

@@ -14,7 +14,7 @@
     <div class="card-body">
         <div class="row g-3">
             <div class="col-md-6">
-                <div class="border rounded-3 p-4 h-100" style="background: linear-gradient(135deg, #f8fafc, #f1f5f9);">
+                <div class="settings-card settings-card--blue">
                     <h6 class="mb-2"><i class="bi bi-download me-1" style="color:#3b82f6;"></i> <span data-i18n="config.export">导出配置</span></h6>
                     <p class="text-muted small mb-3" data-i18n="config.exportDesc">将当前网关配置导出为 JSON 文件</p>
                     <button class="btn btn-sm btn-outline-primary" onclick="DashboardConfig.exportConfig()">
@@ -23,7 +23,7 @@
                 </div>
             </div>
             <div class="col-md-6">
-                <div class="border rounded-3 p-4 h-100" style="background: linear-gradient(135deg, #f8fafc, #f1f5f9);">
+                <div class="settings-card settings-card--green">
                     <h6 class="mb-2"><i class="bi bi-upload me-1" style="color:#22c55e;"></i> <span data-i18n="config.import">导入配置</span></h6>
                     <p class="text-muted small mb-3" data-i18n="config.importDesc">从 JSON 文件导入网关配置</p>
                     <button class="btn btn-sm btn-outline-primary" onclick="DashboardConfig.showImportModal()">
@@ -43,7 +43,7 @@
     <div class="card-body">
         <div class="row g-3">
             <div class="col-md-6">
-                <div class="border rounded-3 p-4 h-100" style="background: #f8fafc;">
+                <div class="settings-card settings-card--amber">
                     <h6 class="mb-2"><i class="bi bi-download me-1" style="color:#f59e0b;"></i> <span data-i18n="config.downloadDb">下载数据库</span></h6>
                     <p class="text-muted small mb-3" data-i18n="config.downloadDbDesc">将 SQLite 数据库文件下载到本地，方便使用数据库工具查看</p>
                     <button class="btn btn-sm btn-outline-primary" onclick="DashboardConfig.downloadDatabase()">
@@ -73,7 +73,7 @@
     <div class="card-body">
         <div class="row g-3">
             <div class="col-md-6">
-                <div class="border rounded-3 p-4 h-100" style="background: #f8fafc;">
+                <div class="settings-card settings-card--green">
                     <h6 class="mb-2"><i class="bi bi-shield-check me-1" style="color:#22c55e;"></i> <span data-i18n="config.twofactor">两步验证 (2FA)</span></h6>
                     <p class="text-muted small mb-3" data-i18n="config.twofactorDesc">使用 TOTP 验证器应用（如 Google Authenticator）增强登录安全性</p>
                     <div id="twofactor-status-area">
@@ -90,7 +90,7 @@
                 </div>
             </div>
             <div class="col-md-6">
-                <div class="border rounded-3 p-4 h-100" style="background: #f8fafc;">
+                <div class="settings-card settings-card--amber">
                     <h6 class="mb-2"><i class="bi bi-key me-1" style="color:#f59e0b;"></i> <span data-i18n="config.passwordPolicy">密码策略</span></h6>
                     <p class="text-muted small mb-3" data-i18n="config.passwordPolicyDesc">当前密码安全策略配置</p>
                     <ul class="list-unstyled small text-muted mb-0">

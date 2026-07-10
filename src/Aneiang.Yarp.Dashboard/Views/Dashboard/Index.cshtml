@@ -25,51 +25,51 @@
         </div>
     </div>
     <div class="col-lg-3 col-md-4 col-sm-6">
-        <div class="stat-card" style="border-left: 3px solid #3b82f6;">
-            <div class="d-flex align-items-start justify-content-between">
-                <div>
-                    <div class="stat-value" id="stat-clusters">-</div>
-                    <div class="stat-label" data-i18n="index.stat.clusters">服务集群</div>
+        <div class="stat-card stat-card--blue" style="border-left: 3px solid #3b82f6;">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-card__icon"><i class="bi bi-diagram-3"></i></div>
+                <div class="stat-card__body">
+                    <div class="stat-card__value" id="stat-clusters">-</div>
+                    <div class="stat-card__label" data-i18n="index.stat.clusters">服务集群</div>
                 </div>
-                <div class="stat-icon" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);color:#3b82f6;"><i class="bi bi-diagram-3"></i></div>
             </div>
         </div>
     </div>
     <div class="col-lg-3 col-md-4 col-sm-6">
-        <div class="stat-card" style="border-left: 3px solid #22c55e;">
-            <div class="d-flex align-items-start justify-content-between">
-                <div>
-                    <div class="stat-value" id="stat-healthy" style="color:#22c55e;">-</div>
-                    <div class="stat-label" data-i18n="index.stat.health">健康状态</div>
-                    <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+        <div class="stat-card stat-card--green" style="border-left: 3px solid #22c55e;">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-card__icon"><i class="bi bi-heart-pulse"></i></div>
+                <div class="stat-card__body">
+                    <div class="stat-card__value" id="stat-healthy" style="color:#22c55e;">-</div>
+                    <div class="stat-card__label" data-i18n="index.stat.health">健康状态</div>
+                    <div class="stat-card__trend">
                         <span style="color:#22c55e;">●</span> 健康
                         <span style="color:#f59e0b;margin-left:6px;">●</span> 未知
                         <span style="color:#ef4444;margin-left:6px;">●</span> 异常
                     </div>
                 </div>
-                <div class="stat-icon" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);color:#22c55e;"><i class="bi bi-heart-pulse"></i></div>
             </div>
         </div>
     </div>
     <div class="col-lg-3 col-md-4 col-sm-6">
-        <div class="stat-card" style="border-left: 3px solid #f59e0b;">
-            <div class="d-flex align-items-start justify-content-between">
-                <div>
-                    <div class="stat-value" id="stat-routes">-</div>
-                    <div class="stat-label" data-i18n="index.stat.routes">路由规则</div>
+        <div class="stat-card stat-card--amber" style="border-left: 3px solid #f59e0b;">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-card__icon"><i class="bi bi-signpost-split"></i></div>
+                <div class="stat-card__body">
+                    <div class="stat-card__value" id="stat-routes">-</div>
+                    <div class="stat-card__label" data-i18n="index.stat.routes">路由规则</div>
                 </div>
-                <div class="stat-icon" style="background:linear-gradient(135deg,#fefce8,#fef9c3);color:#eab308;"><i class="bi bi-signpost-split"></i></div>
             </div>
         </div>
     </div>
     <div class="col-lg-3 col-md-4 col-sm-6">
-        <div class="stat-card" style="border-left: 3px solid #8b5cf6;">
-            <div class="d-flex align-items-start justify-content-between">
-                <div>
-                    <div class="stat-value" style="color:#8b5cf6;" id="stat-qps">-</div>
-                    <div class="stat-label" data-i18n="index.stat.qps">当前 QPS</div>
+        <div class="stat-card stat-card--purple" style="border-left: 3px solid #8b5cf6;">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-card__icon"><i class="bi bi-lightning-charge"></i></div>
+                <div class="stat-card__body">
+                    <div class="stat-card__value" id="stat-qps">-</div>
+                    <div class="stat-card__label" data-i18n="index.stat.qps">当前 QPS</div>
                 </div>
-                <div class="stat-icon" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);color:#8b5cf6;"><i class="bi bi-lightning-charge"></i></div>
             </div>
         </div>
     </div>
@@ -80,21 +80,21 @@
 <!-- Service tabs (clusters + routes) -->
 <div id="service-panel" class="card-panel mb-3">
     <!-- Tab bar -->
-    <div class="service-tabs">
-        <button class="service-tab active" data-tab="clusters" onclick="ServiceTabs.switch('clusters')">
+    <div class="nav-tabs-bar">
+        <button class="nav-tab-btn active" data-tab="clusters" onclick="ServiceTabs.switch('clusters')">
             <i class="bi bi-diagram-3"></i>
             <span data-i18n="index.serviceTab.clusters">服务集群</span>
         </button>
-        <button class="service-tab" data-tab="routes" onclick="ServiceTabs.switch('routes')">
+        <button class="nav-tab-btn" data-tab="routes" onclick="ServiceTabs.switch('routes')">
             <i class="bi bi-signpost-split"></i>
             <span data-i18n="index.serviceTab.routes">路由规则</span>
         </button>
-        <div class="service-tab-actions card-header-actions">
+        <div class="nav-tab-actions">
             <button class="btn btn-sm btn-outline-secondary btn-icon-only" id="service-refresh-btn" onclick="ServiceTabs.refresh()" data-i18n-title="index.btn.refresh" title="刷新">
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
         </div>
-        <div class="service-tab-counts">
+        <div class="nav-tab-actions" style="padding:0 0 0 8px;">
             <span class="refresh-badge" id="service-refresh-time"></span>
             <span class="refresh-badge" id="service-count-label"></span>
         </div>
@@ -343,7 +343,7 @@
             localStorage.setItem('service_tab', tab);
 
             // Tab buttons
-            document.querySelectorAll('.service-tab').forEach(function(btn) {
+            document.querySelectorAll('.nav-tab-btn').forEach(function(btn) {
                 btn.classList.toggle('active', btn.dataset.tab === tab);
             });
 
@@ -405,63 +405,4 @@
 
 </script>
 
-<style>
-.service-tabs {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 0 16px;
-    border-bottom: 1px solid var(--border-color);
-    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
-    flex-wrap: wrap;
-}
-.service-tab {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 18px;
-    border: none;
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    transition: all 0.2s ease;
-    position: relative;
-}
-.service-tab:hover {
-    color: var(--text-primary);
-    background: rgba(99,102,241,0.04);
-}
-.service-tab.active {
-    color: var(--primary-color);
-    border-bottom-color: var(--primary-color);
-    font-weight: 600;
-}
-.service-tab.active::before {
-    content: '';
-    position: absolute;
-    inset: 4px -2px auto -2px;
-    bottom: -2px;
-    height: 2px;
-    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-    border-radius: 1px;
-}
-.service-tab i { font-size: 15px; }
-.service-tab-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: auto;
-    padding: 6px 0;
-}
-.service-tab-counts {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0 0 0 8px;
-}
-</style>
 }
