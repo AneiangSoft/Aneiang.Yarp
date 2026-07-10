@@ -708,7 +708,56 @@
             color: #64748b;
             background: #f1f5f9;
         }
-        
+
+        /* Unified stat-card BEM sub-components */
+        .stat-card__icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+        .stat-card__body { flex:1; min-width:0; }
+        .stat-card__value { font-size:1.4rem; font-weight:700; line-height:1.2; color:var(--text-primary); }
+        .stat-card__label { font-size:.78rem; color:#9ca3af; margin-top:2px; }
+        .stat-card__trend { font-size:11px; margin-top:4px; }
+        .stat-card--blue .stat-card__icon { background:linear-gradient(135deg,#eff6ff,#dbeafe); color:#3b82f6; }
+        .stat-card--green .stat-card__icon { background:linear-gradient(135deg,#f0fdf4,#dcfce7); color:#22c55e; }
+        .stat-card--amber .stat-card__icon { background:linear-gradient(135deg,#fefce8,#fef9c3); color:#eab308; }
+        .stat-card--purple .stat-card__icon { background:linear-gradient(135deg,#f5f3ff,#ede9fe); color:#7c3aed; }
+
+        /* Unified Tab System */
+        .nav-tabs-bar { display:flex; align-items:center; gap:4px; padding:0 16px; border-bottom:1px solid var(--border-color); background:linear-gradient(180deg,#f8fafc,#f1f5f9); flex-wrap:wrap; }
+        .nav-tab-btn { display:inline-flex; align-items:center; gap:8px; padding:12px 18px; border:none; background:transparent; color:var(--text-secondary); font-size:14px; font-weight:500; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:all .2s; position:relative; }
+        .nav-tab-btn:hover { color:var(--text-primary); background:rgba(99,102,241,.04); }
+        .nav-tab-btn.active { color:var(--primary-color); border-bottom-color:var(--primary-color); font-weight:600; }
+        .nav-tab-btn.active::before { content:''; position:absolute; inset:auto -2px -2px; height:2px; background:linear-gradient(90deg,var(--primary-color),var(--secondary-color)); border-radius:1px; }
+        .nav-tab-btn i { font-size:15px; }
+        .nav-tab-actions { display:flex; align-items:center; gap:8px; margin-left:auto; padding:6px 0; }
+
+        /* Empty State */
+        .empty-state { padding:40px 20px; text-align:center; color:#94a3b8; }
+        .empty-state-icon { font-size:36px; margin-bottom:10px; color:#cbd5e1; }
+        .empty-state-title { font-size:14px; font-weight:600; color:#64748b; margin-bottom:4px; }
+        .empty-state-desc { font-size:12px; color:#94a3b8; }
+        .empty-state > i { font-size:36px; margin-bottom:10px; color:#cbd5e1; display:block; }
+        .empty-state > p { margin:0; font-size:14px; }
+
+        /* Spin animation (global, do NOT redefine in pages) */
+        @@keyframes spin { to { transform: rotate(360deg); } }
+        .spin { display:inline-block; animation: spin .6s linear infinite; }
+
+        /* Settings sub-card */
+        .settings-card {
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 20px;
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+            height: 100%;
+            border-left: 3px solid var(--border-color);
+            transition: box-shadow .2s;
+        }
+        .settings-card:hover { box-shadow: var(--shadow-md); }
+        .settings-card--blue { border-left-color: #3b82f6; }
+        .settings-card--green { border-left-color: #22c55e; }
+        .settings-card--amber { border-left-color: #f59e0b; }
+        .settings-card--red { border-left-color: #ef4444; }
+        .settings-card--purple { border-left-color: #8b5cf6; }
+
         /* Card Panels */
         .card-panel {
             background: var(--card-bg);

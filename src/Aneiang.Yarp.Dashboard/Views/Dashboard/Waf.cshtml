@@ -5,271 +5,310 @@
 }
 
 <style>
-    .waf-status-banner {
-        border-radius: 10px;
-        padding: 18px 24px;
+    /* ── Unified Card System ── */
+    .waf-card {
+        border-left: 3px solid #cbd5e1;
+        border-radius: 6px;
+        background: #f8fafc;
+        padding: 14px 18px 16px;
+        margin-bottom: 14px;
+    }
+    .waf-card-head {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: #475569;
+        letter-spacing: .02em;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .waf-card-head .waf-icon {
+        width: 22px; height: 22px;
+        border-radius: 5px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        color: #fff;
+        flex-shrink: 0;
+    }
+    .waf-row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .waf-cell { flex: 1 1 0; min-width: 180px; }
+    .waf-cell-2 { flex: 2 1 0; }
+    .waf-lbl {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 5px;
+        line-height: 1.3;
+        min-height: 16px;
+    }
+    .waf-ctrl { min-height: 31px; display: flex; align-items: center; }
+    .waf-desc {
+        font-size: 11px;
+        color: #94a3b8;
+        line-height: 1.45;
+        margin-top: 5px;
+    }
+    .waf-unit {
+        font-size: 11px;
+        color: #64748b;
+        min-width: 38px;
+        text-align: center;
+    }
+
+    /* ── Switch ── */
+    .waf-sw {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .waf-sw .form-check-input {
+        width: 36px; height: 18px;
+        cursor: pointer;
+        flex-shrink: 0;
+        margin: 0;
+    }
+    .waf-sw .form-check-label {
+        font-size: 12px;
+        color: #475569;
+        cursor: pointer;
+        line-height: 1.3;
+    }
+
+    /* ── Status Banner ── */
+    .waf-banner {
+        border-radius: 8px;
+        padding: 14px 20px;
         display: flex;
         align-items: center;
         justify-content: space-between;
         transition: all 0.3s ease;
+        margin-bottom: 14px;
     }
-    .waf-status-banner.enabled {
+    .waf-banner.on {
         background: linear-gradient(135deg, #059669 0%, #10b981 100%);
         color: #fff;
     }
-    .waf-status-banner.disabled {
-        background: linear-gradient(135deg, #6b7280 0%, #9ca3af 100%);
+    .waf-banner.off {
+        background: linear-gradient(135deg, #475569 0%, #64748b 100%);
         color: #fff;
     }
-    .waf-status-banner .form-check-input {
-        width: 3em;
-        height: 1.5em;
+    .waf-banner .form-check-input {
+        width: 3em; height: 1.5em;
         cursor: pointer;
     }
-    .waf-status-banner.disabled .form-check-input {
+    .waf-banner.off .form-check-input {
         background-color: rgba(255,255,255,0.3);
         border-color: rgba(255,255,255,0.4);
     }
 
-    .waf-flow-steps {
+    /* ── Flow Pipeline ── */
+    .waf-flow {
         display: flex;
         align-items: flex-start;
         gap: 0;
         overflow-x: auto;
-        padding: 8px 0;
+        padding: 10px 0 6px;
     }
-    .waf-flow-step {
+    .waf-flow-node {
         display: flex;
         flex-direction: column;
         align-items: center;
-        position: relative;
-        min-width: 90px;
+        min-width: 80px;
         flex-shrink: 0;
+        position: relative;
     }
-    .waf-flow-step .step-circle {
-        width: 38px;
-        height: 38px;
+    .waf-flow-dot {
+        width: 36px; height: 36px;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 13px;
-        font-weight: 700;
-        margin-bottom: 6px;
-        border: 2px solid #e5e7eb;
+        border: 2px solid #e2e8f0;
         background: #fff;
-        color: #6b7280;
-        transition: all 0.3s ease;
+        color: #94a3b8;
+        margin-bottom: 6px;
+        transition: all .25s;
         position: relative;
         z-index: 1;
     }
-    .waf-flow-step .step-circle.has-count {
+    .waf-flow-dot.hit {
         border-color: #ef4444;
         background: #fef2f2;
         color: #dc2626;
+        box-shadow: 0 0 0 3px rgba(239,68,68,.1);
     }
-    .waf-flow-step .step-label {
+    .waf-flow-lbl {
         font-size: 11px;
-        color: #6b7280;
+        color: #64748b;
         text-align: center;
         line-height: 1.2;
         white-space: nowrap;
     }
-    .waf-flow-step .step-count {
+    .waf-flow-cnt {
         font-size: 10px;
-        color: #9ca3af;
+        color: #cbd5e1;
         margin-top: 2px;
+        font-variant-numeric: tabular-nums;
     }
-    .waf-flow-step .step-count.has-count {
-        color: #dc2626;
-        font-weight: 600;
-    }
-    .waf-flow-arrow {
+    .waf-flow-cnt.hit { color: #dc2626; font-weight: 600; }
+    .waf-flow-line {
         flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        padding: 0 2px;
-        margin-top: 11px;
-        color: #d1d5db;
-        font-size: 14px;
+        width: 28px;
+        height: 2px;
+        background: #e2e8f0;
+        margin-top: 18px;
     }
+    .waf-flow-line.hit { background: #ef4444; }
 
-    .waf-rule-card {
-        border: 1px solid #e5e7eb;
-        border-radius: 10px;
-        padding: 18px;
+    /* ── Rule Cards ── */
+    .waf-rule {
+        border: 1px solid #e2e8f0;
+        border-left: 3px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 14px 16px;
         height: 100%;
         display: flex;
         flex-direction: column;
         background: #fff;
-        transition: box-shadow 0.2s ease;
+        transition: box-shadow .2s;
     }
-    .waf-rule-card:hover {
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    }
-    .waf-rule-card .rule-header {
+    .waf-rule:hover { box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+    .waf-rule-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 6px;
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        gap: 6px;
+    }
+    .waf-rule-desc {
+        font-size: 11.5px;
+        color: #64748b;
+        line-height: 1.45;
         margin-bottom: 8px;
     }
-    .waf-rule-card .rule-header .rule-title {
-        font-weight: 600;
-        font-size: 14px;
-    }
-    .waf-rule-card .rule-desc {
-        font-size: 12px;
-        color: #6b7280;
-        margin-bottom: 10px;
-        line-height: 1.4;
-    }
-    .waf-rule-card .rule-example {
-        background: #f8f9fa;
-        border: 1px solid #e5e7eb;
-        border-radius: 6px;
-        padding: 8px 12px;
-        font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-        font-size: 12px;
+    .waf-rule-code {
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        padding: 6px 10px;
+        font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+        font-size: 11px;
         color: #dc2626;
-        margin-bottom: 14px;
+        margin-bottom: 10px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
-    .waf-rule-card .rule-footer {
+    .waf-rule-foot {
         display: flex;
         align-items: center;
         justify-content: space-between;
         margin-top: auto;
-        padding-top: 12px;
-        border-top: 1px solid #f3f4f6;
+        padding-top: 10px;
+        border-top: 1px solid #f1f5f9;
     }
-    .waf-rule-card .rule-footer .form-check-input {
-        cursor: pointer;
-    }
-
-    .waf-count-badge {
+    .waf-badge {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        padding: 3px 12px;
-        border-radius: 20px;
-        font-size: 12px;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 11px;
         font-weight: 500;
         white-space: nowrap;
     }
-    .waf-count-badge.has-count {
-        background: #fef2f2;
-        color: #dc2626;
-        border: 1px solid #fecaca;
-    }
-    .waf-count-badge.no-count {
-        background: #f9fafb;
-        color: #9ca3af;
-        border: 1px solid #e5e7eb;
-    }
+    .waf-badge.hit { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+    .waf-badge.clean { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
 
-    .waf-section-title {
-        font-size: 15px;
+    /* ── Sub-panel (events) ── */
+    .waf-sub {
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        background: #fff;
+        padding: 12px 14px;
+        height: 100%;
+    }
+    .waf-sub-head {
+        font-size: 12px;
         font-weight: 600;
-        margin-bottom: 12px;
+        color: #475569;
+        margin-bottom: 8px;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 5px;
     }
 
-    /* --- Security Events Panel in WAF page --- */
-    .waf-event-panel { margin-top: 0; }
-    .waf-event-panel .event-entry {
+    /* ── Event entries ── */
+    .waf-ev {
         display: flex;
         align-items: center;
         gap: 10px;
-        padding: 8px 12px;
-        border-radius: 8px;
+        padding: 7px 10px;
+        border-radius: 6px;
         background: #fafafa;
-        border: 1px solid #f3f4f6;
-        transition: background 0.15s;
+        border: 1px solid #f1f5f9;
+        transition: background .15s;
         font-size: 12px;
     }
-    .waf-event-panel .event-entry:hover { background: #f3f4f6; }
-    .waf-event-panel .event-entry + .event-entry { margin-top: 5px; }
-    .waf-event-panel .event-time {
-        color: #9ca3af;
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
-        min-width: 60px;
-    }
-    .waf-event-panel .event-type-badge {
-        min-width: 72px;
-        text-align: center;
-    }
-    .waf-event-panel .event-ip {
-        color: #374151;
-        font-family: 'Cascadia Code', 'Fira Code', monospace;
-        font-size: 11px;
-        min-width: 110px;
-    }
-    .waf-event-panel .event-target {
-        flex: 1;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        color: #6b7280;
-        font-size: 11px;
-    }
-    .waf-event-panel .event-target code {
-        font-size: 11px;
-        background: none;
-        padding: 0;
-        color: inherit;
-    }
-    .waf-ip-bar {
+    .waf-ev:hover { background: #f1f5f9; }
+    .waf-ev + .waf-ev { margin-top: 4px; }
+    .waf-ev .ev-time { color: #94a3b8; font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 50px; font-size: 11px; }
+    .waf-ev .ev-type { min-width: 68px; text-align: center; }
+    .waf-ev .ev-ip { color: #374151; font-family: 'Cascadia Code','Fira Code',monospace; font-size: 11px; min-width: 105px; }
+    .waf-ev .ev-target { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #64748b; font-size: 11px; }
+    .waf-ev .ev-target code { font-size: 11px; background: none; padding: 0; color: inherit; }
+
+    /* ── IP Bar ── */
+    .waf-ipbar {
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 4px 0;
+        padding: 3px 0;
         font-size: 12px;
     }
-    .waf-ip-bar .ip-addr {
-        font-family: 'Cascadia Code', 'Fira Code', monospace;
-        font-size: 11px;
-        min-width: 120px;
-        color: #374151;
-    }
-    .waf-ip-bar .ip-bar-track {
-        flex: 1;
-        height: 6px;
-        background: #f3f4f6;
-        border-radius: 3px;
-        overflow: hidden;
-    }
-    .waf-ip-bar .ip-bar-fill {
-        height: 100%;
-        border-radius: 3px;
-        background: linear-gradient(90deg, #ef4444, #f97316);
-        transition: width 0.5s ease;
-    }
-    .waf-ip-bar .ip-count {
-        min-width: 32px;
-        text-align: right;
-        color: #6b7280;
-        font-variant-numeric: tabular-nums;
-        font-size: 11px;
-    }
-    .waf-empty-small {
-        padding: 24px 0;
+    .waf-ipbar .ip-addr { font-family: 'Cascadia Code','Fira Code',monospace; font-size: 11px; min-width: 115px; color: #374151; }
+    .waf-ipbar .ip-track { flex: 1; height: 5px; background: #f1f5f9; border-radius: 3px; overflow: hidden; }
+    .waf-ipbar .ip-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #ef4444, #f97316); transition: width .5s; }
+    .waf-ipbar .ip-cnt { min-width: 28px; text-align: right; color: #64748b; font-variant-numeric: tabular-nums; font-size: 11px; }
+
+    /* ── Empty state ── */
+    .waf-empty {
+        padding: 20px 0;
         text-align: center;
-        color: #d1d5db;
+        color: #cbd5e1;
         font-size: 12px;
     }
+
+    /* ── Hint ── */
+    .waf-hint {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 8px 0;
+        font-size: 12px;
+        color: #64748b;
+        border-left: 3px solid #3b82f6;
+        padding-left: 12px;
+        margin: 4px 0 14px;
+    }
+    .waf-hint i { color: #3b82f6; margin-top: 1px; flex-shrink: 0; }
 </style>
 
 <div class="card-panel mb-4">
     <div class="card-header">
         <span><i class="bi bi-shield-lock me-2" style="color:#ef4444;"></i><span data-i18n="waf.title">WAF 防火墙设置</span></span>
         <div class="card-header-actions">
-            <button class="btn btn-sm btn-primary" onclick="DashboardWafSettings.save()">
+            <button class="btn btn-sm btn-primary px-4" onclick="DashboardWafSettings.save()">
                 <i class="bi bi-check-lg"></i> <span data-i18n="waf.save">保存设置</span>
             </button>
         </div>
@@ -282,106 +321,113 @@
 
         <div id="waf-content" style="display:none;">
             <!-- Status Banner -->
-            <div id="waf-status-banner" class="mb-4"></div>
+            <div id="waf-status-banner"></div>
 
             <!-- Check Flow Pipeline -->
-            <div class="mb-4">
-                <div class="waf-section-title">
-                    <i class="bi bi-diagram-3" style="color:#3b82f6;"></i>
+            <div class="waf-card" style="border-left-color:#3b82f6">
+                <div class="waf-card-head">
+                    <span class="waf-icon" style="background:#3b82f6"><i class="bi bi-diagram-3"></i></span>
                     <span data-i18n="waf.flowTitle">检查流水线</span>
                 </div>
-                <p class="text-muted small mb-3" data-i18n="waf.flowDesc">请求到达时，WAF 按以下顺序依次执行 7 层安全检查，任意一层拦截即阻断请求</p>
-                <div class="waf-flow-steps" id="waf-flow-steps"></div>
+                <p class="waf-desc" style="margin-bottom:8px" data-i18n="waf.flowDesc">请求到达时，WAF 按以下顺序依次执行 7 层安全检查，任意一层拦截即阻断请求</p>
+                <div class="waf-flow" id="waf-flow-steps"></div>
             </div>
 
             <!-- Rule Cards -->
-            <div class="mb-4">
-                <div class="waf-section-title">
-                    <i class="bi bi-shield-exclamation" style="color:#ef4444;"></i>
+            <div class="waf-card" style="border-left-color:#ef4444">
+                <div class="waf-card-head">
+                    <span class="waf-icon" style="background:#ef4444"><i class="bi bi-shield-exclamation"></i></span>
                     <span data-i18n="waf.detectionRules">威胁检测规则</span>
                 </div>
                 <div class="row g-3" id="waf-rule-cards"></div>
             </div>
 
             <!-- Request Limits -->
-            <div class="mb-4">
-                <div class="waf-section-title">
-                    <i class="bi bi-rulers" style="color:#8b5cf6;"></i>
+            <div class="waf-card" style="border-left-color:#8b5cf6">
+                <div class="waf-card-head">
+                    <span class="waf-icon" style="background:#8b5cf6"><i class="bi bi-rulers"></i></span>
                     <span data-i18n="waf.requestLimits">请求限制</span>
                 </div>
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label small fw-medium" for="waf-max-body" data-i18n="waf.maxBodySize">请求体大小上限 (MB)</label>
-                        <div class="input-group input-group-sm">
-                            <input type="number" class="form-control" id="waf-max-body" min="1" value="10">
-                            <span class="input-group-text">MB</span>
+                <div class="waf-row">
+                    <div class="waf-cell">
+                        <label class="waf-lbl" for="waf-max-body" data-i18n="waf.maxBodySize">请求体大小上限 (MB)</label>
+                        <div class="waf-ctrl">
+                            <div class="input-group input-group-sm">
+                                <input type="number" class="form-control" id="waf-max-body" min="1" value="10">
+                                <span class="input-group-text waf-unit">MB</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label small fw-medium" for="waf-max-headers" data-i18n="waf.maxHeaderCount">请求头数量上限</label>
-                        <input type="number" class="form-control form-control-sm" id="waf-max-headers" min="1" value="64">
+                    <div class="waf-cell">
+                        <label class="waf-lbl" for="waf-max-headers" data-i18n="waf.maxHeaderCount">请求头数量上限</label>
+                        <div class="waf-ctrl">
+                            <input type="number" class="form-control form-control-sm" id="waf-max-headers" min="1" value="64">
+                        </div>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label small fw-medium" for="waf-max-header-size" data-i18n="waf.maxHeaderSize">单个请求头大小上限 (字节)</label>
-                        <div class="input-group input-group-sm">
-                            <input type="number" class="form-control" id="waf-max-header-size" min="256" value="8192">
-                            <span class="input-group-text">bytes</span>
+                    <div class="waf-cell">
+                        <label class="waf-lbl" for="waf-max-header-size" data-i18n="waf.maxHeaderSize">单个请求头大小上限 (字节)</label>
+                        <div class="waf-ctrl">
+                            <div class="input-group input-group-sm">
+                                <input type="number" class="form-control" id="waf-max-header-size" min="256" value="8192">
+                                <span class="input-group-text waf-unit">bytes</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- IP Lists -->
-            <div class="mb-3">
-                <div class="waf-section-title">
-                    <i class="bi bi-geo-alt" style="color:#f59e0b;"></i>
+            <div class="waf-card" style="border-left-color:#f59e0b">
+                <div class="waf-card-head">
+                    <span class="waf-icon" style="background:#f59e0b"><i class="bi bi-geo-alt"></i></span>
                     <span data-i18n="waf.ipWhitelist">IP 白名单</span> / <span data-i18n="waf.ipBlacklist">IP 黑名单</span>
                 </div>
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label small" for="waf-whitelist" data-i18n="waf.ipWhitelist.help">每行一个 IP 或 CIDR，如 192.168.1.0/24</label>
-                        <textarea class="form-control form-control-sm" id="waf-whitelist" rows="4" placeholder="192.168.1.0/24"></textarea>
+                <div class="waf-row">
+                    <div class="waf-cell">
+                        <label class="waf-lbl"><i class="bi bi-shield-check me-1" style="color:#22c55e"></i><span data-i18n="waf.ipWhitelist">IP 白名单</span></label>
+                        <div class="waf-ctrl">
+                            <textarea class="form-control form-control-sm" id="waf-whitelist" rows="4" style="font-family:'Cascadia Code','Fira Code',monospace;font-size:12px" data-i18n="waf.ipWhitelist.help" placeholder="每行一个 IP 或 CIDR，如 192.168.1.0/24"></textarea>
+                        </div>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label small" for="waf-blacklist" data-i18n="waf.ipBlacklist.help">每行一个 IP 或 CIDR</label>
-                        <textarea class="form-control form-control-sm" id="waf-blacklist" rows="4" placeholder="10.0.0.5"></textarea>
+                    <div class="waf-cell">
+                        <label class="waf-lbl"><i class="bi bi-slash-circle me-1" style="color:#ef4444"></i><span data-i18n="waf.ipBlacklist">IP 黑名单</span></label>
+                        <div class="waf-ctrl">
+                            <textarea class="form-control form-control-sm" id="waf-blacklist" rows="4" style="font-family:'Cascadia Code','Fira Code',monospace;font-size:12px" data-i18n="waf.ipBlacklist.help" placeholder="每行一个 IP 或 CIDR"></textarea>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Route Override Hint -->
-            <div class="alert alert-info py-2 px-3 mb-4 small d-flex align-items-center" role="alert">
-                <i class="bi bi-info-circle me-2 flex-shrink-0"></i>
+            <div class="waf-hint">
+                <i class="bi bi-info-circle"></i>
                 <span data-i18n="waf.routeOverrideHint">提示：路由级 WAF 设置可覆盖全局配置（在路由策略中配置）</span>
             </div>
 
-            <!-- Security Events Panel (Linked Events) -->
-            <div class="waf-section-title">
-                <i class="bi bi-shield-fill-exclamation" style="color:#ef4444;"></i>
-                <span data-i18n="waf.recentEvents">实时安全事件</span>
-                <button class="btn btn-sm btn-outline-danger ms-2" id="waf-test-event-btn" title="生成测试事件">
-                    <i class="bi bi-bug"></i> <span data-i18n="waf.testEvent">模拟攻击</span>
-                </button>
-                <span class="badge bg-secondary ms-2" id="waf-event-badge" style="font-size:11px;display:none;"></span>
-                <span class="text-muted small ms-2" id="waf-event-refresh-time" style="font-size:11px;"></span>
-            </div>
-            <p class="text-muted small mb-3" data-i18n="waf.recentEventsDesc">以下展示最新触发的安全事件，与安全事件页面实时同步</p>
-            <div class="row g-3 waf-event-panel">
-                <div class="col-lg-8">
-                    <div class="border rounded-3 p-3" style="background:#fcfcfc;">
-                        <div class="d-flex align-items-center justify-content-between mb-2">
-                            <span class="small fw-medium" data-i18n="waf.recentBlocks">最近拦截</span>
-                            <span class="small text-muted" id="waf-event-summary-total"></span>
-                        </div>
-                        <div id="waf-recent-events"><div class="waf-empty-small"><i class="bi bi-shield-check me-1"></i><span data-i18n="waf.noRecentEvents">暂无安全事件，发动一次模拟攻击试试</span></div></div>
-                    </div>
+            <!-- Security Events Panel -->
+            <div class="waf-card" style="border-left-color:#ef4444">
+                <div class="waf-card-head">
+                    <span class="waf-icon" style="background:#ef4444"><i class="bi bi-shield-fill-exclamation"></i></span>
+                    <span data-i18n="waf.recentEvents">实时安全事件</span>
+                    <button class="btn btn-sm btn-outline-danger ms-2" id="waf-test-event-btn" title="生成测试事件" style="font-size:11px;padding:2px 10px;">
+                        <i class="bi bi-bug"></i> <span data-i18n="waf.testEvent">模拟攻击</span>
+                    </button>
+                    <span class="badge bg-secondary ms-2" id="waf-event-badge" style="font-size:10px;display:none;"></span>
+                    <span class="text-muted ms-2" id="waf-event-refresh-time" style="font-size:10px;margin-left:auto;"></span>
                 </div>
-                <div class="col-lg-4">
-                    <div class="border rounded-3 p-3" style="background:#fcfcfc;">
-                        <div class="d-flex align-items-center justify-content-between mb-2">
-                            <span class="small fw-medium" data-i18n="security.topIps">Top 攻击源IP</span>
+                <p class="waf-desc" style="margin-bottom:10px" data-i18n="waf.recentEventsDesc">以下展示最新触发的安全事件，与安全事件页面实时同步</p>
+                <div class="row g-3">
+                    <div class="col-lg-8">
+                        <div class="waf-sub">
+                            <div class="waf-sub-head"><i class="bi bi-shield-x" style="color:#ef4444"></i> <span data-i18n="waf.recentBlocks">最近拦截</span> <span class="text-muted" id="waf-event-summary-total" style="margin-left:auto;font-weight:400"></span></div>
+                            <div id="waf-recent-events"><div class="waf-empty"><i class="bi bi-shield-check me-1"></i><span data-i18n="waf.noRecentEvents">暂无安全事件，发动一次模拟攻击试试</span></div></div>
                         </div>
-                        <div id="waf-top-ips"><div class="waf-empty-small"><i class="bi bi-info-circle me-1"></i><span data-i18n="waf.noIpData">暂无数据</span></div></div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="waf-sub">
+                            <div class="waf-sub-head"><i class="bi bi-bar-chart" style="color:#f59e0b"></i> <span data-i18n="security.topIps">Top 攻击源IP</span></div>
+                            <div id="waf-top-ips"><div class="waf-empty"><i class="bi bi-info-circle me-1"></i><span data-i18n="waf.noIpData">暂无数据</span></div></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -459,20 +505,22 @@ window.DashboardWafSettings = {
         var d = this._data || {};
         var enabled = d.enabled !== false;
         document.getElementById('waf-status-banner').innerHTML =
-            '<div class="waf-status-banner ' + (enabled ? 'enabled' : 'disabled') + '">' +
-                '<div class="d-flex align-items-center gap-3">' +
-                    '<i class="bi bi-' + (enabled ? 'shield-check' : 'shield-slash') + ' fs-3"></i>' +
+            '<div class="waf-banner ' + (enabled ? 'on' : 'off') + '">' +
+                '<div style="display:flex;align-items:center;gap:12px;">' +
+                    '<i class="bi bi-' + (enabled ? 'shield-check' : 'shield-slash') + '" style="font-size:22px;"></i>' +
                     '<div>' +
-                        '<div class="fw-semibold">' + __('waf.globalSwitch') + '</div>' +
-                        '<div class="small opacity-75">' + (enabled ? __('waf.globalSwitch.on') : __('waf.globalSwitch.off')) + '</div>' +
+                        '<div style="font-weight:600;font-size:14px;">' + __('waf.globalSwitch') + '</div>' +
+                        '<div style="font-size:12px;opacity:.8;">' + (enabled ? __('waf.globalSwitch.on') : __('waf.globalSwitch.off')) + '</div>' +
                     '</div>' +
                 '</div>' +
-                '<div class="form-check form-switch mb-0">' +
-                    '<input class="form-check-input" type="checkbox" id="waf-enabled" ' + (enabled ? 'checked' : '') + '>' +
+                '<div class="waf-sw">' +
+                    '<span class="waf-sw-txt" style="color:rgba(255,255,255,.7);font-size:11px;">' + (enabled ? 'ON' : 'OFF') + '</span>' +
+                    '<div class="form-check form-switch mb-0">' +
+                        '<input class="form-check-input" type="checkbox" id="waf-enabled" ' + (enabled ? 'checked' : '') + ' style="width:3em;height:1.5em;cursor:pointer;">' +
+                    '</div>' +
                 '</div>' +
             '</div>';
 
-        // Bind toggle event
         document.getElementById('waf-enabled').addEventListener('change', function() {
             DashboardWafSettings._data.enabled = this.checked;
             DashboardWafSettings._renderStatusBanner();
@@ -487,21 +535,24 @@ window.DashboardWafSettings = {
             var cnt = this._getCount(s.eventTypes);
             var hasCount = cnt > 0;
             html +=
-                '<div class="waf-flow-step">' +
-                    '<div class="step-circle' + (hasCount ? ' has-count' : '') + '">' +
+                '<div class="waf-flow-node">' +
+                    '<div class="waf-flow-dot' + (hasCount ? ' hit' : '') + '">' +
                         '<i class="bi ' + s.icon + '"></i>' +
                     '</div>' +
-                    '<div class="step-label">' + __('waf.step.' + s.key) + '</div>' +
-                    '<div class="step-count' + (hasCount ? ' has-count' : '') + '">' +
-                        (hasCount ? cnt + 'x' : '') +
+                    '<div class="waf-flow-lbl">' + __('waf.step.' + s.key) + '</div>' +
+                    '<div class="waf-flow-cnt' + (hasCount ? ' hit' : '') + '">' +
+                        (hasCount ? cnt + 'x blocked' : '\u2014') +
                     '</div>' +
                 '</div>';
             if (i < steps.length - 1) {
-                html += '<div class="waf-flow-arrow"><i class="bi bi-chevron-right"></i></div>';
+                var nextCnt = this._getCount(steps[i + 1].eventTypes);
+                html += '<div class="waf-flow-line' + ((hasCount || nextCnt > 0) ? ' hit' : '') + '"></div>';
             }
         }
         document.getElementById('waf-flow-steps').innerHTML = html;
     },
+
+    _ruleColors: { sqli: '#ef4444', xss: '#f59e0b', path: '#3b82f6', ip: '#22c55e' },
 
     _renderRuleCards: function() {
         var html = '';
@@ -512,22 +563,27 @@ window.DashboardWafSettings = {
             var hasCount = cnt > 0;
             var d = this._data || {};
             var checked = d[r.dataField] !== false;
+            var color = this._ruleColors[r.key] || '#cbd5e1';
+            var onTxt = checked ? '<span style="font-size:10px;color:#16a34a;font-weight:600;">ON</span>' : '<span style="font-size:10px;color:#94a3b8;font-weight:600;">OFF</span>';
             html +=
                 '<div class="col-md-6 col-lg-3">' +
-                    '<div class="waf-rule-card">' +
-                        '<div class="rule-header">' +
-                            '<span class="rule-title"><i class="bi ' + r.icon + ' me-1" style="color:#ef4444;"></i>' + __('' + r.titleKey) + '</span>' +
+                    '<div class="waf-rule" style="border-left-color:' + color + '">' +
+                        '<div class="waf-rule-title">' +
+                            '<i class="bi ' + r.icon + '" style="color:' + color + ';"></i>' + __('' + r.titleKey) +
                         '</div>' +
-                        '<div class="rule-desc">' + __('' + r.descKey) + '</div>' +
-                        '<div class="rule-example" title="' + __('' + r.exampleKey) + '">' +
-                            '<i class="bi bi-lightning-fill me-1" style="color:#f59e0b;font-size:10px;"></i>' + __('' + r.exampleKey) +
+                        '<div class="waf-rule-desc">' + __('' + r.descKey) + '</div>' +
+                        '<div class="waf-rule-code" title="' + __('' + r.exampleKey) + '">' +
+                            '<i class="bi bi-lightning-fill" style="color:#f59e0b;font-size:10px;margin-right:4px;"></i>' + __('' + r.exampleKey) +
                         '</div>' +
-                        '<div class="rule-footer">' +
-                            '<div class="form-check form-switch mb-0">' +
-                                '<input class="form-check-input" type="checkbox" id="' + r.id + '" ' + (checked ? 'checked' : '') + '>' +
+                        '<div class="waf-rule-foot">' +
+                            '<div class="waf-sw">' +
+                                '<div class="form-check form-switch mb-0">' +
+                                    '<input class="form-check-input" type="checkbox" id="' + r.id + '" ' + (checked ? 'checked' : '') + ' style="width:36px;height:18px;cursor:pointer;margin:0;">' +
+                                '</div>' +
+                                onTxt +
                             '</div>' +
-                            '<span class="waf-count-badge ' + (hasCount ? 'has-count' : 'no-count') + '">' +
-                                '<i class="bi bi-' + (hasCount ? 'exclamation-triangle' : 'check-circle') + '"></i> ' +
+                            '<span class="waf-badge ' + (hasCount ? 'hit' : 'clean') + '">' +
+                                '<i class="bi bi-' + (hasCount ? 'exclamation-circle' : 'check-circle') + '"></i> ' +
                                 (hasCount ? __('waf.triggerCount').replace('{count}', cnt) : __('waf.neverTriggered')) +
                             '</span>' +
                         '</div>' +
@@ -650,7 +706,7 @@ window.DashboardWafSettings = {
         if (!container) return;
         var events = this._recentEvents || [];
         if (events.length === 0) {
-            container.innerHTML = '<div class="waf-empty-small"><i class="bi bi-shield-check me-1"></i><span data-i18n="waf.noRecentEvents">暂无安全事件，发动一次模拟攻击试试</span></div>';
+            container.innerHTML = '<div class="waf-empty"><i class="bi bi-shield-check me-1"></i><span data-i18n="waf.noRecentEvents">暂无安全事件，发动一次模拟攻击试试</span></div>';
             return;
         }
         var html = '';
@@ -660,11 +716,11 @@ window.DashboardWafSettings = {
             var ti = this._getTypeInfo(ev.eventType);
             var timeStr = this._fmtRelTime(ev.timestamp);
             html +=
-                '<div class="event-entry">' +
-                    '<span class="event-time" title="' + this._eH(ev.timestamp) + '">' + timeStr + '</span>' +
-                    '<span class="event-type-badge"><span class="badge ' + ti.cls + '" style="font-size:10px;">' + ti.label + '</span></span>' +
-                    '<span class="event-ip"><i class="bi bi-geo-alt me-1" style="font-size:9px;color:#9ca3af;"></i>' + this._eH(ev.clientIp) + '</span>' +
-                    '<span class="event-target"><code>' + this._eH(ev.requestMethod || 'GET') + ' ' + this._eH(this._truncate(ev.requestUri, 50)) + '</code></span>' +
+                '<div class="waf-ev">' +
+                    '<span class="ev-time" title="' + this._eH(ev.timestamp) + '">' + timeStr + '</span>' +
+                    '<span class="ev-type"><span class="badge ' + ti.cls + '" style="font-size:10px;">' + ti.label + '</span></span>' +
+                    '<span class="ev-ip"><i class="bi bi-geo-alt" style="font-size:9px;color:#9ca3af;margin-right:3px;"></i>' + this._eH(ev.clientIp) + '</span>' +
+                    '<span class="ev-target"><code>' + this._eH(ev.requestMethod || 'GET') + ' ' + this._eH(this._truncate(ev.requestUri, 50)) + '</code></span>' +
                 '</div>';
         }
         container.innerHTML = html;
@@ -676,7 +732,7 @@ window.DashboardWafSettings = {
         var ips = this._topIps || {};
         var keys = Object.keys(ips);
         if (keys.length === 0) {
-            container.innerHTML = '<div class="waf-empty-small"><i class="bi bi-info-circle me-1"></i><span data-i18n="waf.noIpData">暂无数据</span></div>';
+            container.innerHTML = '<div class="waf-empty"><i class="bi bi-info-circle me-1"></i><span data-i18n="waf.noIpData">暂无数据</span></div>';
             return;
         }
         var maxCount = ips[keys[0]] || 1;
@@ -687,10 +743,10 @@ window.DashboardWafSettings = {
             var cnt = ips[ip];
             var pct = Math.min(100, (cnt / maxCount) * 100);
             html +=
-                '<div class="waf-ip-bar">' +
-                    '<span class="ip-addr"><i class="bi bi-geo-alt me-1" style="font-size:9px;color:#9ca3af;"></i>' + this._eH(ip) + '</span>' +
-                    '<div class="ip-bar-track"><div class="ip-bar-fill" style="width:' + pct + '%"></div></div>' +
-                    '<span class="ip-count">' + cnt + '</span>' +
+                '<div class="waf-ipbar">' +
+                    '<span class="ip-addr"><i class="bi bi-geo-alt" style="font-size:9px;color:#9ca3af;margin-right:3px;"></i>' + this._eH(ip) + '</span>' +
+                    '<div class="ip-track"><div class="ip-fill" style="width:' + pct + '%"></div></div>' +
+                    '<span class="ip-cnt">' + cnt + '</span>' +
                 '</div>';
         }
         container.innerHTML = html;
