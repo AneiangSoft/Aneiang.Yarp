@@ -296,15 +296,15 @@ public class ConfigPersistenceService : IConfigPersistenceService
             var routeEntities = await _routeRepo.GetAllRoutesAsync();
             var clusterEntities = await _clusterRepo.GetAllClustersAsync();
 
-            var config = new GatewayDynamicConfig { Routes = EntityMapper.ToRouteConfigs(routeEntities) };
+            var config = new GatewayDynamicConfig { Routes = routeEntities.ToRouteConfigs() };
 
             foreach (var ce in clusterEntities)
             {
-                var dynCluster = EntityMapper.ToClusterConfig(ce);
+                var dynCluster = ce.ToClusterConfig();
                 var destEntities = await _clusterRepo.GetDestinationsAsync(ce.ClusterId);
                 dynCluster.Config = dynCluster.Config with
                 {
-                    Destinations = EntityMapper.ToDestinations(destEntities)
+                    Destinations = destEntities.ToDestinations()
                         .ToDictionary(kv => kv.Key, kv => new DestinationConfig { Address = kv.Value })
                 };
                 config.Clusters.Add(dynCluster);

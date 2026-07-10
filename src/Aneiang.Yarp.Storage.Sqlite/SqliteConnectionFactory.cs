@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -13,7 +14,7 @@ namespace Aneiang.Yarp.Storage.Sqlite;
 /// Schema migration is triggered lazily on the first <see cref="CreateConnection"/> call
 /// to guarantee tables exist before any repository reads the database.
 /// </summary>
-public sealed class SqliteConnectionFactory
+public sealed class SqliteConnectionFactory : IDbConnectionFactory
 {
     private readonly string _connectionString;
     private readonly IServiceProvider _serviceProvider;
@@ -65,6 +66,11 @@ public sealed class SqliteConnectionFactory
     /// when running migrations.
     /// </summary>
     internal SqliteConnection CreateRawConnection() => new(_connectionString);
+
+    // Explicit interface implementations — return DbConnection for storage-agnostic callers
+    DbConnection IDbConnectionFactory.CreateConnection() => CreateConnection();
+    async ValueTask<DbConnection> IDbConnectionFactory.CreateConnectionAsync(CancellationToken ct)
+        => await CreateConnectionAsync(ct).ConfigureAwait(false);
 
     private static void EnsureProvider()
     {

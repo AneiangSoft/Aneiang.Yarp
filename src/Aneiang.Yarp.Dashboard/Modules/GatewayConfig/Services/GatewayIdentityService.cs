@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
+using Aneiang.Yarp.Dashboard.Infrastructure.State;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Models;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
@@ -41,6 +41,7 @@ public sealed class GatewayIdentityService : IGatewayIdentityService
     private readonly IPolicyRepository _policyRepository;
     private readonly IConfigPersistenceService _persistenceService;
     private readonly IDynamicYarpConfigService _dynamicConfig;
+    private readonly ICircuitStateStore _circuitStore;
     private readonly ILogger<GatewayIdentityService> _logger;
     private readonly SemaphoreSlim _renameLock = new(1, 1);
 
@@ -48,11 +49,13 @@ public sealed class GatewayIdentityService : IGatewayIdentityService
         IPolicyRepository policyRepository,
         IConfigPersistenceService persistenceService,
         IDynamicYarpConfigService dynamicConfig,
+        ICircuitStateStore circuitStore,
         ILogger<GatewayIdentityService> logger)
     {
         _policyRepository = policyRepository;
         _persistenceService = persistenceService;
         _dynamicConfig = dynamicConfig;
+        _circuitStore = circuitStore;
         _logger = logger;
     }
 
@@ -143,7 +146,7 @@ public sealed class GatewayIdentityService : IGatewayIdentityService
     public async Task AfterClusterRenamedAsync(string oldClusterId, string newClusterId, CancellationToken ct = default)
     {
         var changed = await RewritePolicyTargetsAsync("cluster", oldClusterId, newClusterId, ct);
-        CircuitBreakerMiddleware.RenameClusterKey(oldClusterId, newClusterId);
+        _circuitStore.RenameClusterKey(oldClusterId, newClusterId);
         _logger.LogInformation(
             "Cluster identity renamed: {OldClusterId} -> {NewClusterId}; updated {PolicyCount} policy binding(s)",
             oldClusterId, newClusterId, changed);
@@ -189,11 +192,5 @@ public sealed class GatewayIdentityService : IGatewayIdentityService
         {
             _logger.LogError(rollbackEx, "Failed to rollback rename using snapshot {VersionId}", snapshot.VersionId);
         }
-    }
-
-    private static string StableUidFromKey(string prefix, string key)
-    {
-        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(prefix + ":" + key));
-        return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
     }
 }

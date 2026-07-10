@@ -19,14 +19,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
     <PackageReference Include="Microsoft.IO.RecyclableMemoryStream" Version="3.0.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Aneiang.Yarp\Aneiang.Yarp.csproj" />
     <ProjectReference Include="..\Aneiang.Yarp.Storage.Abstractions\Aneiang.Yarp.Storage.Abstractions.csproj" />
-    <ProjectReference Include="..\Aneiang.Yarp.Storage.Sqlite\Aneiang.Yarp.Storage.Sqlite.csproj" />
   </ItemGroup>
 
   <ItemGroup>

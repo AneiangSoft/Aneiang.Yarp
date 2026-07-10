@@ -16,6 +16,7 @@ public sealed class NotificationService : INotificationService
     private readonly INotificationRepository _repository;
     private readonly ILogger<NotificationService> _logger;
     private readonly ChannelSender _channelSender;
+    private readonly CooldownManager _cooldownManager;
     private readonly JsonSerializerOptions _jsonOptions;
 
     private string _locale = "zh-CN";
@@ -26,11 +27,13 @@ public sealed class NotificationService : INotificationService
     public NotificationService(
         INotificationRepository repository,
         ILogger<NotificationService> logger,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        CooldownManager cooldownManager)
     {
         _repository = repository;
         _logger = logger;
         _channelSender = new ChannelSender(repository, httpClientFactory, logger);
+        _cooldownManager = cooldownManager;
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -152,7 +155,7 @@ public sealed class NotificationService : INotificationService
                             continue;
 
                         var cooldownKey = CooldownManager.GetCooldownKey(rule.Id, channelId, evt);
-                        if (!CooldownManager.TryAcquire(cooldownKey, TimeSpan.FromSeconds(rule.CooldownSeconds)))
+                        if (!_cooldownManager.TryAcquire(cooldownKey, TimeSpan.FromSeconds(rule.CooldownSeconds)))
                             continue;
 
                         var channel = channels.First(c => c.Id == channelId);

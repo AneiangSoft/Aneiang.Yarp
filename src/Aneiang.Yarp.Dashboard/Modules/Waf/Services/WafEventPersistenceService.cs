@@ -1,7 +1,7 @@
 using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 using Aneiang.Yarp.Dashboard.Infrastructure;
-using Aneiang.Yarp.Storage.Sqlite;
-using Microsoft.Data.Sqlite;
+using Aneiang.Yarp.Storage;
+using System.Data.Common;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -23,7 +23,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 public sealed class WafEventPersistenceService : IHostedService
 {
     private readonly WafEventStore _eventStore;
-    private readonly SqliteConnectionFactory _connections;
+    private readonly IDbConnectionFactory _connections;
     private readonly ILogger<WafEventPersistenceService> _logger;
     private readonly int _retentionDays;
     private CancellationTokenSource? _cts;
@@ -33,7 +33,7 @@ public sealed class WafEventPersistenceService : IHostedService
 
     public WafEventPersistenceService(
         WafEventStore eventStore,
-        SqliteConnectionFactory connections,
+        IDbConnectionFactory connections,
         ILogger<WafEventPersistenceService> logger,
         IOptions<DashboardOptions> options)
     {
@@ -77,14 +77,12 @@ public sealed class WafEventPersistenceService : IHostedService
 
             try
             {
-                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(500));
-
-                var first = await reader.ReadAsync(timeoutCts.Token);
-                batch.Add(first);
-
-                while (batch.Count < 50 && reader.TryRead(out var evt))
-                    batch.Add(evt);
+                // Wait for first entry using WaitToReadAsync — no exception on idle
+                if (await reader.WaitToReadAsync(ct))
+                {
+                    while (batch.Count < 50 && reader.TryRead(out var evt))
+                        batch.Add(evt);
+                }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -92,7 +90,6 @@ public sealed class WafEventPersistenceService : IHostedService
                     await FlushBatchAsync(batch, CancellationToken.None);
                 break;
             }
-            catch (OperationCanceledException) { }
 
             if (batch.Count > 0)
                 await FlushBatchAsync(batch, ct);
@@ -122,20 +119,20 @@ public sealed class WafEventPersistenceService : IHostedService
                     INSERT INTO waf_events_meta (EventId, Timestamp, ClientIp, EventType, RuleName, RequestUri, RequestMethod, RouteUid, RouteKeySnapshot, ClusterUid, ClusterKeySnapshot, MatchedValue, Blocked, StatusCode)
                     VALUES (@eid, @ts, @ip, @et, @rn, @uri, @method, @ruid, @rks, @cuid, @cks, @mv, @blk, @sc)
                     """;
-                cmd.Parameters.AddWithValue("@eid", evt.Id.ToString("N"));
-                cmd.Parameters.AddWithValue("@ts", evt.Timestamp.ToString("O"));
-                cmd.Parameters.AddWithValue("@ip", evt.ClientIp);
-                cmd.Parameters.AddWithValue("@et", evt.EventType);
-                cmd.Parameters.AddWithValue("@rn", evt.RuleName);
-                cmd.Parameters.AddWithValue("@uri", (object?)evt.RequestUri ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@method", (object?)evt.RequestMethod ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@ruid", (object?)evt.RouteUid ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@rks", (object?)evt.RouteKeySnapshot ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@cuid", (object?)evt.ClusterUid ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@cks", (object?)evt.ClusterKeySnapshot ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@mv", (object?)evt.MatchedValue ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@blk", evt.Blocked ? 1 : 0);
-                cmd.Parameters.AddWithValue("@sc", (object?)evt.StatusCode ?? DBNull.Value);
+                AddParam(cmd, "@eid", evt.Id.ToString("N"));
+                AddParam(cmd, "@ts", evt.Timestamp.ToString("O"));
+                AddParam(cmd, "@ip", evt.ClientIp);
+                AddParam(cmd, "@et", evt.EventType);
+                AddParam(cmd, "@rn", evt.RuleName);
+                AddParam(cmd, "@uri", (object?)evt.RequestUri ?? DBNull.Value);
+                AddParam(cmd, "@method", (object?)evt.RequestMethod ?? DBNull.Value);
+                AddParam(cmd, "@ruid", (object?)evt.RouteUid ?? DBNull.Value);
+                AddParam(cmd, "@rks", (object?)evt.RouteKeySnapshot ?? DBNull.Value);
+                AddParam(cmd, "@cuid", (object?)evt.ClusterUid ?? DBNull.Value);
+                AddParam(cmd, "@cks", (object?)evt.ClusterKeySnapshot ?? DBNull.Value);
+                AddParam(cmd, "@mv", (object?)evt.MatchedValue ?? DBNull.Value);
+                AddParam(cmd, "@blk", evt.Blocked ? 1 : 0);
+                AddParam(cmd, "@sc", (object?)evt.StatusCode ?? DBNull.Value);
                 await cmd.ExecuteNonQueryAsync(ct);
             }
             await tx.CommitAsync(ct);
@@ -157,7 +154,7 @@ public sealed class WafEventPersistenceService : IHostedService
             await using var cmd = conn.CreateCommand();
             cmd.CommandTimeout = 60;
             cmd.CommandText = "DELETE FROM waf_events_meta WHERE Timestamp < datetime('now', @days || ' days')";
-            cmd.Parameters.AddWithValue("@days", $"-{_retentionDays}");
+            AddParam(cmd, "@days", $"-{_retentionDays}");
             var deleted = await cmd.ExecuteNonQueryAsync(ct);
 
             // WAL checkpoint
@@ -171,5 +168,13 @@ public sealed class WafEventPersistenceService : IHostedService
         {
             _logger.LogWarning(ex, "WAF event cleanup failed (non-critical, will retry next cycle)");
         }
+    }
+
+    private static void AddParam(DbCommand cmd, string name, object? value)
+    {
+        var p = cmd.CreateParameter();
+        p.ParameterName = name;
+        p.Value = value;
+        cmd.Parameters.Add(p);
     }
 }

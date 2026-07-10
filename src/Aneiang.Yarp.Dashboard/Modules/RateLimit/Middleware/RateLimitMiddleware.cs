@@ -3,9 +3,12 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Infrastructure;
+using Aneiang.Yarp.Dashboard.Infrastructure.Middleware;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
+using Aneiang.Yarp.Dashboard.Infrastructure.State;
 using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
 using Aneiang.Yarp.Services;
+using Aneiang.Yarp.Storage;
 using Aneiang.Yarp.Infrastructure;
 using System.Threading.RateLimiting;
 using Yarp.ReverseProxy.Model;
@@ -17,26 +20,18 @@ namespace Aneiang.Yarp.Dashboard.Modules.RateLimit.Middleware;
 /// Reads RateLimit:* metadata from the matched route and enforces per-partition rate limits.
 /// Falls back to global DashboardOptions.RateLimit when no route-level metadata is configured.
 /// </summary>
-public sealed class RateLimitMiddleware
+public sealed class RateLimitMiddleware : GatewayMiddlewareBase
 {
-    private readonly RequestDelegate _next;
     private readonly ILogger<RateLimitMiddleware> _logger;
     private readonly RateLimitOptions _globalOptions;
-    private readonly IGatewayPluginManager _pluginManager;
-    private readonly string _dashPrefix;
     private readonly INotificationService _notificationService;
     private readonly IDynamicYarpConfigService? _yarpConfig;
+    private readonly IRateLimiterStore _limiterStore;
 
-    private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
-
-    // Memory optimization (v2.4): Reduced max limiters from 10000 to 2000
-    // and improved cleanup strategy — evict stale entries instead of deleting half
-    private static readonly ConcurrentDictionary<string, RateLimiterWithTimestamp> Limiters = new();
-
-    private const int MaxLimiterCount = 2000; // Down from 10000 — prevents memory exhaustion
+    private const int MaxLimiterCount = 2000;
     private static readonly TimeSpan DefaultCleanupInterval = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan StaleLimiterThreshold = TimeSpan.FromMinutes(5); // Inactive for 5min → evict
-    private static DateTime _lastCleanup = DateTime.UtcNow;
+    private static readonly TimeSpan StaleLimiterThreshold = TimeSpan.FromMinutes(5);
+    private DateTime _lastCleanup = DateTime.UtcNow;
 
     public RateLimitMiddleware(
         RequestDelegate next,
@@ -44,32 +39,29 @@ public sealed class RateLimitMiddleware
         IOptions<RateLimitOptions> options,
         IOptions<DashboardOptions> dashOptions,
         IGatewayPluginManager pluginManager,
+        IRateLimiterStore limiterStore,
         INotificationService? notificationService = null,
         IDynamicYarpConfigService? yarpConfig = null)
+        : base(next, dashOptions, pluginManager, yarpConfig)
     {
-        _next = next;
         _logger = logger;
         _globalOptions = options.Value;
-        _pluginManager = pluginManager;
-        _dashPrefix = "/" + dashOptions.Value.RoutePrefix.Trim('/');
         _notificationService = notificationService ?? NullNotificationService.Instance;
         _yarpConfig = yarpConfig;
+        _limiterStore = limiterStore;
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (!_pluginManager.IsPluginEnabled("rate-limit"))
+        if (!IsPluginEnabled("rate-limit"))
         {
-            await _next(context);
+            await Next(context);
             return;
         }
 
-        var path = context.Request.Path.Value ?? "";
-
-        if (path.StartsWith(_dashPrefix, StringComparison.OrdinalIgnoreCase) ||
-            path.StartsWith(ContentRoot, StringComparison.OrdinalIgnoreCase))
+        if (IsDashboardRequest(context))
         {
-            await _next(context);
+            await Next(context);
             return;
         }
 
@@ -82,7 +74,7 @@ public sealed class RateLimitMiddleware
 
         if (!config.Enabled)
         {
-            await _next(context);
+            await Next(context);
             return;
         }
 
@@ -121,7 +113,7 @@ public sealed class RateLimitMiddleware
             return;
         }
 
-        await _next(context);
+        await Next(context);
     }
 
     private RouteRateLimitConfig ResolveConfig(IReadOnlyDictionary<string, string>? routeMeta, out string? routeId)
@@ -198,9 +190,9 @@ public sealed class RateLimitMiddleware
     {
         TryCleanup();
 
-        var wrapper = Limiters.GetOrAdd(key, _ => new RateLimiterWithTimestamp(CreateLimiter(key, config)));
-        wrapper.LastAccessedAt = DateTime.UtcNow;
-        return wrapper.Limiter;
+        var entry = _limiterStore.GetOrAdd(key, () => CreateLimiter(key, config));
+        entry.LastAccessedAt = DateTime.UtcNow;
+        return entry.Limiter;
     }
 
     private RateLimiter CreateLimiter(string key, RouteRateLimitConfig config)
@@ -253,32 +245,7 @@ public sealed class RateLimitMiddleware
             return;
 
         _lastCleanup = DateTime.UtcNow;
-
-        // Memory optimization (v2.4): Evict stale entries (LastAccessedAt > 5min ago)
-        // instead of bluntly deleting the first half. Much safer and more memory-efficient.
-        var now = DateTime.UtcNow;
-        foreach (var kvp in Limiters)
-        {
-            if (now - kvp.Value.LastAccessedAt > StaleLimiterThreshold)
-            {
-                if (Limiters.TryRemove(kvp.Key, out var wrapper))
-                    wrapper.Limiter.Dispose();
-            }
-        }
-
-        // Safety fallback: if still too many after stale eviction, evict oldest half
-        if (Limiters.Count > MaxLimiterCount)
-        {
-            var oldestKeys = Limiters.OrderBy(k => k.Value.LastAccessedAt)
-                .Take(Limiters.Count / 2)
-                .Select(k => k.Key)
-                .ToList();
-            foreach (var k in oldestKeys)
-            {
-                if (Limiters.TryRemove(k, out var wrapper))
-                    wrapper.Limiter.Dispose();
-            }
-        }
+        _limiterStore.Cleanup(StaleLimiterThreshold, MaxLimiterCount);
     }
 
     private string? ResolveRouteScopeId(string? routeKey)
@@ -288,13 +255,7 @@ public sealed class RateLimitMiddleware
         var routeUid = _yarpConfig?.GetDynamicConfig()?.Routes.FirstOrDefault(r =>
             string.Equals(r.Config.RouteId, routeKey, StringComparison.OrdinalIgnoreCase))?.RouteUid;
 
-        return string.IsNullOrWhiteSpace(routeUid) ? StableUidFromKey("route", routeKey) : routeUid;
-    }
-
-    private static string StableUidFromKey(string prefix, string key)
-    {
-        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(prefix + ":" + key));
-        return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
+        return string.IsNullOrWhiteSpace(routeUid) ? StableUid.FromKey("route", routeKey) : routeUid;
     }
 
     private static string GetPartitionValue(HttpContext context, string partitionKey)
@@ -363,20 +324,5 @@ public sealed class RateLimitMiddleware
         public string Window { get; set; } = "1m";
         public int QueueLimit { get; set; } = 0;
         public string PartitionKey { get; set; } = "IpAddress";
-    }
-
-    /// <summary>
-    /// Wrapper tracking last access time for stale-eviction cleanup strategy.
-    /// </summary>
-    private sealed class RateLimiterWithTimestamp
-    {
-        public RateLimiter Limiter { get; }
-        public DateTime LastAccessedAt { get; set; }
-
-        public RateLimiterWithTimestamp(RateLimiter limiter)
-        {
-            Limiter = limiter;
-            LastAccessedAt = DateTime.UtcNow;
-        }
     }
 }

@@ -9,6 +9,7 @@
 	<ItemGroup>
 		<ProjectReference Include="..\..\src\Aneiang.Yarp\Aneiang.Yarp.csproj" />
 		<ProjectReference Include="..\..\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj" />
+		<ProjectReference Include="..\..\src\Aneiang.Yarp.Storage.Sqlite\Aneiang.Yarp.Storage.Sqlite.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

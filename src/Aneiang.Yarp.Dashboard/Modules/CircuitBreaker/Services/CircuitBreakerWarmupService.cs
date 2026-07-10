@@ -1,4 +1,4 @@
-using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
+using Aneiang.Yarp.Dashboard.Infrastructure.State;
 using Aneiang.Yarp.Services;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -12,13 +12,16 @@ namespace Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Services;
 public sealed class CircuitBreakerWarmupService : IHostedService
 {
     private readonly IDynamicYarpConfigService _yarpConfig;
+    private readonly ICircuitStateStore _circuitStore;
     private readonly ILogger<CircuitBreakerWarmupService> _logger;
 
     public CircuitBreakerWarmupService(
         IDynamicYarpConfigService yarpConfig,
+        ICircuitStateStore circuitStore,
         ILogger<CircuitBreakerWarmupService> logger)
     {
         _yarpConfig = yarpConfig;
+        _circuitStore = circuitStore;
         _logger = logger;
     }
 
@@ -32,7 +35,7 @@ public sealed class CircuitBreakerWarmupService : IHostedService
         {
             if (cluster.CircuitBreaker is { Enabled: true } cbConfig)
             {
-                CircuitBreakerMiddleware.EnsureCircuitExists(cluster.Config.ClusterId ?? string.Empty, cbConfig, cluster.ClusterUid);
+                _circuitStore.EnsureCircuitExists(cluster.Config.ClusterId ?? string.Empty, cbConfig, cluster.ClusterUid);
                 count++;
             }
         }

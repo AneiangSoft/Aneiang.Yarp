@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure;
 
@@ -41,250 +42,156 @@ public class DashboardOptions
     /// <summary>Config section name.</summary>
     public const string SectionName = "Gateway:Dashboard";
 
-    /// <summary>
-    /// Enable or disable proxy request/response logging.
-    /// When disabled, the middleware skips all capture logic,
-    /// the EventSource listener is not active,
-    /// and the log menu/panel is hidden from the UI.
-    /// Default: true.
-    /// </summary>
-    public bool EnableProxyLogging { get; set; } = true;
+    // ──────────────── Sub-option objects ────────────────
+
+    /// <summary>Authentication configuration.</summary>
+    public DashboardAuthOptions Auth { get; set; } = new();
+
+    /// <summary>Proxy logging configuration.</summary>
+    public ProxyLogOptions ProxyLog { get; set; } = new();
+
+    // ──────────────── Core facade properties ────────────────
 
     /// <summary>
-    /// Route prefix for all dashboard pages. All dashboard URLs will be under /{RoutePrefix}/.
-    /// Default: "apigateway".
+    /// Route prefix for all dashboard pages. Default: "apigateway".
     /// </summary>
     public string RoutePrefix { get; set; } = "apigateway";
 
     /// <summary>
-    /// Authorization mode for accessing the dashboard.
-    /// </summary>
-    public DashboardAuthMode AuthMode { get; set; } = DashboardAuthMode.None;
-
-    /// <summary>API key value. Clients pass via header (default: X-Api-Key) or query param <c>api-key</c>.</summary>
-    public string? ApiKey { get; set; }
-
-    /// <summary>Header name for ApiKey mode. Default: X-Api-Key.</summary>
-    public string ApiKeyHeaderName { get; set; } = "X-Api-Key";
-
-    /// <summary>JWT signing secret. Auto-generated if not set (invalidated on restart).</summary>
-    public string? JwtSecret { get; set; }
-
-    /// <summary>Username for CustomJwt mode.</summary>
-    public string? JwtUsername { get; set; }
-
-    /// <summary>Password for JWT login (required for both CustomJwt and DefaultJwt).</summary>
-    public string? JwtPassword { get; set; }
-
-    /// <summary>
-    /// Enable Two-Factor Authentication (TOTP) for JWT login.
-    /// When enabled, users must provide a 6-digit code from an authenticator app.
-    /// The shared secret is configured via <see cref="TwoFactorSecret"/>.
-    /// Default: false.
-    /// </summary>
-    public bool EnableTwoFactor { get; set; }
-
-    /// <summary>
-    /// Base32-encoded TOTP shared secret for 2FA.
-    /// Generate with: any TOTP app or the dashboard's "Setup 2FA" page.
-    /// If null while EnableTwoFactor is true, 2FA is skipped (development mode).
-    /// </summary>
-    public string? TwoFactorSecret { get; set; }
-
-    /// <summary>
-    /// Minimum password length for JWT login. Default: 6.
-    /// Only enforced at login time (does not prevent existing config).
-    /// </summary>
-    public int MinPasswordLength { get; set; } = 6;
-
-    /// <summary>
-    /// Dashboard UI locale. Supported values: "zh-CN", "en-US".
-    /// Users can switch the language on the page at runtime via a toggle button;
-    /// the choice is persisted in localStorage. This option sets the default
-    /// language for first-time visitors. Default: "zh-CN".
+    /// Dashboard UI locale. Default: "zh-CN".
     /// </summary>
     public string Locale { get; set; } = "zh-CN";
 
-    /// <summary>
-    /// Maximum number of log entries kept in the in-memory ring buffer.
-    /// Rounded up to next power of 2 internally (e.g., 50 → 64, 100 → 128).
-    /// Minimum: 16. When the buffer is full, oldest entries are overwritten.
-    /// ⚠️ This setting is ONLY effective at startup — changing it at runtime requires a service restart,
-    /// because ProxyLogStore allocates a fixed-size buffer at construction time.
-    /// Default: 50 (aligned to 64 internally).
-    /// </summary>
-    public int LogBufferCapacity { get; set; } = 50;
+    // ──────────────── Auth facade (backward compat) ────────────────
+
+    /// <summary>Authorization mode. Delegates to <see cref="Auth"/>.</summary>
+    public DashboardAuthMode AuthMode { get => Auth.AuthMode; set => Auth.AuthMode = value; }
+
+    /// <summary>API key. Delegates to <see cref="Auth"/>.</summary>
+    public string? ApiKey { get => Auth.ApiKey; set => Auth.ApiKey = value; }
+
+    /// <summary>API key header name. Delegates to <see cref="Auth"/>.</summary>
+    public string ApiKeyHeaderName { get => Auth.ApiKeyHeaderName; set => Auth.ApiKeyHeaderName = value; }
+
+    /// <summary>JWT secret. Delegates to <see cref="Auth"/>.</summary>
+    public string? JwtSecret { get => Auth.JwtSecret; set => Auth.JwtSecret = value; }
+
+    /// <summary>JWT username. Delegates to <see cref="Auth"/>.</summary>
+    public string? JwtUsername { get => Auth.JwtUsername; set => Auth.JwtUsername = value; }
+
+    /// <summary>JWT password. Delegates to <see cref="Auth"/>.</summary>
+    public string? JwtPassword { get => Auth.JwtPassword; set => Auth.JwtPassword = value; }
+
+    /// <summary>Enable 2FA. Delegates to <see cref="Auth"/>.</summary>
+    public bool EnableTwoFactor { get => Auth.EnableTwoFactor; set => Auth.EnableTwoFactor = value; }
+
+    /// <summary>TOTP secret. Delegates to <see cref="Auth"/>.</summary>
+    public string? TwoFactorSecret { get => Auth.TwoFactorSecret; set => Auth.TwoFactorSecret = value; }
+
+    /// <summary>Min password length. Delegates to <see cref="Auth"/>.</summary>
+    public int MinPasswordLength { get => Auth.MinPasswordLength; set => Auth.MinPasswordLength = value; }
+
+    /// <summary>Custom auth delegate. Delegates to <see cref="Auth"/>.</summary>
+    public Func<HttpContext, Task<bool>>? AuthorizeRequest { get => Auth.AuthorizeRequest; set => Auth.AuthorizeRequest = value; }
+
+    // ──────────────── ProxyLog facade (backward compat) ────────────────
+
+    /// <summary>Enable proxy logging. Delegates to <see cref="ProxyLog"/>.</summary>
+    public bool EnableProxyLogging { get => ProxyLog.EnableProxyLogging; set => ProxyLog.EnableProxyLogging = value; }
+
+    /// <summary>Log buffer capacity. Delegates to <see cref="ProxyLog"/>.</summary>
+    public int LogBufferCapacity { get => ProxyLog.LogBufferCapacity; set => ProxyLog.LogBufferCapacity = value; }
+
+    /// <summary>Log persistence enabled. Delegates to <see cref="ProxyLog"/>.</summary>
+    public bool LogPersistenceEnabled { get => ProxyLog.LogPersistenceEnabled; set => ProxyLog.LogPersistenceEnabled = value; }
+
+    /// <summary>Log meta retention days. Delegates to <see cref="ProxyLog"/>.</summary>
+    public int LogMetaRetentionDays { get => ProxyLog.LogMetaRetentionDays; set => ProxyLog.LogMetaRetentionDays = value; }
+
+    /// <summary>Log body retention days. Delegates to <see cref="ProxyLog"/>.</summary>
+    public int LogBodyRetentionDays { get => ProxyLog.LogBodyRetentionDays; set => ProxyLog.LogBodyRetentionDays = value; }
+
+    /// <summary>Enable log sampling. Delegates to <see cref="ProxyLog"/>.</summary>
+    public bool EnableLogSampling { get => ProxyLog.EnableLogSampling; set => ProxyLog.EnableLogSampling = value; }
+
+    /// <summary>Log sampling rate. Delegates to <see cref="ProxyLog"/>.</summary>
+    public double LogSamplingRate { get => ProxyLog.LogSamplingRate; set => ProxyLog.LogSamplingRate = value; }
+
+    /// <summary>Log errors only. Delegates to <see cref="ProxyLog"/>.</summary>
+    public bool LogErrorsOnly { get => ProxyLog.LogErrorsOnly; set => ProxyLog.LogErrorsOnly = value; }
+
+    /// <summary>Min log level. Delegates to <see cref="ProxyLog"/>.</summary>
+    public string MinLogLevel { get => ProxyLog.MinLogLevel; set => ProxyLog.MinLogLevel = value; }
+
+    /// <summary>Log route whitelist. Delegates to <see cref="ProxyLog"/>.</summary>
+    public List<string>? LogRouteWhitelist { get => ProxyLog.LogRouteWhitelist; set => ProxyLog.LogRouteWhitelist = value; }
+
+    /// <summary>Log route blacklist. Delegates to <see cref="ProxyLog"/>.</summary>
+    public List<string>? LogRouteBlacklist { get => ProxyLog.LogRouteBlacklist; set => ProxyLog.LogRouteBlacklist = value; }
+
+    /// <summary>Max body length. Delegates to <see cref="ProxyLog"/>.</summary>
+    public int LogMaxBodyLength { get => ProxyLog.LogMaxBodyLength; set => ProxyLog.LogMaxBodyLength = value; }
+
+    /// <summary>Enable request body capture. Delegates to <see cref="ProxyLog"/>.</summary>
+    public bool EnableProxyRequestBodyCapture { get => ProxyLog.EnableProxyRequestBodyCapture; set => ProxyLog.EnableProxyRequestBodyCapture = value; }
+
+    /// <summary>Enable response body capture. Delegates to <see cref="ProxyLog"/>.</summary>
+    public bool EnableProxyResponseBodyCapture { get => ProxyLog.EnableProxyResponseBodyCapture; set => ProxyLog.EnableProxyResponseBodyCapture = value; }
+
+    /// <summary>Max body buffer bytes. Delegates to <see cref="ProxyLog"/>.</summary>
+    public int LogMaxBodyBufferBytes { get => ProxyLog.LogMaxBodyBufferBytes; set => ProxyLog.LogMaxBodyBufferBytes = value; }
+
+    /// <summary>Enable async logging. Delegates to <see cref="ProxyLog"/>.</summary>
+    public bool EnableAsyncLogging { get => ProxyLog.EnableAsyncLogging; set => ProxyLog.EnableAsyncLogging = value; }
+
+    /// <summary>Header blacklist. Delegates to <see cref="ProxyLog"/>.</summary>
+    public List<string>? LogHeaderBlacklist { get => ProxyLog.LogHeaderBlacklist; set => ProxyLog.LogHeaderBlacklist = value; }
+
+    /// <summary>Query blacklist. Delegates to <see cref="ProxyLog"/>.</summary>
+    public List<string>? LogQueryBlacklist { get => ProxyLog.LogQueryBlacklist; set => ProxyLog.LogQueryBlacklist = value; }
+
+    /// <summary>JSON field sanitize list. Delegates to <see cref="ProxyLog"/>.</summary>
+    public List<string>? LogJsonFieldSanitizeList { get => ProxyLog.LogJsonFieldSanitizeList; set => ProxyLog.LogJsonFieldSanitizeList = value; }
+
+    // ──────────────── Rate Limit (feature toggle) ────────────────
 
     /// <summary>
-    /// Enable log persistence to SQLite. When enabled, log entries are batched and written
-    /// to SQLite tables (proxy_logs_meta + proxy_logs_body) by a background service.
-    /// The in-memory buffer is reduced to a small real-time window for UI display only.
-    /// Default: true.
-    /// </summary>
-    public bool LogPersistenceEnabled { get; set; } = true;
-
-    /// <summary>
-    /// Number of days to retain lightweight log metadata (proxy_logs_meta table).
-    /// After this period, metadata rows are automatically deleted (cascade deletes body rows).
-    /// Default: 7.
-    /// </summary>
-    public int LogMetaRetentionDays { get; set; } = 7;
-
-    /// <summary>
-    /// Number of days to retain large-field log details (proxy_logs_body table).
-    /// Must be ≤ LogMetaRetentionDays (enforced by cascade delete).
-    /// Default: 3.
-    /// </summary>
-    public int LogBodyRetentionDays { get; set; } = 3;
-
-    /// <summary>
-    /// Enable built-in rate limiting middleware for proxy routes.
-    /// When enabled, a default fixed-window rate limiter is applied to all proxy requests.
-    /// Default: false.
+    /// Enable built-in rate limiting middleware for proxy routes. Default: false.
     /// </summary>
     public bool EnableRateLimiting { get; set; }
 
-    /// <summary>
-    /// Maximum number of requests allowed per time window. Default: 100.
-    /// Only effective when EnableRateLimiting is true.
-    /// </summary>
+    /// <summary>Maximum requests per window. Default: 100.</summary>
     public int RateLimitPermitLimit { get; set; } = 100;
 
-    /// <summary>
-    /// Time window for rate limiting. Default: "1m" (1 minute).
-    /// Only effective when EnableRateLimiting is true.
-    /// </summary>
+    /// <summary>Rate limit window. Default: "1m".</summary>
     public string RateLimitWindow { get; set; } = "1m";
 
-    /// <summary>
-    /// Maximum number of queued requests when rate limit is exceeded. Default: 0 (reject immediately).
-    /// Only effective when EnableRateLimiting is true.
-    /// </summary>
+    /// <summary>Queue limit. Default: 0.</summary>
     public int RateLimitQueueLimit { get; set; } = 0;
 
-    /// <summary>
-    /// Enable or disable log sampling. When enabled, only a percentage of requests are logged.
-    /// Default: false.
-    /// </summary>
-    public bool EnableLogSampling { get; set; } = false;
+    // ──────────────── Passive Health Check ────────────────
 
-    /// <summary>
-    /// Sampling rate (0.0 to 1.0). 1.0 means log all requests, 0.5 means log 50%.
-    /// Only effective when EnableLogSampling is true. Default: 1.0.
-    /// </summary>
-    public double LogSamplingRate { get; set; } = 1.0;
-
-    /// <summary>
-    /// Only log error requests (status code >= 400). Default: false.
-    /// </summary>
-    public bool LogErrorsOnly { get; set; } = false;
-
-    /// <summary>
-    /// Minimum log level to capture. Supported values: Debug, Information, Warning, Error, Critical.
-    /// Logs below this level are discarded immediately to save memory and CPU.
-    /// Default: "Debug" (capture all).
-    /// </summary>
-    public string MinLogLevel { get; set; } = "Debug";
-
-    /// <summary>
-    /// Whitelist of route IDs to log. If empty, all routes are considered.
-    /// </summary>
-    public List<string>? LogRouteWhitelist { get; set; }
-
-    /// <summary>
-    /// Blacklist of route IDs to exclude from logging.
-    /// </summary>
-    public List<string>? LogRouteBlacklist { get; set; }
-
-    /// <summary>
-    /// Maximum request/response body length to log (in bytes). Default: 8192 (8KB).
-    /// Bodies exceeding this limit will be truncated.
-    /// </summary>
-    public int LogMaxBodyLength { get; set; } = 8192;
-
-    /// <summary>
-    /// Enable request body capture on proxy hot path. Default: false.
-    /// </summary>
-    public bool EnableProxyRequestBodyCapture { get; set; } = false;
-
-    /// <summary>
-    /// Enable response body capture on proxy hot path. Default: false.
-    /// Keep disabled for streaming, SSE, large downloads, and high-throughput production traffic.
-    /// </summary>
-    public bool EnableProxyResponseBodyCapture { get; set; } = false;
-
-    /// <summary>
-    /// Maximum body bytes to buffer for proxy body capture. Default: 65536 (64KB).
-    /// </summary>
-    public int LogMaxBodyBufferBytes { get; set; } = 64 * 1024;
-
-    /// <summary>
-    /// Enable async logging via Channel for better throughput.
-    /// When enabled, logs are enqueued and processed in background batches,
-    /// reducing latency on the request path. Default: true.
-    /// </summary>
-    public bool EnableAsyncLogging { get; set; } = true;
-
-    /// <summary>
-    /// Header names to exclude from logging (case-insensitive).
-    /// Default: ["Authorization", "Cookie", "Set-Cookie"]
-    /// </summary>
-    public List<string>? LogHeaderBlacklist { get; set; }
-
-    /// <summary>
-    /// Query parameter names to exclude from logging (case-insensitive).
-    /// </summary>
-    public List<string>? LogQueryBlacklist { get; set; }
-
-    /// <summary>
-    /// JSON field names to sanitize in request/response body (case-insensitive).
-    /// Default: ["password", "token", "secret", "apikey", "api-key"]
-    /// </summary>
-    public List<string>? LogJsonFieldSanitizeList { get; set; }
-
-    /// <summary>Custom auth delegate. If set, takes precedence over all other auth modes.</summary>
-    public Func<HttpContext, Task<bool>>? AuthorizeRequest { get; set; }
-
-    /// <summary>
-    /// Enable passive health checking for all clusters by default.
-    /// When enabled, YARP will automatically mark destinations as unhealthy after consecutive failures.
-    /// Default: false.
-    /// </summary>
+    /// <summary>Enable passive health checking. Default: false.</summary>
     public bool EnablePassiveHealthCheck { get; set; }
 
-    /// <summary>
-    /// Default passive health check policy. Default: "ConsecutiveFailures".
-    /// Only effective when EnablePassiveHealthCheck is true.
-    /// </summary>
+    /// <summary>Health check policy. Default: "ConsecutiveFailures".</summary>
     public string PassiveHealthCheckPolicy { get; set; } = "ConsecutiveFailures";
 
-    /// <summary>
-    /// Default reactivation period for passive health checks. Default: "00:00:30" (30 seconds).
-    /// Only effective when EnablePassiveHealthCheck is true.
-    /// </summary>
+    /// <summary>Reactivation period. Default: "00:00:30".</summary>
     public string PassiveHealthCheckReactivationPeriod { get; set; } = "00:00:30";
 
-    /// <summary>
-    /// Default circuit breaker settings applied to all routes.
-    /// Individual routes can override these via route metadata.
-    /// </summary>
+    // ──────────────── Sub-option objects (feature settings) ────────────────
+
+    /// <summary>Default circuit breaker settings.</summary>
     public CircuitBreakerOptions CircuitBreaker { get; set; } = new();
 
-    /// <summary>
-    /// Default retry settings applied to all routes.
-    /// Individual routes can override these via route metadata.
-    /// </summary>
+    /// <summary>Default retry settings.</summary>
     public RetryOptions Retry { get; set; } = new();
 
-    /// <summary>
-    /// Default rate limiting settings applied to all routes.
-    /// Individual routes can override these via route metadata.
-    /// </summary>
+    /// <summary>Default rate limiting settings.</summary>
     public RateLimitOptions RateLimit { get; set; } = new();
 
-    /// <summary>
-    /// Web Application Firewall settings.
-    /// </summary>
+    /// <summary>WAF settings.</summary>
     public WafOptions Waf { get; set; } = new();
 }
 
@@ -533,4 +440,40 @@ public class RateLimitOptions
     /// Route metadata key: RateLimit:PartitionKey. Default: "IpAddress".
     /// </summary>
     public string PartitionKey { get; set; } = "IpAddress";
+}
+
+// ──────────────── Options sync helpers ────────────────
+// These IConfigureOptions implementations sync flat DashboardOptions
+// values to the sub-option objects for backward compatibility.
+
+internal sealed class AuthOptionsSync : IConfigureOptions<DashboardAuthOptions>
+{
+    private readonly DashboardOptions _dash;
+    public AuthOptionsSync(IOptions<DashboardOptions> dash) => _dash = dash.Value;
+
+    public void Configure(DashboardAuthOptions auth)
+    {
+        if (_dash.AuthMode != DashboardAuthMode.None && auth.AuthMode == DashboardAuthMode.None)
+            auth.AuthMode = _dash.AuthMode;
+        auth.ApiKey ??= _dash.ApiKey;
+        auth.JwtSecret ??= _dash.JwtSecret;
+        auth.JwtUsername ??= _dash.JwtUsername;
+        auth.JwtPassword ??= _dash.JwtPassword;
+        auth.TwoFactorSecret ??= _dash.TwoFactorSecret;
+        auth.AuthorizeRequest ??= _dash.AuthorizeRequest;
+    }
+}
+
+internal sealed class ProxyLogOptionsSync : IConfigureOptions<ProxyLogOptions>
+{
+    private readonly DashboardOptions _dash;
+    public ProxyLogOptionsSync(IOptions<DashboardOptions> dash) => _dash = dash.Value;
+
+    public void Configure(ProxyLogOptions proxyLog)
+    {
+        // If flat property was set on DashboardOptions but ProxyLog sub-option wasn't,
+        // copy the value over (backward compat for flat config)
+        if (_dash.EnableProxyLogging && !proxyLog.EnableProxyLogging)
+            proxyLog.EnableProxyLogging = true;
+    }
 }

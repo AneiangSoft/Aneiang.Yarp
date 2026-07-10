@@ -16,7 +16,9 @@
 
     // ── i18n helper ──
     function __(key) {
-        return (window.DashboardI18n && DashboardI18n.translate) ? DashboardI18n.translate(key) : key;
+        if (window.DashboardI18n && DashboardI18n.t) return DashboardI18n.t(key);
+        if (window.I18N && I18N[key]) return I18N[key];
+        return key;
     }
 
     // ── Init ──
@@ -65,144 +67,329 @@
 
         var locale = (window.__dashboard && window.__dashboard.locale) || 'zh-CN';
         var levelOptions = ['Debug', 'Information', 'Warning', 'Error', 'Critical'];
+        var samplingPct = Math.round(data.logSamplingRate * 100);
 
         container.innerHTML = `
-            <!-- Persistence Section -->
-            <div class="mb-4">
-                <h6 class="text-muted small mb-3"><i class="bi bi-archive me-1" style="color:#6366f1;"></i> ${__('config.logSettings.persistence')}</h6>
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <div class="form-check form-switch mb-2">
-                            <input class="form-check-input" type="checkbox" id="ls-persistence-enabled" ${data.logPersistenceEnabled ? 'checked' : ''} />
-                            <label class="form-check-label" for="ls-persistence-enabled">${__('config.logSettings.persistenceEnabled')}</label>
+            <style>
+                /* ── Log Settings Layout ── */
+                .ls-card {
+                    border-left: 3px solid #cbd5e1;
+                    border-radius: 6px;
+                    background: #f8fafc;
+                    padding: 14px 18px 16px;
+                    margin-bottom: 14px;
+                }
+                .ls-card-head {
+                    display: flex;
+                    align-items: center;
+                    gap: 7px;
+                    font-size: 12.5px;
+                    font-weight: 600;
+                    color: #475569;
+                    letter-spacing: .02em;
+                    text-transform: uppercase;
+                    margin-bottom: 12px;
+                    padding-bottom: 8px;
+                    border-bottom: 1px solid #e2e8f0;
+                }
+                .ls-card-head .ls-icon {
+                    width: 22px; height: 22px;
+                    border-radius: 5px;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 13px;
+                    color: #fff;
+                    flex-shrink: 0;
+                }
+                .ls-row {
+                    display: flex;
+                    gap: 16px;
+                    flex-wrap: wrap;
+                }
+                .ls-cell {
+                    flex: 1 1 0;
+                    min-width: 180px;
+                }
+                .ls-cell-2 { flex: 2 1 0; }
+
+                /* Label */
+                .ls-lbl {
+                    display: block;
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: #334155;
+                    margin-bottom: 5px;
+                    line-height: 1.3;
+                    min-height: 16px;
+                }
+
+                /* Control area — fixed height so all controls align */
+                .ls-ctrl {
+                    min-height: 31px;
+                    display: flex;
+                    align-items: center;
+                }
+
+                /* Description */
+                .ls-desc {
+                    font-size: 11px;
+                    color: #94a3b8;
+                    line-height: 1.45;
+                    margin-top: 5px;
+                }
+
+                /* Switch as control */
+                .ls-sw {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+                .ls-sw .form-check-input {
+                    width: 36px; height: 18px;
+                    cursor: pointer;
+                    flex-shrink: 0;
+                    margin: 0;
+                }
+                .ls-sw .form-check-label {
+                    font-size: 12px;
+                    color: #475569;
+                    cursor: pointer;
+                    line-height: 1.3;
+                }
+
+                /* Input group unit suffix */
+                .ls-unit {
+                    font-size: 11px;
+                    color: #64748b;
+                    min-width: 38px;
+                    text-align: center;
+                }
+
+                /* Range / slider */
+                .ls-range-head {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 5px;
+                }
+                .ls-range-val {
+                    font-size: 13px;
+                    font-weight: 700;
+                    color: #6366f1;
+                }
+                .ls-range-ticks {
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 10px;
+                    color: #94a3b8;
+                    margin-top: 1px;
+                }
+
+                /* Warn badge */
+                .ls-warn {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 3px;
+                    font-size: 10.5px;
+                    color: #92400e;
+                    background: #fef3c7;
+                    border-radius: 3px;
+                    padding: 1px 6px;
+                    margin-right: 4px;
+                    line-height: 1.4;
+                }
+
+                /* Action bar */
+                .ls-bar {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding-top: 14px;
+                    margin-top: 2px;
+                    border-top: 1px solid #e2e8f0;
+                }
+            </style>
+
+            <!-- ── Persistence ── -->
+            <div class="ls-card" style="border-left-color:#6366f1">
+                <div class="ls-card-head">
+                    <span class="ls-icon" style="background:#6366f1"><i class="bi bi-archive"></i></span>
+                    ${__('config.logSettings.persistence')}
+                </div>
+                <div class="ls-row">
+                    <div class="ls-cell ls-cell-2">
+                        <div class="ls-lbl">${__('config.logSettings.persistenceEnabled')}</div>
+                        <div class="ls-ctrl">
+                            <div class="ls-sw">
+                                <input class="form-check-input" type="checkbox" role="switch" id="ls-persistence-enabled" ${data.logPersistenceEnabled ? 'checked' : ''} />
+                                <label class="form-check-label" for="ls-persistence-enabled">${data.logPersistenceEnabled ? 'ON' : 'OFF'}</label>
+                            </div>
                         </div>
-                        <p class="text-muted small mb-0">${__('config.logSettings.persistenceEnabledDesc')}</p>
+                        <div class="ls-desc">${__('config.logSettings.persistenceEnabledDesc')}</div>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label small">${__('config.logSettings.metaRetention')}</label>
-                        <div class="input-group input-group-sm">
-                            <input type="number" class="form-control" id="ls-meta-retention" value="${data.logMetaRetentionDays}" min="1" max="365" />
-                            <span class="input-group-text">${__('config.logSettings.days')}</span>
+                    <div class="ls-cell">
+                        <label class="ls-lbl" for="ls-meta-retention">${__('config.logSettings.metaRetention')}</label>
+                        <div class="ls-ctrl">
+                            <div class="input-group input-group-sm">
+                                <input type="number" class="form-control" id="ls-meta-retention" value="${data.logMetaRetentionDays}" min="1" max="365" />
+                                <span class="input-group-text ls-unit">${__('config.logSettings.days')}</span>
+                            </div>
                         </div>
-                        <p class="text-muted small mt-1 mb-0">${__('config.logSettings.metaRetentionDesc')}</p>
+                        <div class="ls-desc">${__('config.logSettings.metaRetentionDesc')}</div>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label small">${__('config.logSettings.bodyRetention')}</label>
-                        <div class="input-group input-group-sm">
-                            <input type="number" class="form-control" id="ls-body-retention" value="${data.logBodyRetentionDays}" min="1" max="${data.logMetaRetentionDays}" />
-                            <span class="input-group-text">${__('config.logSettings.days')}</span>
+                    <div class="ls-cell">
+                        <label class="ls-lbl" for="ls-body-retention">${__('config.logSettings.bodyRetention')}</label>
+                        <div class="ls-ctrl">
+                            <div class="input-group input-group-sm">
+                                <input type="number" class="form-control" id="ls-body-retention" value="${data.logBodyRetentionDays}" min="1" max="${data.logMetaRetentionDays}" />
+                                <span class="input-group-text ls-unit">${__('config.logSettings.days')}</span>
+                            </div>
                         </div>
-                        <p class="text-muted small mt-1 mb-0">${__('config.logSettings.bodyRetentionDesc')}</p>
+                        <div class="ls-desc">${__('config.logSettings.bodyRetentionDesc')}</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Capture Section -->
-            <div class="mb-4">
-                <h6 class="text-muted small mb-3"><i class="bi bi-eye me-1" style="color:#f59e0b;"></i> ${__('config.logSettings.capture')}</h6>
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <div class="form-check form-switch mb-2">
-                            <input class="form-check-input" type="checkbox" id="ls-req-body-capture" ${data.enableProxyRequestBodyCapture ? 'checked' : ''} />
-                            <label class="form-check-label" for="ls-req-body-capture">${__('config.logSettings.reqBodyCapture')}</label>
+            <!-- ── Capture ── -->
+            <div class="ls-card" style="border-left-color:#f59e0b">
+                <div class="ls-card-head">
+                    <span class="ls-icon" style="background:#f59e0b"><i class="bi bi-eye"></i></span>
+                    ${__('config.logSettings.capture')}
+                </div>
+                <div class="ls-row">
+                    <div class="ls-cell">
+                        <div class="ls-lbl">${__('config.logSettings.reqBodyCapture')}</div>
+                        <div class="ls-ctrl">
+                            <div class="ls-sw">
+                                <input class="form-check-input" type="checkbox" role="switch" id="ls-req-body-capture" ${data.enableProxyRequestBodyCapture ? 'checked' : ''} />
+                                <label class="form-check-label" for="ls-req-body-capture">${data.enableProxyRequestBodyCapture ? 'ON' : 'OFF'}</label>
+                            </div>
                         </div>
-                        <p class="text-muted small mb-0">${__('config.logSettings.reqBodyCaptureDesc')}</p>
+                        <div class="ls-desc">${__('config.logSettings.reqBodyCaptureDesc')}</div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="form-check form-switch mb-2">
-                            <input class="form-check-input" type="checkbox" id="ls-res-body-capture" ${data.enableProxyResponseBodyCapture ? 'checked' : ''} />
-                            <label class="form-check-label" for="ls-res-body-capture">${__('config.logSettings.resBodyCapture')}</label>
+                    <div class="ls-cell">
+                        <div class="ls-lbl">${__('config.logSettings.resBodyCapture')}</div>
+                        <div class="ls-ctrl">
+                            <div class="ls-sw">
+                                <input class="form-check-input" type="checkbox" role="switch" id="ls-res-body-capture" ${data.enableProxyResponseBodyCapture ? 'checked' : ''} />
+                                <label class="form-check-label" for="ls-res-body-capture">${data.enableProxyResponseBodyCapture ? 'ON' : 'OFF'}</label>
+                            </div>
                         </div>
-                        <p class="text-muted small mb-0">${__('config.logSettings.resBodyCaptureDesc')}</p>
+                        <div class="ls-desc">${__('config.logSettings.resBodyCaptureDesc')}</div>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label small">${__('config.logSettings.maxBodyLength')}</label>
-                        <div class="input-group input-group-sm">
-                            <input type="number" class="form-control" id="ls-max-body-length" value="${data.logMaxBodyLength}" min="256" max="1048576" step="256" />
-                            <span class="input-group-text">${__('config.logSettings.bytes')}</span>
+                    <div class="ls-cell">
+                        <label class="ls-lbl" for="ls-max-body-length">${__('config.logSettings.maxBodyLength')}</label>
+                        <div class="ls-ctrl">
+                            <div class="input-group input-group-sm">
+                                <input type="number" class="form-control" id="ls-max-body-length" value="${data.logMaxBodyLength}" min="256" max="1048576" step="256" />
+                                <span class="input-group-text ls-unit">${__('config.logSettings.bytes')}</span>
+                            </div>
                         </div>
-                        <p class="text-muted small mt-1 mb-0">${__('config.logSettings.maxBodyLengthDesc')}</p>
+                        <div class="ls-desc">${__('config.logSettings.maxBodyLengthDesc')}</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Sampling Section -->
-            <div class="mb-4">
-                <h6 class="text-muted small mb-3"><i class="bi bi-percent me-1" style="color:#22c55e;"></i> ${__('config.logSettings.sampling')}</h6>
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <div class="form-check form-switch mb-2">
-                            <input class="form-check-input" type="checkbox" id="ls-sampling-enabled" ${data.enableLogSampling ? 'checked' : ''} />
-                            <label class="form-check-label" for="ls-sampling-enabled">${__('config.logSettings.samplingEnabled')}</label>
+            <!-- ── Sampling ── -->
+            <div class="ls-card" style="border-left-color:#22c55e">
+                <div class="ls-card-head">
+                    <span class="ls-icon" style="background:#22c55e"><i class="bi bi-percent"></i></span>
+                    ${__('config.logSettings.sampling')}
+                </div>
+                <div class="ls-row">
+                    <div class="ls-cell">
+                        <div class="ls-lbl">${__('config.logSettings.samplingEnabled')}</div>
+                        <div class="ls-ctrl">
+                            <div class="ls-sw">
+                                <input class="form-check-input" type="checkbox" role="switch" id="ls-sampling-enabled" ${data.enableLogSampling ? 'checked' : ''} />
+                                <label class="form-check-label" for="ls-sampling-enabled">${data.enableLogSampling ? 'ON' : 'OFF'}</label>
+                            </div>
                         </div>
-                        <p class="text-muted small mb-0">${__('config.logSettings.samplingEnabledDesc')}</p>
+                        <div class="ls-desc">${__('config.logSettings.samplingEnabledDesc')}</div>
                     </div>
-                    <div class="col-md-4" id="ls-sampling-rate-group" style="opacity: ${data.enableLogSampling ? '1' : '0.5'};">
-                        <label class="form-label small">${__('config.logSettings.samplingRate')}</label>
-                        <input type="range" class="form-range" id="ls-sampling-rate" min="0" max="1" step="0.05" value="${data.logSamplingRate}" />
-                        <div class="d-flex justify-content-between small text-muted">
-                            <span>0%</span>
-                            <span id="ls-sampling-rate-display">${Math.round(data.logSamplingRate * 100)}%</span>
-                            <span>100%</span>
+                    <div class="ls-cell ls-cell-2" id="ls-sampling-rate-group" style="opacity:${data.enableLogSampling ? '1' : '0.45'};transition:opacity .2s">
+                        <div class="ls-range-head">
+                            <span class="ls-lbl" style="margin-bottom:0">${__('config.logSettings.samplingRate')}</span>
+                            <span class="ls-range-val" id="ls-sampling-rate-display">${samplingPct}%</span>
                         </div>
-                        <p class="text-muted small mb-0">${__('config.logSettings.samplingRateDesc')}</p>
+                        <div class="ls-ctrl">
+                            <input type="range" class="form-range" id="ls-sampling-rate" min="0" max="1" step="0.05" value="${data.logSamplingRate}" style="width:100%" />
+                        </div>
+                        <div class="ls-range-ticks"><span>0%</span><span>50%</span><span>100%</span></div>
+                        <div class="ls-desc">${__('config.logSettings.samplingRateDesc')}</div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="form-check form-switch mb-2">
-                            <input class="form-check-input" type="checkbox" id="ls-errors-only" ${data.logErrorsOnly ? 'checked' : ''} />
-                            <label class="form-check-label" for="ls-errors-only">${__('config.logSettings.errorsOnly')}</label>
+                    <div class="ls-cell">
+                        <div class="ls-lbl">${__('config.logSettings.errorsOnly')}</div>
+                        <div class="ls-ctrl">
+                            <div class="ls-sw">
+                                <input class="form-check-input" type="checkbox" role="switch" id="ls-errors-only" ${data.logErrorsOnly ? 'checked' : ''} />
+                                <label class="form-check-label" for="ls-errors-only">${data.logErrorsOnly ? 'ON' : 'OFF'}</label>
+                            </div>
                         </div>
-                        <p class="text-muted small mb-0">${__('config.logSettings.errorsOnlyDesc')}</p>
+                        <div class="ls-desc">${__('config.logSettings.errorsOnlyDesc')}</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Filter Section -->
-            <div class="mb-4">
-                <h6 class="text-muted small mb-3"><i class="bi bi-filter me-1" style="color:#3b82f6;"></i> 日志过滤</h6>
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label small">${__('config.logSettings.minLogLevel')}</label>
-                        <select class="form-select form-select-sm" id="ls-min-log-level">
-                            ${levelOptions.map(l => `<option value="${l}" ${data.minLogLevel === l ? 'selected' : ''}>${l}</option>`).join('')}
-                        </select>
-                        <p class="text-muted small mt-1 mb-0">${__('config.logSettings.minLogLevelDesc')}</p>
-                    </div>
+            <!-- ── Filter & Buffer ── -->
+            <div class="ls-card" style="border-left-color:#3b82f6">
+                <div class="ls-card-head">
+                    <span class="ls-icon" style="background:#3b82f6"><i class="bi bi-sliders"></i></span>
+                    ${__('config.logSettings.minLogLevel')} &amp; ${__('config.logSettings.buffer')}
                 </div>
-            </div>
-
-            <!-- Buffer Section -->
-            <div class="mb-4">
-                <h6 class="text-muted small mb-3"><i class="bi bi-memory me-1" style="color:#ef4444;"></i> ${__('config.logSettings.buffer')}</h6>
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label small">${__('config.logSettings.bufferCapacity')}</label>
-                        <div class="input-group input-group-sm">
-                            <input type="number" class="form-control" id="ls-buffer-capacity" value="${data.logBufferCapacity}" min="16" max="10000" />
-                            <span class="input-group-text">${__('index.log.entries') || 'entries'}</span>
+                <div class="ls-row">
+                    <div class="ls-cell">
+                        <label class="ls-lbl" for="ls-min-log-level">${__('config.logSettings.minLogLevel')}</label>
+                        <div class="ls-ctrl">
+                            <select class="form-select form-select-sm" id="ls-min-log-level">
+                                ${levelOptions.map(l => `<option value="${l}" ${data.minLogLevel === l ? 'selected' : ''}>${l}</option>`).join('')}
+                            </select>
                         </div>
-                        <p class="text-muted small mt-1 mb-0"><span class="badge bg-warning text-dark">⚠️</span> ${__('config.logSettings.bufferCapacityDesc')}</p>
+                        <div class="ls-desc">${__('config.logSettings.minLogLevelDesc')}</div>
+                    </div>
+                    <div class="ls-cell ls-cell-2">
+                        <label class="ls-lbl" for="ls-buffer-capacity">${__('config.logSettings.bufferCapacity')}</label>
+                        <div class="ls-ctrl">
+                            <div class="input-group input-group-sm">
+                                <input type="number" class="form-control" id="ls-buffer-capacity" value="${data.logBufferCapacity}" min="16" max="10000" />
+                                <span class="input-group-text ls-unit">${__('index.log.entries') || 'entries'}</span>
+                            </div>
+                        </div>
+                        <div class="ls-desc"><span class="ls-warn">⚠ ${__('config.logSettings.bufferCapacityDesc')}</span></div>
                     </div>
                 </div>
             </div>
 
-            <!-- Actions -->
-            <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+            <!-- ── Actions ── -->
+            <div class="ls-bar">
                 <button class="btn btn-sm btn-outline-secondary" onclick="DashboardLogSettings.resetSettings()">
                     <i class="bi bi-arrow-counterclockwise me-1"></i>${__('config.logSettings.reset')}
                 </button>
-                <button class="btn btn-sm btn-primary" id="ls-save-btn" onclick="DashboardLogSettings.saveSettings()">
+                <button class="btn btn-sm btn-primary px-4" id="ls-save-btn" onclick="DashboardLogSettings.saveSettings()">
                     <i class="bi bi-check-lg me-1"></i>${__('config.logSettings.save')}
                 </button>
             </div>
         `;
 
-        // Bind dynamic UI behavior
         bindDynamicBehavior();
     }
 
     // ── Dynamic UI ──
     function bindDynamicBehavior() {
+        // Helper: toggle ON/OFF label text on switch change
+        function bindSwitchLabel(checkboxId) {
+            var cb = document.getElementById(checkboxId);
+            if (!cb) return;
+            var lbl = cb.parentElement.querySelector('.form-check-label');
+            if (!lbl) return;
+            cb.addEventListener('change', function() {
+                lbl.textContent = this.checked ? 'ON' : 'OFF';
+            });
+        }
+        ['ls-persistence-enabled', 'ls-req-body-capture', 'ls-res-body-capture',
+         'ls-sampling-enabled', 'ls-errors-only'].forEach(bindSwitchLabel);
+
         // Sampling rate display + opacity toggle
         var samplingToggle = document.getElementById('ls-sampling-enabled');
         var samplingRateGroup = document.getElementById('ls-sampling-rate-group');
@@ -211,7 +398,7 @@
 
         if (samplingToggle) {
             samplingToggle.addEventListener('change', function() {
-                if (samplingRateGroup) samplingRateGroup.style.opacity = this.checked ? '1' : '0.5';
+                if (samplingRateGroup) samplingRateGroup.style.opacity = this.checked ? '1' : '0.45';
             });
         }
 

@@ -1,6 +1,7 @@
 using Aneiang.Yarp.Extensions;
 using Aneiang.Yarp.Dashboard.Extensions;
 using Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
+using Aneiang.Yarp.Storage.Sqlite;
 using Microsoft.Extensions.Options;
 using Serilog;
 
@@ -32,6 +33,9 @@ try
 
     // Gateway: one-liner — auto-loads ReverseProxy routes/clusters + dynamic config
     builder.Services.AddAneiangYarp();
+
+    // Storage backend: host app is responsible for choosing the storage implementation
+    builder.Services.AddAneiangStorage();
 
     // Dashboard with JWT auth (DefaultJwt: username=admin, password from config)
     builder.Services.AddAneiangYarpDashboard();
