@@ -41,7 +41,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
         _publisher = new DynamicConfigPublisher(configProvider,
             loggerFactory.CreateLogger<DynamicConfigPublisher>());
 
-        _routeManager = new RouteConfigManager(configProvider, _state, _semaphore, _persister, _publisher, auditLog,
+        _routeManager = new RouteConfigManager(_state, _semaphore, _persister, _publisher, auditLog,
             loggerFactory.CreateLogger<RouteConfigManager>());
         _clusterManager = new ClusterConfigManager(configProvider, _state, _semaphore, _persister, _publisher, auditLog,
             loggerFactory.CreateLogger<ClusterConfigManager>());

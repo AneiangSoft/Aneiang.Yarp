@@ -1,4 +1,6 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Storage;
 
@@ -8,21 +10,61 @@ namespace Aneiang.Yarp.Storage.Sqlite;
 /// Shared SQLite connection factory used by all storage repositories.
 /// Ensures SQLitePCL provider is initialized once and connection pooling is enabled.
 /// WAL journal mode is enabled via connection string for better concurrency.
+/// Schema migration is triggered lazily on the first <see cref="CreateConnection"/> call
+/// to guarantee tables exist before any repository reads the database.
 /// </summary>
 public sealed class SqliteConnectionFactory
 {
     private readonly string _connectionString;
+    private readonly IServiceProvider _serviceProvider;
     private static bool _providerSet;
     private static readonly object _providerLock = new();
+    private readonly Lazy<Task> _migrationTask;
 
-    public SqliteConnectionFactory(IOptions<StorageOptions> options)
+    public SqliteConnectionFactory(IOptions<StorageOptions> options, IServiceProvider serviceProvider)
     {
         _connectionString = EnsurePoolingAndWalEnabled(options.Value.Sqlite.ConnectionString);
+        _serviceProvider = serviceProvider;
         EnsureProvider();
+
+        // Lazy<Task> ensures migration runs exactly once on first connection use.
+        // SqliteSchemaMigrator is resolved on-demand to avoid circular DI
+        // (migrator depends on SqliteConnectionFactory for connections).
+        _migrationTask = new Lazy<Task>(() =>
+        {
+            var migrator = ActivatorUtilities.CreateInstance<SqliteSchemaMigrator>(
+                _serviceProvider, this);
+            return migrator.RunMigrationAsync();
+        });
     }
 
-    /// <summary>Creates a new pooled SQLite connection.</summary>
-    public SqliteConnection CreateConnection() => new(_connectionString);
+    /// <summary>
+    /// Creates a new pooled SQLite connection. The first call triggers schema migration
+    /// if it has not yet completed, ensuring tables exist before any repository access.
+    /// </summary>
+    public async ValueTask<SqliteConnection> CreateConnectionAsync(CancellationToken ct = default)
+    {
+        await _migrationTask.Value;
+        return new SqliteConnection(_connectionString);
+    }
+
+    /// <summary>
+    /// Creates a new pooled SQLite connection (synchronous wrapper).
+    /// The first call blocks until schema migration completes.
+    /// </summary>
+    public SqliteConnection CreateConnection()
+    {
+        // Block on the migration task; subsequent calls return immediately.
+        _migrationTask.Value.GetAwaiter().GetResult();
+        return new SqliteConnection(_connectionString);
+    }
+
+    /// <summary>
+    /// Creates a raw connection bypassing migration guard.
+    /// Used internally by <see cref="SqliteSchemaMigrator"/> to avoid deadlock
+    /// when running migrations.
+    /// </summary>
+    internal SqliteConnection CreateRawConnection() => new(_connectionString);
 
     private static void EnsureProvider()
     {

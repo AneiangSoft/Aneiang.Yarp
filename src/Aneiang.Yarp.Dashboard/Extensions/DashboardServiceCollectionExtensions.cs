@@ -43,6 +43,26 @@ public static class DashboardServiceCollectionExtensions
         this IServiceCollection services,
         Action<DashboardOptions>? configureOptions = null)
     {
+        services.AddDashboardOptions(configureOptions);
+        services.AddDashboardWebInfrastructure();
+        services.AddDashboardStorageAndAudit();
+        services.AddDashboardSecurity();
+        services.AddDashboardProxyLog();
+        services.AddDashboardQueryServices();
+        services.AddDashboardWafAndPolicy();
+        services.AddDashboardNotificationAndPlugins();
+        services.AddDashboardRealtimeAndPerformance();
+        services.AddDashboardConfigPersistence();
+        services.AddDashboardWarmupServices();
+        return services;
+    }
+
+    #region Option binding
+
+    private static IServiceCollection AddDashboardOptions(
+        this IServiceCollection services,
+        Action<DashboardOptions>? configureOptions)
+    {
         services.AddOptions<DashboardOptions>()
             .BindConfiguration(DashboardOptions.SectionName)
             .Configure<IConfiguration>((options, config) =>
@@ -73,23 +93,14 @@ public static class DashboardServiceCollectionExtensions
                 }
             });
 
-        // Register CircuitBreaker options (nested in DashboardOptions)
         services.AddOptions<CircuitBreakerOptions>()
             .BindConfiguration("Gateway:Dashboard:CircuitBreaker");
-
-        // Register Retry options (nested in DashboardOptions)
         services.AddOptions<RetryOptions>()
             .BindConfiguration("Gateway:Dashboard:Retry");
-
-        // Register RateLimit options (nested in DashboardOptions)
         services.AddOptions<RateLimitOptions>()
             .BindConfiguration("Gateway:Dashboard:RateLimit");
-
-        // Register WAF options (nested in DashboardOptions)
         services.AddOptions<WafOptions>()
             .BindConfiguration("Gateway:Dashboard:Waf");
-
-        // Register configuration history / snapshot options
         services.AddOptions<ConfigHistoryOptions>()
             .BindConfiguration(ConfigHistoryOptions.SectionName)
             .PostConfigure(options =>
@@ -98,15 +109,12 @@ public static class DashboardServiceCollectionExtensions
                 options.SnapshotQueueCapacity = Math.Max(1, options.SnapshotQueueCapacity);
             });
 
-        #region Deployment options
-        // BindConfiguration provides the raw config values. AddAneiangYarpDeployment
+        // Deployment options — BindConfiguration provides raw config; AddAneiangYarpDeployment
         // (if called) will PostConfigure to normalize Mode (Auto→Split/AllInOne).
         services.AddOptions<DeploymentOptions>()
             .BindConfiguration(DeploymentOptions.SectionName);
 
-        #endregion
-
-        #region Alert service (no-op default; can be replaced by user's implementation)
+        // Alert service (no-op default; can be replaced by user's implementation)
         services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Alert.IGatewayAlertService,
             Aneiang.Yarp.Dashboard.Infrastructure.Alert.NullGatewayAlertService>();
 
@@ -120,7 +128,16 @@ public static class DashboardServiceCollectionExtensions
                 wafo.DashboardRoutePrefix = "apigateway";
         });
 
-        // Register MVC controllers from this assembly with JSON camelCase naming policy.
+        return services;
+    }
+
+    #endregion
+
+    #region Web infrastructure (MVC, Razor, SignalR, compression)
+
+    private static IServiceCollection AddDashboardWebInfrastructure(this IServiceCollection services)
+    {
+        // MVC controllers with JSON camelCase naming policy.
         // Comments and trailing commas are tolerated so route/cluster editors and config import
         // accept relaxed JSON (matching docs/yarp_all.json style).
         services.AddMvcCore()
@@ -136,10 +153,7 @@ public static class DashboardServiceCollectionExtensions
         services.Configure<RazorViewEngineOptions>(o =>
             o.ViewLocationExpanders.Add(new DashboardViewLocationExpander()));
 
-        // Unified caching: single IMemoryCache instance shared by all query services.
         services.AddMemoryCache();
-
-        // SignalR for real-time topology traffic visualization.
         services.AddSignalR();
 
         // Response Compression: Brotli (preferred) + Gzip fallbacks.
@@ -166,43 +180,56 @@ public static class DashboardServiceCollectionExtensions
             options.Level = System.IO.Compression.CompressionLevel.Optimal;
         });
 
-        #endregion
+        return services;
+    }
 
-        #region Storage backend
+    #endregion
+
+    #region Storage, audit, rate limiting
+
+    private static IServiceCollection AddDashboardStorageAndAudit(this IServiceCollection services)
+    {
         services.AddAneiangStorage();
 
-        // Register DynamicYarpConfigService as HostedService AFTER SqliteSchemaMigrator
-        // so that SQLite tables exist when it loads config from repository.
+        // DynamicYarpConfigService loads config from SQLite on StartAsync.
+        // Schema migration is now triggered lazily by SqliteConnectionFactory on first
+        // connection use, so tables are guaranteed to exist regardless of registration order.
         services.AddHostedService(sp => sp.GetRequiredService<Aneiang.Yarp.Services.DynamicYarpConfigService>());
 
-        #endregion
-
-        #region Audit log
         services.AddSingleton<IConfigChangeAuditLog, ConfigChangeAuditLog>();
         services.AddSingleton<ConfigChangeAuditLog>(sp => (ConfigChangeAuditLog)sp.GetRequiredService<IConfigChangeAuditLog>());
         services.AddSingleton<ConfigChangeEventDispatcher>();
         services.AddHostedService(sp => sp.GetRequiredService<ConfigChangeEventDispatcher>());
 
-        #endregion
-
-        #region Rate limiting
         services.AddSingleton<RateLimitConfigProvider>();
         services.AddRateLimiter(_ => { });
 
-        #endregion
+        return services;
+    }
 
-        #region Gateway API auth
+    #endregion
+
+    #region Security (Gateway API auth, JWT, MVC conventions)
+
+    private static IServiceCollection AddDashboardSecurity(this IServiceCollection services)
+    {
         Aneiang.Yarp.Extensions.AneiangYarpServiceCollectionExtensions.AddGatewayApiAuth(services);
         services.AddSingleton<GatewayApiAuthFilter>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<MvcOptions>, GatewayApiAuthMvcOptionsSetup>());
 
-        #endregion
+        services.AddSingleton<IDashboardAuthorizationService, DashboardAuthorizationService>();
+        services.AddSingleton<JwtSecretProvider>();
+        services.AddSingleton<IConfigureOptions<MvcOptions>, DashboardMvcOptionsSetup>();
 
-        #region RecyclableMemoryStream (LOH fragmentation elimination)
-        services.AddSingleton<RecyclableMemoryStreamManager>();
-        #endregion
+        return services;
+    }
 
-        #region Proxy log store
+    #endregion
+
+    #region Proxy log store + persistence
+
+    private static IServiceCollection AddDashboardProxyLog(this IServiceCollection services)
+    {
         services.AddSingleton<IProxyLogStore>(sp =>
         {
             var opts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
@@ -211,14 +238,6 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<ProxyLogStore>(sp => (ProxyLogStore)sp.GetRequiredService<IProxyLogStore>());
         services.AddSingleton<LogSanitizer>();
 
-        #endregion
-
-        #region Lock-free statistics accumulator (zero-allocation hot path)
-        services.AddSingleton<LockFreeStatistics>();
-
-        #endregion
-
-        #region Log persistence — SqliteProxyLogWriter + AsyncLogPersistenceService
         // SqliteProxyLogWriter: converts LogEntry → Entity and delegates to IProxyLogRepository
         services.AddSingleton<SqliteProxyLogWriter>();
         // AsyncLogPersistenceService: background service that reads from Channel and writes batches to SQLite
@@ -229,67 +248,85 @@ public static class DashboardServiceCollectionExtensions
         // LogSettingsService: UI-configurable log settings (SQLite overrides + IOptionsMonitor + cache)
         services.AddSingleton<LogSettingsService>();
 
-        #endregion
+        return services;
+    }
 
-        #region Downstream capture transform
-        services.AddSingleton<ITransformProvider, DownstreamCaptureTransformProvider>();
+    #endregion
 
-        #endregion
+    #region Query services + editable policy
 
-        #region Dashboard query services
+    private static IServiceCollection AddDashboardQueryServices(this IServiceCollection services)
+    {
         services.AddSingleton<IDashboardInfoQueryService, DashboardInfoQueryService>();
         services.AddSingleton<IDashboardClusterQueryService, DashboardClusterQueryService>();
         services.AddSingleton<IDashboardRouteQueryService, DashboardRouteQueryService>();
         services.AddSingleton<IDashboardLogQueryService, DashboardLogQueryService>();
-
-        #endregion
-
-        #region Editable policy
         services.AddSingleton<IEditablePolicy, DashboardEditablePolicy>();
 
-        #endregion
+        return services;
+    }
 
-        #region WAF event store (in-memory ring buffer + persistence)
+    #endregion
+
+    #region WAF + policy services
+
+    private static IServiceCollection AddDashboardWafAndPolicy(this IServiceCollection services)
+    {
         services.AddSingleton<WafEventStore>();
         services.AddHostedService<WafEventPersistenceService>();
 
-        #endregion
-
-        #region Policy services (route + cluster policies via IPolicyRepository)
         services.AddSingleton<RoutePolicyService>();
         services.AddSingleton<ClusterPolicyService>();
         services.AddSingleton<IGatewayPolicyService, GatewayPolicyService>();
 
-        #endregion
+        services.AddSingleton<WafSettingsPersistenceService>();
+        services.AddSingleton<IWafSettingsPersistenceService>(sp => sp.GetRequiredService<WafSettingsPersistenceService>());
 
-        #region Plugin system
-        services.AddSingleton<IGatewayPlugin, CircuitBreakerPlugin>();
-        services.AddSingleton<IGatewayPlugin, RequestRetryPlugin>();
-        services.AddSingleton<IGatewayPlugin, RateLimitPlugin>();
-        services.AddSingleton<IGatewayPlugin, WafPlugin>();
-        services.AddSingleton<IGatewayPluginManager, GatewayPluginManager>();
-        #endregion
+        return services;
+    }
 
-        #region Authorization service
-        services.AddSingleton<IDashboardAuthorizationService, DashboardAuthorizationService>();
+    #endregion
 
-        #endregion
+    #region Notification + plugin system
 
-        #region New Unified Notification System
+    private static IServiceCollection AddDashboardNotificationAndPlugins(this IServiceCollection services)
+    {
         // INotificationRepository is registered by AddAneiangStorage above.
         services.AddHttpClient("notification");
         services.AddSingleton<INotificationService, NotificationService>();
         services.AddBackgroundHostedService<NotificationWarmupService>();
 
-        #endregion
+        services.AddSingleton<IGatewayPlugin, CircuitBreakerPlugin>();
+        services.AddSingleton<IGatewayPlugin, RequestRetryPlugin>();
+        services.AddSingleton<IGatewayPlugin, RateLimitPlugin>();
+        services.AddSingleton<IGatewayPlugin, WafPlugin>();
+        services.AddSingleton<IGatewayPluginManager, GatewayPluginManager>();
 
-        #region WAF settings persistence
-        services.AddSingleton<WafSettingsPersistenceService>();
-        services.AddSingleton<IWafSettingsPersistenceService>(sp => sp.GetRequiredService<WafSettingsPersistenceService>());
+        return services;
+    }
 
-        #endregion
+    #endregion
 
-        #region Config persistence / identity services
+    #region Real-time, performance, statistics
+
+    private static IServiceCollection AddDashboardRealtimeAndPerformance(this IServiceCollection services)
+    {
+        services.AddSingleton<TrafficBroadcastService>();
+        services.AddHostedService<TrafficBroadcastService>();
+
+        services.AddSingleton<RecyclableMemoryStreamManager>();
+        services.AddSingleton<LockFreeStatistics>();
+        services.AddSingleton<ITransformProvider, DownstreamCaptureTransformProvider>();
+
+        return services;
+    }
+
+    #endregion
+
+    #region Config persistence + identity + health
+
+    private static IServiceCollection AddDashboardConfigPersistence(this IServiceCollection services)
+    {
         services.AddSingleton<ConfigPersistenceService>();
         services.AddSingleton<IConfigPersistenceService>(sp => sp.GetRequiredService<ConfigPersistenceService>());
         services.AddSingleton<IConfigDiffService, ConfigDiffService>();
@@ -298,41 +335,23 @@ public static class DashboardServiceCollectionExtensions
         services.AddHostedService(sp => sp.GetRequiredService<ConfigSnapshotScheduler>());
         services.AddSingleton<IGatewayIdentityService, GatewayIdentityService>();
 
-        #endregion
-
-        #region Default health check service (background — non-blocking)
         services.AddBackgroundHostedService<DefaultHealthCheckService>();
-
-        #endregion
-
-        #region Circuit breaker warmup (background — non-blocking)
-        services.AddBackgroundHostedService<CircuitBreakerWarmupService>();
-
-        #endregion
-
-        #region Startup warmup (background — non-blocking)
-        services.AddBackgroundHostedService<StartupWarmupService>();
-
-        #endregion
-
-        #region Real-time traffic broadcast
-        services.AddSingleton<TrafficBroadcastService>();
-        services.AddHostedService<TrafficBroadcastService>();
-
-        #endregion
-
-        #region JWT secret provider
-        services.AddSingleton<JwtSecretProvider>();
-
-        #endregion
-
-        #region Route prefix + auth conventions
-        services.AddSingleton<IConfigureOptions<MvcOptions>, DashboardMvcOptionsSetup>();
-
-        #endregion
 
         return services;
     }
+
+    #endregion
+
+    #region Warmup services
+
+    private static IServiceCollection AddDashboardWarmupServices(this IServiceCollection services)
+    {
+        services.AddBackgroundHostedService<CircuitBreakerWarmupService>();
+        services.AddBackgroundHostedService<StartupWarmupService>();
+        return services;
+    }
+
+    #endregion
 
     /// <summary>
     /// Register deployment-related services (EndpointRoleResolver, config validators, snapshot store, hot-reload).

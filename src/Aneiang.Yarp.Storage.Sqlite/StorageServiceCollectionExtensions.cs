@@ -16,9 +16,10 @@ public static class StorageServiceCollectionExtensions
         services.AddOptions<StorageOptions>()
             .BindConfiguration(StorageOptions.SectionName);
 
-        // Shared connection factory and deterministic schema migration
+        // Shared connection factory. Schema migration is triggered lazily on first
+        // connection use (via Lazy<Task> in SqliteConnectionFactory), eliminating the
+        // startup race condition that existed when migrator was a parallel IHostedService.
         services.AddSingleton<SqliteConnectionFactory>();
-        services.AddHostedService<SqliteSchemaMigrator>();
 
         // Individual repositories
         services.AddSingleton<IRouteRepository, SqliteRouteRepository>();

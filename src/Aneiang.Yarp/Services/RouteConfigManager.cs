@@ -7,21 +7,15 @@ namespace Aneiang.Yarp.Services;
 /// <summary>
 /// All route CRUD operations on the dynamic config working set. Thread-safe via a shared
 /// <see cref="SemaphoreSlim"/> (shared with the cluster config manager).
+/// Lock/publish/persist plumbing is delegated to <see cref="ConfigManagerBase"/>.
 /// </summary>
-internal class RouteConfigManager : IRouteConfigManager
+internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
 {
-    private readonly AneiangProxyConfigProvider _configProvider;
-    private readonly DynamicConfigState _state;
-    private readonly SemaphoreSlim _semaphore;
-    private readonly IDynamicConfigPersister _persister;
-    private readonly IDynamicConfigPublisher _publisher;
-    private readonly IConfigChangeAuditLog _auditLog;
     private readonly ILogger<RouteConfigManager> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RouteConfigManager"/> class.
     /// </summary>
-    /// <param name="configProvider">The config provider.</param>
     /// <param name="state">The state.</param>
     /// <param name="semaphore">The semaphore.</param>
     /// <param name="persister">The persister.</param>
@@ -29,21 +23,21 @@ internal class RouteConfigManager : IRouteConfigManager
     /// <param name="auditLog">The audit log.</param>
     /// <param name="logger">The logger.</param>
     public RouteConfigManager(
-        AneiangProxyConfigProvider configProvider,
         DynamicConfigState state,
         SemaphoreSlim semaphore,
         IDynamicConfigPersister persister,
         IDynamicConfigPublisher publisher,
         IConfigChangeAuditLog auditLog,
         ILogger<RouteConfigManager> logger)
+        : base(state, semaphore, persister, publisher, auditLog)
     {
-        _configProvider = configProvider;
-        _state = state;
-        _semaphore = semaphore;
-        _persister = persister;
-        _publisher = publisher;
-        _auditLog = auditLog;
         _logger = logger;
+    }
+
+    protected override void LogPersistError(Exception ex, string operationName, string? targetName)
+    {
+        _logger.LogError(ex, "Failed to persist route operation '{Operation}' for '{Target}'",
+            operationName, targetName);
     }
 
     #region TryAddRoute
@@ -60,14 +54,8 @@ internal class RouteConfigManager : IRouteConfigManager
     string source = "dynamic",
     string? createdBy = null)
     {
-        bool saveNeeded = false;
-        await _semaphore.WaitAsync();
-        try
+        return await ExecuteWithLockAsync("AddOrUpdateRoute", request.RouteName, config =>
         {
-            var config = _configProvider.GetConfig();
-            var newRoutes = new List<RouteConfig>(config.Routes ?? []);
-            var newClusters = new List<ClusterConfig>(config.Clusters ?? []);
-
             var routeConfig = new RouteConfig
             {
                 RouteId = request.RouteName,
@@ -77,100 +65,37 @@ internal class RouteConfigManager : IRouteConfigManager
                 Transforms = request.Transforms?.Select(t => (IReadOnlyDictionary<string, string>)t).ToList()
             };
 
-            var existingRouteIdx = newRoutes.FindIndex(r =>
-                string.Equals(r.RouteId, request.RouteName, StringComparison.OrdinalIgnoreCase));
-
-            bool isNew;
-            if (existingRouteIdx >= 0)
-            {
-                var oldRoute = newRoutes[existingRouteIdx];
-                newRoutes[existingRouteIdx] = oldRoute with
-                {
-                    ClusterId = request.ClusterName,
-                    Match = new RouteMatch
-                    {
-                        Path = request.MatchPath,
-                        Hosts = oldRoute.Match.Hosts,
-                        Methods = oldRoute.Match.Methods,
-                        Headers = oldRoute.Match.Headers,
-                        QueryParameters = oldRoute.Match.QueryParameters
-                    },
-                    Order = request.Order ?? int.MaxValue,
-                    Transforms = request.Transforms?.Select(t => (IReadOnlyDictionary<string, string>)t).ToList() ?? oldRoute.Transforms
-                };
-                isNew = false;
-            }
-            else
-            {
-                newRoutes.Add(routeConfig);
-                isNew = true;
-            }
-
-            // Cluster: create or update via helper
-            if (request.UseIpIsolation && !string.IsNullOrWhiteSpace(request.ClientIp))
-            {
-                newClusters = ClusterEnsureHelper.EnsureIpCluster(
-                    newClusters, request.ClusterName, request.ClientIp, request.DestinationAddress);
-            }
-            else
-            {
-                if (request.DestinationAddress is null or "")
-                {
-                    var exists = newClusters.Any(c =>
-                        string.Equals(c.ClusterId, request.ClusterName, StringComparison.OrdinalIgnoreCase));
-                    if (!exists)
-                    {
-                        _auditLog.RecordFailure("AddRoute", request.RouteName,
-                            "Destination address is required when the cluster does not exist", createdBy);
-                        return new RouteOperationResult(false,
-                            "Destination address is required when the cluster does not exist");
-                    }
-                }
-                else
-                {
-                    newClusters = ClusterEnsureHelper.EnsureNormalCluster(
-                        newClusters, request.ClusterName, request.DestinationAddress);
-                }
-            }
-
-            _state.EnsureInitialized();
-
-            var dynRoute = _state.Config.Routes.FirstOrDefault(r =>
+            var dynRoute = config.Routes.FirstOrDefault(r =>
                 string.Equals(r.Config.RouteId, request.RouteName, StringComparison.OrdinalIgnoreCase));
 
-            var newRouteConfig = new RouteConfig
-            {
-                RouteId = request.RouteName,
-                ClusterId = request.ClusterName,
-                Match = new RouteMatch { Path = request.MatchPath },
-                Order = request.Order ?? int.MaxValue,
-                Transforms = request.Transforms?.Select(t => (IReadOnlyDictionary<string, string>)t).ToList()
-            };
-
+            bool isNew;
             if (dynRoute == null)
             {
                 dynRoute = new DynamicRouteConfig
                 {
-                    Config = newRouteConfig,
-                    ClusterUid = _state.ResolveClusterUid(request.ClusterName),
+                    Config = routeConfig,
+                    ClusterUid = State.ResolveClusterUid(request.ClusterName),
                     Source = source,
                     CreatedAt = DateTime.UtcNow,
                     CreatedBy = createdBy
                 };
-                _state.Config.Routes.Add(dynRoute);
+                config.Routes.Add(dynRoute);
+                isNew = true;
             }
             else
             {
-                dynRoute.Config = newRouteConfig;
-                dynRoute.ClusterUid = _state.ResolveClusterUid(request.ClusterName);
+                dynRoute.Config = routeConfig;
+                dynRoute.ClusterUid = State.ResolveClusterUid(request.ClusterName);
                 if (!string.IsNullOrEmpty(source) && source != dynRoute.Source)
                 {
                     dynRoute.Source = source;
                     dynRoute.CreatedBy = createdBy;
                 }
+                isNew = false;
             }
 
-            var dynCluster = _state.Config.Clusters.FirstOrDefault(c =>
+            // Cluster: create or update
+            var dynCluster = config.Clusters.FirstOrDefault(c =>
                 string.Equals(c.Config.ClusterId, request.ClusterName, StringComparison.OrdinalIgnoreCase));
 
             if (dynCluster == null)
@@ -194,7 +119,7 @@ internal class RouteConfigManager : IRouteConfigManager
                     CreatedAt = DateTime.UtcNow,
                     CreatedBy = createdBy
                 };
-                _state.Config.Clusters.Add(dynCluster);
+                config.Clusters.Add(dynCluster);
             }
             else if (!string.IsNullOrWhiteSpace(request.DestinationAddress) && !request.UseIpIsolation)
             {
@@ -204,29 +129,17 @@ internal class RouteConfigManager : IRouteConfigManager
                 dynCluster.Config = dynCluster.Config with { Destinations = dests };
             }
 
-            saveNeeded = true;
-
             var action = isNew ? "registered" : "updated";
             _logger.LogInformation("Route '{RouteName}' {Action} ({MatchPath} -> {Address})",
                 request.RouteName, action, request.MatchPath, request.DestinationAddress);
-            _auditLog.RecordSuccess(
+            AuditLog.RecordSuccess(
                 isNew ? "AddRoute" : "UpdateRoute",
                 request.RouteName,
                 createdBy, null,
                 new { clusterId = request.ClusterName, matchPath = request.MatchPath },
                 new { clusterId = request.ClusterName, matchPath = request.MatchPath, destination = request.DestinationAddress });
-            return new RouteOperationResult(true, $"Route '{request.RouteName}' {action}");
-        }
-        finally
-        {
-            if (saveNeeded)
-            {
-                _state.IncrementVersion();
-                _publisher.Publish(_state.Config, _state.Version);
-                await _persister.SaveAsync(_state.Config, "AddOrUpdateRoute", request.RouteName);
-            }
-            _semaphore.Release();
-        }
+            return Task.FromResult(new RouteOperationResult(true, $"Route '{request.RouteName}' {action}"));
+        });
     }
 
     #endregion
@@ -250,18 +163,9 @@ internal class RouteConfigManager : IRouteConfigManager
         if (string.IsNullOrWhiteSpace(route.ClusterId))
             return new RouteOperationResult(false, "Cluster ID cannot be empty");
 
-        bool saveNeeded = false;
-        await _semaphore.WaitAsync();
-        try
+        return await ExecuteWithLockAsync("AddOrUpdateRoute", route.RouteId, config =>
         {
-            var config = _configProvider.GetConfig();
-            var newRoutes = new List<RouteConfig>(config.Routes ?? []);
-
-            var existingRouteIdx = newRoutes.FindIndex(r =>
-                string.Equals(r.RouteId, route.RouteId, StringComparison.OrdinalIgnoreCase));
-
-            _state.EnsureInitialized();
-            var dynRoute = _state.Config.Routes.FirstOrDefault(r =>
+            var dynRoute = config.Routes.FirstOrDefault(r =>
                 string.Equals(r.Config.RouteId, route.RouteId, StringComparison.OrdinalIgnoreCase));
 
             var preservedMetadata = dynRoute?.Metadata ?? new Dictionary<string, string>();
@@ -271,66 +175,45 @@ internal class RouteConfigManager : IRouteConfigManager
             };
 
             bool isNew;
-            if (existingRouteIdx >= 0)
-            {
-                newRoutes[existingRouteIdx] = effectiveRoute;
-                isNew = false;
-            }
-            else
-            {
-                newRoutes.Add(effectiveRoute);
-                isNew = true;
-            }
-
-            // Normalize comma-delimited transform values
-            for (var ri = 0; ri < newRoutes.Count; ri++)
-                newRoutes[ri] = DynamicYarpConfigHelpers.NormalizeTransforms(newRoutes[ri]);
-
             if (dynRoute == null)
             {
                 dynRoute = new DynamicRouteConfig
                 {
-                    Config = route,
-                    ClusterUid = _state.ResolveClusterUid(route.ClusterId),
+                    Config = effectiveRoute,
+                    ClusterUid = State.ResolveClusterUid(route.ClusterId),
                     Source = source,
                     CreatedAt = DateTime.UtcNow,
                     CreatedBy = createdBy
                 };
-                _state.Config.Routes.Add(dynRoute);
+                config.Routes.Add(dynRoute);
+                isNew = true;
             }
             else
             {
-                dynRoute.Config = route;
-                dynRoute.ClusterUid = _state.ResolveClusterUid(route.ClusterId);
+                dynRoute.Config = effectiveRoute;
+                dynRoute.ClusterUid = State.ResolveClusterUid(route.ClusterId);
                 if (!string.IsNullOrEmpty(source) && source != dynRoute.Source)
                 {
                     dynRoute.Source = source;
                     dynRoute.CreatedBy = createdBy;
                 }
+                isNew = false;
             }
 
-            saveNeeded = true;
+            // Normalize comma-delimited transform values
+            for (var ri = 0; ri < config.Routes.Count; ri++)
+                config.Routes[ri].Config = DynamicYarpConfigHelpers.NormalizeTransforms(config.Routes[ri].Config);
 
             var action = isNew ? "registered" : "updated";
             _logger.LogInformation("Route '{RouteId}' {Action} via full config", route.RouteId, action);
-            _auditLog.RecordSuccess(
+            AuditLog.RecordSuccess(
                 isNew ? "AddRoute" : "UpdateRoute",
                 route.RouteId,
                 createdBy, null,
                 new { clusterId = route.ClusterId },
                 new { clusterId = route.ClusterId, matchPath = route.Match?.Path, order = route.Order });
-            return new RouteOperationResult(true, $"Route '{route.RouteId}' {action}");
-        }
-        finally
-        {
-            if (saveNeeded)
-            {
-                _state.IncrementVersion();
-                _publisher.Publish(_state.Config, _state.Version);
-                await _persister.SaveAsync(_state.Config, "AddOrUpdateRoute", route.RouteId);
-            }
-            _semaphore.Release();
-        }
+            return Task.FromResult(new RouteOperationResult(true, $"Route '{route.RouteId}' {action}"));
+        });
     }
 
 
@@ -350,99 +233,75 @@ internal class RouteConfigManager : IRouteConfigManager
         if (string.IsNullOrWhiteSpace(routeName))
             return new RouteOperationResult(false, "Route name cannot be empty");
 
-        bool saveNeeded = false;
-        await _semaphore.WaitAsync();
-        try
+        return await ExecuteWithLockAsync("RemoveRoute", routeName, config =>
         {
-            var config = _configProvider.GetConfig();
-            var routes = config.Routes ?? Array.Empty<RouteConfig>();
-            var clusters = config.Clusters ?? Array.Empty<ClusterConfig>();
-
-            var route = routes.FirstOrDefault(r =>
-                string.Equals(r.RouteId, routeName, StringComparison.OrdinalIgnoreCase));
-            if (route == null)
+            var dynRoute = config.Routes.FirstOrDefault(r =>
+                string.Equals(r.Config.RouteId, routeName, StringComparison.OrdinalIgnoreCase));
+            if (dynRoute == null)
             {
-                _auditLog.RecordFailure("RemoveRoute", routeName, $"Route '{routeName}' not found");
-                return new RouteOperationResult(false, $"Route '{routeName}' not found");
+                AuditLog.RecordFailure("RemoveRoute", routeName, $"Route '{routeName}' not found");
+                return Task.FromResult(new RouteOperationResult(false, $"Route '{routeName}' not found"));
             }
 
-            var clusterId = route.ClusterId;
+            var clusterId = dynRoute.Config.ClusterId;
 
             // IP isolation: only remove the matching destination
             if (!string.IsNullOrWhiteSpace(clientIp) && clusterId != null)
             {
-                var (resultClusters, destKey, clusterRemoved, found) = ClusterEnsureHelper.RemoveIpDestination(
-                    clusters.ToList(), clusterId, clientIp);
-
-                if (!found)
-                    return new RouteOperationResult(false,
-                        clusterRemoved ? "Cluster removed (no destinations left)" : $"Cluster '{clusterId}' not found");
-
-                _state.EnsureInitialized();
-                if (clusterRemoved)
+                var dynCluster = config.Clusters.FirstOrDefault(c =>
+                    string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+                if (dynCluster != null)
                 {
-                    _state.Config.Routes.RemoveAll(r =>
-                        string.Equals(r.Config.RouteId, routeName, StringComparison.OrdinalIgnoreCase));
-                    _state.Config.Clusters.RemoveAll(c =>
-                        string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
-                }
-                else
-                {
-                    var dynCluster = _state.Config.Clusters.FirstOrDefault(c =>
-                        string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
-                    if (dynCluster != null)
+                    var destKey = $"ip-{clientIp.Replace(".", "-")}";
+                    var dests = dynCluster.Config.Destinations?.ToDictionary(d => d.Key, d => d.Value)
+                                ?? new Dictionary<string, DestinationConfig>();
+                    if (dests.Remove(destKey))
                     {
-                        var dests = dynCluster.Config.Destinations?.ToDictionary(d => d.Key, d => d.Value)
-                                    ?? new Dictionary<string, DestinationConfig>();
-                        dests.Remove(destKey);
+                        if (dests.Count == 0)
+                        {
+                            config.Routes.RemoveAll(r =>
+                                string.Equals(r.Config.RouteId, routeName, StringComparison.OrdinalIgnoreCase));
+                            config.Clusters.RemoveAll(c =>
+                                string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+                            _logger.LogDebug(
+                                "IP isolation: removed last destination from cluster '{ClusterId}', cluster removed",
+                                clusterId);
+                            return Task.FromResult(new RouteOperationResult(true,
+                                $"Cluster '{clusterId}' removed (no destinations left after IP removal)"));
+                        }
                         dynCluster.Config = dynCluster.Config with { Destinations = dests };
                     }
                 }
 
-                saveNeeded = true;
+                config.Routes.RemoveAll(r =>
+                    string.Equals(r.Config.RouteId, routeName, StringComparison.OrdinalIgnoreCase));
                 _logger.LogDebug(
-                    "IP isolation: removed destination '{DestKey}' from cluster '{ClusterId}' (client IP: {ClientIp})",
-                    destKey, clusterId, clientIp);
-                return new RouteOperationResult(true,
-                    clusterRemoved
-                        ? $"Cluster '{clusterId}' removed (no destinations left after IP removal)"
-                        : $"Destination for IP '{clientIp}' removed from cluster '{clusterId}'");
+                    "IP isolation: removed route '{RouteName}' and destination for IP '{ClientIp}' from cluster '{ClusterId}'",
+                    routeName, clientIp, clusterId);
+                return Task.FromResult(new RouteOperationResult(true,
+                    $"Destination for IP '{clientIp}' removed from cluster '{clusterId}'"));
             }
 
             // Normal: delete route and optionally the orphaned cluster
-            var newRoutes2 = new List<RouteConfig>(routes.Where(r =>
-                !string.Equals(r.RouteId, routeName, StringComparison.OrdinalIgnoreCase)));
-
-            var orphaned = clusterId != null && !newRoutes2.Any(r =>
-                string.Equals(r.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
-
-            _state.EnsureInitialized();
-            _state.Config.Routes.RemoveAll(r =>
+            config.Routes.RemoveAll(r =>
                 string.Equals(r.Config.RouteId, routeName, StringComparison.OrdinalIgnoreCase));
 
-            if (orphaned && removeOrphanedCluster && clusterId != null)
+            if (removeOrphanedCluster && clusterId != null)
             {
-                _state.Config.Clusters.RemoveAll(c =>
-                    string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+                var orphaned = !config.Routes.Any(r =>
+                    string.Equals(r.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+                if (orphaned)
+                {
+                    config.Clusters.RemoveAll(c =>
+                        string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+                }
             }
-
-            saveNeeded = true;
 
             _logger.LogInformation("Route '{RouteName}' deleted", routeName);
-            _auditLog.RecordSuccess("RemoveRoute", routeName, null, null,
-                new { clusterId, matchPath = route.Match?.Path });
-            return new RouteOperationResult(true, $"Route '{routeName}' deleted");
-        }
-        finally
-        {
-            if (saveNeeded)
-            {
-                _state.IncrementVersion();
-                _publisher.Publish(_state.Config, _state.Version);
-                await _persister.SaveAsync(_state.Config, "RemoveRoute", routeName);
-            }
-            _semaphore.Release();
-        }
+            AuditLog.RecordSuccess("RemoveRoute", routeName, null, null,
+                new { clusterId, matchPath = dynRoute.Config.Match?.Path });
+            return Task.FromResult(new RouteOperationResult(true, $"Route '{routeName}' deleted"));
+        });
     }
 
 
@@ -469,7 +328,7 @@ internal class RouteConfigManager : IRouteConfigManager
     {
         if (string.IsNullOrWhiteSpace(oldRouteId) || string.IsNullOrWhiteSpace(newRouteId))
         {
-            _auditLog.RecordFailure("RenameRoute", oldRouteId ?? "", "Route ID cannot be empty");
+            AuditLog.RecordFailure("RenameRoute", oldRouteId ?? "", "Route ID cannot be empty");
             return new RouteOperationResult(false, "Route ID cannot be empty");
         }
 
@@ -478,95 +337,67 @@ internal class RouteConfigManager : IRouteConfigManager
             return new RouteOperationResult(false, "Old and new route IDs are the same");
         }
 
-        bool saveNeeded = false;
-        await _semaphore.WaitAsync();
-        try
+        return await ExecuteWithLockAsync("UpdateRoute", oldRouteId, config =>
         {
-            var config = _configProvider.GetConfig();
-            var newRoutes = new List<RouteConfig>(config.Routes ?? []);
-            var clusters = config.Clusters ?? [];
-
-            var oldRoute = newRoutes.FirstOrDefault(r =>
-                string.Equals(r.RouteId, oldRouteId, StringComparison.OrdinalIgnoreCase));
-            if (oldRoute == null)
+            var dynRoute = config.Routes.FirstOrDefault(r =>
+                string.Equals(r.Config.RouteId, oldRouteId, StringComparison.OrdinalIgnoreCase));
+            if (dynRoute == null)
             {
-                _auditLog.RecordFailure("UpdateRoute", oldRouteId, $"Route '{oldRouteId}' not found");
-                return new RouteOperationResult(false, $"Route '{oldRouteId}' not found");
+                AuditLog.RecordFailure("UpdateRoute", oldRouteId, $"Route '{oldRouteId}' not found");
+                return Task.FromResult(new RouteOperationResult(false, $"Route '{oldRouteId}' not found"));
             }
 
-            if (newRoutes.Any(r =>
-                string.Equals(r.RouteId, newRouteId, StringComparison.OrdinalIgnoreCase)))
+            if (config.Routes.Any(r =>
+                string.Equals(r.Config.RouteId, newRouteId, StringComparison.OrdinalIgnoreCase)))
             {
-                _auditLog.RecordFailure("UpdateRoute", oldRouteId,
+                AuditLog.RecordFailure("UpdateRoute", oldRouteId,
                     $"Target route '{newRouteId}' already exists");
-                return new RouteOperationResult(false, $"Target route '{newRouteId}' already exists");
+                return Task.FromResult(new RouteOperationResult(false, $"Target route '{newRouteId}' already exists"));
             }
 
-            var newRoute = oldRoute with
+            var oldConfig = dynRoute.Config;
+            var newConfig = oldConfig with
             {
                 RouteId = newRouteId,
-                ClusterId = request.ClusterName ?? oldRoute.ClusterId,
+                ClusterId = request.ClusterName ?? oldConfig.ClusterId,
                 Match = request.MatchPath != null
                     ? new RouteMatch
                     {
                         Path = request.MatchPath,
-                        Hosts = oldRoute.Match?.Hosts,
-                        Methods = oldRoute.Match?.Methods,
-                        Headers = oldRoute.Match?.Headers,
-                        QueryParameters = oldRoute.Match?.QueryParameters
+                        Hosts = oldConfig.Match?.Hosts,
+                        Methods = oldConfig.Match?.Methods,
+                        Headers = oldConfig.Match?.Headers,
+                        QueryParameters = oldConfig.Match?.QueryParameters
                     }
-                    : oldRoute.Match,
-                Order = request.Order ?? oldRoute.Order,
+                    : oldConfig.Match,
+                Order = request.Order ?? oldConfig.Order,
                 Transforms = request.Transforms?.Select(t => (IReadOnlyDictionary<string, string>)t).ToList()
-                    ?? oldRoute.Transforms
+                    ?? oldConfig.Transforms
             };
-            newRoutes.Add(newRoute);
 
-            newRoutes.RemoveAll(r =>
-                string.Equals(r.RouteId, oldRouteId, StringComparison.OrdinalIgnoreCase));
-
-            _state.EnsureInitialized();
-
-            var dynRoute = _state.Config.Routes.FirstOrDefault(r =>
-                string.Equals(r.Config.RouteId, oldRouteId, StringComparison.OrdinalIgnoreCase));
-            if (dynRoute != null)
+            var renamedDynRoute = new DynamicRouteConfig
             {
-                var renamedDynRoute = new DynamicRouteConfig
-                {
-                    Config = newRoute,
-                    RouteUid = dynRoute.RouteUid,
-                    ClusterUid = _state.ResolveClusterUid(request.ClusterName ?? newRoute.ClusterId),
-                    Source = source,
-                    CreatedAt = dynRoute.CreatedAt,
-                    CreatedBy = createdBy,
-                    Metadata = new Dictionary<string, string>(dynRoute.Metadata)
-                };
-                _state.Config.Routes.RemoveAll(r =>
-                    string.Equals(r.Config.RouteId, oldRouteId, StringComparison.OrdinalIgnoreCase));
-                _state.Config.Routes.Add(renamedDynRoute);
-            }
-
-            saveNeeded = true;
+                Config = newConfig,
+                RouteUid = dynRoute.RouteUid,
+                ClusterUid = State.ResolveClusterUid(request.ClusterName ?? newConfig.ClusterId),
+                Source = source,
+                CreatedAt = dynRoute.CreatedAt,
+                CreatedBy = createdBy,
+                Metadata = new Dictionary<string, string>(dynRoute.Metadata)
+            };
+            config.Routes.RemoveAll(r =>
+                string.Equals(r.Config.RouteId, oldRouteId, StringComparison.OrdinalIgnoreCase));
+            config.Routes.Add(renamedDynRoute);
 
             _logger.LogInformation(
                 "Route '{OldRouteId}' renamed to '{NewRouteId}'",
                 oldRouteId, newRouteId);
-            _auditLog.RecordSuccess("UpdateRoute", $"{oldRouteId} → {newRouteId}", createdBy, null,
+            AuditLog.RecordSuccess("UpdateRoute", $"{oldRouteId} → {newRouteId}", createdBy, null,
                 new { oldRouteId, action = "rename" },
                 new { newRouteId, clusterId = request.ClusterName, matchPath = request.MatchPath, action = "rename" });
-            return new RouteOperationResult(true,
-                $"Route '{oldRouteId}' renamed to '{newRouteId}'");
-        }
-        finally
-        {
-            if (saveNeeded)
-            {
-                _state.IncrementVersion();
-                _publisher.Publish(_state.Config, _state.Version);
-                await _persister.SaveAsync(_state.Config, "UpdateRoute", oldRouteId);
-            }
-            _semaphore.Release();
-        }
+            return Task.FromResult(new RouteOperationResult(true,
+                $"Route '{oldRouteId}' renamed to '{newRouteId}'"));
+        });
     }
 
     #endregion
@@ -584,19 +415,15 @@ internal class RouteConfigManager : IRouteConfigManager
         if (string.IsNullOrWhiteSpace(routeId) || metadata.Count == 0)
             return false;
 
-        bool saveNeeded = false;
-        await _semaphore.WaitAsync();
-        try
+        return await ExecuteMetadataWithLockAsync("UpdateRouteMetadata", routeId, config =>
         {
-            _state.EnsureInitialized();
-
-            var route = _state.Config.Routes.FirstOrDefault(r =>
+            var route = config.Routes.FirstOrDefault(r =>
                 (r.Config.RouteId ?? string.Empty).Equals(routeId, StringComparison.OrdinalIgnoreCase));
 
             if (route == null)
             {
                 _logger.LogWarning("UpdateRouteMetadata: route '{RouteId}' not found", routeId);
-                return false;
+                return Task.FromResult(false);
             }
 
             foreach (var kvp in metadata)
@@ -604,26 +431,11 @@ internal class RouteConfigManager : IRouteConfigManager
                 route.Metadata[kvp.Key] = kvp.Value;
             }
 
-            saveNeeded = true;
-
-            _publisher.Publish(_state.Config, _state.Version);
-
             _logger.LogDebug(
                 "Updated metadata for route '{RouteId}': {Keys}",
                 routeId, string.Join(", ", metadata.Keys));
-        }
-        finally
-        {
-            if (saveNeeded)
-            {
-                _state.IncrementVersion();
-                _publisher.Publish(_state.Config, _state.Version);
-                await _persister.SaveAsync(_state.Config, "UpdateRouteMetadata", routeId);
-            }
-            _semaphore.Release();
-        }
-
-        return true;
+            return Task.FromResult(true);
+        });
     }
 
     #endregion
@@ -636,19 +448,15 @@ internal class RouteConfigManager : IRouteConfigManager
     /// <returns>A list of RouteConfigs.</returns>
     public IReadOnlyList<RouteConfig> GetRoutes()
     {
-        _semaphore.Wait();
-        try
-        {
-            return _configProvider.GetConfig().Routes ?? Array.Empty<RouteConfig>();
-        }
-        finally { _semaphore.Release(); }
+        // Direct read from volatile snapshot — no lock needed.
+        return State.Config.Routes?.Select(r => r.Config).ToList() ?? [];
     }
 
     /// <summary>
     /// Gets the dynamic config.
     /// </summary>
     /// <returns>A GatewayDynamicConfig.</returns>
-    public GatewayDynamicConfig GetDynamicConfig() => _state.Config;
+    public GatewayDynamicConfig GetDynamicConfig() => State.Config;
 
     #endregion
 }

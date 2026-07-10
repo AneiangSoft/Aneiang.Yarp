@@ -24,7 +24,18 @@ public sealed class SqliteSchemaMigrator : IHostedService
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        await using var conn = _connections.CreateConnection();
+        await RunMigrationAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Run all schema migrations and data backfill. Called lazily by
+    /// <see cref="SqliteConnectionFactory"/> on first connection use, or directly by
+    /// the host when registered as <see cref="IHostedService"/>.
+    /// </summary>
+    public async Task RunMigrationAsync(CancellationToken cancellationToken = default)
+    {
+        // Use CreateRawConnection to avoid deadlock (CreateConnection awaits migration).
+        await using var conn = _connections.CreateRawConnection();
         await conn.OpenAsync(cancellationToken);
 
         // Reduce "database is locked" stalls during concurrent access / recovery.
