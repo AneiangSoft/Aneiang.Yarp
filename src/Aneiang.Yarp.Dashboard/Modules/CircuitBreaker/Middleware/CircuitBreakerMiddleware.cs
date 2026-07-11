@@ -31,7 +31,7 @@ public sealed class CircuitBreakerMiddleware : GatewayMiddlewareBase
     private readonly ICircuitStateStore _circuitStore;
 
     private static readonly TimeSpan _cleanupThreshold = TimeSpan.FromHours(3);
-    private DateTime _lastCleanupTime = DateTime.Now;
+    private long _lastCleanupTicks = DateTime.UtcNow.Ticks;
 
     public CircuitBreakerMiddleware(
         RequestDelegate next,
@@ -100,49 +100,64 @@ public sealed class CircuitBreakerMiddleware : GatewayMiddlewareBase
         state.ClusterKeySnapshot = clusterId;
         state.DestinationUid = InMemoryCircuitStateStore.ResolveDestinationUid(destinationId);
         state.DestinationKeySnapshot = destinationId ?? "any";
-        state.LastAccessedAt = DateTime.Now;
+        // F3 fix: LastAccessedAt is now only written inside the lock in UpdateCircuitState (finally block).
+        // The previous unprotected write here raced with the locked write.
 
         TryCleanupStaleCircuits();
 
-        var currentStatus = state.Status;
-
-        if (currentStatus == CircuitStatus.Open)
+        // All state transitions are protected by a per-circuit lock to prevent race conditions.
+        // We determine the action to take inside the lock, then execute it outside the lock.
+        CircuitAction action;
+        lock (state.SyncRoot)
         {
-            if (DateTime.Now < state.OpenedAt + state.RecoveryTimeout)
+            if (state.Status == CircuitStatus.Open)
             {
-                _logger.LogWarning(
-                    "Circuit OPEN for {CircuitKey} (recovery at {RecoveryAt})",
-                    circuitKey, state.OpenedAt + state.RecoveryTimeout);
-
-                context.Response.StatusCode = 503;
-                context.Response.ContentType = "application/json";
-                await context.Response.WriteAsJsonAsync(new
+                if (DateTime.UtcNow < state.OpenedAt + state.RecoveryTimeout)
                 {
-                    error = "ServiceUnavailable",
-                    message = $"Circuit breaker open for cluster '{clusterId}'. Retry later."
-                });
-                return;
+                    _logger.LogWarning(
+                        "Circuit OPEN for {CircuitKey} (recovery at {RecoveryAt})",
+                        circuitKey, state.OpenedAt + state.RecoveryTimeout);
+                    action = CircuitAction.RejectOpen;
+                }
+                else
+                {
+                    state.Status = CircuitStatus.HalfOpen;
+                    state.HalfOpenRequests = 0;
+                    _logger.LogInformation("Circuit HALF-OPEN for {CircuitKey}", circuitKey);
+                    action = CircuitAction.Proceed;
+                }
             }
-
-            state.Status = CircuitStatus.HalfOpen;
-            state.HalfOpenRequests = 0;
-            _logger.LogInformation("Circuit HALF-OPEN for {CircuitKey}", circuitKey);
-        }
-
-        bool rejectHalfOpen = false;
-        if (state.Status == CircuitStatus.HalfOpen)
-        {
-            if (state.HalfOpenRequests >= state.MaxHalfOpenAttempts)
+            else if (state.Status == CircuitStatus.HalfOpen)
             {
-                rejectHalfOpen = true;
+                if (state.HalfOpenRequests >= state.MaxHalfOpenAttempts)
+                {
+                    action = CircuitAction.RejectHalfOpen;
+                }
+                else
+                {
+                    state.HalfOpenRequests++;
+                    action = CircuitAction.Proceed;
+                }
             }
             else
             {
-                state.HalfOpenRequests++;
+                action = CircuitAction.Proceed;
             }
         }
 
-        if (rejectHalfOpen)
+        if (action == CircuitAction.RejectOpen)
+        {
+            context.Response.StatusCode = 503;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new
+            {
+                error = "ServiceUnavailable",
+                message = $"Circuit breaker open for cluster '{clusterId}'. Retry later."
+            });
+            return;
+        }
+
+        if (action == CircuitAction.RejectHalfOpen)
         {
             context.Response.StatusCode = 503;
             context.Response.ContentType = "application/json";
@@ -179,58 +194,67 @@ public sealed class CircuitBreakerMiddleware : GatewayMiddlewareBase
     {
         var isFailure = cbConfig.FailureStatusCodes.Contains(statusCode) || statusCode >= 500;
 
-        state.LastAccessedAt = DateTime.Now;
-
-        if (isFailure)
+        lock (state.SyncRoot)
         {
-            state.ConsecutiveFailures++;
+            state.LastAccessedAt = DateTime.UtcNow;
 
-            if (state.Status == CircuitStatus.HalfOpen)
+            if (isFailure)
             {
-                state.Status = CircuitStatus.Open;
-                state.OpenedAt = DateTime.Now;
-                _logger.LogWarning("Circuit HALF-OPEN probe FAILED for {CircuitKey}, back to OPEN", circuitKey);
-                var (cbCluster, cbDest) = InMemoryCircuitStateStore.ParseCircuitKey(circuitKey);
-                _notificationService.NotifyCircuitBreakerOpen(cbCluster, cbDest);
-            }
-            else if (state.ConsecutiveFailures >= state.FailureThreshold)
-            {
-                state.Status = CircuitStatus.Open;
-                state.OpenedAt = DateTime.Now;
-                _logger.LogWarning("Circuit OPENED for {CircuitKey} after {Failures} failures", circuitKey, state.ConsecutiveFailures);
-                _notificationService.NotifyCircuitBreakerOpen(state.ClusterKeySnapshot, state.DestinationKeySnapshot);
-            }
-        }
-        else
-        {
-            if (state.Status == CircuitStatus.HalfOpen)
-            {
-                state.Status = CircuitStatus.Closed;
-                state.ConsecutiveFailures = 0;
-                _logger.LogInformation("Circuit CLOSED for {CircuitKey}", circuitKey);
+                state.ConsecutiveFailures++;
+
+                if (state.Status == CircuitStatus.HalfOpen)
+                {
+                    state.Status = CircuitStatus.Open;
+                    state.OpenedAt = DateTime.UtcNow;
+                    _logger.LogWarning("Circuit HALF-OPEN probe FAILED for {CircuitKey}, back to OPEN", circuitKey);
+                    var (cbCluster, cbDest) = InMemoryCircuitStateStore.ParseCircuitKey(circuitKey);
+                    _notificationService.NotifyCircuitBreakerOpen(cbCluster, cbDest);
+                }
+                else if (state.ConsecutiveFailures >= state.FailureThreshold)
+                {
+                    state.Status = CircuitStatus.Open;
+                    state.OpenedAt = DateTime.UtcNow;
+                    _logger.LogWarning("Circuit OPENED for {CircuitKey} after {Failures} failures", circuitKey, state.ConsecutiveFailures);
+                    _notificationService.NotifyCircuitBreakerOpen(state.ClusterKeySnapshot, state.DestinationKeySnapshot);
+                }
             }
             else
             {
-                state.ConsecutiveFailures = 0;
+                if (state.Status == CircuitStatus.HalfOpen)
+                {
+                    state.Status = CircuitStatus.Closed;
+                    state.ConsecutiveFailures = 0;
+                    _logger.LogInformation("Circuit CLOSED for {CircuitKey}", circuitKey);
+                }
+                else
+                {
+                    state.ConsecutiveFailures = 0;
+                }
             }
         }
     }
 
     private void TryCleanupStaleCircuits()
     {
-        var now = DateTime.Now;
-        if (now - _lastCleanupTime < _cleanupThreshold)
+        var now = DateTime.UtcNow;
+        var lastTicks = Interlocked.Read(ref _lastCleanupTicks);
+        if (now - new DateTime(lastTicks, DateTimeKind.Utc) < _cleanupThreshold)
             return;
 
-        _lastCleanupTime = now;
+        Interlocked.Exchange(ref _lastCleanupTicks, now.Ticks);
         _circuitStore.CleanupStale(_cleanupThreshold);
     }
 }
 
 public enum CircuitStatus { Closed, Open, HalfOpen }
 
+/// <summary>Internal action determined by circuit breaker lock evaluation.</summary>
+internal enum CircuitAction { Proceed, RejectOpen, RejectHalfOpen }
+
 public class CircuitState
 {
+    /// <summary>Per-circuit lock object for protecting all state transitions under concurrency.</summary>
+    public readonly object SyncRoot = new();
     public string ClusterUid { get; set; } = string.Empty;
     public string ClusterKeySnapshot { get; set; } = string.Empty;
     public string DestinationUid { get; set; } = "any";
@@ -242,7 +266,7 @@ public class CircuitState
     public int MaxHalfOpenAttempts { get; set; }
     public DateTime OpenedAt { get; set; }
     public int HalfOpenRequests { get; set; }
-    public DateTime LastAccessedAt { get; set; } = DateTime.Now;
+    public DateTime LastAccessedAt { get; set; } = DateTime.UtcNow;
 
     public CircuitState(CircuitBreakerOptions? options = null)
     {

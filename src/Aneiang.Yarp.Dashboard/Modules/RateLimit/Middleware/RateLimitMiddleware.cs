@@ -31,7 +31,7 @@ public sealed class RateLimitMiddleware : GatewayMiddlewareBase
     private const int MaxLimiterCount = 2000;
     private static readonly TimeSpan DefaultCleanupInterval = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan StaleLimiterThreshold = TimeSpan.FromMinutes(5);
-    private DateTime _lastCleanup = DateTime.UtcNow;
+    private long _lastCleanupTicks = DateTime.UtcNow.Ticks;
 
     public RateLimitMiddleware(
         RequestDelegate next,
@@ -241,10 +241,11 @@ public sealed class RateLimitMiddleware : GatewayMiddlewareBase
 
     private void TryCleanup()
     {
-        if (DateTime.UtcNow - _lastCleanup < DefaultCleanupInterval)
+        var lastTicks = Interlocked.Read(ref _lastCleanupTicks);
+        if (DateTime.UtcNow.Ticks - lastTicks < DefaultCleanupInterval.Ticks)
             return;
 
-        _lastCleanup = DateTime.UtcNow;
+        Interlocked.Exchange(ref _lastCleanupTicks, DateTime.UtcNow.Ticks);
         _limiterStore.Cleanup(StaleLimiterThreshold, MaxLimiterCount);
     }
 

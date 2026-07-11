@@ -1,5 +1,6 @@
 using Aneiang.Yarp.Storage;
 using Microsoft.Data.Sqlite;
+using System.Globalization;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
@@ -93,7 +94,7 @@ internal sealed class SqliteProxyLogAggregator
         {
             result.Add(new ProxyLogTrafficBucket
             {
-                TimeBucket = DateTime.Parse(reader.GetString(0)),
+                TimeBucket = DateTime.Parse(reader.GetString(0), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
                 RequestCount = reader.GetInt32(1),
                 ErrorCount = reader.IsDBNull(2) ? 0 : reader.GetInt32(2)
             });

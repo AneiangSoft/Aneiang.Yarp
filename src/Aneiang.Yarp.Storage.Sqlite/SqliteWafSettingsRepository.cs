@@ -1,5 +1,6 @@
 using Aneiang.Yarp.Storage;
 using Microsoft.Data.Sqlite;
+using System.Globalization;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
@@ -90,6 +91,6 @@ public sealed class SqliteWafSettingsRepository : IWafSettingsRepository
         EnableXssDetection = r.GetInt32(r.GetOrdinal("enable_xss_detection")) == 1,
         EnablePathTraversalDetection = r.GetInt32(r.GetOrdinal("enable_path_traversal_detection")) == 1,
         ExtraScriptSources = r.IsDBNull(r.GetOrdinal("extra_script_sources")) ? null : r.GetString(r.GetOrdinal("extra_script_sources")),
-        UpdatedAt = DateTime.Parse(r.GetString(r.GetOrdinal("updated_at")))
+        UpdatedAt = DateTime.Parse(r.GetString(r.GetOrdinal("updated_at")), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
     };
 }

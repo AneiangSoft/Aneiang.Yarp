@@ -1,5 +1,6 @@
 using Aneiang.Yarp.Storage;
 using Microsoft.Data.Sqlite;
+using System.Globalization;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
@@ -227,7 +228,7 @@ public sealed class SqlitePolicyRepository : IPolicyRepository
     private static DateTime? ReadDateTime(SqliteDataReader r, string name)
     {
         var value = ReadString(r, name);
-        return string.IsNullOrEmpty(value) ? null : DateTime.Parse(value);
+        return string.IsNullOrEmpty(value) ? null : DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
     }
 
 }

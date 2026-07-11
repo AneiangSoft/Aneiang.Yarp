@@ -215,18 +215,9 @@
                 try {
                     await window.DashboardApi.endpoints.rollbackConfig(entry.versionId);
                     window.DashboardModals.showSuccess(__('history.rollbackSuccess'));
-                    await self.loadHistory();
+                    setTimeout(() => HistoryModule.loadHistory(), 500);
                 } catch (e) { window.DashboardModals.showError(__('history.rollbackFailed')); }
             }, null, { danger: true, confirmText: __('history.rollback') });
-
-            try {
-                await window.DashboardApi.endpoints.rollback(versionId);
-                this.toast(__('history.rollback.success'), 'success');
-                setTimeout(() => this.loadHistory(), 500);
-            } catch (error) {
-                console.error('[History] Rollback failed:', error);
-                this.toast(__('history.rollback.failed') + ': ' + (error.message || ''), 'error');
-            }
         },
 
         createSnapshot: async function() {
@@ -251,25 +242,11 @@
 
             window.DashboardModals.showConfirm(__('history.clearAllConfirm'), async function() {
                 try {
-                    await window.DashboardApi.endpoints.clearHistory();
+                    await window.DashboardApi.endpoints.clearConfigHistory();
                     window.DashboardModals.showSuccess(__('history.clearAllSuccess'));
-                    await self.loadHistory();
+                    setTimeout(() => HistoryModule.loadHistory(), 500);
                 } catch (e) { window.DashboardModals.showError(__('history.clearAllFailed')); }
             }, null, { danger: true });
-
-            try {
-                await window.DashboardApi.endpoints.clearConfigHistory();
-                this.entries = [];
-                this.filtered = [];
-                this.selectedVersionId = null;
-                this.renderStats();
-                this.renderHistory();
-                this.renderDetail(null);
-                this.toast(__('history.clearSuccess'), 'success');
-            } catch (error) {
-                console.error('[History] Clear failed:', error);
-                this.toast(__('history.clearFailed') + ': ' + (error.message || ''), 'error');
-            }
         },
 
         copyVersionId: function(versionId) {
