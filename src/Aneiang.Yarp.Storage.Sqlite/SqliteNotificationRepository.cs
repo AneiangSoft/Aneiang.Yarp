@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Aneiang.Yarp.Storage;
 using Microsoft.Data.Sqlite;
@@ -65,7 +66,7 @@ public sealed class SqliteNotificationRepository : INotificationRepository
             Channels = reader.IsDBNull(2) ? null : reader.GetString(2),
             Rules = reader.IsDBNull(3) ? null : reader.GetString(3),
             GlobalSettings = reader.IsDBNull(4) ? null : reader.GetString(4),
-            UpdatedAt = DateTime.Parse(reader.GetString(5))
+            UpdatedAt = DateTime.Parse(reader.GetString(5), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
         };
     }
 
@@ -339,7 +340,7 @@ public sealed class SqliteNotificationRepository : INotificationRepository
             Severity = (NotificationSeverity)r.GetInt32(r.GetOrdinal("severity")),
             Title = r.GetString(r.GetOrdinal("title")),
             Message = r.GetString(r.GetOrdinal("message")),
-            Timestamp = DateTime.Parse(r.GetString(r.GetOrdinal("timestamp"))),
+            Timestamp = DateTime.Parse(r.GetString(r.GetOrdinal("timestamp")), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
             ClusterId = r.IsDBNull(r.GetOrdinal("cluster_id")) ? null : r.GetString(r.GetOrdinal("cluster_id")),
             RouteId = r.IsDBNull(r.GetOrdinal("route_id")) ? null : r.GetString(r.GetOrdinal("route_id")),
             ClientIp = r.IsDBNull(r.GetOrdinal("client_ip")) ? null : r.GetString(r.GetOrdinal("client_ip")),

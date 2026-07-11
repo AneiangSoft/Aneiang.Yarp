@@ -1,5 +1,6 @@
 using Aneiang.Yarp.Storage;
 using Microsoft.Data.Sqlite;
+using System.Globalization;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
@@ -121,6 +122,6 @@ public sealed class SqliteConfigHistoryRepository : IConfigHistoryRepository
         ConfigData = r.GetString(3),
         DiffData = r.IsDBNull(4) ? null : r.GetString(4),
         CreatedBy = r.GetString(5),
-        CreatedAt = DateTime.Parse(r.GetString(6))
+        CreatedAt = DateTime.Parse(r.GetString(6), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
     };
 }

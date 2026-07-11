@@ -1,5 +1,6 @@
 using Aneiang.Yarp.Storage;
 using Microsoft.Data.Sqlite;
+using System.Globalization;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
@@ -112,6 +113,6 @@ public sealed class SqliteAuditLogRepository : IAuditLogRepository
         AfterData = r.IsDBNull(7) ? null : r.GetString(7),
         Success = r.GetInt32(8) == 1,
         ErrorMessage = r.IsDBNull(9) ? null : r.GetString(9),
-        Timestamp = DateTime.Parse(r.GetString(10))
+        Timestamp = DateTime.Parse(r.GetString(10), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
     };
 }

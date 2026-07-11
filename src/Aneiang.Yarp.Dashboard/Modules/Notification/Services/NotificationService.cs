@@ -19,7 +19,7 @@ public sealed class NotificationService : INotificationService
     private readonly CooldownManager _cooldownManager;
     private readonly JsonSerializerOptions _jsonOptions;
 
-    private string _locale = "zh-CN";
+    private volatile string _locale = "zh-CN";
     private NotificationSettingsEntity? _cachedSettings;
     private DateTime _cacheExpiry = DateTime.MinValue;
     private readonly SemaphoreSlim _cacheLock = new(1, 1);

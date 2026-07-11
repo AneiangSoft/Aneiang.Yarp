@@ -11,6 +11,7 @@ using Aneiang.Yarp.Services;
 using Microsoft.IO;
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Model;
+using Yarp.ReverseProxy.Health;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Retry.Middleware;
 
@@ -101,75 +102,132 @@ public sealed class RequestRetryMiddleware : GatewayMiddlewareBase
 
         int attempt = 0;
         int? lastStatusCode = null;
+        DestinationState? markedUnhealthyDest = null;
+        var originalHealthState = DestinationHealth.Unknown;
 
-        while (attempt <= maxRetries)
+        try
         {
-            // Check circuit breaker before retry
-            if (attempt > 0 && !string.IsNullOrEmpty(clusterId))
+            while (attempt <= maxRetries)
             {
-                if (_circuitStore.IsCircuitOpen(clusterId, clusterUid: ResolveClusterUid(clusterId)))
+                // Check circuit breaker before retry
+                if (attempt > 0 && !string.IsNullOrEmpty(clusterId))
                 {
-                    _logger.LogDebug("Circuit breaker is open, skipping retry");
-                    break;
+                    if (_circuitStore.IsCircuitOpen(clusterId, clusterUid: ResolveClusterUid(clusterId)))
+                    {
+                        _logger.LogDebug("Circuit breaker is open, skipping retry");
+                        break;
+                    }
                 }
-            }
 
-            // Restore request body from pooled buffer for each retry attempt
-            // Memory optimization (v2.4): Uses pooled byte[] directly instead of .ToArray() copy
-            if (requestBodyBuffer != null)
-            {
-                context.Request.Body = new MemoryStream(requestBodyBuffer, 0, requestBodyLength, writable: false);
-                context.Request.ContentLength = requestBodyLength;
-            }
+                // Restore request body from pooled buffer for each retry attempt
+                if (requestBodyBuffer != null)
+                {
+                    context.Request.Body = new MemoryStream(requestBodyBuffer, 0, requestBodyLength, writable: false);
+                    context.Request.ContentLength = requestBodyLength;
+                }
 
-            var originalResponseBody = context.Response.Body;
-            // Memory optimization (v2.4): RecyclableMemoryStream eliminates LOH fragmentation
-            using var responseStream = _memoryStreamManager.GetStream("RequestRetry-ResponseBody");
-            context.Response.Body = responseStream;
+                var originalResponseBody = context.Response.Body;
+                using var responseStream = _memoryStreamManager.GetStream("RequestRetry-ResponseBody");
+                context.Response.Body = responseStream;
 
-            try
-            {
-                await Next(context);
-            }
-            finally
-            {
+                try
+                {
+                    await Next(context);
+                }
+                finally
+                {
+                    responseStream.Seek(0, SeekOrigin.Begin);
+                }
+
+                lastStatusCode = context.Response.StatusCode;
+
+                if (attempt < maxRetries && retryStatusCodes.Contains(context.Response.StatusCode))
+                {
+                    attempt++;
+                    var baseDelay = backoffBaseMs * (int)Math.Pow(2, attempt - 1);
+                    var jitter = Random.Shared.Next(0, jitterMs);
+                    var delayMs = baseDelay + jitter;
+
+                    _logger.LogWarning(
+                        "Retry {Attempt}/{MaxRetries} for {Method} {Path} (status {StatusCode}, delay {Delay}ms)",
+                        attempt, maxRetries, context.Request.Method, context.Request.Path,
+                        context.Response.StatusCode, delayMs);
+
+                    context.Response.Body = originalResponseBody;
+                    context.Response.StatusCode = 200;
+                    context.Response.Headers.Clear();
+
+                    // F2 fix: When useDifferentDestination is enabled, temporarily mark the current
+                    // destination as Unhealthy so YARP's load balancer picks a different one on retry.
+                    if (useDifferentDestination && markedUnhealthyDest == null)
+                    {
+                        var proxyFeat = context.Features.Get<IReverseProxyFeature>();
+                        var destState = proxyFeat?.ProxiedDestination;
+                        var cluster = proxyFeat?.Route?.Cluster;
+                        if (destState != null && cluster?.DestinationsState?.AllDestinations != null)
+                        {
+                            bool otherHealthy = false;
+                            foreach (var d in cluster.DestinationsState.AllDestinations)
+                            {
+                                if (d != destState && d.Health.Active != DestinationHealth.Unhealthy)
+                                {
+                                    otherHealthy = true;
+                                    break;
+                                }
+                            }
+                            if (otherHealthy)
+                            {
+                                markedUnhealthyDest = destState;
+                                originalHealthState = destState.Health.Active;
+                                destState.Health.Active = DestinationHealth.Unhealthy;
+                                _logger.LogDebug(
+                                    "Retry: marking destination '{DestId}' as Unhealthy for cross-destination retry",
+                                    destState.DestinationId);
+                            }
+                        }
+                    }
+
+                    try
+                    {
+                        await Task.Delay(delayMs, context.RequestAborted);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        _logger.LogDebug("Retry cancelled by client disconnect for {Method} {Path}",
+                            context.Request.Method, context.Request.Path);
+                        break;
+                    }
+                    continue;
+                }
+
                 responseStream.Seek(0, SeekOrigin.Begin);
-            }
-
-            lastStatusCode = context.Response.StatusCode;
-
-            if (attempt < maxRetries && retryStatusCodes.Contains(context.Response.StatusCode))
-            {
-                attempt++;
-                var baseDelay = backoffBaseMs * (int)Math.Pow(2, attempt - 1);
-                var jitter = Random.Shared.Next(0, jitterMs);
-                var delayMs = baseDelay + jitter;
-
-                _logger.LogWarning(
-                    "Retry {Attempt}/{MaxRetries} for {Method} {Path} (status {StatusCode}, delay {Delay}ms)",
-                    attempt, maxRetries, context.Request.Method, context.Request.Path,
-                    context.Response.StatusCode, delayMs);
-
+                await responseStream.CopyToAsync(originalResponseBody);
                 context.Response.Body = originalResponseBody;
-                context.Response.StatusCode = 200;
-                context.Response.Headers.Clear();
 
-                await Task.Delay(delayMs);
-                continue;
+                if (attempt > 0)
+                {
+                    _logger.LogInformation(
+                        "Request succeeded on attempt {Attempt} for {Method} {Path} (status {StatusCode})",
+                        attempt + 1, context.Request.Method, context.Request.Path, context.Response.StatusCode);
+                }
+
+                break;
             }
+        }
+        finally
+        {
+            // Return the ArrayPool buffer to the pool (BUG-3 fix)
+            if (requestBodyBuffer != null)
+                ArrayPool<byte>.Shared.Return(requestBodyBuffer);
 
-            responseStream.Seek(0, SeekOrigin.Begin);
-            await responseStream.CopyToAsync(originalResponseBody);
-            context.Response.Body = originalResponseBody;
-
-            if (attempt > 0)
+            // Restore destination health if it was temporarily marked Unhealthy for cross-destination retry
+            if (markedUnhealthyDest != null)
             {
-                _logger.LogInformation(
-                    "Request succeeded on attempt {Attempt} for {Method} {Path} (status {StatusCode})",
-                    attempt + 1, context.Request.Method, context.Request.Path, context.Response.StatusCode);
+                markedUnhealthyDest.Health.Active = originalHealthState;
+                _logger.LogDebug(
+                    "Retry: restored destination '{DestId}' health to {Health}",
+                    markedUnhealthyDest.DestinationId, originalHealthState);
             }
-
-            break;
         }
 
         if (attempt > 0)

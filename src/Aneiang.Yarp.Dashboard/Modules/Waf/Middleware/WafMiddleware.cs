@@ -29,6 +29,10 @@ public sealed class WafMiddleware : GatewayMiddlewareBase
     private readonly IWafSettingsPersistenceService? _wafPersistence;
     private readonly INotificationService _notificationService;
 
+    // F4 fix: Removed per-middleware TTL cache. WafSettingsPersistenceService.Load()
+    // already returns cached data instantly (null-check only) and auto-invalidates on Save().
+    // Creating a WafOptions object per request is negligible overhead.
+
     /// <summary>
     /// Stateless checker chain. Each checker is a singleton — thread-safe, no per-request state.
     /// Order matters: IP → size/headers → path traversal → SQL injection → XSS.
@@ -137,6 +141,7 @@ public sealed class WafMiddleware : GatewayMiddlewareBase
 
     /// <summary>
     /// Resolves the effective WAF options by merging persisted settings over configuration defaults.
+    /// Uses IWafSettingsPersistenceService's built-in cache (instant return, auto-invalidated on Save).
     /// </summary>
     private WafOptions ResolveEffectiveOptions()
     {
