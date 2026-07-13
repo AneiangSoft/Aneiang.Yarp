@@ -140,6 +140,24 @@ internal class DynamicConfigPersister : IDynamicConfigPersister
             if (route == null) return false;
 
             await _routeRepo.SaveRouteAsync(route.ToEntity());
+
+            // When TryAddRoute creates an implicit cluster, persist it too.
+            if (operationName == "AddOrUpdateRoute" && !string.IsNullOrEmpty(route.Config.ClusterId))
+            {
+                var cluster = config.Clusters.FirstOrDefault(c =>
+                    string.Equals(c.Config.ClusterId, route.Config.ClusterId, StringComparison.OrdinalIgnoreCase));
+                if (cluster != null)
+                {
+                    var clusterId = cluster.Config.ClusterId ?? string.Empty;
+                    await _clusterRepo.SaveClusterAsync(cluster.ToEntity());
+                    await _clusterRepo.SaveDestinationsAsync(
+                        clusterId,
+                        DestinationsToDict(cluster.Config.Destinations)
+                            .Select(d => new KeyValuePair<string, string>(d.Key, d.Value.Address ?? string.Empty).ToEntity(clusterId))
+                            .ToList());
+                }
+            }
+
             return true;
         }
 

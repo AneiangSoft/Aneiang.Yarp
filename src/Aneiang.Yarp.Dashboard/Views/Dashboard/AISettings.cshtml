@@ -1,0 +1,147 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "AI Assistant" : "AI 助手";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<!-- AI Settings & Configuration -->
+<div class="card-panel mb-4">
+    <div class="card-header">
+        <span><i class="bi bi-robot me-2" style="color:#8b5cf6;"></i><span data-i18n="ai.title">AI 助手配置</span></span>
+        <span class="badge bg-secondary ms-2" id="ai-status-badge">—</span>
+    </div>
+    <div class="card-body">
+        <form id="ai-settings-form" onsubmit="return false;">
+            <!-- Enable/Disable -->
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="ai-enabled" />
+                        <label class="form-check-label fw-semibold" for="ai-enabled" data-i18n="ai.enabled">启用 AI 助手</label>
+                    </div>
+                    <small class="text-muted" data-i18n="ai.enabledDesc">开启后 Dashboard 将显示 AI 聊天按钮，并启用后台分析功能</small>
+                </div>
+            </div>
+
+            <hr />
+
+            <!-- Provider Selection -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold" data-i18n="ai.provider">AI 服务商</label>
+                    <select class="form-select form-select-sm" id="ai-provider" onchange="AISettings.onProviderChange()">
+                        <option value="openai">OpenAI</option>
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="qwen">通义千问 (Qwen)</option>
+                        <option value="custom" data-i18n="ai.custom">自定义</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold" data-i18n="ai.apiKey">API Key</label>
+                    <div class="input-group input-group-sm">
+                        <input type="password" class="form-control" id="ai-api-key" placeholder="sk-..." />
+                        <button class="btn btn-outline-secondary" type="button" onclick="AISettings.toggleKeyVisibility()">
+                            <i class="bi bi-eye" id="ai-key-toggle-icon"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted" data-i18n="ai.apiKeyHint">密钥仅在本地使用，不会上传到第三方</small>
+                </div>
+            </div>
+
+            <!-- Base URL & Models -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" data-i18n="ai.baseUrl">API Base URL</label>
+                    <input type="text" class="form-control form-control-sm" id="ai-base-url" placeholder="https://api.openai.com/v1" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" data-i18n="ai.chatModel">对话模型</label>
+                    <input type="text" class="form-control form-control-sm" id="ai-chat-model" placeholder="gpt-4o-mini" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" data-i18n="ai.analysisModel">分析模型</label>
+                    <input type="text" class="form-control form-control-sm" id="ai-analysis-model" placeholder="gpt-4o-mini" />
+                    <small class="text-muted" data-i18n="ai.analysisModelHint">后台分析可用更便宜的模型</small>
+                </div>
+            </div>
+
+            <!-- Parameters -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" data-i18n="ai.maxTokens">最大 Token 数</label>
+                    <input type="number" class="form-control form-control-sm" id="ai-max-tokens" min="256" max="32768" value="4096" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" data-i18n="ai.temperature">温度 (Temperature)</label>
+                    <input type="range" class="form-range" id="ai-temperature" min="0" max="1" step="0.1" value="0.3"
+                           oninput="document.getElementById('ai-temp-display').textContent = this.value" />
+                    <span class="badge bg-light text-dark" id="ai-temp-display">0.3</span>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" data-i18n="ai.maxHistory">对话历史条数</label>
+                    <input type="number" class="form-control form-control-sm" id="ai-max-history" min="5" max="100" value="20" />
+                </div>
+            </div>
+
+            <hr />
+
+            <!-- Feature Toggles -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="ai-bg-analysis" />
+                        <label class="form-check-label" for="ai-bg-analysis" data-i18n="ai.bgAnalysis">后台日志分析</label>
+                    </div>
+                    <small class="text-muted" data-i18n="ai.bgAnalysisDesc">定期自动分析代理日志，检测异常模式</small>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="ai-enhance-notif" />
+                        <label class="form-check-label" for="ai-enhance-notif" data-i18n="ai.enhanceNotif">AI 增强通知</label>
+                    </div>
+                    <small class="text-muted" data-i18n="ai.enhanceNotifDesc">在告警通知中添加 AI 生成的上下文和建议</small>
+                </div>
+            </div>
+
+            <!-- Save Button -->
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-primary btn-sm" onclick="AISettings.save()">
+                    <i class="bi bi-check-lg me-1"></i><span data-i18n="ai.save">保存配置</span>
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="AISettings.testConnection()">
+                    <i class="bi bi-plug me-1"></i><span data-i18n="ai.test">测试连接</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- AI Analysis Results -->
+<div class="card-panel mb-4">
+    <div class="card-header">
+        <span><i class="bi bi-graph-up-arrow me-2" style="color:#22c55e;"></i><span data-i18n="ai.analysisResults">AI 分析结果</span></span>
+        <button class="btn btn-sm btn-outline-secondary" onclick="AISettings.refreshAnalysis()">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+    <div class="card-body" id="ai-analysis-list">
+        <p class="text-muted small mb-0" data-i18n="ai.noAnalysis">暂无分析结果。启用后台分析后将自动生成。</p>
+    </div>
+</div>
+
+@section Scripts {
+@{ var v = typeof(Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models.LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-ai-settings.js?v=@v"></script>
+@await Html.PartialAsync("_DashboardPageInit")
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardModals) DashboardModals.init();
+
+        if (window.AISettings) await AISettings.init();
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

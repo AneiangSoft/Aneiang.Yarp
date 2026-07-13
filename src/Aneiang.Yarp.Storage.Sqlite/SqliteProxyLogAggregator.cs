@@ -49,9 +49,9 @@ internal sealed class SqliteProxyLogAggregator
 
         var result = new ProxyLogStatsResult
         {
-            TotalRequests = reader.GetInt64(0),
-            SuccessCount = reader.GetInt64(1),
-            ErrorCount = reader.GetInt64(2),
+            TotalRequests = reader.IsDBNull(0) ? 0 : reader.GetInt64(0),
+            SuccessCount = reader.IsDBNull(1) ? 0 : reader.GetInt64(1),
+            ErrorCount = reader.IsDBNull(2) ? 0 : reader.GetInt64(2),
             AvgLatencyMs = reader.IsDBNull(3) ? 0 : reader.GetDouble(3)
         };
 

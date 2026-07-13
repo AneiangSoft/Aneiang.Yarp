@@ -179,22 +179,23 @@
 </div>
 
 @section Scripts {
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/vendor/chart.umd.min.js"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-stats-page.js?v=@v"></script>
-<script>
-    window.__dashboard = window.__dashboard || {};
-    var dash = window.__dashboard;
-    dash.basePath = '/' + '@prefix';
-    dash.routePrefix = '@prefix';
-    dash.token = localStorage.getItem('dashboard_token');
-    dash.CURRENT_LOCALE = '@ViewBag.Locale';
-    dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
 
-    document.addEventListener('DOMContentLoaded', function() {
-        window.DashboardI18n.init();
-        window.DashboardApi.init();
+@await Html.PartialAsync("_DashboardPageInit")
+
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
         StatsPageModule.init();
-    });
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
 </script>
 }
 

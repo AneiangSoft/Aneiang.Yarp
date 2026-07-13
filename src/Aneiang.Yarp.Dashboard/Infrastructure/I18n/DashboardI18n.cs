@@ -82,5 +82,6 @@ public static class DashboardI18n
         "plugins.json",
         "stats.json",
         "policies.json",
+        "ai.json",
     ];
 }

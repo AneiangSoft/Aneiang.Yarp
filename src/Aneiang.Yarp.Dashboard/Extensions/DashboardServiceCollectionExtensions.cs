@@ -13,6 +13,10 @@ using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 using Aneiang.Yarp.Dashboard.Modules.Policy.Services;
+using Aneiang.Yarp.Dashboard.Modules.AI;
+using Aneiang.Yarp.Dashboard.Modules.AI.Providers;
+using Aneiang.Yarp.Dashboard.Modules.AI.Services;
+using Aneiang.Yarp.Dashboard.Modules.AI.Tools;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Aneiang.Yarp.Models;
@@ -54,6 +58,7 @@ public static class DashboardServiceCollectionExtensions
         services.AddDashboardRealtimeAndPerformance();
         services.AddDashboardConfigPersistence();
         services.AddDashboardWarmupServices();
+        services.AddDashboardAI();
         return services;
     }
 
@@ -323,6 +328,7 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<IGatewayPlugin, RequestRetryPlugin>();
         services.AddSingleton<IGatewayPlugin, RateLimitPlugin>();
         services.AddSingleton<IGatewayPlugin, WafPlugin>();
+        services.AddSingleton<IGatewayPlugin, AIPlugin>();
         services.AddSingleton<IGatewayPluginManager, GatewayPluginManager>();
 
         return services;
@@ -402,5 +408,28 @@ public static class DashboardServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, Aneiang.Yarp.Dashboard.Infrastructure.HostedServices.KestrelEndpointChangeDetector>());
         return services;
     }
+
+    #region AI Module
+
+    private static IServiceCollection AddDashboardAI(this IServiceCollection services)
+    {
+        services.AddOptions<AIOptions>()
+            .BindConfiguration(AIOptions.SectionName);
+
+        services.AddSingleton<IAIProvider, OpenAICompatibleProvider>();
+        services.AddSingleton<AISettingsService>();
+        services.AddSingleton<GatewayContextProvider>();
+        services.AddSingleton<GatewayToolRegistry>();
+        services.AddSingleton<GatewayToolExecutor>();
+        services.AddSingleton<ChatService>();
+        services.AddSingleton<NotificationEnhancer>();
+
+        // Background analysis service (runs only when EnableBackgroundAnalysis=true and provider is available)
+        services.AddHostedService<BackgroundAIAnalysisService>();
+
+        return services;
+    }
+
+    #endregion
 
 }
