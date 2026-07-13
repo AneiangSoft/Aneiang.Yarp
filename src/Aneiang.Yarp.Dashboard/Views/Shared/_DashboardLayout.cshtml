@@ -17,6 +17,7 @@
     <link href="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet" />
     <link href="/_content/Aneiang.Yarp.Dashboard/styles/dashboard-editor.css" rel="stylesheet" />
     <link href="/_content/Aneiang.Yarp.Dashboard/styles/inter-font.css" rel="stylesheet">
+    <link href="/_content/Aneiang.Yarp.Dashboard/styles/ai-chat.css" rel="stylesheet">
     <style>
         :root {
             --sidebar-width: 256px;
@@ -2983,6 +2984,7 @@
                     Items = new[] {
                         new { Key = "history", Title = isEn ? "History" : "配置历史", Icon = "bi-clock-history", Path = $"/{prefix}/history", Badge = "", Conditional = false },
                         new { Key = "audit", Title = isEn ? "Audit Log" : "审计日志", Icon = "bi-shield-check", Path = $"/{prefix}/audit", Badge = "", Conditional = false },
+                        new { Key = "ai", Title = isEn ? "AI Assistant" : "AI 助手", Icon = "bi-robot", Path = $"/{prefix}/ai-settings", Badge = "NEW", Conditional = false },
                         new { Key = "deployment", Title = isEn ? "Deployment" : "运行模式", Icon = "bi-rocket-takeoff", Path = $"/{prefix}/deployment", Badge = "", Conditional = false },
                         new { Key = "settings", Title = isEn ? "Settings" : "设置", Icon = "bi-gear", Path = $"/{prefix}/settings", Badge = "", Conditional = false }
                     }
@@ -3081,7 +3083,8 @@
                 {"history", pgIsEn ? "Configuration History" : "配置历史"},
                 {"audit", pgIsEn ? "Audit Log" : "审计日志"},
                 {"deployment", pgIsEn ? "Deployment" : "运行模式"},
-                {"settings", pgIsEn ? "Settings" : "设置"}
+                {"settings", pgIsEn ? "Settings" : "设置"},
+                {"ai", pgIsEn ? "AI Assistant" : "AI 助手"}
             };
             var pageIcons = new System.Collections.Generic.Dictionary<string, string>
             {
@@ -3100,7 +3103,8 @@
                 {"history", "bi-clock-history"},
                 {"audit", "bi-shield-check"},
                 {"deployment", "bi-rocket-takeoff"},
-                {"settings", "bi-gear"}
+                {"settings", "bi-gear"},
+                {"ai", "bi-robot"}
             };
             var pageTitle = pageTitles.ContainsKey(pgName) ? pageTitles[pgName] : pgName;
             var pageIcon = pageIcons.ContainsKey(pgName) ? pageIcons[pgName] : "bi-app-indicator";
@@ -3150,6 +3154,38 @@
             </div>
         }
     </div>
+
+    <!-- AI Chat Widget (floating) -->
+    @if (ViewBag.CurrentPage as string != "login")
+    {
+        <button id="ai-chat-fab" class="ai-chat-fab" onclick="AIChat.toggle()" title="AI Assistant (Ctrl+/)">
+            <i class="bi bi-robot"></i>
+        </button>
+        <div id="ai-chat-window" class="ai-chat-window">
+            <div class="ai-chat-header">
+                <div class="ai-chat-header-left">
+                    <div class="ai-chat-header-avatar"><i class="bi bi-robot"></i></div>
+                    <div class="ai-chat-header-info">
+                        <div class="ai-chat-header-title" data-i18n="ai.chatTitle">AI 助手</div>
+                        <div class="ai-chat-header-status"><span class="dot"></span><span data-i18n="ai.status.online">在线</span></div>
+                    </div>
+                </div>
+                <div class="ai-chat-header-actions">
+                    <button onclick="AIChat.clearSession()" title="New conversation" data-i18n-title="ai.btn.newChat"><i class="bi bi-plus-lg"></i></button>
+                    <button onclick="AIChat.showHistory()" title="History" data-i18n-title="ai.btn.history"><i class="bi bi-clock-history"></i></button>
+                    <button onclick="AIChat.close()" title="Close"><i class="bi bi-x-lg"></i></button>
+                </div>
+            </div>
+            <div id="ai-chat-messages" class="ai-chat-messages"></div>
+            <div class="ai-chat-input-area">
+                <div class="ai-chat-input-wrap">
+                    <textarea id="ai-chat-input" class="ai-chat-input" rows="1" data-i18n-placeholder="ai.input.placeholder" placeholder="输入问题…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();AIChat.send();}" oninput="AIChat._autoResize(this)"></textarea>
+                    <button id="ai-chat-send" class="ai-chat-send" onclick="AIChat.send()"><i class="bi bi-send-fill"></i></button>
+                </div>
+                <div class="ai-input-hint" data-i18n="ai.input.hint">Enter 发送 · Shift+Enter 换行</div>
+            </div>
+        </div>
+    }
 
     <script>
         var I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
@@ -3354,13 +3390,19 @@
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-worker.js?v=@v"></script>
     <!-- 3. Events -->
     <script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
-    <!-- 4. Page-specific modules & editors — loaded per page via Scripts section -->
+    <!-- 4. AI Chat Widget -->
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-ai-chat.js?v=@v"></script>
+    <!-- 5. Page-specific modules & editors — loaded per page via Scripts section -->
 
     @await RenderSectionAsync("Scripts", required: false)
     <script>
         // Initialize global loading helpers once scripts are ready.
         if (window.DashboardLoading && window.DashboardLoading.initNetworkStatus) {
             window.DashboardLoading.initNetworkStatus();
+        }
+        // Initialize AI Chat widget
+        if (window.AIChat && window.AIChat.init) {
+            window.AIChat.init();
         }
     </script>
 </body>

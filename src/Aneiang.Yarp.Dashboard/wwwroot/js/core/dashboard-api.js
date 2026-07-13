@@ -312,7 +312,19 @@
         createNotificationRule: (data) => DashboardApi.post('/api/notifications/rules', data),
         updateNotificationRule: (id, data) => DashboardApi.put('/api/notifications/rules/' + id, data),
         deleteNotificationRule: (id) => DashboardApi.delete('/api/notifications/rules/' + id),
-        sendTestNotification: (data) => DashboardApi.post('/api/notifications/test', data || {})
+        sendTestNotification: (data) => DashboardApi.post('/api/notifications/test', data || {}),
+
+        // AI Module
+        getAIStatus: () => DashboardApi.get('/api/ai/status'),
+        getAISettings: () => DashboardApi.get('/api/ai/settings'),
+        saveAISettings: (data) => DashboardApi.put('/api/ai/settings', data),
+        getAITools: () => DashboardApi.get('/api/ai/tools'),
+        getAIAnalysis: (count, type) => DashboardApi.get('/api/ai/analysis', { count: count || 20, type: type || '' }),
+        triggerAIAnalysis: () => DashboardApi.post('/api/ai/analyze'),
+        deleteAIAnalysis: (id) => DashboardApi.delete(`/api/ai/analysis/${id}`),
+        getAISessions: (count) => DashboardApi.get('/api/ai/sessions', { count: count || 50 }),
+        getSessionMessages: (sessionId, count) => DashboardApi.get(`/api/ai/sessions/${sessionId}`, { count: count || 50 }),
+        deleteAISession: (sessionId) => DashboardApi.delete(`/api/ai/sessions/${sessionId}`)
     };
 
     // Aliases: expose top-level convenience methods (used by page-level JS)

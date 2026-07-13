@@ -123,6 +123,9 @@ public class DashboardPagesController : Controller
     [HttpGet("deployment")]
     public IActionResult Deployment() { SetCommonViewBag("deployment"); return View(); }
 
+    [HttpGet("ai-settings")]
+    public IActionResult AISettings() { SetCommonViewBag("ai"); return View("AISettings"); }
+
     #endregion
 
     #region DB Download

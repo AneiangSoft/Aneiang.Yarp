@@ -40,6 +40,7 @@ public class PluginsController : ControllerBase
             "request-retry" => "Automatically retries failed proxy requests with configurable backoff strategy.",
             "waf" => "Web Application Firewall: blocks SQL injection, XSS, path traversal, and other attacks.",
             "rate-limit" => "Rate limiting to protect the gateway from being overloaded.",
+            "ai" => "AI Assistant: intelligent chatbot, log analysis, and smart notifications powered by LLM.",
             _ => string.Empty
         };
     }

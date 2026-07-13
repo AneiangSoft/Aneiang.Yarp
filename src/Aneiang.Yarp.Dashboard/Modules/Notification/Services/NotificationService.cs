@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Text.Json;
+using Aneiang.Yarp.Dashboard.Modules.AI.Services;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,7 @@ public sealed class NotificationService : INotificationService
     private readonly ChannelSender _channelSender;
     private readonly CooldownManager _cooldownManager;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly NotificationEnhancer? _aiEnhancer;
 
     private volatile string _locale = "zh-CN";
     private NotificationSettingsEntity? _cachedSettings;
@@ -28,12 +30,14 @@ public sealed class NotificationService : INotificationService
         INotificationRepository repository,
         ILogger<NotificationService> logger,
         IHttpClientFactory httpClientFactory,
-        CooldownManager cooldownManager)
+        CooldownManager cooldownManager,
+        NotificationEnhancer? aiEnhancer = null)
     {
         _repository = repository;
         _logger = logger;
         _channelSender = new ChannelSender(repository, httpClientFactory, logger);
         _cooldownManager = cooldownManager;
+        _aiEnhancer = aiEnhancer;
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -112,6 +116,27 @@ public sealed class NotificationService : INotificationService
             // Load locale for i18n message generation
             var gs = await _repository.GetGlobalSettingsAsync(ct);
             if (!string.IsNullOrEmpty(gs.Locale)) _locale = gs.Locale;
+
+            // ── AI Enhancement: enrich Warning/Error messages with context ──
+            if (_aiEnhancer != null && _aiEnhancer.IsEnabled
+                && (evt.Severity == NotificationSeverity.Warning || evt.Severity == NotificationSeverity.Error))
+            {
+                try
+                {
+                    var enhanced = await _aiEnhancer.TryEnhanceAsync(
+                        evt.EventType, evt.Message, evt.Severity.ToString(),
+                        evt.ClusterId, evt.RouteId, ct);
+                    if (enhanced != evt.Message)
+                    {
+                        evt.Message = enhanced;
+                        _logger.LogDebug("[Notification] AI-enhanced message for {EventType}", evt.EventType);
+                    }
+                }
+                catch (Exception enhEx)
+                {
+                    _logger.LogDebug(enhEx, "[Notification] AI enhancement failed for {EventType}", evt.EventType);
+                }
+            }
 
             // ── Prepare history record (save after delivery so DeliverySuccess is accurate) ──
             var history = new NotificationHistory
