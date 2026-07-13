@@ -6,7 +6,6 @@ using Aneiang.Yarp.Storage;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using System.Text;
 using System.Text.Json;
 
 namespace Aneiang.Yarp.Dashboard.Modules.AI.Controllers;
@@ -179,11 +178,7 @@ public class AIController : ControllerBase
         // Build the AI request with full conversation history + gateway context + tools
         var aiRequest = await _chatService.BuildChatRequestAsync(sessionId, locale, ct);
 
-        // Set up SSE response headers
-        Response.ContentType = "text/event-stream";
-        Response.Headers["Cache-Control"] = "no-cache";
-        Response.Headers["X-Accel-Buffering"] = "no";
-        Response.Headers["X-Session-Id"] = sessionId;
+        SseHelper.SetupResponse(Response, sessionId);
 
         try
         {
@@ -198,61 +193,32 @@ public class AIController : ControllerBase
                     {
                         SystemPrompt = aiRequest.SystemPrompt,
                         Messages = result.AccumulatedMessages ?? aiRequest.Messages,
-                        Tools = null, // No tools for final summary
+                        Tools = null,
                         Model = aiRequest.Model,
                         Temperature = 0.3,
                         MaxTokens = aiRequest.MaxTokens
                     };
 
-                    var fullText = new StringBuilder();
-                    await foreach (var chunk in _provider.ChatStreamAsync(streamRequest, ct))
-                    {
-                        fullText.Append(chunk);
-                        var data = JsonSerializer.Serialize(new { content = chunk }, _jsonOpts);
-                        await Response.WriteAsync($"data: {data}\n\n", ct);
-                        await Response.Body.FlushAsync(ct);
-                    }
+                    var fullText = await SseHelper.StreamAndAccumulateAsync(
+                        Response, _provider.ChatStreamAsync(streamRequest, ct), _jsonOpts, ct);
 
-                    // Save streamed response to conversation history
                     if (fullText.Length > 0)
-                    {
-                        await _chatService.SaveAssistantResponseAsync(sessionId, fullText.ToString(), ct);
-                    }
+                        await _chatService.SaveAssistantResponseAsync(sessionId, fullText, ct);
                     break;
 
                 case ChatResultType.PendingAction:
-                    // Stream any text the AI generated before the tool call
                     if (!string.IsNullOrEmpty(result.Text))
-                    {
-                        var preTextData = JsonSerializer.Serialize(new { content = result.Text }, _jsonOpts);
-                        await Response.WriteAsync($"data: {preTextData}\n\n", ct);
-                        await Response.Body.FlushAsync(ct);
-                    }
-                    // Send the pending action event
-                    var actionData = JsonSerializer.Serialize(new
-                    {
-                        type = "pending_action",
-                        pendingAction = new
-                        {
-                            callId = result.PendingAction!.CallId,
-                            toolName = result.PendingAction.ToolName,
-                            arguments = result.PendingAction.Arguments,
-                            description = result.PendingAction.Description
-                        }
-                    }, _jsonOpts);
-                    await Response.WriteAsync($"data: {actionData}\n\n", ct);
-                    await Response.Body.FlushAsync(ct);
+                        await SseHelper.WriteContentAsync(Response, result.Text, _jsonOpts, ct);
+
+                    await SseHelper.WritePendingActionAsync(Response, result.PendingAction!, _jsonOpts, ct);
                     break;
 
                 case ChatResultType.Error:
-                    var errorData = JsonSerializer.Serialize(new { content = result.Text }, _jsonOpts);
-                    await Response.WriteAsync($"data: {errorData}\n\n", ct);
-                    await Response.Body.FlushAsync(ct);
+                    await SseHelper.WriteContentAsync(Response, result.Text, _jsonOpts, ct);
                     break;
             }
 
-            await Response.WriteAsync("data: [DONE]\n\n", ct);
-            await Response.Body.FlushAsync(ct);
+            await SseHelper.WriteDoneAsync(Response, ct);
         }
         catch (OperationCanceledException)
         {
@@ -281,10 +247,7 @@ public class AIController : ControllerBase
             return;
         }
 
-        // Set up SSE
-        Response.ContentType = "text/event-stream";
-        Response.Headers["Cache-Control"] = "no-cache";
-        Response.Headers["X-Accel-Buffering"] = "no";
+        SseHelper.SetupResponse(Response);
 
         try
         {
@@ -295,7 +258,6 @@ public class AIController : ControllerBase
             var toolResult = await _toolExecutor.ExecuteToolAsync(dto.ToolName, dto.Arguments ?? "{}", ct);
 
             // Build a follow-up AI request with the tool result in context
-            var context = await _contextProvider.BuildContextAsync(ct);
             var resultSummary = JsonSerializer.Serialize(toolResult, _jsonOpts);
 
             var followUpRequest = new AIChatRequest
@@ -323,23 +285,13 @@ public class AIController : ControllerBase
             };
 
             // Get AI summary via streaming
-            var fullResponse = new StringBuilder();
-            await foreach (var chunk in _provider.ChatStreamAsync(followUpRequest, ct))
-            {
-                fullResponse.Append(chunk);
-                var data = JsonSerializer.Serialize(new { content = chunk }, _jsonOpts);
-                await Response.WriteAsync($"data: {data}\n\n", ct);
-                await Response.Body.FlushAsync(ct);
-            }
+            var fullResponse = await SseHelper.StreamAndAccumulateAsync(
+                Response, _provider.ChatStreamAsync(followUpRequest, ct), _jsonOpts, ct);
 
-            // Save the summary to conversation history
             if (fullResponse.Length > 0)
-            {
-                await _chatService.SaveAssistantResponseAsync(dto.SessionId, fullResponse.ToString(), ct);
-            }
+                await _chatService.SaveAssistantResponseAsync(dto.SessionId, fullResponse, ct);
 
-            await Response.WriteAsync("data: [DONE]\n\n", ct);
-            await Response.Body.FlushAsync(ct);
+            await SseHelper.WriteDoneAsync(Response, ct);
         }
         catch (OperationCanceledException)
         {
@@ -348,10 +300,8 @@ public class AIController : ControllerBase
         catch (Exception ex)
         {
             var errorMsg = IsChinese ? $"执行失败: {ex.Message}" : $"Execution failed: {ex.Message}";
-            var errorData = JsonSerializer.Serialize(new { content = errorMsg }, _jsonOpts);
-            await Response.WriteAsync($"data: {errorData}\n\n", ct);
-            await Response.WriteAsync("data: [DONE]\n\n", ct);
-            await Response.Body.FlushAsync(ct);
+            await SseHelper.WriteErrorAsync(Response, errorMsg, _jsonOpts, ct);
+            await SseHelper.WriteDoneAsync(Response, ct);
         }
     }
 
@@ -469,31 +419,4 @@ public class AIController : ControllerBase
         await _analysisRepo.DeleteByIdAsync(id, ct);
         return Ok(new { code = 200, message = "Analysis deleted" });
     }
-}
-
-/// <summary>Chat request DTO from frontend.</summary>
-public class ChatRequestDto
-{
-    public string? SessionId { get; set; }
-    public List<ChatMessageDto>? Messages { get; set; }
-    /// <summary>Current UI locale (e.g. "en-US", "zh-CN") from the frontend.</summary>
-    public string? Locale { get; set; }
-}
-
-/// <summary>Single chat message from frontend.</summary>
-public class ChatMessageDto
-{
-    public string Role { get; set; } = "user";
-    public string? Content { get; set; }
-}
-
-/// <summary>Confirm action request DTO.</summary>
-public class ConfirmActionDto
-{
-    public string SessionId { get; set; } = "";
-    public string ToolName { get; set; } = "";
-    public string? Arguments { get; set; }
-    public string? CallId { get; set; }
-    /// <summary>Current UI locale from the frontend.</summary>
-    public string? Locale { get; set; }
 }
