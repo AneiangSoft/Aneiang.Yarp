@@ -146,3 +146,61 @@ public class AIPendingAction
     /// <summary>Human-readable description of what will happen.</summary>
     public string Description { get; set; } = "";
 }
+
+/// <summary>Result type for chat-with-tools processing.</summary>
+public enum ChatResultType
+{
+    /// <summary>Plain text response (no pending action).</summary>
+    Text,
+    /// <summary>Write operation needs user confirmation.</summary>
+    PendingAction,
+    /// <summary>Error occurred.</summary>
+    Error
+}
+
+/// <summary>
+/// Result of processing a chat message with tool calling.
+/// </summary>
+public class ChatWithToolsResult
+{
+    public ChatResultType Type { get; set; }
+    public string Text { get; set; } = "";
+    public AIPendingAction? PendingAction { get; set; }
+    public AIToolResult? ToolResult { get; set; }
+
+    /// <summary>
+    /// Accumulated conversation messages (including tool results) after the tool loop.
+    /// When set, the controller should make a final streaming call with these messages.
+    /// </summary>
+    public List<AIChatMessage>? AccumulatedMessages { get; set; }
+
+    /// <summary>The original request (preserved for action continuation).</summary>
+    internal AIChatRequest? PendingRequest { get; set; }
+}
+
+/// <summary>Chat request DTO from frontend.</summary>
+public class ChatRequestDto
+{
+    public string? SessionId { get; set; }
+    public List<ChatMessageDto>? Messages { get; set; }
+    /// <summary>Current UI locale (e.g. "en-US", "zh-CN") from the frontend.</summary>
+    public string? Locale { get; set; }
+}
+
+/// <summary>Single chat message from frontend.</summary>
+public class ChatMessageDto
+{
+    public string Role { get; set; } = "user";
+    public string? Content { get; set; }
+}
+
+/// <summary>Confirm action request DTO.</summary>
+public class ConfirmActionDto
+{
+    public string SessionId { get; set; } = "";
+    public string ToolName { get; set; } = "";
+    public string? Arguments { get; set; }
+    public string? CallId { get; set; }
+    /// <summary>Current UI locale from the frontend.</summary>
+    public string? Locale { get; set; }
+}

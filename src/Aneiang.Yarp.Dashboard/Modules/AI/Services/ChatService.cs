@@ -221,7 +221,7 @@ public class ChatService
                             CallId = toolCall.Id,
                             ToolName = toolCall.ToolName,
                             Arguments = toolCall.Arguments,
-                            Description = BuildActionDescription(toolCall.ToolName, argsPreview, locale)
+                            Description = ToolActionDescriber.Describe(toolCall.ToolName, argsPreview, IsChineseLocale(locale))
                         },
                         PendingRequest = currentRequest
                     };
@@ -383,118 +383,4 @@ public class ChatService
         }
     }
 
-    private string BuildActionDescription(string toolName, Dictionary<string, JsonElement> args, string? locale = null)
-    {
-        if (IsChineseLocale(locale))
-        {
-            return toolName switch
-            {
-                "create_route" => $"创建路由 '{GetArg(args, "route_name")}'，路径 '{GetArg(args, "path")}' -> 集群 '{GetArg(args, "cluster_id")}'",
-                "delete_route" => $"删除路由 '{GetArg(args, "route_id")}'",
-                "create_cluster" => $"创建集群 '{GetArg(args, "cluster_id")}'",
-                "update_cluster" => $"更新集群 '{GetArg(args, "cluster_id")}'",
-                "delete_cluster" => $"删除集群 '{GetArg(args, "cluster_id")}'",
-                "create_circuit_breaker" => $"为集群 '{GetArg(args, "cluster_id")}' 配置熔断器策略",
-                "reset_circuit_breaker" => args.ContainsKey("cluster_id")
-                    ? $"重置集群 '{GetArg(args, "cluster_id")}' 的熔断器"
-                    : "重置所有熔断器",
-                "toggle_plugin" => $"{(GetArg(args, "enabled") == "true" ? "启用" : "禁用")}插件 '{GetArg(args, "plugin_id")}'",
-                "update_waf_settings" => "更新 WAF 安全设置",
-                "rename_route" => $"重命名路由 '{GetArg(args, "old_route_id")}' → '{GetArg(args, "new_route_id")}'",
-                "rename_cluster" => $"重命名集群 '{GetArg(args, "old_cluster_id")}' → '{GetArg(args, "new_cluster_id")}'",
-                "clear_logs" => "清空内存中的代理日志",
-                "create_config_snapshot" => $"创建配置快照: {GetArg(args, "description")}",
-                "rollback_config" => $"回滚配置到版本 '{GetArg(args, "version_id")}'",
-                "create_cluster_policy" => GetArgArray(args, "cluster_ids") is string cids
-                    ? $"创建集群策略 '{GetArg(args, "name")}' 并应用到 [{cids}]"
-                    : $"创建集群策略模板 '{GetArg(args, "name")}'",
-                "apply_cluster_policy" => $"将集群策略 '{GetArg(args, "policy_id")}' 应用到集群 '{GetArg(args, "cluster_id")}'",
-                "create_route_policy" => GetArgArray(args, "route_ids") is string rids
-                    ? $"创建路由策略 '{GetArg(args, "name")}' 并应用到 [{rids}]"
-                    : $"创建路由策略模板 '{GetArg(args, "name")}'",
-                "apply_route_policy" => $"将路由策略 '{GetArg(args, "policy_id")}' 应用到路由 '{GetArg(args, "route_id")}'",
-                "delete_policy" => $"删除策略 '{GetArg(args, "policy_id")}'",
-                _ => $"执行 {toolName}"
-            };
-        }
-        return toolName switch
-        {
-            "create_route" => $"Create route '{GetArg(args, "route_name")}' with path '{GetArg(args, "path")}' -> cluster '{GetArg(args, "cluster_id")}'",
-            "delete_route" => $"Delete route '{GetArg(args, "route_id")}'",
-            "create_cluster" => $"Create cluster '{GetArg(args, "cluster_id")}'",
-            "update_cluster" => $"Update cluster '{GetArg(args, "cluster_id")}'",
-            "delete_cluster" => $"Delete cluster '{GetArg(args, "cluster_id")}'",
-            "create_circuit_breaker" => $"Create circuit breaker policy for cluster '{GetArg(args, "cluster_id")}'",
-            "reset_circuit_breaker" => args.ContainsKey("cluster_id")
-                ? $"Reset circuit breaker for cluster '{GetArg(args, "cluster_id")}'"
-                : "Reset all circuit breakers",
-            "toggle_plugin" => $"{(GetArg(args, "enabled") == "true" ? "Enable" : "Disable")} plugin '{GetArg(args, "plugin_id")}'",
-            "update_waf_settings" => "Update WAF settings",
-            "rename_route" => $"Rename route '{GetArg(args, "old_route_id")}' → '{GetArg(args, "new_route_id")}'",
-            "rename_cluster" => $"Rename cluster '{GetArg(args, "old_cluster_id")}' → '{GetArg(args, "new_cluster_id")}'",
-            "clear_logs" => "Clear in-memory proxy logs",
-            "create_config_snapshot" => $"Create config snapshot: {GetArg(args, "description")}",
-            "rollback_config" => $"Rollback config to version '{GetArg(args, "version_id")}'",
-            "create_cluster_policy" => GetArgArray(args, "cluster_ids") is string cids
-                ? $"Create cluster policy '{GetArg(args, "name")}' and apply to [{cids}]"
-                : $"Create cluster policy template '{GetArg(args, "name")}'",
-            "apply_cluster_policy" => $"Apply cluster policy '{GetArg(args, "policy_id")}' to cluster '{GetArg(args, "cluster_id")}'",
-            "create_route_policy" => GetArgArray(args, "route_ids") is string rids
-                ? $"Create route policy '{GetArg(args, "name")}' and apply to [{rids}]"
-                : $"Create route policy template '{GetArg(args, "name")}'",
-            "apply_route_policy" => $"Apply route policy '{GetArg(args, "policy_id")}' to route '{GetArg(args, "route_id")}'",
-            "delete_policy" => $"Delete policy '{GetArg(args, "policy_id")}'",
-            _ => $"Execute {toolName}"
-        };
-    }
-
-    private static string GetArg(Dictionary<string, JsonElement> args, string key)
-    {
-        if (args.TryGetValue(key, out var val))
-            return val.ValueKind == JsonValueKind.String ? val.GetString() ?? "" : val.ToString();
-        return "";
-    }
-
-    private static string? GetArgArray(Dictionary<string, JsonElement> args, string key)
-    {
-        if (args.TryGetValue(key, out var val) && val.ValueKind == JsonValueKind.Array)
-        {
-            var items = val.EnumerateArray().Select(e => e.GetString() ?? "").Where(s => s.Length > 0).ToList();
-            return items.Count > 0 ? string.Join(", ", items) : null;
-        }
-        return null;
-    }
-}
-
-/// <summary>
-/// Result type for chat-with-tools processing.
-/// </summary>
-public enum ChatResultType
-{
-    /// <summary>Plain text response (no pending action).</summary>
-    Text,
-    /// <summary>Write operation needs user confirmation.</summary>
-    PendingAction,
-    /// <summary>Error occurred.</summary>
-    Error
-}
-
-/// <summary>
-/// Result of processing a chat message with tool calling.
-/// </summary>
-public class ChatWithToolsResult
-{
-    public ChatResultType Type { get; set; }
-    public string Text { get; set; } = "";
-    public AIPendingAction? PendingAction { get; set; }
-    public AIToolResult? ToolResult { get; set; }
-
-    /// <summary>
-    /// Accumulated conversation messages (including tool results) after the tool loop.
-    /// When set, the controller should make a final streaming call with these messages.
-    /// </summary>
-    public List<AIChatMessage>? AccumulatedMessages { get; set; }
-
-    /// <summary>The original request (preserved for action continuation).</summary>
-    internal AIChatRequest? PendingRequest { get; set; }
 }
