@@ -49,12 +49,15 @@ public class AIOptions
 
     /// <summary>
     /// Allow the "custom" provider option in the Dashboard UI.
-    /// When true, users can enter a custom BaseUrl that will be
-    /// validated against SSRF patterns before acceptance.
-    /// When false (default), only known providers (openai/deepseek/qwen)
-    /// are available and their BaseUrls are locked.
+    /// When true (default), users can select "Custom" in the provider dropdown
+    /// and enter any OpenAI-compatible API endpoint (BaseUrl).
+    /// All user-supplied URLs are validated against SSRF patterns before acceptance:
+    ///   - HTTP only allowed for loopback (local LLM: Ollama, LM Studio, vLLM).
+    ///   - HTTPS blocks private/reserved IP ranges.
+    ///   - Cloud metadata service hostnames are always blocked.
+    /// Set to false in appsettings.json to restrict to built-in providers only.
     /// This setting is ONLY configurable via appsettings.json —
     /// the runtime API cannot change it.
     /// </summary>
-    public bool AllowCustomProvider { get; set; } = false;
+    public bool AllowCustomProvider { get; set; } = true;
 }

@@ -1,9 +1,9 @@
 /**
  * AI Settings Module - Manages AI configuration page
  *
- * Security: For known providers (openai/deepseek/qwen), BaseUrl is locked to
- * official endpoints. For custom provider (only when AllowCustomProvider=true
- * in appsettings.json), BaseUrl is user-editable with server-side SSRF validation.
+ * Security: BaseUrl is user-editable for ALL providers (supports API proxies / mirrors).
+ * Server-side SSRF validation is always enforced — invalid or dangerous URLs are rejected.
+ * Client-side format validation is performed before submission.
  */
 (function() {
     'use strict';
@@ -16,10 +16,43 @@
 
     // Known provider presets — their BaseUrls are locked server-side
     const PROVIDER_PRESETS = {
-        openai:   { baseUrl: 'https://api.openai.com/v1', chatModel: 'gpt-4o-mini', analysisModel: 'gpt-4o-mini' },
-        deepseek: { baseUrl: 'https://api.deepseek.com', chatModel: 'deepseek-v4-flash', analysisModel: 'deepseek-v4-pro' },
-        qwen:     { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', chatModel: 'qwen3.7-max', analysisModel: 'qwen3.7-max' }
+        openai:   {
+            baseUrl: 'https://api.openai.com/v1',
+            chatModel: 'gpt-4o-mini',
+            analysisModel: 'gpt-4o-mini',
+            knownDomains: ['openai.com']  // matches *.openai.com
+        },
+        deepseek: {
+            baseUrl: 'https://api.deepseek.com',
+            chatModel: 'deepseek-v4-flash',
+            analysisModel: 'deepseek-v4-pro',
+            knownDomains: ['deepseek.com']
+        },
+        qwen:     {
+            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+            chatModel: 'qwen3.7-plus',
+            analysisModel: 'qwen3.7-plus',
+            knownDomains: ['aliyuncs.com']  // covers dashscope.aliyuncs.com and ws-xxx.*.maas.aliyuncs.com
+        }
     };
+
+    /**
+     * Check if a URL's hostname belongs to a known provider's domain family.
+     * e.g. "ws-abc.cn-beijing.maas.aliyuncs.com" matches qwen's "aliyuncs.com".
+     */
+    function isKnownProviderDomain(provider, url) {
+        if (!url) return false;
+        var preset = PROVIDER_PRESETS[provider];
+        if (!preset || !preset.knownDomains) return false;
+        try {
+            var hostname = new URL(url.trim()).hostname.toLowerCase();
+            for (var i = 0; i < preset.knownDomains.length; i++) {
+                var domain = preset.knownDomains[i].toLowerCase();
+                if (hostname === domain || hostname.endsWith('.' + domain)) return true;
+            }
+        } catch (e) { /* invalid URL */ }
+        return false;
+    }
 
     window.AISettings = {
         _status: null,
@@ -115,21 +148,28 @@
         },
 
         /**
-         * Toggle BaseUrl field readOnly state based on selected provider.
-         * Known providers → locked. Custom → editable (server validates for SSRF).
+         * BaseUrl is ALWAYS editable (supports proxies / mirrors for known providers).
+         * Visual hint changes based on whether it matches the official endpoint or known domain.
          */
         _updateBaseUrlState: function(provider) {
             var input = document.getElementById('ai-base-url');
             if (!input) return;
 
-            if (provider === 'custom') {
-                input.readOnly = false;
-                input.title = __('ai.baseUrlCustomHint') || 'Enter your custom OpenAI-compatible API endpoint. Will be validated for security.';
-                input.classList.remove('bg-light');
+            var preset = PROVIDER_PRESETS[provider];
+            var officialUrl = preset ? preset.baseUrl : '';
+            var currentVal = (input.value || '').trim().replace(/\/$/, '');
+            var isOfficial = officialUrl && currentVal.replace(/\/$/, '') === officialUrl.replace(/\/$/, '');
+            var isKnownDomain = isKnownProviderDomain(provider, currentVal);
+
+            if (isOfficial || isKnownDomain || !currentVal) {
+                // Official URL / known provider domain / empty — neutral styling
+                input.title = __('ai.baseUrlHint') || '可修改为 API 代理/镜像地址，将通过安全验证';
+                input.classList.remove('bg-light', 'border-warning');
             } else {
-                input.readOnly = true;
-                input.title = __('ai.baseUrlLocked') || 'Base URL is locked to the official provider endpoint for security.';
-                input.classList.add('bg-light');
+                // Non-official URL — subtle visual indicator
+                input.title = __('ai.baseUrlCustomHint') || '当前使用自定义地址，将通过安全验证';
+                input.classList.remove('bg-light');
+                input.classList.add('border-warning');
             }
         },
 
@@ -157,8 +197,8 @@
             var baseUrlInput = document.getElementById('ai-base-url');
 
             if (preset) {
-                // Known provider: lock BaseUrl to official endpoint
-                if (preset.baseUrl && baseUrlInput) baseUrlInput.value = preset.baseUrl;
+                // Known provider: fill in the recommended BaseUrl (editable — user can change it)
+                if (baseUrlInput && preset.baseUrl) baseUrlInput.value = preset.baseUrl;
                 if (preset.chatModel) document.getElementById('ai-chat-model').value = preset.chatModel;
                 if (preset.analysisModel) document.getElementById('ai-analysis-model').value = preset.analysisModel;
             } else if (provider === 'custom') {
@@ -184,8 +224,53 @@
             }
         },
 
+        /**
+         * Client-side BaseUrl format validation.
+         * Returns an error message string, or null if valid.
+         */
+        _validateBaseUrl: function(url) {
+            if (!url || !url.trim()) return null; // empty is fine (server uses official URL)
+            url = url.trim();
+            try {
+                var u = new URL(url);
+                if (u.protocol !== 'http:' && u.protocol !== 'https:')
+                    return __('ai.baseUrlBadScheme') || 'URL 必须以 http:// 或 https:// 开头';
+                if (!u.hostname)
+                    return __('ai.baseUrlNoHost') || 'URL 缺少主机名';
+                return null;
+            } catch (e) {
+                return __('ai.baseUrlInvalid') || 'URL 格式无效';
+            }
+        },
+
         save: async function() {
             var data = this._collectForm();
+
+            // Client-side URL format validation
+            var urlError = this._validateBaseUrl(data.baseUrl);
+            if (urlError) {
+                DashboardModals.showError(__('ai.baseUrlInvalid') + ': ' + urlError);
+                return;
+            }
+
+            // Confirmation when using a non-official URL (skip for known provider domains)
+            var provider = data.provider;
+            var preset = PROVIDER_PRESETS[provider];
+            var officialUrl = preset ? preset.baseUrl : '';
+            var currentUrl = (data.baseUrl || '').trim().replace(/\/$/, '');
+            var isKnownDomain = isKnownProviderDomain(provider, currentUrl);
+            var isNonOfficial = currentUrl && officialUrl &&
+                currentUrl !== officialUrl.replace(/\/$/, '') && !isKnownDomain;
+
+            if (isNonOfficial) {
+                var confirmed = confirm(
+                    (__('ai.baseUrlConfirmTitle') || '使用自定义 API 地址') + '\n\n' +
+                    (__('ai.baseUrlConfirmMsg') || '您填写的 Base URL 不是该服务商的官方地址，将通过安全验证。确认继续使用？') + '\n\n' +
+                    currentUrl
+                );
+                if (!confirmed) return;
+            }
+
             try {
                 await DashboardApi.endpoints.saveAISettings(data);
                 DashboardModals.showSuccess(__('ai.saveSuccess'));
@@ -194,6 +279,15 @@
                 var statusResp = await DashboardApi.endpoints.getAIStatus();
                 this._status = statusResp?.data || statusResp;
                 this._updateStatusBadge();
+
+                // Re-sync BaseUrl state (server may have sanitised it)
+                var settingsResp = await DashboardApi.endpoints.getAISettings();
+                var s = settingsResp?.data || settingsResp;
+                var baseUrlInput = document.getElementById('ai-base-url');
+                if (baseUrlInput && s.baseUrl) {
+                    baseUrlInput.value = s.baseUrl;
+                    this._updateBaseUrlState(document.getElementById('ai-provider').value);
+                }
             } catch (e) {
                 DashboardModals.showError(__('ai.saveFailed') + (e.message || e));
             }
