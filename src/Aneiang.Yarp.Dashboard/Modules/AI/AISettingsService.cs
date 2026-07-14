@@ -11,9 +11,10 @@ namespace Aneiang.Yarp.Dashboard.Modules.AI;
 /// without requiring application restart.
 ///
 /// Security model (layered defence):
-///   Layer 1 — Known providers (openai/deepseek/qwen): BaseUrl locked to official endpoint.
-///   Layer 2 — Custom provider: only available when AllowCustomProvider=true in appsettings.json.
-///             User-supplied BaseUrl is validated against SSRF (private IP, localhost, metadata).
+///   Layer 1 — All providers: BaseUrl is user-editable (supports API proxies / mirrors).
+///             For known providers, an empty or default input falls back to the official endpoint.
+///   Layer 2 — User-supplied BaseUrl is always validated against SSRF (private IP, localhost, metadata).
+///             Invalid URLs are rejected and the previous value is preserved.
 ///   Layer 3 — All numeric parameters are clamped to safe ranges.
 ///
 /// Persistence: settings are saved to SQLite (ai_settings table) on every update
@@ -38,6 +39,17 @@ public class AISettingsService
     private static readonly HashSet<string> _builtinProviders =
         new(StringComparer.OrdinalIgnoreCase) { "openai", "deepseek", "qwen" };
 
+    // ──────── Known provider domain suffixes (for workspace-specific endpoints) ────────
+    // Maps provider → domain suffixes that are recognised as legitimate.
+    // URLs matching these domains are treated as "official-like" (no SSRF alarm, no warning).
+    private static readonly Dictionary<string, string[]> _knownProviderDomains =
+        new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["openai"]   = ["openai.com"],
+        ["deepseek"] = ["deepseek.com"],
+        ["qwen"]     = ["aliyuncs.com", "dashscope.aliyuncs.com"],  // covers workspace-specific maas endpoints
+    };
+
     // ──────── SSRF: blocked metadata-service hostnames ────────
     private static readonly HashSet<string> _blockedHostnames =
         new(StringComparer.OrdinalIgnoreCase)
@@ -60,7 +72,7 @@ public class AISettingsService
     {
         ["openai"]   = "gpt-4o-mini",
         ["deepseek"] = "deepseek-v4-flash",
-        ["qwen"]     = "qwen3.7-max",
+        ["qwen"]     = "qwen3.7-plus",
     };
 
     private readonly AIOptions _options;
@@ -259,35 +271,88 @@ public class AISettingsService
     }
 
     /// <summary>
-    /// Resolve BaseUrl:
-    ///   - Builtin provider → official endpoint (locked, user input ignored).
-    ///   - Custom provider  → validate user input for SSRF, or keep current if input is empty/masked.
+    /// Resolve BaseUrl for any provider type.
+    ///
+    /// Known providers:
+    ///   - Empty / official-URL input          → use official endpoint (no validation needed).
+    ///   - URL matching known provider domain  → fast-path validate (format only, skip SSRF IP resolution).
+    ///   - Other custom URL                    → full SSRF validation; reject and keep current on failure.
+    ///
+    /// Custom provider:
+    ///   - Empty input  → keep current BaseUrl.
+    ///   - Non-empty    → validate against SSRF; reject and keep current on failure.
     /// </summary>
     private string ResolveBaseUrl(string provider, string? userBaseUrl)
     {
-        // Builtin provider — always locked to official endpoint
+        var trimmed = (userBaseUrl ?? "").Trim();
+
+        // ── Known provider ──
         if (_builtinBaseUrls.TryGetValue(provider, out var officialUrl))
-            return officialUrl;
-
-        // Custom provider — validate user input
-        if (provider == "custom")
         {
-            // If user didn't provide a new BaseUrl, keep the current one
-            if (string.IsNullOrWhiteSpace(userBaseUrl))
-                return _options.BaseUrl;
+            // If user left blank, or pasted the official URL verbatim → use official endpoint
+            if (string.IsNullOrEmpty(trimmed) ||
+                trimmed.TrimEnd('/').Equals(officialUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+                return officialUrl;
 
-            // Validate against SSRF
-            var result = ValidateBaseUrl(userBaseUrl.Trim());
+            // Fast-path: URL belongs to the provider's known domain family
+            // (e.g. workspace-specific Qwen: ws-xxx.cn-beijing.maas.aliyuncs.com)
+            // Skip SSRF IP resolution — these are well-known public services.
+            if (IsKnownProviderDomain(provider, trimmed))
+            {
+                if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))
+                    return BuildCleanUrl(uri);
+            }
+
+            // User supplied an unknown-domain URL (e.g. a proxy / mirror) → full SSRF validation
+            var result = ValidateBaseUrl(trimmed);
             if (result.IsValid)
                 return result.SanitisedUrl!;
 
-            // Validation failed — keep current and log
+            _logger.LogWarning(
+                "BaseUrl for '{Provider}' rejected (SSRF check): {Url} — {Reason}. Keeping current: {Current}",
+                provider, trimmed, result.Reason, _options.BaseUrl);
+            return _options.BaseUrl;
+        }
+
+        // ── Custom provider ──
+        if (provider == "custom")
+        {
+            if (string.IsNullOrWhiteSpace(trimmed))
+                return _options.BaseUrl;
+
+            var result = ValidateBaseUrl(trimmed);
+            if (result.IsValid)
+                return result.SanitisedUrl!;
+
             _logger.LogWarning("Custom BaseUrl rejected (SSRF check): {Url} — {Reason}. Keeping current: {Current}",
-                userBaseUrl, result.Reason, _options.BaseUrl);
+                trimmed, result.Reason, _options.BaseUrl);
             return _options.BaseUrl;
         }
 
         return _builtinBaseUrls["openai"];
+    }
+
+    /// <summary>
+    /// Check if a URL's hostname belongs to a known provider's domain family.
+    /// e.g. "ws-abc.cn-beijing.maas.aliyuncs.com" matches qwen's "aliyuncs.com".
+    /// </summary>
+    private static bool IsKnownProviderDomain(string provider, string rawUrl)
+    {
+        if (!_knownProviderDomains.TryGetValue(provider, out var domains))
+            return false;
+
+        if (!Uri.TryCreate(rawUrl, UriKind.Absolute, out var uri))
+            return false;
+
+        var host = uri.Host;
+        foreach (var domain in domains)
+        {
+            if (host.Equals(domain, StringComparison.OrdinalIgnoreCase) ||
+                host.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -340,7 +405,7 @@ public class AISettingsService
         {
             // DNS failure — safer to allow than to block
             // (legitimate public endpoints may have intermittent DNS during validation)
-            var clean = $"{uri.Scheme}://{uri.Authority}";
+            var clean = BuildCleanUrl(uri);
             return UrlValidationResult.Ok(clean);
         }
 
@@ -367,8 +432,19 @@ public class AISettingsService
             }
         }
 
-        var cleanUrl = $"{uri.Scheme}://{uri.Authority}";
+        var cleanUrl = BuildCleanUrl(uri);
         return UrlValidationResult.Ok(cleanUrl);
+    }
+
+    /// <summary>
+    /// Build a sanitised URL preserving the path (important for endpoints like
+    /// https://ws-xxx.cn-beijing.maas.aliyuncs.com/compatible-mode/v1).
+    /// Strips trailing slashes, query strings, and fragments.
+    /// </summary>
+    private static string BuildCleanUrl(Uri uri)
+    {
+        var path = uri.AbsolutePath.TrimEnd('/');
+        return $"{uri.Scheme}://{uri.Authority}{path}";
     }
 
     /// <summary>
@@ -439,8 +515,8 @@ public class AISettingsDto
 
     /// <summary>
     /// Base URL for the LLM API endpoint.
-    /// For known providers this is locked to the official endpoint (user input ignored).
-    /// For "custom" provider (when AllowCustomProvider=true) this is user-editable subject to SSRF validation.
+    /// User-editable for all providers (supports API proxies / mirrors).
+    /// Subject to SSRF validation on save — invalid URLs are rejected.
     /// </summary>
     public string? BaseUrl { get; set; } = "https://api.openai.com/v1";
 

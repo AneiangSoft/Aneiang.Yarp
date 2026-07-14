@@ -51,7 +51,9 @@
             <div class="row g-3 mb-3">
                 <div class="col-md-4">
                     <label class="form-label fw-semibold" data-i18n="ai.baseUrl">API Base URL</label>
-                    <input type="text" class="form-control form-control-sm" id="ai-base-url" placeholder="https://api.openai.com/v1" />
+                    <input type="text" class="form-control form-control-sm" id="ai-base-url"
+                           placeholder="https://api.openai.com/v1" />
+                    <small class="text-muted" data-i18n="ai.baseUrlHint">可修改为 API 代理/镜像地址，将通过安全验证</small>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold" data-i18n="ai.chatModel">对话模型</label>
@@ -71,7 +73,7 @@
                     <input type="number" class="form-control form-control-sm" id="ai-max-tokens" min="256" max="32768" value="4096" />
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-semibold" data-i18n="ai.temperature">温度 (Temperature)</label>
+                    <label class="form-label fw-semibold" data-i18n="ai.temperature">随机性 (Temperature)</label>
                     <input type="range" class="form-range" id="ai-temperature" min="0" max="1" step="0.1" value="0.3"
                            oninput="document.getElementById('ai-temp-display').textContent = this.value" />
                     <span class="badge bg-light text-dark" id="ai-temp-display">0.3</span>
