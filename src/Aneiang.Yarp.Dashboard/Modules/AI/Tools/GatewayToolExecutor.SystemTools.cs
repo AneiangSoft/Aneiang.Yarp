@@ -1,5 +1,4 @@
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
-using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Aneiang.Yarp.Storage;
 
@@ -123,7 +122,7 @@ public partial class GatewayToolExecutor
         var statusMax = args.GetNullableInt("status_code_max");
         var keyword = args.GetString("keyword");
 
-        var startTime = DateTime.UtcNow.AddMinutes(-minutes);
+        var startTime = DateTime.Now.AddMinutes(-minutes);
         var (items, totalCount) = await _logRepo.SearchAsync(
             page: 1, pageSize: count,
             routeId: routeId, statusCodeMin: statusMin, statusCodeMax: statusMax,
@@ -150,7 +149,7 @@ public partial class GatewayToolExecutor
     {
         var minutes = args.GetInt("time_range_minutes", 60);
         var stats = await _logRepo.GetStatsAsync(minutes, ct);
-        var startTime = DateTime.UtcNow.AddMinutes(-minutes);
+        var startTime = DateTime.Now.AddMinutes(-minutes);
         var topIssues = await _logRepo.GetTopIssuesAsync(startTime, 5, ct);
         var recent5xx = await _logRepo.GetRecent5xxCountAsync(minutes, ct);
 
@@ -286,29 +285,6 @@ public partial class GatewayToolExecutor
         };
     }
 
-    private object ExecuteGetSecurityEvents(ToolArgs args)
-    {
-        var count = Math.Clamp(args.GetInt("count", 50), 1, 200);
-        var events = _wafEventStore.GetRecent(count);
-        return new
-        {
-            total = _wafEventStore.Count,
-            returned = events.Count,
-            dropped_count = _wafEventStore.DroppedCount,
-            events = events.Select(e => new
-            {
-                id = e.Id,
-                timestamp = e.Timestamp.ToString("O"),
-                event_type = e.EventType,
-                rule_name = e.RuleName,
-                client_ip = e.ClientIp,
-                request_uri = e.RequestUri,
-                request_method = e.RequestMethod,
-                blocked = e.Blocked
-            })
-        };
-    }
-
     private object ExecuteGetHealthCheckConfig()
     {
         var dynConfig = _dynamicConfig.GetDynamicConfig();
@@ -335,7 +311,7 @@ public partial class GatewayToolExecutor
     {
         var minutes = args.GetInt("time_range_minutes", 60);
         var count = Math.Clamp(args.GetInt("count", 5), 1, 20);
-        var startTime = DateTime.UtcNow.AddMinutes(-minutes);
+        var startTime = DateTime.Now.AddMinutes(-minutes);
         var issues = await _logRepo.GetTopIssuesAsync(startTime, count, ct);
 
         return new

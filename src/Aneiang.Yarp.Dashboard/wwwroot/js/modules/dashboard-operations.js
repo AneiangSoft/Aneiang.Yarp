@@ -8,6 +8,7 @@
     var trafficChart = null;
     var trafficUpdateInterval = null;
     var currentTimeRange = 15;
+    var AUTO_REFRESH_SECONDS = 10;
 
     var endpoints = {
         alertSummary: '/api/operations/alert-summary',
@@ -385,6 +386,26 @@
         return key;
     }
 
+    /**
+     * Start auto-refreshing the traffic chart every N seconds.
+     */
+    function startAutoRefresh() {
+        stopAutoRefresh();
+        trafficUpdateInterval = setInterval(function() {
+            loadTrafficChart();
+        }, AUTO_REFRESH_SECONDS * 1000);
+    }
+
+    /**
+     * Stop auto-refreshing the traffic chart.
+     */
+    function stopAutoRefresh() {
+        if (trafficUpdateInterval) {
+            clearInterval(trafficUpdateInterval);
+            trafficUpdateInterval = null;
+        }
+    }
+
     window.OpsModule = {
         init: init,
         loadAlertSummary: loadAlertSummary,
@@ -393,7 +414,9 @@
         loadSystemHealth: loadSystemHealth,
         changeTimeRange: changeTimeRange,
         refreshHealth: refreshHealth,
-        exportSnapshot: exportSnapshot
+        exportSnapshot: exportSnapshot,
+        startAutoRefresh: startAutoRefresh,
+        stopAutoRefresh: stopAutoRefresh
     };
 
     if (window.DashboardApp) {

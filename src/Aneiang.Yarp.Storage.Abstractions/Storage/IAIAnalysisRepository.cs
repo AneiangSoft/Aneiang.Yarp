@@ -30,5 +30,5 @@ public class AIAnalysisEntry
     public int Severity { get; set; }
     public string? RelatedRoutes { get; set; }
     public string? RelatedClusters { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
 }

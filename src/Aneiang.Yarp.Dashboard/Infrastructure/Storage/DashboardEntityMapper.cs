@@ -32,7 +32,7 @@ internal static class DashboardEntityMapper
         RateLimitConfig = policy.RateLimit != null ? JsonSerializer.Serialize(policy.RateLimit, _jsonOptions) : null,
         WafEnabled = policy.WafEnabled?.ToString().ToLowerInvariant(),
         CreatedAt = policy.CreatedAt,
-        UpdatedAt = DateTime.UtcNow
+        UpdatedAt = DateTime.Now
     };
 
     public static PolicyEntity ToEntity(this ClusterPolicy policy) => new()
@@ -45,7 +45,7 @@ internal static class DashboardEntityMapper
         Enabled = policy.Enabled,
         CircuitBreakerConfig = policy.CircuitBreaker != null ? JsonSerializer.Serialize(policy.CircuitBreaker, _jsonOptions) : null,
         CreatedAt = policy.CreatedAt,
-        UpdatedAt = DateTime.UtcNow
+        UpdatedAt = DateTime.Now
     };
 
     public static RoutePolicy ToRoutePolicy(this PolicyEntity entity) => new()

@@ -3,6 +3,7 @@
   "index.route.allMethods": "All",
   "index.route.basicInfo": "Basic Info",
   "index.route.cluster.all": "All Clusters",
+  "index.route.cluster.none": "No Cluster",
   "index.route.clusterCol": "Cluster",
   "index.route.clusterId": "Cluster ID",
   "index.route.clusterNotFound": "Specified cluster not found",

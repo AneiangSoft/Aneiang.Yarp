@@ -8,7 +8,6 @@ using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Aneiang.Yarp.Dashboard.Modules.Policy.Services;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
-using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
@@ -37,7 +36,6 @@ public partial class GatewayToolExecutor
     private readonly IRateLimiterStore _rateLimiterStore;
     private readonly ConfigChangeAuditLog _auditLog;
     private readonly IDashboardInfoQueryService _infoService;
-    private readonly WafEventStore _wafEventStore;
     private readonly IConfigPersistenceService _configPersistence;
     private readonly IConfigSnapshotScheduler _snapshotScheduler;
     private readonly INotificationRepository _notificationRepo;
@@ -59,7 +57,6 @@ public partial class GatewayToolExecutor
         IRateLimiterStore rateLimiterStore,
         ConfigChangeAuditLog auditLog,
         IDashboardInfoQueryService infoService,
-        WafEventStore wafEventStore,
         IConfigPersistenceService configPersistence,
         IConfigSnapshotScheduler snapshotScheduler,
         INotificationRepository notificationRepo,
@@ -81,7 +78,6 @@ public partial class GatewayToolExecutor
         _rateLimiterStore = rateLimiterStore;
         _auditLog = auditLog;
         _infoService = infoService;
-        _wafEventStore = wafEventStore;
         _configPersistence = configPersistence;
         _snapshotScheduler = snapshotScheduler;
         _notificationRepo = notificationRepo;
@@ -119,7 +115,6 @@ public partial class GatewayToolExecutor
                 "get_gateway_info" => ExecuteGetGatewayInfo(),
                 "get_deployment_info" => ExecuteGetDeploymentInfo(),
                 "get_alert_summary" => await ExecuteGetAlertSummaryAsync(ct),
-                "get_security_events" => ExecuteGetSecurityEvents(args),
                 "get_health_check_config" => ExecuteGetHealthCheckConfig(),
                 "get_top_issues" => await ExecuteGetTopIssuesAsync(args, ct),
                 "export_config" => await ExecuteExportConfigAsync(),

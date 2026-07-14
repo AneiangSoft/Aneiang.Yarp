@@ -123,7 +123,7 @@ public class WafSettingsPersistenceService : IWafSettingsPersistenceService
                 EnableSqlInjectionDetection = data.EnableSqlInjectionDetection,
                 EnableXssDetection = data.EnableXssDetection,
                 EnablePathTraversalDetection = data.EnablePathTraversalDetection,
-                UpdatedAt = DateTime.UtcNow
+                UpdatedAt = DateTime.Now
             };
 
             await _wafRepo.SaveWafSettingsAsync(entity, ct);

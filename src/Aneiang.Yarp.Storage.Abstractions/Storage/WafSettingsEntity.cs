@@ -16,5 +16,5 @@ public class WafSettingsEntity
     public bool EnableXssDetection { get; set; } = true;
     public bool EnablePathTraversalDetection { get; set; } = true;
     public string? ExtraScriptSources { get; set; }
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.Now;
 }

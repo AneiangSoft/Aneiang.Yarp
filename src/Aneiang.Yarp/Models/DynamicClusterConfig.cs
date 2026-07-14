@@ -28,7 +28,7 @@ public sealed class DynamicClusterConfig
     public string Source { get; set; } = "dynamic";
 
     /// <summary>When this cluster was created.</summary>
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     /// <summary>Who created this cluster (user name or "auto").</summary>
     public string? CreatedBy { get; set; }

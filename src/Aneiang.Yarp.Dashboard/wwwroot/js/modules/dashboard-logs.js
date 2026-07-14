@@ -21,6 +21,8 @@
             totalCount: 0,
             hasMore: false,
             items: [],
+            pairedCount: 0,
+            displayCount: 0,
             persistenceEnabled: null // null=unknown, true/false
         },
 
@@ -61,7 +63,7 @@
 
         // ── Tab switching ──
 
-        switchTab: function(tab) {
+        switchTab: async function(tab) {
             if (tab === this.activeTab) return;
             this.activeTab = tab;
 
@@ -87,7 +89,7 @@
                 this.stopPolling();
                 // Check persistence status on first visit
                 if (this.historySearch.persistenceEnabled === null) {
-                    this.checkPersistenceStatus();
+                    await this.checkPersistenceStatus();
                 }
                 // Load history if persistence is enabled
                 if (this.historySearch.persistenceEnabled) {
@@ -149,6 +151,7 @@
                 this.historySearch.page = result.page || params.page;
                 this.historySearch.pageSize = result.pageSize || params.pageSize;
                 this.historySearch.hasMore = result.hasMore || false;
+                this.historySearch.pairedCount = 0;
 
                 this.renderHistoryItems();
                 this.renderHistoryPagination();
@@ -168,11 +171,10 @@
             const clusterIdEl = window.DashboardDOM.safe('#history-cluster-id');
             const statusMinEl = window.DashboardDOM.safe('#history-status-min');
             const statusMaxEl = window.DashboardDOM.safe('#history-status-max');
-            const pageSizeEl = window.DashboardDOM.safe('#history-page-size');
 
             const params = {
                 page: this.historySearch.page,
-                pageSize: parseInt(pageSizeEl?.value) || this.historySearch.pageSize
+                pageSize: this.historySearch.pageSize
             };
 
             // Time range
@@ -219,11 +221,51 @@
             }
 
             container.classList.add('log-entries-container');
-            const fragment = document.createDocumentFragment();
 
-            items.forEach(item => {
+            // Build traceId map for pairing ProxyRequest + ProxyResponse
+            const traceIdMap = new Map();
+            items.forEach((item, index) => {
+                if (item.traceId && (item.eventType === 'ProxyRequest' || item.eventType === 'ProxyResponse')) {
+                    if (!traceIdMap.has(item.traceId)) traceIdMap.set(item.traceId, []);
+                    traceIdMap.get(item.traceId).push({ item, index });
+                }
+            });
+
+            const processed = new Set();
+            const fragment = document.createDocumentFragment();
+            let pairedCount = 0;
+
+            items.forEach((item, index) => {
+                if (processed.has(index)) return;
+
+                // Try to find paired request+response by traceId
+                if (item.traceId && traceIdMap.has(item.traceId)) {
+                    const group = traceIdMap.get(item.traceId);
+                    if (group.length >= 2) {
+                        const pairIndex = group.findIndex(x => x.index === index);
+                        if (pairIndex >= 0) {
+                            const requestInfo = group.find((x, i) => x.item.eventType === 'ProxyRequest' && !processed.has(x.index));
+                            const responseInfo = group.find((x, i) => x.item.eventType === 'ProxyResponse' && !processed.has(x.index));
+
+                            if (requestInfo && responseInfo) {
+                                processed.add(requestInfo.index);
+                                processed.add(responseInfo.index);
+                                pairedCount++;
+                                fragment.appendChild(this.createHistoryPairedItem(requestInfo.item, responseInfo.item));
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                // Single/unpaired entry
+                processed.add(index);
                 fragment.appendChild(this.createHistoryItem(item));
             });
+
+            // Store pairing stats for pagination adjustment
+            this.historySearch.pairedCount = pairedCount;
+            this.historySearch.displayCount = fragment.childElementCount;
 
             container.innerHTML = '';
             container.appendChild(fragment);
@@ -346,6 +388,236 @@
             item.appendChild(detail);
 
             return item;
+        },
+
+        createHistoryPairedItem: function(requestItem, responseItem) {
+            const hasError = (responseItem.statusCode || 0) >= 500;
+            const levelClass = hasError ? 'level-error' : 'level-info';
+
+            const logKey = `history-paired:${requestItem.id}:${responseItem.id}`;
+
+            const item = window.DashboardDOM.create('div', {
+                className: `log-item ${levelClass} log-paired-item`,
+                attributes: { 'data-log-key': logKey, 'data-request-id': requestItem.id, 'data-response-id': responseItem.id }
+            });
+
+            const row = window.DashboardDOM.create('div', {
+                className: 'log-row',
+                events: { click: (e) => this.toggleHistoryPairedEntry(logKey, requestItem.id, responseItem.id, e) }
+            });
+
+            // Time (use response time)
+            const timeSpan = window.DashboardDOM.create('span', {
+                textContent: window.DashboardI18n.formatTime(new Date(responseItem.timestamp)),
+                style: { color: '#64748b', whiteSpace: 'nowrap', minWidth: '70px', fontSize: '12px' }
+            });
+
+            // Status badge
+            const statusCode = responseItem.statusCode || 0;
+            const statusBadge = window.DashboardDOM.create('span', {
+                className: `badge ${this.getStatusCodeBadge(statusCode)}`,
+                textContent: statusCode,
+                style: { minWidth: '40px', textAlign: 'center', fontSize: '11px' }
+            });
+
+            // Method badge
+            const method = requestItem.method || '-';
+            const methodColors = { 'GET': 'bg-success', 'POST': 'bg-primary', 'PUT': 'bg-info', 'DELETE': 'bg-danger', 'PATCH': 'bg-warning text-dark' };
+            const methodClass = methodColors[method] || 'bg-secondary';
+            const methodBadge = window.DashboardDOM.create('span', {
+                className: `badge ${methodClass}`,
+                textContent: method,
+                style: { minWidth: '45px', textAlign: 'center', fontSize: '10px', fontWeight: '700' }
+            });
+
+            // Path
+            const path = requestItem.upstreamPath || responseItem.upstreamPath || '-';
+            const pathSpan = window.DashboardDOM.create('code', {
+                textContent: path,
+                style: { background: '#f1f5f9', padding: '1px 6px', borderRadius: '3px', fontSize: '11px', color: '#0f172a', flex: '1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+            });
+
+            // Duration
+            let durationSpan = null;
+            const elapsed = responseItem.elapsedMs;
+            if (elapsed != null) {
+                const elapsedClass = elapsed < 200 ? 'text-success' : elapsed < 1000 ? 'text-warning' : 'text-danger';
+                durationSpan = window.DashboardDOM.create('span', {
+                    className: elapsedClass,
+                    textContent: `${elapsed.toFixed(0)}ms`,
+                    style: { fontSize: '11px', fontWeight: '600', minWidth: '50px', textAlign: 'right', whiteSpace: 'nowrap' }
+                });
+            }
+
+            // Paired tag
+            const pairedTag = document.createElement('span');
+            pairedTag.innerHTML = `<span class="log-event-tag log-event-paired"><i class="bi bi-link-45deg"></i> ${__('index.log.pairedTag')}</span>`;
+
+            // Arrow
+            const arrowSpan = window.DashboardDOM.create('i', {
+                className: 'bi bi-chevron-right log-arrow',
+                style: { color: '#94a3b8', fontSize: '12px', transition: 'transform 0.2s ease' }
+            });
+
+            row.appendChild(timeSpan);
+            row.appendChild(statusBadge);
+            row.appendChild(methodBadge);
+            if (pairedTag.firstChild) row.appendChild(pairedTag.firstChild);
+            row.appendChild(pathSpan);
+            if (durationSpan) row.appendChild(durationSpan);
+            row.appendChild(arrowSpan);
+
+            // Detail section (lazy-loaded)
+            const detail = window.DashboardDOM.create('div', {
+                className: 'log-detail',
+                attributes: { 'data-paired-detail': 'true' }
+            });
+            detail.innerHTML = `<div class="log-detail-loading"><i class="bi bi-arrow-down-circle me-1"></i>${__('index.log.viewDetail')}</div>`;
+
+            item.appendChild(row);
+            item.appendChild(detail);
+
+            return item;
+        },
+
+        toggleHistoryPairedEntry: async function(logKey, requestId, responseId, event) {
+            const state = window.DashboardState;
+            const current = state.get(`ui.expandedLogs.${logKey}`) || false;
+
+            state.set(`ui.expandedLogs.${logKey}`, !current);
+
+            const logItem = document.querySelector(`.log-item[data-log-key="${CSS.escape(logKey)}"]`);
+            if (!logItem) return;
+
+            const arrow = logItem.querySelector('.log-arrow');
+            const detail = logItem.querySelector('.log-detail');
+
+            if (!current) {
+                if (arrow) arrow.classList.add('expanded');
+                if (detail) detail.classList.add('expanded');
+
+                const loaded = detail.getAttribute('data-detail-loaded');
+                if (!loaded) {
+                    await this.loadHistoryPairedDetail(requestId, responseId, detail);
+                }
+            } else {
+                if (arrow) arrow.classList.remove('expanded');
+                if (detail) detail.classList.remove('expanded');
+            }
+        },
+
+        loadHistoryPairedDetail: async function(requestId, responseId, detailEl) {
+            detailEl.innerHTML = `<div class="log-detail-loading"><i class="bi bi-spinner-border spinning me-1"></i>${__('index.log.loadingDetail')}</div>`;
+
+            const cacheKey = `paired:${requestId}:${responseId}`;
+
+            // Check cache
+            if (this.detailCache.has(cacheKey)) {
+                const cached = this.detailCache.get(cacheKey);
+                if (cached) {
+                    this.renderHistoryPairedDetailContent(cached.request, cached.response, detailEl);
+                    detailEl.setAttribute('data-detail-loaded', 'true');
+                    return;
+                }
+            }
+
+            try {
+                const [requestDetail, responseDetail] = await Promise.all([
+                    window.DashboardApi.endpoints.getLogDetail(requestId),
+                    window.DashboardApi.endpoints.getLogDetail(responseId)
+                ]);
+                this.detailCache.set(cacheKey, { request: requestDetail, response: responseDetail });
+                this.renderHistoryPairedDetailContent(requestDetail, responseDetail, detailEl);
+                detailEl.setAttribute('data-detail-loaded', 'true');
+            } catch (error) {
+                console.error('[Logs] Failed to load paired detail:', error);
+                detailEl.innerHTML = `<div style="color:#dc2626;padding:12px;"><i class="bi bi-x-circle me-1"></i>${__('index.log.loadDetailFailed')}</div>`;
+            }
+        },
+
+        renderHistoryPairedDetailContent: function(requestDetail, responseDetail, detailEl) {
+            const dtHtml = [];
+            dtHtml.push('<div class="log-flow">');
+
+            // Upstream Request
+            dtHtml.push('<div class="log-flow-section">');
+            dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-in-down"></i> ${__('index.log.upstream.request')}</div>`);
+            dtHtml.push('<div class="log-flow-body">');
+            if (requestDetail.method) {
+                const methodColors = { 'GET': 'bg-success', 'POST': 'bg-primary', 'PUT': 'bg-info', 'DELETE': 'bg-danger', 'PATCH': 'bg-warning text-dark' };
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.method')}</span><span class="badge ${methodColors[requestDetail.method] || 'bg-secondary'}">${requestDetail.method}</span></div>`);
+            }
+            if (requestDetail.upstreamPath) {
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.path')}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(requestDetail.upstreamPath)}</code></div>`);
+            }
+            if (requestDetail.requestBody) {
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.body')}</span>`);
+                dtHtml.push(this.renderBodyContent(requestDetail.requestBody));
+                dtHtml.push('</div>');
+            }
+            if (requestDetail.requestHeaders && Object.keys(requestDetail.requestHeaders).length > 0) {
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.request.headers')}</span>`);
+                dtHtml.push(this.renderHeadersInline(requestDetail.requestHeaders));
+                dtHtml.push('</div>');
+            }
+            dtHtml.push('</div></div>');
+
+            // Arrow down
+            dtHtml.push('<div class="log-flow-arrow"><i class="bi bi-arrow-down-circle-fill"></i></div>');
+
+            // Downstream Request
+            dtHtml.push('<div class="log-flow-section">');
+            dtHtml.push(`<div class="log-flow-title"><i class="bi bi-box-arrow-up-right"></i> ${__('index.log.downstream.request')}</div>`);
+            dtHtml.push('<div class="log-flow-body">');
+            const dsUrl = requestDetail.downstreamUrl || responseDetail.downstreamUrl;
+            if (dsUrl) {
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.downstream.url')}</span><code class="log-kv-code">${window.DashboardUtils.escapeHtml(dsUrl)}</code></div>`);
+            }
+            dtHtml.push('</div></div>');
+
+            // Arrow up
+            dtHtml.push('<div class="log-flow-arrow"><i class="bi bi-arrow-up-circle-fill"></i></div>');
+
+            // Response
+            dtHtml.push('<div class="log-flow-section">');
+            dtHtml.push(`<div class="log-flow-title"><i class="bi bi-reply-all"></i> ${__('index.log.pairedResponse')}</div>`);
+            dtHtml.push('<div class="log-flow-body">');
+            if (responseDetail.statusCode != null) {
+                const elapsed = responseDetail.elapsedMs;
+                const elapsedClass = elapsed != null ? (elapsed < 200 ? 'text-success' : elapsed < 1000 ? 'text-warning' : 'text-danger') : '';
+                const elapsedText = elapsed != null ? ` <strong class="${elapsedClass}">(${elapsed.toFixed(1)}ms)</strong>` : '';
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.status')}</span><span class="badge ${this.getStatusCodeBadge(responseDetail.statusCode)}">${responseDetail.statusCode}</span>${elapsedText}</div>`);
+            }
+            if (responseDetail.responseBody) {
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.body')}</span>`);
+                dtHtml.push(this.renderBodyContent(responseDetail.responseBody));
+                dtHtml.push('</div>');
+            }
+            if (responseDetail.responseHeaders && Object.keys(responseDetail.responseHeaders).length > 0) {
+                dtHtml.push(`<div class="log-kv"><span class="log-kv-label">${__('index.log.response.headers')}</span>`);
+                dtHtml.push(this.renderHeadersInline(responseDetail.responseHeaders));
+                dtHtml.push('</div>');
+            }
+            dtHtml.push('</div></div>');
+
+            dtHtml.push('</div>'); // end log-flow
+
+            // Metadata row
+            dtHtml.push('<div class="log-meta-row">');
+            const rtId = requestDetail.routeId || responseDetail.routeId;
+            if (rtId) dtHtml.push(`<span><strong>RouteId:</strong> <code>${window.DashboardUtils.escapeHtml(rtId)}</code></span>`);
+            const clId = requestDetail.clusterId || responseDetail.clusterId;
+            if (clId) dtHtml.push(`<span><strong>ClusterId:</strong> <code>${window.DashboardUtils.escapeHtml(clId)}</code></span>`);
+            if (requestDetail.traceId) dtHtml.push(`<span><strong>TraceId:</strong> <code class="text-muted">${window.DashboardUtils.escapeHtml(requestDetail.traceId)}</code></span>`);
+            dtHtml.push('</div>');
+
+            // Exception
+            if (responseDetail.exception) {
+                dtHtml.push(`<div style="color:#dc2626;margin-top:6px"><strong>${__('index.log.exception')}</strong></div>`);
+                dtHtml.push(`<pre style="background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:8px;margin:4px 0 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;font-size:11px;color:#991b1b;">${window.DashboardUtils.escapeHtml(responseDetail.exception)}</pre>`);
+            }
+
+            detailEl.innerHTML = dtHtml.join('');
         },
 
         toggleHistoryEntry: async function(id, event) {
@@ -507,10 +779,16 @@
 
             pagination.style.display = '';
 
+            // Adjust total to reflect merged (paired) rows
+            // Estimate total pairs across all pages using current page's pairing ratio
+            const rawCount = hs.items.length || 1;
+            const estimatedTotalPairs = Math.round((hs.pairedCount || 0) * hs.totalCount / rawCount);
+            const adjustedTotal = Math.max(0, hs.totalCount - estimatedTotalPairs);
+
             // Page info text
             const totalPages = Math.ceil(hs.totalCount / hs.pageSize);
             if (pageInfo) {
-                pageInfo.textContent = `${__('index.log.pagination.total').replace('{total}', hs.totalCount)} · ${__('index.log.pagination.page').replace('{page}', hs.page)}/${totalPages}`;
+                pageInfo.textContent = `${__('index.log.pagination.total').replace('{total}', adjustedTotal)} · ${__('index.log.pagination.page').replace('{page}', hs.page)}/${totalPages}`;
             }
 
             // Prev/Next button states

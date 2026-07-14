@@ -111,7 +111,7 @@ internal sealed class ChannelSender
             Title = "Test Notification",
             Message = "This is a test notification from Aneiang.Yarp Gateway.",
             Severity = NotificationSeverity.Info,
-            Timestamp = DateTime.UtcNow
+            Timestamp = DateTime.Now
         };
 
         var testRule = new NotificationRule { Id = "test" };

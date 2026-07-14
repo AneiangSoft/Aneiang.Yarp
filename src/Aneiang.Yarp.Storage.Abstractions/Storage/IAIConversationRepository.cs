@@ -30,7 +30,7 @@ public class AIConversationEntry
     public string Content { get; set; } = "";
     public string? FunctionCalls { get; set; }
     public string? ToolCallId { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
 
 /// <summary>Summary of an AI chat session.</summary>

@@ -16,8 +16,8 @@ public class ClusterEntity
     public string? CircuitBreakerConfig { get; set; } // JSON
     public string Source { get; set; } = "dynamic";
     public string? CreatedBy { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime UpdatedAt { get; set; } = DateTime.Now;
     public DateTime? LastHeartbeat { get; set; }
 
     /// <summary>Full native YARP ClusterConfig serialized as PascalCase JSON. Carries all advanced properties.</summary>

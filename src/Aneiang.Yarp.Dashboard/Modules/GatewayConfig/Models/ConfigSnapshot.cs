@@ -12,7 +12,7 @@ public class ConfigSnapshot
     public string VersionId { get; set; } = Guid.NewGuid().ToString("N");
 
     /// <summary>Snapshot creation time.</summary>
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public DateTime Timestamp { get; set; } = DateTime.Now;
 
     /// <summary>Snapshot description.</summary>
     public string? Description { get; set; }

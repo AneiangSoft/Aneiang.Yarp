@@ -16,5 +16,5 @@ public class AuditLogEntity
     public string? AfterData { get; set; } // JSON
     public bool Success { get; set; }
     public string? ErrorMessage { get; set; }
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public DateTime Timestamp { get; set; } = DateTime.Now;
 }

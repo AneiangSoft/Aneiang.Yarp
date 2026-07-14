@@ -141,7 +141,7 @@ public sealed class InMemoryCircuitStateStore : ICircuitStateStore
 
     public void CleanupStale(TimeSpan threshold)
     {
-        var now = DateTime.UtcNow;
+        var now = DateTime.Now;
         var keysToRemove = new List<string>();
         foreach (var kv in _circuits)
         {

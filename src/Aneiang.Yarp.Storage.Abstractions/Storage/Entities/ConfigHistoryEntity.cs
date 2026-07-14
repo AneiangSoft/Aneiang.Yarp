@@ -9,5 +9,5 @@ public class ConfigHistoryEntity
     public string ConfigData { get; set; } = "{}"; // Full JSON config
     public string? DiffData { get; set; } // JSON diff
     public string CreatedBy { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
 }

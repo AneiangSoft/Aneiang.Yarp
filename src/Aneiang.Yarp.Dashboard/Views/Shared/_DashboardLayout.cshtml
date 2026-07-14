@@ -2973,7 +2973,6 @@
                 new {
                     Title = isEn ? "Security" : "安全策略",
                     Items = new[] {
-                        new { Key = "security", Title = isEn ? "Security Events" : "安全事件", Icon = "bi-shield-lock", Path = $"/{prefix}/security", Badge = "", Conditional = false },
                         new { Key = "waf", Title = isEn ? "WAF Firewall" : "WAF 防火墙", Icon = "bi-shield-lock", Path = $"/{prefix}/waf", Badge = "", Conditional = false },
                         new { Key = "policies", Title = isEn ? "Policies" : "策略管理", Icon = "bi-shield", Path = $"/{prefix}/policies", Badge = "", Conditional = false },
                         new { Key = "plugins", Title = isEn ? "Plugins" : "插件管理", Icon = "bi-puzzle", Path = $"/{prefix}/plugins", Badge = "", Conditional = false }
@@ -3076,7 +3075,6 @@
                 {"circuits", pgIsEn ? "Circuit Breaker" : "熔断状态"},
                 {"notifications", pgIsEn ? "Notification Center" : "通知中心"},
                 {"healthcheck", pgIsEn ? "Health Check" : "健康检查"},
-                {"security", pgIsEn ? "Security Events" : "安全事件"},
                 {"waf", pgIsEn ? "WAF Firewall" : "WAF 防火墙"},
                 {"policies", pgIsEn ? "Policy Management" : "策略管理"},
                 {"plugins", pgIsEn ? "Plugin Management" : "插件管理"},
@@ -3096,7 +3094,6 @@
                 {"circuits", "bi-lightning-charge"},
                 {"notifications", "bi-bell"},
                 {"healthcheck", "bi-heart-pulse"},
-                {"security", "bi-shield-lock"},
                 {"waf", "bi-shield-lock"},
                 {"policies", "bi-sliders"},
                 {"plugins", "bi-puzzle"},
@@ -3112,7 +3109,7 @@
             if (new[] { "clusters", "routes" }.Contains(pgName)) parentGroup = pgIsEn ? "Gateway" : "网关管理";
             if (pgName == "overview") parentGroup = "";
             if (new[] { "stats", "logs", "circuits", "notifications", "healthcheck" }.Contains(pgName)) parentGroup = pgIsEn ? "Monitoring" : "监控运维";
-            if (new[] { "security", "waf", "policies", "plugins" }.Contains(pgName)) parentGroup = pgIsEn ? "Security" : "安全策略";
+            if (new[] { "waf", "policies", "plugins" }.Contains(pgName)) parentGroup = pgIsEn ? "Security" : "安全策略";
             if (new[] { "history", "audit", "settings" }.Contains(pgName)) parentGroup = pgIsEn ? "System" : "系统管理";
 
             <div class="page-header">

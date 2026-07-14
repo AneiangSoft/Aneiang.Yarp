@@ -54,7 +54,7 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
             {
                 isNew = true;
                 config.Clusters.Add(new DynamicClusterConfig
-                { Config = cluster, Source = source, CreatedAt = DateTime.UtcNow, CreatedBy = createdBy });
+                { Config = cluster, Source = source, CreatedAt = DateTime.Now, CreatedBy = createdBy });
             }
             else
             {
@@ -104,7 +104,7 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
             {
                 isNew = true;
                 config.Clusters.Add(new DynamicClusterConfig
-                { Config = cc, HealthCheck = healthCheck, Source = source, CreatedAt = DateTime.UtcNow, CreatedBy = createdBy });
+                { Config = cc, HealthCheck = healthCheck, Source = source, CreatedAt = DateTime.Now, CreatedBy = createdBy });
             }
             else
             {
@@ -160,7 +160,7 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
             };
 
             config.Clusters.Add(new DynamicClusterConfig
-            { Config = cc, HealthCheck = dmHc, Source = source, CreatedAt = DateTime.UtcNow, CreatedBy = createdBy });
+            { Config = cc, HealthCheck = dmHc, Source = source, CreatedAt = DateTime.Now, CreatedBy = createdBy });
 
             _logger.LogDebug("Cluster '{ClusterId}' created with {DestCount} destinations", request.ClusterId, request.Destinations.Count);
             AuditLog.RecordSuccess("AddCluster", request.ClusterId, createdBy, null, null,
@@ -291,7 +291,7 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
                 HealthCheck = healthCheck ?? oldDc.HealthCheck,
                 CircuitBreaker = oldDc.CircuitBreaker,
                 Source = source,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.Now,
                 CreatedBy = createdBy
             });
 

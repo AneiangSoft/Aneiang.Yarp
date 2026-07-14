@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Http;
 using Aneiang.Yarp.Dashboard.Infrastructure;
-using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
 

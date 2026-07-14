@@ -29,7 +29,7 @@ public class RoutePolicy
     public bool Enabled { get; set; } = true;
 
     /// <summary>When this policy was created.</summary>
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     /// <summary>Route IDs this policy is applied to (read-only, maintained by system).</summary>
     public List<string> AppliedRoutes { get; set; } = new();
@@ -101,7 +101,7 @@ public class ClusterPolicy
     public bool Enabled { get; set; } = true;
 
     /// <summary>When this policy was created.</summary>
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     /// <summary>Cluster IDs this policy is applied to (read-only, maintained by system).</summary>
     public List<string> AppliedClusters { get; set; } = new();

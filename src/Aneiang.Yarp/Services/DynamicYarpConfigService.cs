@@ -112,7 +112,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
                 var existing = config.Routes.FirstOrDefault(r =>
                     string.Equals(r.Config.RouteId, routeId, StringComparison.OrdinalIgnoreCase));
                 if (existing == null)
-                    config.Routes.Add(new DynamicRouteConfig { Config = normalizedRoute, ClusterUid = _state.ResolveClusterUid(route.ClusterId ?? string.Empty), Source = "config", CreatedAt = DateTime.UtcNow, CreatedBy = "appsettings.json" });
+                    config.Routes.Add(new DynamicRouteConfig { Config = normalizedRoute, ClusterUid = _state.ResolveClusterUid(route.ClusterId ?? string.Empty), Source = "config", CreatedAt = DateTime.Now, CreatedBy = "appsettings.json" });
                 else { existing.Config = normalizedRoute; existing.ClusterUid = _state.ResolveClusterUid(route.ClusterId ?? string.Empty); }
             }
 
@@ -130,7 +130,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
                 var existing = config.Clusters.FirstOrDefault(c =>
                     string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
                 if (existing == null)
-                    config.Clusters.Add(new DynamicClusterConfig { Config = cluster, Source = "config", CreatedAt = DateTime.UtcNow, CreatedBy = "appsettings.json" });
+                    config.Clusters.Add(new DynamicClusterConfig { Config = cluster, Source = "config", CreatedAt = DateTime.Now, CreatedBy = "appsettings.json" });
                 else existing.Config = cluster;
             }
 
@@ -241,13 +241,13 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
             foreach (var cluster in newClusters)
             {
                 if (existingClusters.TryGetValue(cluster.ClusterId ?? string.Empty, out var ec)) { ec.Config = cluster; _state.Config.Clusters.Add(ec); }
-                else _state.Config.Clusters.Add(new DynamicClusterConfig { Config = cluster, Source = source, CreatedAt = DateTime.UtcNow, CreatedBy = createdBy });
+                else _state.Config.Clusters.Add(new DynamicClusterConfig { Config = cluster, Source = source, CreatedAt = DateTime.Now, CreatedBy = createdBy });
             }
             foreach (var route in newRoutes)
             {
                 var nr = route.Order == null ? route with { Order = int.MaxValue } : route;
                 if (existingRoutes.TryGetValue(route.RouteId ?? string.Empty, out var er)) { er.Config = nr; er.ClusterUid = _state.ResolveClusterUid(route.ClusterId); _state.Config.Routes.Add(er); }
-                else _state.Config.Routes.Add(new DynamicRouteConfig { Config = nr, ClusterUid = _state.ResolveClusterUid(route.ClusterId), Source = source, CreatedAt = DateTime.UtcNow, CreatedBy = createdBy });
+                else _state.Config.Routes.Add(new DynamicRouteConfig { Config = nr, ClusterUid = _state.ResolveClusterUid(route.ClusterId), Source = source, CreatedAt = DateTime.Now, CreatedBy = createdBy });
             }
 
             _logger.LogInformation("Configuration replaced: {Routes} routes, {Clusters} clusters", newRoutes.Count, newClusters.Count);
@@ -278,7 +278,7 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
             var route = _state.Config.Routes.FirstOrDefault(r => (r.Config.RouteId ?? string.Empty).Equals(routeName, StringComparison.OrdinalIgnoreCase));
             if (route == null) return false;
             var cluster = _state.Config.Clusters.FirstOrDefault(c => (c.Config.ClusterId ?? string.Empty).Equals(route.Config.ClusterId ?? string.Empty, StringComparison.OrdinalIgnoreCase));
-            if (cluster != null) { cluster.LastHeartbeat = DateTime.UtcNow; return true; }
+            if (cluster != null) { cluster.LastHeartbeat = DateTime.Now; return true; }
             return false;
         }
         finally { _semaphore.Release(); }

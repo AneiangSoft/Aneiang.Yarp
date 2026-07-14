@@ -48,10 +48,9 @@
             };
 
             try {
-                const [stats, traffic, wafSummary] = await Promise.all([
+                const [stats, traffic] = await Promise.all([
                     DashboardApi.endpoints.getStats().catch(() => null),
-                    DashboardApi.endpoints.getTrafficData(this.currentRange).catch(() => null),
-                    DashboardApi.endpoints.getSecurityEventSummary().catch(() => null)
+                    DashboardApi.endpoints.getTrafficData(this.currentRange).catch(() => null)
                 ]);
 
                 if (stats) {
@@ -75,8 +74,6 @@
                     this.renderQpsChart(traffic);
                     this.renderErrorChart(traffic);
                 }
-
-                this.renderWafStats(wafSummary);
 
                 const now = new Date();
                 const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -467,93 +464,6 @@
                 }).reverse();
             }
             return labels;
-        },
-
-        renderWafStats: function(summary) {
-            const container = document.getElementById('waf-stats-content');
-            const badge = document.getElementById('waf-blocked-badge');
-            if (!container) return;
-
-            if (!summary || !summary.typeCounts || Object.keys(summary.typeCounts).length === 0) {
-                container.innerHTML = '<div class="col-12 text-center text-muted small py-3">' + __('stats.wafNoEvents') + '</div>';
-                if (badge) badge.textContent = '0';
-                return;
-            }
-
-            const typeCounts = summary.typeCounts || {};
-            const topIps = summary.topIps || {};
-            const total = summary.total || 0;
-            const lastEvent = summary.lastEvent;
-            const typeKeys = Object.keys(typeCounts).slice(0, 5);
-
-            // Update total badge
-            if (badge) badge.textContent = total + ' ' + __('security.blocked');
-
-            // Type colors
-            const typeColors = {
-                SqlInjectionBlocked: '#ef4444',
-                SqlInjectionValueBlocked: '#ef4444',
-                XssBlocked: '#f59e0b',
-                PathTraversalBlocked: '#06b6d4',
-                PathTraversalInQueryBlocked: '#06b6d4',
-                IpBlocked: '#374151',
-                RequestSizeBlocked: '#9ca3af',
-                MalformedHeadersBlocked: '#9ca3af',
-                UriTooLongBlocked: '#9ca3af'
-            };
-
-            const maxTypeCount = typeCounts[typeKeys[0]] || 1;
-
-            let typeHtml = typeKeys.map(function(type) {
-                const count = typeCounts[type];
-                const pct = Math.min(100, (count / maxTypeCount) * 100);
-                const color = typeColors[type] || '#6b7280';
-                const label = type.replace('Blocked', '').replace('InQuery', ' (Query)');
-                return `<div class="d-flex align-items-center gap-2 mb-1" style="font-size:12px;">
-                    <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;"></span>
-                    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#374151;">${this.escHtml(label)}</span>
-                    <div style="flex:2;height:5px;background:#f3f4f6;border-radius:3px;overflow:hidden;">
-                        <div style="width:${pct}%;height:100%;border-radius:3px;background:${color};transition:width 0.5s;"></div>
-                    </div>
-                    <span style="min-width:36px;text-align:right;font-variant-numeric:tabular-nums;color:#6b7280;font-size:11px;">${count}</span>
-                </div>`;
-            }.bind(this)).join('');
-
-            // Top IPs
-            const ipKeys = Object.keys(topIps).slice(0, 3);
-            const ipHtml = ipKeys.length > 0 ? ipKeys.map(function(ip) {
-                return `<span class="badge bg-light text-dark me-1 mb-1" style="font-family:monospace;font-size:11px;">
-                    <i class="bi bi-geo-alt me-1" style="font-size:9px;"></i>${this.escHtml(ip)}</span>`;
-            }.bind(this)).join('') : '<span class="text-muted small">-</span>';
-
-            // Last event time
-            const lastTime = lastEvent ? this._fmtTime(new Date(lastEvent)) : '-';
-
-            container.innerHTML =
-                '<div class="col-md-8">' +
-                    '<div class="small fw-medium mb-2 text-muted">' +
-                        '<i class="bi bi-bar-chart-fill me-1 text-danger"></i>' + __('stats.wafAttackTypes') +
-                    '</div>' +
-                    typeHtml +
-                '</div>' +
-                '<div class="col-md-4">' +
-                    '<div class="border rounded-3 p-3 h-100" style="background:#fcfcfc;">' +
-                        '<div class="small fw-medium mb-2 text-muted">' +
-                            '<i class="bi bi-geo-alt-fill me-1"></i>' + __('security.topIps') +
-                        '</div>' +
-                        '<div class="mb-2">' + ipHtml + '</div>' +
-                        '<hr class="my-2">' +
-                        '<div class="d-flex justify-content-between align-items-center small">' +
-                            '<span class="text-muted">' + __('stats.wafLastEvent') + '</span>' +
-                            '<span style="color:#6b7280;">' + this.escHtml(lastTime) + '</span>' +
-                        '</div>' +
-                        '<div class="mt-2">' +
-                            '<a href="./Security" class="btn btn-sm btn-outline-danger w-100" style="font-size:11px;">' +
-                                '<i class="bi bi-box-arrow-up-right me-1"></i>' + __('stats.wafLink') +
-                            '</a>' +
-                        '</div>' +
-                    '</div>' +
-                '</div>';
         },
 
         _fmtTime: function(date) {

@@ -86,7 +86,7 @@ public sealed class SqliteNotificationRepository : INotificationRepository
         cmd.Parameters.AddWithValue("@ch", settings.Channels ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@ru", settings.Rules ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@gs", settings.GlobalSettings ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@ua", DateTime.UtcNow.ToString("O"));
+        cmd.Parameters.AddWithValue("@ua", DateTime.Now.ToString("O"));
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
@@ -118,7 +118,7 @@ public sealed class SqliteNotificationRepository : INotificationRepository
     public async Task SaveChannelAsync(NotificationChannel channel, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        channel.UpdatedAt = DateTime.UtcNow;
+        channel.UpdatedAt = DateTime.Now;
 
         var channels = await GetChannelsAsync(ct);
         var existing = channels.FindIndex(c => c.Id == channel.Id);
@@ -168,7 +168,7 @@ public sealed class SqliteNotificationRepository : INotificationRepository
     public async Task SaveRuleAsync(NotificationRule rule, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        rule.UpdatedAt = DateTime.UtcNow;
+        rule.UpdatedAt = DateTime.Now;
 
         var rules = await GetRulesAsync(ct);
         var existing = rules.FindIndex(r => r.Id == rule.Id);

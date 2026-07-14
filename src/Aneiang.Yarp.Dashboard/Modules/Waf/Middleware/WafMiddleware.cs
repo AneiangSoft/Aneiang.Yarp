@@ -7,7 +7,6 @@ using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Middleware;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
-using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Infrastructure;
@@ -25,7 +24,6 @@ public sealed class WafMiddleware : GatewayMiddlewareBase
 {
     private readonly ILogger<WafMiddleware> _logger;
     private readonly WafOptions _wafOptions;
-    private readonly WafEventStore _eventStore;
     private readonly IWafSettingsPersistenceService? _wafPersistence;
     private readonly INotificationService _notificationService;
 
@@ -51,7 +49,6 @@ public sealed class WafMiddleware : GatewayMiddlewareBase
         ILogger<WafMiddleware> logger,
         IOptions<WafOptions> wafOptions,
         IOptions<DashboardOptions> dashOptions,
-        WafEventStore eventStore,
         IGatewayPluginManager pluginManager,
         IWafSettingsPersistenceService? wafPersistence = null,
         INotificationService? notificationService = null)
@@ -63,7 +60,6 @@ public sealed class WafMiddleware : GatewayMiddlewareBase
         if (string.IsNullOrWhiteSpace(prefix) || prefix == "apigateway")
             prefix = dashOptions.Value.RoutePrefix;
         DashPrefix = "/" + prefix.Trim('/');
-        _eventStore = eventStore;
         _wafPersistence = wafPersistence;
         _notificationService = notificationService ?? NullNotificationService.Instance;
     }
@@ -121,7 +117,7 @@ public sealed class WafMiddleware : GatewayMiddlewareBase
             var result = checker.Check(wafContext);
             if (result.IsBlocked)
             {
-                RecordSecurityEvent(context, result.EventType!, result.Details);
+                LogWafBlock(context, result.EventType!, result.Details);
                 await BlockRequest(context, result.EventType switch
                 {
                     "IpBlocked" => "Access denied",
@@ -208,40 +204,15 @@ public sealed class WafMiddleware : GatewayMiddlewareBase
         catch { context.Request.Body.Position = 0; return null; }
     }
 
-    private void RecordSecurityEvent(HttpContext context, string eventType, string? details)
+    private void LogWafBlock(HttpContext context, string eventType, string? details)
     {
         var clientIp = ClientIpResolver.GetClientIp(context);
         var requestUri = context.Request.Path.Value + context.Request.QueryString.Value;
-        var routeConfig = context.Features.Get<IReverseProxyFeature>()?.Route?.Config;
 
         _logger.LogWarning("WAF [{EventType}] from IP: {Ip}, Path: {Path}, Details: {Details}",
             eventType, clientIp, requestUri, details ?? "(hidden)");
 
-        _eventStore.Add(new WafSecurityEvent
-        {
-            ClientIp = clientIp ?? "unknown",
-            EventType = eventType,
-            RuleName = eventType.Replace("Blocked", ""),
-            RequestUri = requestUri,
-            RequestMethod = context.Request.Method,
-            RouteUid = ResolveUid("route", routeConfig?.Metadata?.GetValueOrDefault("RouteUid"), routeConfig?.RouteId),
-            RouteKeySnapshot = routeConfig?.RouteId,
-            ClusterUid = ResolveUid("cluster", routeConfig?.Metadata?.GetValueOrDefault("ClusterUid"), routeConfig?.ClusterId),
-            ClusterKeySnapshot = routeConfig?.ClusterId,
-            MatchedValue = details != null && details.Length <= 200 ? details : null,
-            Blocked = true,
-            StatusCode = 403
-        });
-
         _notificationService.NotifyWafBlock(clientIp ?? "unknown", eventType, requestUri);
-    }
-
-    private static string? ResolveUid(string prefix, string? uid, string? key)
-    {
-        if (!string.IsNullOrWhiteSpace(uid)) return uid;
-        if (string.IsNullOrWhiteSpace(key)) return null;
-        var bytes = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(prefix + ":" + key));
-        return Convert.ToHexString(bytes, 0, 16).ToLowerInvariant();
     }
 
     private static async Task BlockRequest(HttpContext context, string message)

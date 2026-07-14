@@ -34,8 +34,8 @@ public class NotificationChannel
     public string Url { get; set; } = string.Empty;
     public string? Secret { get; set; }
     public bool Enabled { get; set; } = true;
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime UpdatedAt { get; set; } = DateTime.Now;
 }
 
 /// <summary>
@@ -84,8 +84,8 @@ public class NotificationRule
     public List<string>? TargetRouteIds { get; set; }
     public List<string>? TargetClusterIds { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime UpdatedAt { get; set; } = DateTime.Now;
 }
 
 /// <summary>
@@ -98,7 +98,7 @@ public class NotificationEvent
     public string Title { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
     public NotificationSeverity Severity { get; set; } = NotificationSeverity.Info;
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public DateTime Timestamp { get; set; } = DateTime.Now;
 
     /// <summary>Source cluster if applicable.</summary>
     public string? ClusterId { get; set; }
@@ -126,7 +126,7 @@ public class NotificationHistory
     public NotificationSeverity Severity { get; set; } = NotificationSeverity.Info;
     public string Title { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public DateTime Timestamp { get; set; } = DateTime.Now;
     public string? ClusterId { get; set; }
     public string? ClusterUid { get; set; }
     public string? ClusterKeySnapshot { get; set; }

@@ -257,8 +257,8 @@ public class NotificationRulesController : ControllerBase
                 EventType = "UpdateRoute",
                 Severity = NotificationSeverity.Info,
                 Title = "测试通知记录",
-                Message = $"这是一条直接生成的测试记录，生成时间: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC",
-                Timestamp = DateTime.UtcNow,
+                Message = $"这是一条直接生成的测试记录，生成时间: {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
+                Timestamp = DateTime.Now,
                 ClusterId = "test-cluster", RouteId = "test-route", ClientIp = "127.0.0.1",
                 NotifiedChannels = new List<string> { "测试渠道" },
                 DeliverySuccess = true

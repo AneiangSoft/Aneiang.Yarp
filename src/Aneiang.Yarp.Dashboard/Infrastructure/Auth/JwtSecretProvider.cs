@@ -83,7 +83,7 @@ public sealed class JwtSecretProvider
     {
         try
         {
-            var payload = JsonSerializer.Serialize(new { secret, generatedAt = DateTime.UtcNow });
+            var payload = JsonSerializer.Serialize(new { secret, generatedAt = DateTime.Now });
             File.WriteAllText(_filePath, payload);
             _logger.LogDebug("JWT secret persisted to {File}", _filePath);
         }

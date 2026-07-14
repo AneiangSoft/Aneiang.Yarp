@@ -3,6 +3,7 @@
   "index.route.allMethods": "All",
   "index.route.basicInfo": "基本信息",
   "index.route.cluster.all": "所有集群",
+  "index.route.cluster.none": "无集群",
   "index.route.clusterCol": "集群",
   "index.route.clusterId": "集群ID",
   "index.route.clusterNotFound": "指定的集群不存在",

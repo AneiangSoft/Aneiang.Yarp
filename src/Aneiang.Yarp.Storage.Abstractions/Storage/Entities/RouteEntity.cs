@@ -18,8 +18,8 @@ public class RouteEntity
     public string? Transforms { get; set; } // JSON
     public string Source { get; set; } = "dynamic";
     public string? CreatedBy { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime UpdatedAt { get; set; } = DateTime.Now;
     public string? Metadata { get; set; } // JSON
 
     /// <summary>Full native YARP RouteConfig serialized as PascalCase JSON. Carries all advanced properties.</summary>

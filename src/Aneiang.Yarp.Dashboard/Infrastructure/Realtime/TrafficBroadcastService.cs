@@ -58,7 +58,7 @@ internal sealed class TrafficBroadcastService : BackgroundService
     private async Task CollectAndBroadcastAsync(CancellationToken ct)
     {
         var snapshot = _logStore.GetRecent(500);
-        var cutoff = DateTime.UtcNow - _windowDuration;
+        var cutoff = DateTime.Now - _windowDuration;
 
         var routeMetrics = new Dictionary<string, RouteMetrics>(StringComparer.OrdinalIgnoreCase);
 

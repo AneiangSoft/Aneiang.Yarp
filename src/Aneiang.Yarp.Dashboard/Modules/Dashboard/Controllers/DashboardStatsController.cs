@@ -47,8 +47,8 @@ public class DashboardStatsController : Controller
             {
                 entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(10);
                 var avgLatencyMs = snapshot.AvgLatencyMicros / 1000.0;
-                var recentThreshold = DateTime.UtcNow.AddMinutes(-1);
-                var requestsPerMin = snapshot.ComputedAt >= recentThreshold ? (int)(snapshot.TotalRequests / Math.Max(1, (DateTime.UtcNow - snapshot.ComputedAt).TotalMinutes)) : 0;
+                var recentThreshold = DateTime.Now.AddMinutes(-1);
+                var requestsPerMin = snapshot.ComputedAt >= recentThreshold ? (int)(snapshot.TotalRequests / Math.Max(1, (DateTime.Now - snapshot.ComputedAt).TotalMinutes)) : 0;
 
                 return Json(new
                 {

@@ -102,7 +102,7 @@ internal sealed class Migration006_DataBackfill : ISchemaMigration
                     reader.GetString(1),
                     reader.IsDBNull(2) ? "route" : reader.GetString(2),
                     reader.IsDBNull(3) ? null : reader.GetString(3),
-                    DateTime.TryParse(reader.IsDBNull(4) ? null : reader.GetString(4), out var u) ? u : DateTime.UtcNow));
+                    DateTime.TryParse(reader.IsDBNull(4) ? null : reader.GetString(4), out var u) ? u : DateTime.Now));
             }
         }
 

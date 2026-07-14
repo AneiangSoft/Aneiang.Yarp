@@ -31,7 +31,7 @@ public sealed class CircuitBreakerMiddleware : GatewayMiddlewareBase
     private readonly ICircuitStateStore _circuitStore;
 
     private static readonly TimeSpan _cleanupThreshold = TimeSpan.FromHours(3);
-    private long _lastCleanupTicks = DateTime.UtcNow.Ticks;
+    private long _lastCleanupTicks = DateTime.Now.Ticks;
 
     public CircuitBreakerMiddleware(
         RequestDelegate next,
@@ -112,7 +112,7 @@ public sealed class CircuitBreakerMiddleware : GatewayMiddlewareBase
         {
             if (state.Status == CircuitStatus.Open)
             {
-                if (DateTime.UtcNow < state.OpenedAt + state.RecoveryTimeout)
+                if (DateTime.Now < state.OpenedAt + state.RecoveryTimeout)
                 {
                     _logger.LogWarning(
                         "Circuit OPEN for {CircuitKey} (recovery at {RecoveryAt})",
@@ -196,7 +196,7 @@ public sealed class CircuitBreakerMiddleware : GatewayMiddlewareBase
 
         lock (state.SyncRoot)
         {
-            state.LastAccessedAt = DateTime.UtcNow;
+            state.LastAccessedAt = DateTime.Now;
 
             if (isFailure)
             {
@@ -205,7 +205,7 @@ public sealed class CircuitBreakerMiddleware : GatewayMiddlewareBase
                 if (state.Status == CircuitStatus.HalfOpen)
                 {
                     state.Status = CircuitStatus.Open;
-                    state.OpenedAt = DateTime.UtcNow;
+                    state.OpenedAt = DateTime.Now;
                     _logger.LogWarning("Circuit HALF-OPEN probe FAILED for {CircuitKey}, back to OPEN", circuitKey);
                     var (cbCluster, cbDest) = InMemoryCircuitStateStore.ParseCircuitKey(circuitKey);
                     _notificationService.NotifyCircuitBreakerOpen(cbCluster, cbDest);
@@ -213,7 +213,7 @@ public sealed class CircuitBreakerMiddleware : GatewayMiddlewareBase
                 else if (state.ConsecutiveFailures >= state.FailureThreshold)
                 {
                     state.Status = CircuitStatus.Open;
-                    state.OpenedAt = DateTime.UtcNow;
+                    state.OpenedAt = DateTime.Now;
                     _logger.LogWarning("Circuit OPENED for {CircuitKey} after {Failures} failures", circuitKey, state.ConsecutiveFailures);
                     _notificationService.NotifyCircuitBreakerOpen(state.ClusterKeySnapshot, state.DestinationKeySnapshot);
                 }
@@ -236,9 +236,9 @@ public sealed class CircuitBreakerMiddleware : GatewayMiddlewareBase
 
     private void TryCleanupStaleCircuits()
     {
-        var now = DateTime.UtcNow;
+        var now = DateTime.Now;
         var lastTicks = Interlocked.Read(ref _lastCleanupTicks);
-        if (now - new DateTime(lastTicks, DateTimeKind.Utc) < _cleanupThreshold)
+        if (now - new DateTime(lastTicks, DateTimeKind.Local) < _cleanupThreshold)
             return;
 
         Interlocked.Exchange(ref _lastCleanupTicks, now.Ticks);
@@ -266,7 +266,7 @@ public class CircuitState
     public int MaxHalfOpenAttempts { get; set; }
     public DateTime OpenedAt { get; set; }
     public int HalfOpenRequests { get; set; }
-    public DateTime LastAccessedAt { get; set; } = DateTime.UtcNow;
+    public DateTime LastAccessedAt { get; set; } = DateTime.Now;
 
     public CircuitState(CircuitBreakerOptions? options = null)
     {

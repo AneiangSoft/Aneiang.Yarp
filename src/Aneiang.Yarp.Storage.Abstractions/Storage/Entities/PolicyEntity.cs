@@ -20,6 +20,6 @@ public class PolicyEntity
     public string? CircuitBreakerConfig { get; set; }   // JSON
     /// <summary>"true" / "false" / null (follow global)</summary>
     public string? WafEnabled { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime UpdatedAt { get; set; } = DateTime.Now;
 }

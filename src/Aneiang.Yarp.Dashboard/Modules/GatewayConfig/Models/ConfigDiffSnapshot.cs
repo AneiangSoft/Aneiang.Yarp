@@ -8,7 +8,7 @@ public class ConfigDiffSnapshot
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public long Version { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
     public string CreatedBy { get; set; } = "system";
     public string? Source { get; set; }
     public string? Description { get; set; }
@@ -50,7 +50,7 @@ public class ConfigDiffResult
 {
     public string FromVersion { get; set; } = string.Empty;
     public string ToVersion { get; set; } = string.Empty;
-    public DateTime ComparedAt { get; set; } = DateTime.UtcNow;
+    public DateTime ComparedAt { get; set; } = DateTime.Now;
     public DiffSummary Summary { get; set; } = new();
     public List<DiffEntry> Changes { get; set; } = new();
 }

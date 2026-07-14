@@ -23,7 +23,7 @@ public sealed class AneiangProxyConfigProvider : IProxyConfigProvider
 
     // Heartbeat cleanup: remove entries for clusters no longer in current config
     private static readonly TimeSpan MaxHeartbeatAge = TimeSpan.FromHours(2);
-    private DateTime _lastHeartbeatCleanup = DateTime.UtcNow;
+    private DateTime _lastHeartbeatCleanup = DateTime.Now;
     private static readonly TimeSpan HeartbeatCleanupInterval = TimeSpan.FromMinutes(5);
 
     /// <summary>Initializes the provider with static routes/clusters from configuration.</summary>
@@ -85,7 +85,7 @@ public sealed class AneiangProxyConfigProvider : IProxyConfigProvider
         return new GatewayDynamicConfig
         {
             Version = snap.Version,
-            LastModified = DateTime.UtcNow,
+            LastModified = DateTime.Now,
             Routes = snap.DynamicRoutes.ToList(),
             Clusters = snap.DynamicClusters.Select(c =>
             {
@@ -146,11 +146,11 @@ public sealed class AneiangProxyConfigProvider : IProxyConfigProvider
     public bool UpdateHeartbeat(string clusterId)
     {
         if (string.IsNullOrWhiteSpace(clusterId)) return false;
-        _heartbeats[clusterId] = DateTime.UtcNow;
+        _heartbeats[clusterId] = DateTime.Now;
 
         // Periodic cleanup: remove heartbeat entries for clusters not in current config
         // or entries older than MaxHeartbeatAge
-        var now = DateTime.UtcNow;
+        var now = DateTime.Now;
         if (now - _lastHeartbeatCleanup > HeartbeatCleanupInterval)
         {
             _lastHeartbeatCleanup = now;
