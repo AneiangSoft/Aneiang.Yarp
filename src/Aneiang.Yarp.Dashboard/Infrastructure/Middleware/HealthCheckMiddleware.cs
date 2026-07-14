@@ -77,8 +77,8 @@ public class HealthCheckMiddleware
             await WriteJson(context, 200, new
             {
                 status = "alive",
-                timestamp = DateTime.UtcNow,
-                uptime = (DateTime.UtcNow - _processStart).TotalSeconds
+                timestamp = DateTime.Now,
+                uptime = (DateTime.Now - _processStart).TotalSeconds
             });
             return;
         }
@@ -100,7 +100,7 @@ public class HealthCheckMiddleware
             await WriteJson(context, isReady ? 200 : 503, new
             {
                 status = isReady ? "healthy" : "degraded",
-                timestamp = DateTime.UtcNow,
+                timestamp = DateTime.Now,
                 version = _version,
                 endpoints = _options.ResolvedEndpoints.Select(e => new
                 {
@@ -109,7 +109,7 @@ public class HealthCheckMiddleware
                     role = e.Role,
                     @public = e.IsPubliclyBound
                 }),
-                uptime = (DateTime.UtcNow - _processStart).TotalSeconds,
+                uptime = (DateTime.Now - _processStart).TotalSeconds,
                 checks
             });
         }

@@ -17,7 +17,7 @@ public sealed class CooldownManager
     // Maximum cooldown duration across all rules (used as cleanup threshold).
     // Entries older than this are guaranteed expired and safe to remove.
     private TimeSpan _maxCooldown = TimeSpan.FromMinutes(30);
-    private DateTime _lastCleanup = DateTime.UtcNow;
+    private DateTime _lastCleanup = DateTime.Now;
     private static readonly TimeSpan CleanupInterval = TimeSpan.FromMinutes(5);
 
     /// <summary>
@@ -44,7 +44,7 @@ public sealed class CooldownManager
     /// </summary>
     public bool TryAcquire(string key, TimeSpan cooldown)
     {
-        var now = DateTime.UtcNow;
+        var now = DateTime.Now;
 
         // Periodic cleanup: remove entries older than 2x max cooldown (safe margin)
         if (now - _lastCleanup > CleanupInterval)

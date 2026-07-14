@@ -121,7 +121,7 @@ internal sealed class OverviewBroadcastService : BackgroundService
         try
         {
             var snapshot = _logStore.GetRecent(500);
-            var cutoff = DateTime.UtcNow - TrafficWindow;
+            var cutoff = DateTime.Now - TrafficWindow;
             var relevantEntries = new List<LogEntry>();
 
             foreach (var entry in snapshot.Entries)

@@ -49,20 +49,20 @@ public sealed class NotificationService : INotificationService
     public async Task PreloadAsync(CancellationToken ct = default)
     {
         _cachedSettings = await _repository.LoadSettingsAsync(ct);
-        _cacheExpiry = DateTime.UtcNow.AddMinutes(5);
+        _cacheExpiry = DateTime.Now.AddMinutes(5);
         _logger.LogDebug("NotificationService preloaded");
     }
 
     /// <summary>Gets notification settings with cache. Refreshes from repository when expired.</summary>
     private async Task<NotificationSettingsEntity> GetSettingsAsync(CancellationToken ct)
     {
-        if (_cachedSettings != null && DateTime.UtcNow < _cacheExpiry)
+        if (_cachedSettings != null && DateTime.Now < _cacheExpiry)
             return _cachedSettings;
 
         await _cacheLock.WaitAsync(ct);
         try
         {
-            if (_cachedSettings != null && DateTime.UtcNow < _cacheExpiry)
+            if (_cachedSettings != null && DateTime.Now < _cacheExpiry)
                 return _cachedSettings;
 
             _cachedSettings = await _repository.LoadSettingsAsync(ct) ?? new NotificationSettingsEntity();
@@ -75,7 +75,7 @@ public sealed class NotificationService : INotificationService
                 _cachedSettings.Enabled = globalSettings.Enabled;
             }
 
-            _cacheExpiry = DateTime.UtcNow.AddMinutes(5);
+            _cacheExpiry = DateTime.Now.AddMinutes(5);
             return _cachedSettings;
         }
         finally

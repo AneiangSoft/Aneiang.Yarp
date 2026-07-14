@@ -60,7 +60,7 @@ public sealed class SqlitePolicyRepository : IPolicyRepository
     public async Task SavePolicyAsync(PolicyEntity policy, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        policy.UpdatedAt = DateTime.UtcNow;
+        policy.UpdatedAt = DateTime.Now;
         await using var conn = _connections.CreateConnection();
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();

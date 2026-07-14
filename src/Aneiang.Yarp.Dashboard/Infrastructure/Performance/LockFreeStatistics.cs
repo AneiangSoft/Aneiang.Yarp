@@ -103,7 +103,7 @@ public sealed class LockFreeStatistics
             StatusCodes = _statusCodes.ToArray(),
             TopRoutes = _routeCounts.GetTopN(10),
             TopClusters = _clusterCounts.GetTopN(10),
-            ComputedAt = DateTime.UtcNow
+            ComputedAt = DateTime.Now
         };
     }
 

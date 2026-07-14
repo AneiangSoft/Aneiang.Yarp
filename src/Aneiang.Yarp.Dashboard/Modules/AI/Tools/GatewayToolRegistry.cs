@@ -83,9 +83,6 @@ public class GatewayToolRegistry
 
             R("get_alert_summary", "Get alert summary: unhealthy destination count, open circuit count, recent 5xx errors, and whether any alerts are active."),
 
-            R("get_security_events", "Get recent WAF security events with client IP, rule name, request URI, and block status.",
-                new { count = new { type = "integer", description = "Number of events to return (default 50, max 200)." } }),
-
             R("get_health_check_config", "Get health check configuration for all clusters that have health checks configured (active/passive settings, endpoints, policies)."),
 
             R("get_top_issues", "Get top problematic routes: routes with highest error counts and request volumes in a time range.",

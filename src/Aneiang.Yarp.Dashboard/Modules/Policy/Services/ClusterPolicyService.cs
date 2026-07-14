@@ -63,7 +63,7 @@ public class ClusterPolicyService : PolicyServiceBase
         if (existing != null)
             throw new InvalidOperationException($"Policy with ID '{policy.PolicyId}' already exists");
 
-        policy.CreatedAt = DateTime.UtcNow;
+        policy.CreatedAt = DateTime.Now;
         await PolicyRepo.SavePolicyAsync(policy.ToEntity());
 
         Logger.LogInformation("Created cluster policy '{PolicyId}' ({Name})", policy.PolicyId, policy.DisplayName);

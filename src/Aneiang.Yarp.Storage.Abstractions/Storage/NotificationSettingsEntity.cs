@@ -22,5 +22,5 @@ public class NotificationSettingsEntity
     public string? GlobalSettings { get; set; }
 
     /// <summary>When this record was last updated.</summary>
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.Now;
 }

@@ -29,7 +29,7 @@ internal sealed class SqliteProxyLogAggregator
         await using var conn = _connections.CreateConnection();
         await conn.OpenAsync(ct);
 
-        var fromTime = DateTime.UtcNow.AddMinutes(-recentMinutes).ToString("O");
+        var fromTime = DateTime.Now.AddMinutes(-recentMinutes).ToString("O");
         var eventFilter = HasColumn("EventType") ? "AND EventType = 'ProxyResponse'" : "";
 
         await using var statsCmd = conn.CreateCommand();
@@ -78,7 +78,7 @@ internal sealed class SqliteProxyLogAggregator
         var eventFilter = HasColumn("EventType") ? "AND EventType = 'ProxyResponse'" : "";
         cmd.CommandText = $"""
             SELECT
-                strftime('%Y-%m-%d %H:%M', Timestamp) as time_bucket,
+                strftime('%Y-%m-%d %H:%M', Timestamp, 'localtime') as time_bucket,
                 COUNT(*) as request_count,
                 SUM(CASE WHEN StatusCode >= 400 THEN 1 ELSE 0 END) as error_count
             FROM proxy_logs_meta

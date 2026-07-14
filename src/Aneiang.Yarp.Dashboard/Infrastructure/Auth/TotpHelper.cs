@@ -16,7 +16,7 @@ public static class TotpHelper
     public static string GenerateCode(string base32Secret, DateTime? timestamp = null)
     {
         var secret = Base32Decode(base32Secret);
-        var counter = (timestamp ?? DateTime.UtcNow).ToUnixTimeSeconds() / PeriodSeconds;
+        var counter = (timestamp ?? DateTime.Now).ToUnixTimeSeconds() / PeriodSeconds;
         return GenerateCode(secret, counter);
     }
 
@@ -26,7 +26,7 @@ public static class TotpHelper
         if (string.IsNullOrWhiteSpace(code) || code.Length != Digits)
             return false;
 
-        var now = DateTime.UtcNow.ToUnixTimeSeconds();
+        var now = DateTime.Now.ToUnixTimeSeconds();
         for (var offset = -1; offset <= 1; offset++)
         {
             var counter = (now / PeriodSeconds) + offset;

@@ -73,7 +73,7 @@ public sealed class SqliteRouteRepository : IRouteRepository
     public async Task SaveRouteAsync(RouteEntity route, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        route.UpdatedAt = DateTime.UtcNow;
+        route.UpdatedAt = DateTime.Now;
         await using var conn = _connections.CreateConnection();
         await conn.OpenAsync(ct);
         await using var cmd = conn.CreateCommand();
@@ -98,7 +98,7 @@ public sealed class SqliteRouteRepository : IRouteRepository
         {
             foreach (var r in routes)
             {
-                r.UpdatedAt = DateTime.UtcNow;
+                r.UpdatedAt = DateTime.Now;
                 await using var cmd = conn.CreateCommand();
                 cmd.Transaction = tx;
                 cmd.CommandText = """

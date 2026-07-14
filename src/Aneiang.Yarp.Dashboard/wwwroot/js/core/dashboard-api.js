@@ -270,11 +270,6 @@
         getCircuitBreakerStatus: () => DashboardApi.get('/api/circuit-breaker/status'),
         resetCircuitBreakers: () => DashboardApi.post('/api/circuit-breaker/reset', {}),
 
-        // Security Events
-        getSecurityEvents: (count) => DashboardApi.get('/api/security-events', { count: count || 100 }),
-        clearSecurityEvents: () => DashboardApi.delete('/api/security-events'),
-        getSecurityEventSummary: () => DashboardApi.get('/api/security-events/summary'),
-
         // Policies
         getPolicies: (type) => DashboardApi.get('/api/policies/' + type),
         getPolicy: (type, id) => DashboardApi.get('/api/policies/' + type + '/' + id),
@@ -348,8 +343,6 @@
     window.DashboardApi.getClusters = () => DashboardApi.endpoints.getClusters();
     window.DashboardApi.getCircuitBreakerStatus = () => DashboardApi.endpoints.getCircuitBreakerStatus();
     window.DashboardApi.resetCircuitBreakers = () => DashboardApi.endpoints.resetCircuitBreakers();
-    window.DashboardApi.getSecurityEvents = (count) => DashboardApi.endpoints.getSecurityEvents(count);
-    window.DashboardApi.clearSecurityEvents = () => DashboardApi.endpoints.clearSecurityEvents();
     window.DashboardApi.getPolicies = (type) => DashboardApi.endpoints.getPolicies(type);
     window.DashboardApi.getPolicy = (type, id) => DashboardApi.endpoints.getPolicy(type, id);
     window.DashboardApi.createPolicy = (type, data) => DashboardApi.endpoints.createPolicy(type, data);

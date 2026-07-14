@@ -49,7 +49,7 @@ public class DeploymentInfoController : ControllerBase
         {
             mode = _options.Mode.ToString(),
             processStart = _processStart,
-            uptimeSeconds = (DateTime.UtcNow - _processStart).TotalSeconds,
+            uptimeSeconds = (DateTime.Now - _processStart).TotalSeconds,
             version = _version,
             environment = env,
             restartRequired = _restartState.IsRestartRequired,

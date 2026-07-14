@@ -74,7 +74,7 @@ public class BackgroundAIAnalysisService : BackgroundService
                 _logger.LogError(ex, "[AI-Analysis] Error during analysis cycle: {Message}", ex.Message);
             }
 
-            _lastAnalysisRun = DateTime.UtcNow;
+            _lastAnalysisRun = DateTime.Now;
 
             try
             {
@@ -91,12 +91,12 @@ public class BackgroundAIAnalysisService : BackgroundService
     /// </summary>
     private async Task RunAnalysisCycleAsync(CancellationToken ct)
     {
-        _logger.LogInformation("[AI-Analysis] Starting analysis cycle at {Time:yyyy-MM-dd HH:mm:ss}", DateTime.UtcNow);
+        _logger.LogInformation("[AI-Analysis] Starting analysis cycle at {Time:yyyy-MM-dd HH:mm:ss}", DateTime.Now);
 
         // 1. Collect statistics
         var recentStats = await _logRepo.GetStatsAsync(60, ct); // last hour
         var previousStats = await _logRepo.GetStatsAsync(120, ct); // last 2 hours (includes recent)
-        var topIssues = await _logRepo.GetTopIssuesAsync(DateTime.UtcNow.AddHours(1), 10, ct);
+        var topIssues = await _logRepo.GetTopIssuesAsync(DateTime.Now.AddHours(1), 10, ct);
         var recent5xx = await _logRepo.GetRecent5xxCountAsync(60, ct);
         var gatewayContext = await _contextProvider.BuildContextAsync(ct);
 
@@ -107,13 +107,13 @@ public class BackgroundAIAnalysisService : BackgroundService
         await DetectAnomaliesAsync(recentStats, previousStats, topIssues, recent5xx, gatewayContext, ct);
 
         // 4. Configuration suggestions (only every 4 hours to avoid noise)
-        if ((DateTime.UtcNow - _lastAnalysisRun).TotalHours >= 4)
+        if ((DateTime.Now - _lastAnalysisRun).TotalHours >= 4)
         {
             await GenerateSuggestionsAsync(recentStats, topIssues, gatewayContext, ct);
         }
 
         // 5. Purge old analysis results (keep 7 days)
-        await _analysisRepo.PurgeOlderThanAsync(DateTime.UtcNow.AddDays(-7), ct);
+        await _analysisRepo.PurgeOlderThanAsync(DateTime.Now.AddDays(-7), ct);
 
         _previous5xxCount = recent5xx;
 
@@ -167,7 +167,7 @@ public class BackgroundAIAnalysisService : BackgroundService
                     AnalysisType = "log_summary",
                     Content = response.Content,
                     Severity = 0, // info level
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.Now
                 }, ct);
             }
         }
@@ -267,7 +267,7 @@ public class BackgroundAIAnalysisService : BackgroundService
                     Content = $"**Anomalies Detected:**\n{string.Join("\n", anomalies.Select(a => $"- {a}"))}\n\n{response.Content}",
                     Severity = severity,
                     RelatedRoutes = relatedRoutes,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.Now
                 }, ct);
 
                 // Push critical anomalies as notifications
@@ -290,7 +290,7 @@ public class BackgroundAIAnalysisService : BackgroundService
                 AnalysisType = "anomaly",
                 Content = $"**Anomalies Detected (raw):**\n{string.Join("\n", anomalies.Select(a => $"- {a}"))}",
                 Severity = 1,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             }, ct);
         }
     }
@@ -341,7 +341,7 @@ public class BackgroundAIAnalysisService : BackgroundService
                     AnalysisType = "suggestion",
                     Content = response.Content,
                     Severity = 0,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.Now
                 }, ct);
             }
         }

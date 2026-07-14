@@ -29,7 +29,7 @@ public sealed class DynamicRouteConfig
     public string Source { get; set; } = "dynamic";
 
     /// <summary>When this route was created.</summary>
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     /// <summary>Who created this route (user name or "auto").</summary>
     public string? CreatedBy { get; set; }

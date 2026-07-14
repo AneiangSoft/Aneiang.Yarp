@@ -359,6 +359,9 @@
             if (window.OpsModule?.loadTopErrors) await OpsModule.loadTopErrors();
             if (window.OpsModule?.loadSystemHealth) await OpsModule.loadSystemHealth();
 
+            // Start periodic chart updates (every 10s)
+            if (window.OpsModule?.startAutoRefresh) OpsModule.startAutoRefresh();
+
             document.dispatchEvent(new CustomEvent('dashboard:ready'));
 
             // --- SignalR real-time push ---
@@ -530,6 +533,7 @@
         _pollingFallbackId = setInterval(async function() {
             if (_signalrConnected) { stopPollingFallback(); return; }
             try {
+                if (window.OpsModule?.loadTrafficChart) await OpsModule.loadTrafficChart();
                 if (window.OpsModule?.loadAlertSummary) await OpsModule.loadAlertSummary();
                 if (window.OpsModule?.loadSystemHealth) await OpsModule.loadSystemHealth();
             } catch (_) { /* ignore */ }

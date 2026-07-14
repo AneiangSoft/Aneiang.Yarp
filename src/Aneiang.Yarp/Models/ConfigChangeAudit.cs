@@ -50,5 +50,5 @@ public class ConfigChangeAudit
     public string? ErrorMessage { get; set; }
 
     /// <summary>Timestamp of the change (UTC).</summary>
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public DateTime Timestamp { get; set; } = DateTime.Now;
 }

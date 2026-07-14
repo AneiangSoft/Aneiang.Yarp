@@ -96,9 +96,6 @@ public class DashboardPagesController : Controller
     [HttpGet("notifications")]
     public IActionResult Notifications() { SetCommonViewBag("notifications"); return View(); }
 
-    [HttpGet("security")]
-    public IActionResult Security() { SetCommonViewBag("security"); return View(); }
-
     [HttpGet("waf")]
     public IActionResult Waf() { SetCommonViewBag("waf"); return View(); }
 

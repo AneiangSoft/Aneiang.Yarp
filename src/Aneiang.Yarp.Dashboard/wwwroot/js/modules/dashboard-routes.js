@@ -122,6 +122,19 @@
             const allRoutes = state.get('data.routes') || [];
             const methodCounts = this._getMethodCounts(allRoutes);
             const sourceCounts = this._getSourceCounts(allRoutes);
+            const clusterCounts = this._getClusterCounts(allRoutes);
+            const clusterList = this._getClusterList();
+
+            var clusterOptionsHtml = '<option value="">' + (__('index.route.cluster.all') || 'All Clusters') + ' (' + clusterCounts.all + ')</option>';
+            clusterList.forEach(function(cid) {
+                var cnt = clusterCounts[cid] || 0;
+                clusterOptionsHtml += '<option value="' + cid + '">' + window.DashboardUtils.escapeHtml(cid) + ' (' + cnt + ')</option>';
+            });
+            // Include routes without cluster
+            var noneCount = clusterCounts['(none)'] || 0;
+            if (noneCount > 0) {
+                clusterOptionsHtml += '<option value="(none)">' + (__('index.route.cluster.none') || 'No Cluster') + ' (' + noneCount + ')</option>';
+            }
         
             container.innerHTML = `
                 <div class="card-body py-2 border-bottom">
@@ -135,6 +148,11 @@
                                        placeholder="${__('index.route.search')}" 
                                        autocomplete="off">
                             </div>
+                        </div>
+                        <div class="col-auto">
+                            <select class="form-select form-select-sm" id="route-cluster-select" style="width:150px;">
+                                ${clusterOptionsHtml}
+                            </select>
                         </div>
                         <div class="col-auto">
                             <select class="form-select form-select-sm" id="route-method-select" style="width:100px;">
@@ -184,6 +202,7 @@
             const filteredRoutes = state.getFilteredRoutes();
             const searchValue = state.get('filters.routes.search') || ''; 
             const methodValue = state.get('filters.routes.method') || 'all';
+            const clusterValue = state.get('filters.routes.clusterId') || '';
             
             // Update display count in header
             const displayCountEl = document.getElementById('route-display-count');
@@ -194,7 +213,7 @@
             // Update result count
             const resultEl = document.getElementById('route-search-result');
             if (resultEl) {
-                if (searchValue || methodValue !== 'all') {
+                if (searchValue || methodValue !== 'all' || clusterValue) {
                     resultEl.textContent = `${filteredRoutes.length}/${allRoutes.length}`;
                     resultEl.style.display = '';
                 } else {
@@ -205,13 +224,19 @@
             // Update clear button visibility
             const clearBtn = document.getElementById('route-clear-btn');
             if (clearBtn) {
-                clearBtn.style.display = searchValue ? '' : 'none';
+                clearBtn.style.display = (searchValue || clusterValue) ? '' : 'none';
             }
                     
             // Update method select value (don't recreate)
             const methodSelect = document.getElementById('route-method-select');
             if (methodSelect && methodSelect.value !== methodValue) {
                 methodSelect.value = methodValue;
+            }
+
+            // Update cluster select value
+            const clusterSelect = document.getElementById('route-cluster-select');
+            if (clusterSelect && clusterSelect.value !== clusterValue) {
+                clusterSelect.value = clusterValue;
             }
         },
                         
@@ -237,6 +262,20 @@
                 'dashboard': routes.filter(r => r.source === 'dashboard').length,
                 'auto-register': routes.filter(r => r.source === 'auto-register').length
             };
+        },
+
+        _getClusterCounts: function(routes) {
+            var counts = { all: routes.length };
+            routes.forEach(function(route) {
+                var cid = route.clusterId || '(none)';
+                counts[cid] = (counts[cid] || 0) + 1;
+            });
+            return counts;
+        },
+
+        _getClusterList: function() {
+            var clusters = window.DashboardState.get('data.clusters') || [];
+            return clusters.map(function(c) { return c.clusterId; }).filter(Boolean);
         },
                         
         _bindFilterEvents: function() {
@@ -298,6 +337,7 @@
                     window.DashboardState.set('filters.routes.search', '');
                     window.DashboardState.set('filters.routes.method', 'all');
                     window.DashboardState.set('filters.routes.source', 'all');
+                    window.DashboardState.set('filters.routes.clusterId', '');
                     self.renderRoutes();
                     
                     // Update clear button
@@ -331,6 +371,15 @@
             if (sourceSelect) {
                 sourceSelect.addEventListener('change', function(e) {
                     window.DashboardState.set('filters.routes.source', e.target.value);
+                    self.renderRoutes();
+                });
+            }
+
+            // Cluster select - immediate filter
+            const clusterSelect = document.getElementById('route-cluster-select');
+            if (clusterSelect) {
+                clusterSelect.addEventListener('change', function(e) {
+                    window.DashboardState.set('filters.routes.clusterId', e.target.value);
                     self.renderRoutes();
                 });
             }

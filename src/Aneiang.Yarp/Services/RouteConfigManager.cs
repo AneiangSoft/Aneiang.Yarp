@@ -76,7 +76,7 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
                     Config = routeConfig,
                     ClusterUid = State.ResolveClusterUid(request.ClusterName),
                     Source = source,
-                    CreatedAt = DateTime.UtcNow,
+                    CreatedAt = DateTime.Now,
                     CreatedBy = createdBy
                 };
                 config.Routes.Add(dynRoute);
@@ -116,7 +116,7 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
                 {
                     Config = clusterConfig,
                     Source = source,
-                    CreatedAt = DateTime.UtcNow,
+                    CreatedAt = DateTime.Now,
                     CreatedBy = createdBy
                 };
                 config.Clusters.Add(dynCluster);
@@ -182,7 +182,7 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
                     Config = effectiveRoute,
                     ClusterUid = State.ResolveClusterUid(route.ClusterId),
                     Source = source,
-                    CreatedAt = DateTime.UtcNow,
+                    CreatedAt = DateTime.Now,
                     CreatedBy = createdBy
                 };
                 config.Routes.Add(dynRoute);

@@ -47,7 +47,7 @@ public class GatewayContextProvider
         {
             var sb = new StringBuilder(2048);
             sb.AppendLine("=== Gateway Current State ===");
-            sb.AppendLine($"Timestamp: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+            sb.AppendLine($"Timestamp: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
             sb.AppendLine();
 
             // Routes summary

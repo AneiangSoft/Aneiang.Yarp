@@ -157,7 +157,7 @@ public sealed class SqliteSchemaMigrator : IHostedService
         cmd.Parameters.AddWithValue("@id", migrationId);
         cmd.Parameters.AddWithValue("@desc", description);
         cmd.Parameters.AddWithValue("@checksum", DBNull.Value);
-        cmd.Parameters.AddWithValue("@at", DateTime.UtcNow.ToString("O"));
+        cmd.Parameters.AddWithValue("@at", DateTime.Now.ToString("O"));
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
@@ -190,7 +190,7 @@ public sealed class SqliteSchemaMigrator : IHostedService
                     """;
                 insCmd.Parameters.AddWithValue("@id", newId);
                 insCmd.Parameters.AddWithValue("@desc", $"Auto-mapped from legacy: {legacyId}");
-                insCmd.Parameters.AddWithValue("@at", DateTime.UtcNow.ToString("O"));
+                insCmd.Parameters.AddWithValue("@at", DateTime.Now.ToString("O"));
                 await insCmd.ExecuteNonQueryAsync(ct);
             }
         }

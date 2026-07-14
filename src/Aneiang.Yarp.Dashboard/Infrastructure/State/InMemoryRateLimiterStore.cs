@@ -32,7 +32,7 @@ public sealed class RateLimiterEntry
     public RateLimiterEntry(RateLimiter limiter)
     {
         Limiter = limiter;
-        LastAccessedAt = DateTime.UtcNow;
+        LastAccessedAt = DateTime.Now;
     }
 }
 
@@ -48,7 +48,7 @@ public sealed class InMemoryRateLimiterStore : IRateLimiterStore
 
     public void Cleanup(TimeSpan staleThreshold, int maxCount)
     {
-        var now = DateTime.UtcNow;
+        var now = DateTime.Now;
 
         // Evict stale entries
         foreach (var kvp in _limiters)

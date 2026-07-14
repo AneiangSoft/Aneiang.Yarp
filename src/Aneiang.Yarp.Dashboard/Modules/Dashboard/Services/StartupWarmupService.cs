@@ -169,8 +169,8 @@ public sealed class StartupWarmupService : IHostedService
                     ChannelIds = channels.Select(c => c.Id).ToList(),
                     CooldownSeconds = 60,
                     RecordToHistory = true,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now
                 };
 
                 try { await repo.SaveRuleAsync(defaultRule, ct); }

@@ -37,7 +37,7 @@ public sealed class DeploymentRestartState
                 Title = title,
                 Message = message,
                 ConfigPath = configPath,
-                DetectedAt = DateTime.UtcNow
+                DetectedAt = DateTime.Now
             };
         }
     }

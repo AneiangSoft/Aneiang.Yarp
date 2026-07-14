@@ -60,13 +60,13 @@ public class NotificationEnhancer
         var cooldownKey = $"{eventType}:{clusterId}:{routeId}";
         if (_cooldowns.TryGetValue(cooldownKey, out var lastEnhance))
         {
-            if ((DateTime.UtcNow - lastEnhance).TotalSeconds < _options.NotificationEnhanceCooldownSeconds)
+            if ((DateTime.Now - lastEnhance).TotalSeconds < _options.NotificationEnhanceCooldownSeconds)
                 return originalMessage;
         }
 
         try
         {
-            _cooldowns[cooldownKey] = DateTime.UtcNow;
+            _cooldowns[cooldownKey] = DateTime.Now;
 
             var context = await _contextProvider.BuildContextAsync(ct);
 

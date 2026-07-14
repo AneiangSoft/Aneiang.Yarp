@@ -404,33 +404,7 @@
                 <span data-i18n="waf.routeOverrideHint">提示：路由级 WAF 设置可覆盖全局配置（在路由策略中配置）</span>
             </div>
 
-            <!-- Security Events Panel -->
-            <div class="waf-card" style="border-left-color:#ef4444">
-                <div class="waf-card-head">
-                    <span class="waf-icon" style="background:#ef4444"><i class="bi bi-shield-fill-exclamation"></i></span>
-                    <span data-i18n="waf.recentEvents">实时安全事件</span>
-                    <button class="btn btn-sm btn-outline-danger ms-2" id="waf-test-event-btn" title="生成测试事件" style="font-size:11px;padding:2px 10px;">
-                        <i class="bi bi-bug"></i> <span data-i18n="waf.testEvent">模拟攻击</span>
-                    </button>
-                    <span class="badge bg-secondary ms-2" id="waf-event-badge" style="font-size:10px;display:none;"></span>
-                    <span class="text-muted ms-2" id="waf-event-refresh-time" style="font-size:10px;margin-left:auto;"></span>
-                </div>
-                <p class="waf-desc" style="margin-bottom:10px" data-i18n="waf.recentEventsDesc">以下展示最新触发的安全事件，与安全事件页面实时同步</p>
-                <div class="row g-3">
-                    <div class="col-lg-8">
-                        <div class="waf-sub">
-                            <div class="waf-sub-head"><i class="bi bi-shield-x" style="color:#ef4444"></i> <span data-i18n="waf.recentBlocks">最近拦截</span> <span class="text-muted" id="waf-event-summary-total" style="margin-left:auto;font-weight:400"></span></div>
-                            <div id="waf-recent-events"><div class="waf-empty"><i class="bi bi-shield-check me-1"></i><span data-i18n="waf.noRecentEvents">暂无安全事件，发动一次模拟攻击试试</span></div></div>
-                        </div>
-                    </div>
-                    <div class="col-lg-4">
-                        <div class="waf-sub">
-                            <div class="waf-sub-head"><i class="bi bi-bar-chart" style="color:#f59e0b"></i> <span data-i18n="security.topIps">Top 攻击源IP</span></div>
-                            <div id="waf-top-ips"><div class="waf-empty"><i class="bi bi-info-circle me-1"></i><span data-i18n="waf.noIpData">暂无数据</span></div></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+
         </div>
     </div>
 </div>
@@ -441,7 +415,6 @@
 <script>
 window.DashboardWafSettings = {
     _data: null,
-    _eventCounts: null,
 
     _steps: [
         { key:'ip', icon:'bi-geo-alt',     eventTypes:['IpBlocked'] },
@@ -462,20 +435,9 @@ window.DashboardWafSettings = {
 
     init: async function() {
         try {
-            var results = await Promise.all([
-                DashboardApi.endpoints.getWafSettings(),
-                DashboardApi.endpoints.getSecurityEventSummary(),
-                DashboardApi.endpoints.getSecurityEvents(20)
-            ]);
-            this._data = results[0] || {};
-            var summary = results[1];
-            var eventsResult = results[2] || {};
-            this._eventCounts = (summary && summary.typeCounts) ? summary.typeCounts : {};
-            this._recentEvents = eventsResult.entries || [];
-            this._topIps = (summary && summary.topIps) ? summary.topIps : {};
+            var data = await DashboardApi.endpoints.getWafSettings();
+            this._data = data || {};
             this.render();
-            this._startAutoRefresh();
-            this._bindEventButtons();
         } catch (e) {
             console.error('[WafSettings] Load failed:', e);
             document.getElementById('waf-loading').style.display = 'none';
@@ -490,15 +452,6 @@ window.DashboardWafSettings = {
         this._renderFlowSteps();
         this._renderRuleCards();
         this._fillFormFields();
-    },
-
-    _getCount: function(eventTypes) {
-        var counts = this._eventCounts || {};
-        var total = 0;
-        for (var i = 0; i < eventTypes.length; i++) {
-            total += counts[eventTypes[i]] || 0;
-        }
-        return total;
     },
 
     _renderStatusBanner: function() {
@@ -532,21 +485,16 @@ window.DashboardWafSettings = {
         var steps = this._steps;
         for (var i = 0; i < steps.length; i++) {
             var s = steps[i];
-            var cnt = this._getCount(s.eventTypes);
-            var hasCount = cnt > 0;
             html +=
                 '<div class="waf-flow-node">' +
-                    '<div class="waf-flow-dot' + (hasCount ? ' hit' : '') + '">' +
+                    '<div class="waf-flow-dot">' +
                         '<i class="bi ' + s.icon + '"></i>' +
                     '</div>' +
                     '<div class="waf-flow-lbl">' + __('waf.step.' + s.key) + '</div>' +
-                    '<div class="waf-flow-cnt' + (hasCount ? ' hit' : '') + '">' +
-                        (hasCount ? cnt + 'x blocked' : '\u2014') +
-                    '</div>' +
+                    '<div class="waf-flow-cnt">\u2014</div>' +
                 '</div>';
             if (i < steps.length - 1) {
-                var nextCnt = this._getCount(steps[i + 1].eventTypes);
-                html += '<div class="waf-flow-line' + ((hasCount || nextCnt > 0) ? ' hit' : '') + '"></div>';
+                html += '<div class="waf-flow-line"></div>';
             }
         }
         document.getElementById('waf-flow-steps').innerHTML = html;
@@ -559,8 +507,6 @@ window.DashboardWafSettings = {
         var rules = this._rules;
         for (var i = 0; i < rules.length; i++) {
             var r = rules[i];
-            var cnt = this._getCount(r.eventTypes);
-            var hasCount = cnt > 0;
             var d = this._data || {};
             var checked = d[r.dataField] !== false;
             var color = this._ruleColors[r.key] || '#cbd5e1';
@@ -582,10 +528,6 @@ window.DashboardWafSettings = {
                                 '</div>' +
                                 onTxt +
                             '</div>' +
-                            '<span class="waf-badge ' + (hasCount ? 'hit' : 'clean') + '">' +
-                                '<i class="bi bi-' + (hasCount ? 'exclamation-circle' : 'check-circle') + '"></i> ' +
-                                (hasCount ? __('waf.triggerCount').replace('{count}', cnt) : __('waf.neverTriggered')) +
-                            '</span>' +
                         '</div>' +
                     '</div>' +
                 '</div>';
@@ -649,139 +591,6 @@ window.DashboardWafSettings = {
         return text.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 0; });
     },
 
-    // --- Security Event Panel ---
-    _recentEvents: [],
-    _topIps: {},
-    _refreshTimer: null,
-
-    _eventTypeLabels: {
-        SqlInjectionBlocked: { label: 'SQLi', cls: 'bg-danger', icon: 'bi-database' },
-        SqlInjectionValueBlocked: { label: 'SQLi', cls: 'bg-danger', icon: 'bi-database' },
-        XssBlocked: { label: 'XSS', cls: 'bg-warning text-dark', icon: 'bi-code-slash' },
-        PathTraversalBlocked: { label: 'PathTrav', cls: 'bg-info', icon: 'bi-folder2-open' },
-        PathTraversalInQueryBlocked: { label: 'PathTrav', cls: 'bg-info', icon: 'bi-folder2-open' },
-        IpBlocked: { label: 'IP Block', cls: 'bg-dark', icon: 'bi-geo-alt' },
-        RequestSizeBlocked: { label: 'Size', cls: 'bg-secondary', icon: 'bi-file-earmark' },
-        MalformedHeadersBlocked: { label: 'Headers', cls: 'bg-secondary', icon: 'bi-card-heading' },
-        UriTooLongBlocked: { label: 'URI', cls: 'bg-secondary', icon: 'bi-link-45deg' }
-    },
-
-    _getTypeInfo: function(eventType) {
-        return this._eventTypeLabels[eventType] || { label: eventType, cls: 'bg-secondary', icon: 'bi-shield' };
-    },
-
-    _startAutoRefresh: function() {
-        this._stopAutoRefresh();
-        var self = this;
-        this._refreshTimer = setInterval(function() { self._refreshEvents(); }, 10000);
-    },
-
-    _stopAutoRefresh: function() {
-        if (this._refreshTimer) { clearInterval(this._refreshTimer); this._refreshTimer = null; }
-    },
-
-    _refreshEvents: async function() {
-        try {
-            var results = await Promise.all([
-                DashboardApi.endpoints.getSecurityEventSummary(),
-                DashboardApi.endpoints.getSecurityEvents(20)
-            ]);
-            var summary = results[0];
-            var eventsResult = results[1] || {};
-            if (summary) {
-                this._eventCounts = summary.typeCounts || {};
-                this._topIps = summary.topIps || {};
-            }
-            this._recentEvents = eventsResult.entries || [];
-            this._updateEventPanel();
-            this._renderFlowSteps();
-            this._renderRuleCards();
-        } catch (e) { /* Silently refresh */ }
-    },
-
-    _updateEventPanel: function() {
-        this._renderEventTotal();
-        this._renderTopIps();
-        var container = document.getElementById('waf-recent-events');
-        if (!container) return;
-        var events = this._recentEvents || [];
-        if (events.length === 0) {
-            container.innerHTML = '<div class="waf-empty"><i class="bi bi-shield-check me-1"></i><span data-i18n="waf.noRecentEvents">暂无安全事件，发动一次模拟攻击试试</span></div>';
-            return;
-        }
-        var html = '';
-        var showCount = Math.min(events.length, 10);
-        for (var i = 0; i < showCount; i++) {
-            var ev = events[i];
-            var ti = this._getTypeInfo(ev.eventType);
-            var timeStr = this._fmtRelTime(ev.timestamp);
-            html +=
-                '<div class="waf-ev">' +
-                    '<span class="ev-time" title="' + this._eH(ev.timestamp) + '">' + timeStr + '</span>' +
-                    '<span class="ev-type"><span class="badge ' + ti.cls + '" style="font-size:10px;">' + ti.label + '</span></span>' +
-                    '<span class="ev-ip"><i class="bi bi-geo-alt" style="font-size:9px;color:#9ca3af;margin-right:3px;"></i>' + this._eH(ev.clientIp) + '</span>' +
-                    '<span class="ev-target"><code>' + this._eH(ev.requestMethod || 'GET') + ' ' + this._eH(this._truncate(ev.requestUri, 50)) + '</code></span>' +
-                '</div>';
-        }
-        container.innerHTML = html;
-    },
-
-    _renderTopIps: function() {
-        var container = document.getElementById('waf-top-ips');
-        if (!container) return;
-        var ips = this._topIps || {};
-        var keys = Object.keys(ips);
-        if (keys.length === 0) {
-            container.innerHTML = '<div class="waf-empty"><i class="bi bi-info-circle me-1"></i><span data-i18n="waf.noIpData">暂无数据</span></div>';
-            return;
-        }
-        var maxCount = ips[keys[0]] || 1;
-        var html = '';
-        var showKeys = keys.slice(0, 8);
-        for (var i = 0; i < showKeys.length; i++) {
-            var ip = showKeys[i];
-            var cnt = ips[ip];
-            var pct = Math.min(100, (cnt / maxCount) * 100);
-            html +=
-                '<div class="waf-ipbar">' +
-                    '<span class="ip-addr"><i class="bi bi-geo-alt" style="font-size:9px;color:#9ca3af;margin-right:3px;"></i>' + this._eH(ip) + '</span>' +
-                    '<div class="ip-track"><div class="ip-fill" style="width:' + pct + '%"></div></div>' +
-                    '<span class="ip-cnt">' + cnt + '</span>' +
-                '</div>';
-        }
-        container.innerHTML = html;
-    },
-
-    _renderEventTotal: function() {
-        var badge = document.getElementById('waf-event-badge');
-        var refreshTime = document.getElementById('waf-event-refresh-time');
-        if (badge) {
-            var total = 0;
-            var counts = this._eventCounts || {};
-            var keys = Object.keys(counts);
-            for (var k = 0; k < keys.length; k++) total += counts[keys[k]] || 0;
-            if (total > 0) {
-                badge.textContent = total + ' total';
-                badge.style.display = 'inline-block';
-            } else {
-                badge.style.display = 'none';
-            }
-        }
-        if (refreshTime) {
-            refreshTime.textContent = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        }
-    },
-
-    _fmtRelTime: function(timestamp) {
-        if (!timestamp) return '-';
-        var diff = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000);
-        if (diff < 5) return '\u521a\u521a';
-        if (diff < 60) return diff + 's';
-        if (diff < 3600) return Math.floor(diff / 60) + 'm';
-        if (diff < 86400) return Math.floor(diff / 3600) + 'h';
-        return Math.floor(diff / 86400) + 'd';
-    },
-
     _eH: function(str) {
         if (typeof str !== 'string') return str || '';
         var div = document.createElement('div');
@@ -792,39 +601,6 @@ window.DashboardWafSettings = {
     _truncate: function(str, maxLen) {
         if (!str) return '';
         return str.length <= maxLen ? str : str.substring(0, maxLen) + '...';
-    },
-
-    _bindEventButtons: function() {
-        var btn = document.getElementById('waf-test-event-btn');
-        if (btn) {
-            btn.addEventListener('click', function() { DashboardWafSettings._fireTestEvent(); });
-        }
-    },
-
-    _fireTestEvent: async function() {
-        var types = ['SqlInjection', 'Xss', 'PathTraversal'];
-        var uris = ['/api/users?id=1%27%20UNION%20SELECT%20*%20FROM%20users--', '/search?q=%3Cscript%3Ealert(1)%3C/script%3E', '/../../../etc/passwd'];
-        var methods = ['GET', 'GET', 'GET'];
-        var matchedValues = ["1' UNION SELECT * FROM users--", '<scr' + 'ipt>alert(1)<' + '/scr' + 'ipt>', '../../../etc/passwd'];
-        var idx = Math.floor(Math.random() * types.length);
-        var btn = document.getElementById('waf-test-event-btn');
-        if (btn) btn.disabled = true;
-        try {
-            var payload = {
-                clientIp: '192.168.' + Math.floor(Math.random() * 255) + '.' + Math.floor(Math.random() * 255),
-                eventType: types[idx],
-                uri: uris[idx],
-                method: methods[idx],
-                matchedValue: matchedValues[idx]
-            };
-            await DashboardApi.post('/api/security-events/test', payload);
-            await this._refreshEvents();
-            if (window.DashboardModals) DashboardModals.showToast(__('waf.eventGenerated'), 'success');
-        } catch (e) {
-            console.error('[WafSettings] Test event failed:', e);
-        } finally {
-            if (btn) btn.disabled = false;
-        }
     }
 };
 </script>

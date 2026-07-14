@@ -17,7 +17,6 @@ using Aneiang.Yarp.Dashboard.Modules.AI;
 using Aneiang.Yarp.Dashboard.Modules.AI.Providers;
 using Aneiang.Yarp.Dashboard.Modules.AI.Services;
 using Aneiang.Yarp.Dashboard.Modules.AI.Tools;
-using Aneiang.Yarp.Dashboard.Modules.Waf.Models;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
@@ -300,9 +299,6 @@ public static class DashboardServiceCollectionExtensions
 
     private static IServiceCollection AddDashboardWafAndPolicy(this IServiceCollection services)
     {
-        services.AddSingleton<WafEventStore>();
-        services.AddHostedService<WafEventPersistenceService>();
-
         services.AddSingleton<RoutePolicyService>();
         services.AddSingleton<ClusterPolicyService>();
         services.AddSingleton<IGatewayPolicyService, GatewayPolicyService>();

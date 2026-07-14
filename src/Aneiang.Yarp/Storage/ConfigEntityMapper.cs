@@ -34,7 +34,7 @@ public static class ConfigEntityMapper
         Source = route.Source,
         CreatedBy = route.CreatedBy,
         CreatedAt = route.CreatedAt,
-        UpdatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.Now,
         Metadata = route.Metadata is { Count: > 0 } ? JsonSerializer.Serialize(route.Metadata, _jsonOptions) : null,
         ConfigJson = Serialization.YarpJsonConfig.SerializeRoute(route.Config)
     };
@@ -107,7 +107,7 @@ public static class ConfigEntityMapper
         Source = cluster.Source,
         CreatedBy = cluster.CreatedBy,
         CreatedAt = cluster.CreatedAt,
-        UpdatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.Now,
         LastHeartbeat = cluster.LastHeartbeat,
         ConfigJson = Serialization.YarpJsonConfig.SerializeCluster(cluster.Config)
     };

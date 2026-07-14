@@ -400,7 +400,7 @@ public class AIController : ControllerBase
                 AnalysisType = "manual_analysis",
                 Content = response?.Content ?? "Analysis completed but returned empty response.",
                 Severity = 0,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
 
             await _analysisRepo.SaveAnalysisAsync(entry, ct);

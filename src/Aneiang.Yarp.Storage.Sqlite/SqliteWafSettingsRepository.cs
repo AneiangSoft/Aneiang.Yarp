@@ -73,7 +73,7 @@ public sealed class SqliteWafSettingsRepository : IWafSettingsRepository
         cmd.Parameters.AddWithValue("@exss", settings.EnableXssDetection ? 1 : 0);
         cmd.Parameters.AddWithValue("@eptd", settings.EnablePathTraversalDetection ? 1 : 0);
         cmd.Parameters.AddWithValue("@ess", settings.ExtraScriptSources ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@ua", DateTime.UtcNow.ToString("O"));
+        cmd.Parameters.AddWithValue("@ua", DateTime.Now.ToString("O"));
         await cmd.ExecuteNonQueryAsync(ct);
     }
 

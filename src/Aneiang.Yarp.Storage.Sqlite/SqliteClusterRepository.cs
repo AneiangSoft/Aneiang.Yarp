@@ -60,7 +60,7 @@ public sealed class SqliteClusterRepository : IClusterRepository
     public async Task SaveClusterAsync(ClusterEntity cluster, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        cluster.UpdatedAt = DateTime.UtcNow;
+        cluster.UpdatedAt = DateTime.Now;
         await using var conn = _connections.CreateConnection();
         await conn.OpenAsync(ct);
         await SaveOneAsync(conn, null, cluster, ct);
@@ -76,7 +76,7 @@ public sealed class SqliteClusterRepository : IClusterRepository
         {
             foreach (var c in clusters)
             {
-                c.UpdatedAt = DateTime.UtcNow;
+                c.UpdatedAt = DateTime.Now;
                 await SaveOneAsync(conn, tx, c, ct);
             }
             await tx.CommitAsync(ct);

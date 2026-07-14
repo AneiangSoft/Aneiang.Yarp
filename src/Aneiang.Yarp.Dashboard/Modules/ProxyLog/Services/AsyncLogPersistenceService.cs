@@ -30,7 +30,7 @@ public sealed class AsyncLogPersistenceService : IHostedService, IProxyLogPersis
     private readonly DashboardOptions _options;
     private readonly ILogger<AsyncLogPersistenceService> _logger;
     private long _writtenCount;
-    private DateTime _lastCleanup = DateTime.UtcNow;
+    private DateTime _lastCleanup = DateTime.Now;
     private CancellationTokenSource? _cts;
     private Task? _consumeTask;
 
@@ -112,10 +112,10 @@ public sealed class AsyncLogPersistenceService : IHostedService, IProxyLogPersis
                 await FlushBatchAsync(batch, ct);
 
             // Hourly cleanup + WAL checkpoint
-            if (DateTime.UtcNow - _lastCleanup > TimeSpan.FromHours(1))
+            if (DateTime.Now - _lastCleanup > TimeSpan.FromHours(1))
             {
                 await _writer.CleanupAsync(_options.LogMetaRetentionDays, _options.LogBodyRetentionDays, ct);
-                _lastCleanup = DateTime.UtcNow;
+                _lastCleanup = DateTime.Now;
             }
         }
     }

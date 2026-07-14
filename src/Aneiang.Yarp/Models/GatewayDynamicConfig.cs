@@ -9,7 +9,7 @@ public class GatewayDynamicConfig
     public long Version { get; set; } = 1;
 
     /// <summary>Last modified timestamp.</summary>
-    public DateTime LastModified { get; set; } = DateTime.UtcNow;
+    public DateTime LastModified { get; set; } = DateTime.Now;
 
     /// <summary>Dynamic routes (manually added or auto-registered).</summary>
     public List<DynamicRouteConfig> Routes { get; set; } = new();
