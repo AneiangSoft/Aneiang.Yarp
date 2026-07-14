@@ -1,5 +1,9 @@
 /**
  * AI Settings Module - Manages AI configuration page
+ *
+ * Security: For known providers (openai/deepseek/qwen), BaseUrl is locked to
+ * official endpoints. For custom provider (only when AllowCustomProvider=true
+ * in appsettings.json), BaseUrl is user-editable with server-side SSRF validation.
  */
 (function() {
     'use strict';
@@ -10,21 +14,24 @@
         return key;
     }
 
+    // Known provider presets — their BaseUrls are locked server-side
     const PROVIDER_PRESETS = {
         openai:   { baseUrl: 'https://api.openai.com/v1', chatModel: 'gpt-4o-mini', analysisModel: 'gpt-4o-mini' },
-        deepseek: { baseUrl: 'https://api.deepseek.com/v1', chatModel: 'deepseek-chat', analysisModel: 'deepseek-chat' },
-        qwen:     { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', chatModel: 'qwen-turbo', analysisModel: 'qwen-turbo' },
-        custom:   { baseUrl: '', chatModel: '', analysisModel: '' }
+        deepseek: { baseUrl: 'https://api.deepseek.com', chatModel: 'deepseek-v4-flash', analysisModel: 'deepseek-v4-pro' },
+        qwen:     { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', chatModel: 'qwen3.7-max', analysisModel: 'qwen3.7-max' }
     };
 
     window.AISettings = {
         _status: null,
+        _allowCustom: false,  // controlled by server-side AllowCustomProvider config
 
         init: async function() {
             try {
                 var statusResp = await DashboardApi.endpoints.getAIStatus();
                 this._status = statusResp?.data || statusResp;
+                this._allowCustom = !!(this._status && this._status.allowCustomProvider);
                 this._updateStatusBadge();
+                this._updateProviderDropdown();
             } catch (e) {
                 console.warn('[AI] Status check failed:', e);
             }
@@ -56,11 +63,47 @@
             }
         },
 
+        /**
+         * Add or remove the "custom" option from the provider dropdown.
+         * Called once during init, based on server-side AllowCustomProvider.
+         */
+        _updateProviderDropdown: function() {
+            var sel = document.getElementById('ai-provider');
+            if (!sel) return;
+
+            var existingCustom = sel.querySelector('option[value="custom"]');
+            if (this._allowCustom) {
+                // Add custom option if not already present
+                if (!existingCustom) {
+                    var opt = document.createElement('option');
+                    opt.value = 'custom';
+                    opt.textContent = __('ai.providerCustom') || '自定义 (Custom)';
+                    sel.appendChild(opt);
+                }
+            } else {
+                // Remove custom option if present
+                if (existingCustom) existingCustom.remove();
+            }
+        },
+
         _populateForm: function(s) {
             document.getElementById('ai-enabled').checked = !!s.enabled;
-            document.getElementById('ai-provider').value = s.provider || 'openai';
+
+            // Only set provider if it's a valid option (builtin or allowed custom)
+            var provider = s.provider || 'openai';
+            var sel = document.getElementById('ai-provider');
+            var validValues = Array.from(sel.options).map(function(o) { return o.value; });
+            sel.value = validValues.indexOf(provider) >= 0 ? provider : 'openai';
+
             document.getElementById('ai-api-key').value = s.apiKey || '';
-            document.getElementById('ai-base-url').value = s.baseUrl || '';
+
+            // BaseUrl: editable only for custom provider, otherwise read-only
+            var baseUrlInput = document.getElementById('ai-base-url');
+            if (baseUrlInput) {
+                baseUrlInput.value = s.baseUrl || '';
+                this._updateBaseUrlState(sel.value);
+            }
+
             document.getElementById('ai-chat-model').value = s.chatModel || '';
             document.getElementById('ai-analysis-model').value = s.analysisModel || '';
             document.getElementById('ai-max-tokens').value = s.maxTokens || 4096;
@@ -71,12 +114,33 @@
             document.getElementById('ai-enhance-notif').checked = !!s.enhanceNotifications;
         },
 
+        /**
+         * Toggle BaseUrl field readOnly state based on selected provider.
+         * Known providers → locked. Custom → editable (server validates for SSRF).
+         */
+        _updateBaseUrlState: function(provider) {
+            var input = document.getElementById('ai-base-url');
+            if (!input) return;
+
+            if (provider === 'custom') {
+                input.readOnly = false;
+                input.title = __('ai.baseUrlCustomHint') || 'Enter your custom OpenAI-compatible API endpoint. Will be validated for security.';
+                input.classList.remove('bg-light');
+            } else {
+                input.readOnly = true;
+                input.title = __('ai.baseUrlLocked') || 'Base URL is locked to the official provider endpoint for security.';
+                input.classList.add('bg-light');
+            }
+        },
+
         _collectForm: function() {
+            var provider = document.getElementById('ai-provider').value;
             return {
                 enabled: document.getElementById('ai-enabled').checked,
-                provider: document.getElementById('ai-provider').value,
+                provider: provider,
                 apiKey: document.getElementById('ai-api-key').value,
-                baseUrl: document.getElementById('ai-base-url').value,
+                // BaseUrl: always send current value (known provider: server uses official URL; custom: user-supplied with SSRF validation)
+                baseUrl: document.getElementById('ai-base-url').value || '',
                 chatModel: document.getElementById('ai-chat-model').value,
                 analysisModel: document.getElementById('ai-analysis-model').value,
                 maxTokens: parseInt(document.getElementById('ai-max-tokens').value) || 4096,
@@ -90,11 +154,22 @@
         onProviderChange: function() {
             var provider = document.getElementById('ai-provider').value;
             var preset = PROVIDER_PRESETS[provider];
+            var baseUrlInput = document.getElementById('ai-base-url');
+
             if (preset) {
-                if (preset.baseUrl) document.getElementById('ai-base-url').value = preset.baseUrl;
+                // Known provider: lock BaseUrl to official endpoint
+                if (preset.baseUrl && baseUrlInput) baseUrlInput.value = preset.baseUrl;
                 if (preset.chatModel) document.getElementById('ai-chat-model').value = preset.chatModel;
                 if (preset.analysisModel) document.getElementById('ai-analysis-model').value = preset.analysisModel;
+            } else if (provider === 'custom') {
+                // Custom: keep current BaseUrl if already set, otherwise blank
+                if (baseUrlInput && !baseUrlInput.value) {
+                    baseUrlInput.value = '';
+                    baseUrlInput.placeholder = 'https://your-endpoint.example.com/v1';
+                }
             }
+
+            this._updateBaseUrlState(provider);
         },
 
         toggleKeyVisibility: function() {

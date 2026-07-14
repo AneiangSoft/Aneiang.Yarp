@@ -32,6 +32,7 @@ public static class StorageServiceCollectionExtensions
         services.AddSingleton<INotificationRepository, SqliteNotificationRepository>();
         services.AddSingleton<IProxyLogRepository, SqliteProxyLogRepository>();
         services.AddSingleton<ILogSettingsRepository, SqliteLogSettingsRepository>();
+        services.AddSingleton<IAISettingsRepository, SqliteAISettingsRepository>();
 
         // AI repositories (always registered; tables created by migration)
         services.AddSingleton<IAIConversationRepository, SqliteAIConversationRepository>();

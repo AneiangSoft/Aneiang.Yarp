@@ -80,6 +80,22 @@
                 throw new Error('Unauthorized');
             }
 
+            if (response.status >= 400) {
+                let errMsg = `Request failed: ${response.status}`;
+                try {
+                    const errBody = await response.json();
+                    errMsg = errBody.title || errBody.message || errBody.detail || errMsg;
+                    // If there are validation errors, include them
+                    if (errBody.errors) {
+                        const details = Object.entries(errBody.errors)
+                            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+                            .join('; ');
+                        if (details) errMsg = details;
+                    }
+                } catch (_) { /* use default message */ }
+                throw new Error(errMsg);
+            }
+
             if (response.status >= 500) {
                 throw new Error(`Server error: ${response.status}`);
             }

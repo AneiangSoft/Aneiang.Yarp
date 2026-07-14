@@ -29,6 +29,7 @@ public sealed class SqliteSchemaMigrator : IHostedService
         new Migration006_DataBackfill(),
         new Migration007_AITables(),
         new Migration008_ToolCallId(),
+        new Migration009_AISettingsTable(),
     ];
 
     /// <summary>

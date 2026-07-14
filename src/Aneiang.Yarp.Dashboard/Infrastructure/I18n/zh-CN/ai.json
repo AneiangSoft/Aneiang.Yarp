@@ -7,6 +7,7 @@
   "ai.apiKey": "API Key",
   "ai.apiKeyHint": "密钥仅在本地使用，不会上传到第三方",
   "ai.baseUrl": "API Base URL",
+  "ai.baseUrlLocked": "Base URL 已锁定为官方服务商地址，不可修改",
   "ai.chatModel": "对话模型",
   "ai.analysisModel": "分析模型",
   "ai.analysisModelHint": "后台分析可用更便宜的模型",

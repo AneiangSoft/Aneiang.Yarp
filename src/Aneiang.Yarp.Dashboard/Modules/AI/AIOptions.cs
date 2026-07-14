@@ -46,4 +46,15 @@ public class AIOptions
 
     /// <summary>Minimum seconds between AI-enhanced notification calls.</summary>
     public int NotificationEnhanceCooldownSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// Allow the "custom" provider option in the Dashboard UI.
+    /// When true, users can enter a custom BaseUrl that will be
+    /// validated against SSRF patterns before acceptance.
+    /// When false (default), only known providers (openai/deepseek/qwen)
+    /// are available and their BaseUrls are locked.
+    /// This setting is ONLY configurable via appsettings.json —
+    /// the runtime API cannot change it.
+    /// </summary>
+    public bool AllowCustomProvider { get; set; } = false;
 }
