@@ -1,3 +1,4 @@
+using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
 using Aneiang.Yarp.Dashboard.Infrastructure.Middleware;
 using Aneiang.Yarp.Dashboard.Infrastructure.Realtime;
@@ -141,6 +142,10 @@ public static class DashboardApplicationBuilderExtensions
 
         app.UseMiddleware<WafMiddleware>();
 
+        // Resolve DashboardOptions for route prefix (used by Hub mappings below)
+        var dashOpts = app.ApplicationServices.GetService<IOptions<DashboardOptions>>()?.Value;
+        var routePrefix = (dashOpts?.RoutePrefix ?? "apigateway").Trim('/');
+
         if (app is IEndpointRouteBuilder endpoints)
         {
             if (dashboardActive)
@@ -166,8 +171,8 @@ public static class DashboardApplicationBuilderExtensions
                     }
                 });
 
-                endpoints.MapHub<TrafficHub>("/hubs/traffic");
-                endpoints.MapHub<OverviewHub>("/hubs/overview");
+                endpoints.MapHub<TrafficHub>($"/{routePrefix}/hubs/traffic");
+                endpoints.MapHub<OverviewHub>($"/{routePrefix}/hubs/overview");
             }
 
             if (proxyActive)

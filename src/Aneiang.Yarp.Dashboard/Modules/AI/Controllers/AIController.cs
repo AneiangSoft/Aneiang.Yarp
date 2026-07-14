@@ -78,7 +78,8 @@ public class AIController : ControllerBase
                 analysisModel = settings.AnalysisModel,
                 backgroundAnalysis = settings.EnableBackgroundAnalysis,
                 enhanceNotifications = settings.EnhanceNotifications,
-                toolsEnabled = _toolRegistry.GetToolDefinitions().Count
+                toolsEnabled = _toolRegistry.GetToolDefinitions().Count,
+                allowCustomProvider = settings.AllowCustomProvider
             }
         });
     }

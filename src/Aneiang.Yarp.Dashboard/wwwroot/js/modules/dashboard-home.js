@@ -126,7 +126,7 @@
             const tbody = window.DashboardDOM.safe('#cluster-preview-tbody');
             if (!tbody) return;
 
-            const countEl = window.DashboardDOM.safe('#cluster-preview-count');
+            const countEl = document.querySelector('#cluster-preview-count');
             if (countEl) countEl.textContent = __('home.cluster.total', { count: clusters.length });
 
             // Show only top 5
@@ -164,7 +164,7 @@
             const tbody = window.DashboardDOM.safe('#route-preview-tbody');
             if (!tbody) return;
 
-            const countEl = window.DashboardDOM.safe('#route-preview-count');
+            const countEl = document.querySelector('#route-preview-count');
             if (countEl) countEl.textContent = __('home.route.total', { count: routes.length });
 
             // Show only top 5
