@@ -3,7 +3,7 @@
 
 **Aneiang.Yarp — Full-featured API Gateway powered by YARP**
 
-Dashboard · Dynamic Routing · WAF · 2FA · Notifications · IP Isolation · Auto-Registration
+Dashboard · Dynamic Routing · WAF · AI Assistant · 2FA · Notifications · IP Isolation · Auto-Registration
 
 [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp)
 [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard)
@@ -18,7 +18,7 @@ Dashboard · Dynamic Routing · WAF · 2FA · Notifications · IP Isolation · A
 
 ---
 
-**Aneiang.Yarp** is an enhanced, production-ready API gateway built on [Microsoft YARP](https://microsoft.github.io/reverse-proxy/) 2.3.0. It adds everything YARP leaves for you to build: a visual management dashboard, WAF firewall, notification alerts, health monitoring, circuit breaker views, client auto-registration, IP-based load balancing — all through three NuGet packages.
+**Aneiang.Yarp** is an enhanced, production-ready API gateway built on [Microsoft YARP](https://microsoft.github.io/reverse-proxy/) 2.3.0. It adds everything YARP leaves for you to build: a visual management dashboard, WAF firewall, AI assistant, notification alerts, health monitoring, circuit breaker views, client auto-registration, IP-based load balancing — all through three NuGet packages.
 
 > **Docs**：https://yarp.aneiang.com
 
@@ -31,7 +31,7 @@ Dashboard · Dynamic Routing · WAF · 2FA · Notifications · IP Isolation · A
 | Package | Purpose | Depends on YARP |
 |:--------|:--------|:---:|
 | **Aneiang.Yarp** | Gateway core: dynamic routing, config persistence, API auth, IP-based LB | ✅ |
-| **Aneiang.Yarp.Dashboard** | Web admin UI: full CRUD, logs, WAF, 2FA, notifications, health check, auditing | via core |
+| **Aneiang.Yarp.Dashboard** | Web admin UI: full CRUD, WAF, AI assistant (Function Calling), 2FA, notifications, health check, circuit breakers, audit log | via core |
 | **Aneiang.Yarp.Client** | Client SDK: one-liner auto-register / unregister on startup and shutdown | ❌ |
 | **Aneiang.Yarp.Storage.Abstractions** | Storage interfaces & entities (8 repository interfaces) | ❌ |
 | **Aneiang.Yarp.Storage.Sqlite** | SQLite implementation with SQLCipher AES-256 encryption | via abstractions |
@@ -69,21 +69,21 @@ app.UseAneiangYarpDashboard();
 
 | Group | Page | Description |
 |:------|:-----|:------------|
-| **Overview** | Overview | Active routes & clusters, traffic summary, quick stats |
-| **Gateway** | Clusters | Create, edit, delete clusters with destinations and health checks |
-| | Routes | Manage routes with transforms, metadata, ordering |
-| **Monitoring** | Statistics | Request volume, latency percentiles, status code distribution |
-| | Logs | Real-time proxy logs with filtering by route, status, TraceID |
-| | Circuits | Circuit breaker status per cluster/destination, one-click reset |
-| | Notifications | Alert rules, webhook channels, notification history |
-| | Health Check | Cluster health overview, unhealthy destinations drill-down |
-| **Security** | Security Events | WAF attack logs, auto-refresh, attack type stats, top IPs |
-| | WAF Firewall | IP whitelist/blacklist, SQL injection, XSS, path traversal detection |
-| | Policies | Gateway traffic policies (retry, timeout, rate limit, etc.) |
-| | Plugins | Registered middleware plugins (WAF, etc.) |
-| **System** | Config History | Auto-snapshot before changes, one-click rollback to any version |
-| | Audit Log | Full audit trail: who changed what, before/after JSON diff |
-| | Settings | Auth config, logging config, database download, i18n switch |
+| **Overview** | Overview | Active routes & clusters count, traffic QPS summary, cluster health quick preview, recent change timeline |
+| **Gateway** | Clusters | Create, edit, delete clusters with destinations, configure active/passive health checks, `HttpRequest` & `HttpClient` settings |
+| | Routes | Manage routes with transforms, metadata (`Waf:Enabled` per-route), drag-and-drop priority ordering, `CorsPolicy` config |
+| **Monitoring** | Statistics | Request volume trends, P50/P90/P99 latency percentiles, HTTP status distribution pie chart, top routes ranking |
+| | Logs | Real-time log stream (WebSocket) + history (TraceID-paired request/response merged view), filter by route/status/TraceID, sensitive data sanitization, sampling & errors-only mode |
+| | Circuits | Per-cluster/destination circuit breaker status: Closed (green) / Open (red) / HalfOpen (yellow), consecutive failures vs threshold, recovery countdown, one-click reset |
+| | Notifications | Manage webhook channels (DingTalk bot / generic HTTP), configure event rules (per-type toggle + cooldown), view notification history |
+| | Health Check | Cluster-level health overview table, drill-down per destination showing real-time health status, last check time & result |
+| **Security** | WAF Firewall | IP whitelist/blacklist (exact IP / CIDR / wildcard), SQL injection, XSS, path traversal detection, request size limits, security response headers |
+| | Policies | Traffic policies: create, edit, enable, disable, reorder — supports retry, timeout, rate limit, request transform |
+| | Plugins | View all registered `IGatewayPlugin` plugins, plugin metadata & load order |
+| **System** | Config History | Auto-snapshot before every change, view full content of any snapshot, one-click rollback to any version |
+| | Audit Log | Full audit trail: operation type, target, operator, before/after JSON diff, precise timestamp |
+| | Deployment | Current deployment mode (AllInOne/Split/ProxyOnly/DashboardOnly), listening endpoints (name/address/port/role/public status), health check endpoints & security warnings |
+| | Settings | Auth mode switching, JWT key config, AI config, log settings (sampling rate/sanitize list/body length limit), one-click database download, language switch |
 
 ---
 
@@ -112,7 +112,7 @@ Production-grade web application firewall built into the gateway — no external
 | **Security Headers** | Auto-inject `X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `Referrer-Policy`, CSP |
 | **Per-Route Control** | Enable/disable WAF per route via YARP metadata `Waf:Enabled` |
 
-All WAF events are recorded with source IP, attack type, matched pattern, and timestamp — viewable in the Security Events dashboard.
+All WAF blocks are recorded in proxy logs, viewable in the Logs page with route and time filtering.
 
 ### Notification & Alerting
 
@@ -207,11 +207,36 @@ Implementation: custom `IpBasedLoadBalancingPolicy` matches request source IP (v
 
 ### Request Logging
 
-- Capture full request/response: method, URL, status, headers, body, elapsed time, TraceId
-- **Sanitization**: auto-mask sensitive headers (`Authorization`, `Cookie`, etc.), query params, and JSON fields
-- **Sampling**: rate-based sampling for production traffic
-- **Filtering**: by route, status code (4xx/5xx), TraceID
-- WebSocket real-time log push
+`YarpRequestCaptureMiddleware` captures request data before forwarding and response data on return:
+
+- **Full capture**: HTTP method, full URL, request/response headers, request/response body, elapsed time, TraceId
+- **Real-time push**: WebSocket endpoint pushes logs to Dashboard in real time — no manual refresh needed
+- **History with TraceID pairing**: `ProxyRequest` and `ProxyResponse` are auto-paired by TraceID and displayed as a merged row, showing the complete request → forward → response data flow
+- **Sanitization**: `LogHeaderBlacklist` masks sensitive headers (`Authorization`, `Cookie`, etc.), `LogJsonFieldSanitizeList` recursively masks JSON fields (`password`, `token`, etc.)
+- **Sampling & filtering**: `LogSamplingRate` (0.0–1.0) for rate-based sampling; `LogErrorsOnly` for 4xx/5xx only; combined filtering by route name, status code, TraceID
+- **Structured storage**: `YarpEventFormatter` → `StructuredLogService` → SQLite with batch write optimization
+
+### AI Assistant
+
+Dashboard-embedded AI chat assistant, powered by OpenAI-compatible LLMs, enabling natural language gateway management:
+
+**Multi-provider support**: Works with OpenAI, DeepSeek, Qwen, and any OpenAI-compatible API — switch via `Provider` + `BaseUrl` + `ApiKey`
+
+**40 Function Calling tools**:
+- **Read tools (21)**: auto-executed — query routes, clusters, circuit breaker status, proxy logs, traffic stats, WAF config, policies, audit log, etc.
+- **Write tools (19)**: require user confirmation — create/delete routes, create/update clusters, reset circuit breakers, update WAF settings, rollback config, etc.
+
+**Read/write separation security model**:
+- Read operations execute automatically and return results — no manual intervention needed
+- Write operations are proposed by AI, rendered as confirmation cards in the frontend, and only executed after the user clicks "Confirm"
+- All write operations must be explicitly authorized by the user, ensuring operational safety
+
+**Streaming & multi-turn conversation**:
+- Direct streaming output (typewriter effect) when no tool call is needed; two-phase output (tool execution → streaming summary) when tools are involved
+- Conversation history persisted to storage, supporting continuous context-aware dialogue
+- AI response language auto-follows Dashboard UI language (Chinese / English)
+
+**Floating chat on all pages**: a floating button at the bottom-right corner of every Dashboard page — one click to open the chat panel without leaving the current page
 
 ### Authentication
 
@@ -335,7 +360,15 @@ All settings under `Gateway:*` — **everything has a default**, zero-config sta
       "LogErrorsOnly": false,
       "LogMaxBodyLength": 8192,
       "LogHeaderBlacklist": ["Authorization", "Cookie", "Set-Cookie"],
-      "LogJsonFieldSanitizeList": ["password", "token", "secret", "apikey", "api-key"]
+      "LogJsonFieldSanitizeList": ["password", "token", "secret", "apikey", "api-key"],
+
+      "AI": {
+        "Enabled": true,
+        "Provider": "openai",
+        "ApiKey": "sk-...",
+        "BaseUrl": "https://api.openai.com/v1",
+        "ChatModel": "gpt-4o-mini"
+      }
     },
     "Storage": {
       "Sqlite": {
@@ -386,6 +419,24 @@ All settings under `Gateway:*` — **everything has a default**, zero-config sta
 | `EnablePathTraversalDetection` | `true` | Detect path traversal attempts |
 | `EnableIpCheck` | `true` | Enable IP whitelist/blacklist enforcement |
 | `EnableRequestSizeValidation` | `true` | Enforce request body size limit |
+
+### AI Options
+
+Configuration under `Gateway:Dashboard:AI`:
+
+| Option | Default | Description |
+|:-------|:--------|:------------|
+| `Enabled` | `false` | AI module master switch |
+| `Provider` | `"openai"` | Provider: `openai` / `deepseek` / `qwen` / `custom` |
+| `ApiKey` | — | LLM provider API key |
+| `BaseUrl` | `"https://api.openai.com/v1"` | OpenAI-compatible API endpoint |
+| `ChatModel` | `"gpt-4o-mini"` | Model used for interactive chat |
+| `AnalysisModel` | `"gpt-4o-mini"` | Model used for background analysis (can use a cheaper model) |
+| `MaxTokens` | `4096` | Max tokens per response |
+| `Temperature` | `0.3` | Sampling temperature (0.0 = deterministic, 1.0 = creative) |
+| `MaxConversationHistory` | `20` | Recent conversation turns to retain |
+| `EnableBackgroundAnalysis` | `false` | Enable periodic background log analysis |
+| `AnalysisInterval` | `01:00:00` | Background analysis interval |
 
 ---
 
@@ -459,7 +510,16 @@ The middleware captures YARP proxy request/response data and auto-skips dashboar
       "LogErrorsOnly": true,
       "LogMaxBodyLength": 4096,
       "LogHeaderBlacklist": ["Authorization", "Cookie", "Set-Cookie", "X-Api-Key"],
-      "LogJsonFieldSanitizeList": ["password", "token", "secret", "apikey", "creditCard", "ssn"]
+      "LogJsonFieldSanitizeList": ["password", "token", "secret", "apikey", "creditCard", "ssn"],
+
+      "AI": {
+        "Enabled": true,
+        "Provider": "deepseek",
+        "ApiKey": "sk-...",
+        "BaseUrl": "https://api.deepseek.com/v1",
+        "ChatModel": "deepseek-chat",
+        "AnalysisModel": "deepseek-chat"
+      }
     },
     "Storage": {
       "Sqlite": {
