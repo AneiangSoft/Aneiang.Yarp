@@ -1,186 +1,51 @@
 # 更新日志
 
+## [2.3.0.25] - 2026-07-14
 
-## [2.4.0] - 2026-07-07
+> AI 智能运维 + WAF 防火墙重构 + 日志系统重构 + 核心架构拆解 + SignalR 实时推送 + 国际化重构
 
-> 内存优化：800-900MB → 预估 120-200MB，P0 采样 Bug 修复，ConcurrentDictionary 泄漏清理，RecyclableMemoryStream LOH 消除，API 缓存 + 热路径无锁化，SQLite 持久化架构，前端历史日志 UI，设置页面日志策略UI可配置
+### 🚀 新功能
 
-### 🐛 P0 Bug 修复
+- **AI 智能运维模块**：内置 ChatBot，支持自然语言交互管理网关（创建路由、查询集群、配置策略等），基于 OpenAI 兼容 API，支持 SSE 流式响应和 Function Calling 工具链
+- **AI 设置页面**：可配置 Provider、BaseUrl、API Key、模型名称、Temperature 等参数，支持千问/DeepSeek 等多种模型
+- **AI 后台分析**：后台服务自动分析日志和配置，主动发现异常
+- **AI 通知增强**：AI 自动为通知事件生成智能分析摘要
+- **SignalR 实时推送**：Overview 页面通过 SignalR 实时广播流量和状态数据，替代 HTTP 轮询
+- **WAF 规则引擎重构**：拆分为独立规则检查器（IP 访问控制、SQL 注入、XSS、路径遍历、请求大小限制、安全头检查），支持链式执行
+- **日志系统重构**：请求/响应日志分离采集，支持日志采样、过滤、动态设置、SQLite 批量写入与聚合查询
+- **日志设置服务**：运行时可动态调整日志级别、采样率、保留天数等参数
+- **SQLite 迁移系统**：引入 `ISchemaMigration` 接口和 9 个迁移脚本，支持数据库结构平滑升级
 
-- **采样逻辑失效（严重 Bug）**：`YarpRequestCaptureMiddleware` ProxyRequest 在 ShouldLog 检查之前就写入缓冲区，导致采样模式/MinLogLevel 过滤完全失效，产生无 ProxyResponse 的"孤儿"条目。修复：将 ProxyRequest 添加移到 ShouldLog 之后，确保采样和过滤真正生效
-- **MinLogLevel 配置无效**：ShouldLog 中 `_minLogLevel` 硬编码为 0（Debug级别），`DashboardOptions.MinLogLevel` 配置项从未被使用。修复：预计算 `_minLogLevelNumeric` 从配置解析，支持 Debug/Information/Warning/Error/Critical 五级
+### 🎨 改进
 
-### 🚀 内存优化核心改动
+- **历史日志合并展示**：同一 traceId 的 ProxyRequest 和 ProxyResponse 合并为一行，展开后完整展示上游请求 → 下游请求 → 响应的数据流
+- **历史日志条数调整**：合并后分页显示的总条数按配对比例估算，反映实际合并后的行数
+- **Overview 页面重构**：全新 UI 布局，接入 SignalR 实时数据
+- **通知系统增强**：新增冷却管理、预热服务、渠道/规则管理
+- **路由列表集群过滤**：支持按集群 ID 筛选路由，包含“(none)”选项筛选未绑定集群的路由
+- **QPS 图表自动刷新**：Overview 页 QPS 图表每 10 秒自动刷新
+- **国际化重构**：i18n 资源从内联代码迁移到 JSON 文件，zh-CN 和 en-US 各 10 个语言包，便于维护和扩展
+- **时间处理统一**：全项目统一使用 `DateTime.Now`，SQLite 查询添加 `localtime` 修饰符，修复时间偏移问题
 
-- **缓冲区缩减**：`ProxyLogStore` 内存缓冲区默认容量从 500 → 50（NextPowerOf2 对齐后实际 64 条），常驻内存从 15-25MB 降至 1.5-2.5MB
-- **Channel DropNewest 策略**：新增 `Channel<LogEntry>(1000, BoundedChannelFullMode.DropNewest)` 持久化管道，日志写入永不阻塞代理请求线程。配合 `_droppedCount` 丢失计数器供前端提示
-- **LogEntry 大字段释放**：大字段（RequestBody/ResponseBody/RequestHeaders/ResponseHeaders/DownstreamBody/Exception）从 `init` 改为 `set`，允许 ProxyLogStore 覆盖旧条目时将大字段置 null 释放 GC 引用
-- **移除 _count 死代码**：`ProxyLogStore._count` 在缓冲区满后永远停留在 `_bufferLength`，成为死代码，已移除
-- **UpstreamPath 拼接复用**：每请求的 `Path + QueryString` 拼接从 2 次改为 1 次，两个 LogEntry 共用同一个引用
+### 🔧 架构
 
-### 🛡️ ConcurrentDictionary 泄漏修复
+- **DynamicYarpConfigService 拆解**：将 2000+ 行的单体服务拆分为 `ClusterConfigManager`、`RouteConfigManager`、`DynamicConfigPublisher`、`DynamicConfigPersister`、`YarpConfigParser` 等独立组件
+- **存储层改进**：新增 `ProxyLogMetaEntity`、`ProxyLogBodyEntity` 等实体，引入 `SqliteProxyLogAggregator`、`SqliteProxyLogBatchWriter` 等专用仓储
+- **Dashboard 视图扩展**：新增 `DashboardViewLocationExpander` 支持模块化视图定位
 
-- **CooldownManager._cooldowns**：添加每 5 分钟定期清理过期条目（阈值 2×maxCooldown），防止无限增长
-- **AneiangProxyConfigProvider._heartbeats**：添加每 5 分钟清理不在当前配置中的集群心跳 + 超过 2 小时的过期条目
-- **IpMatcher.WildcardRegexCache**：新增 `ClearWildcardRegexCache()` 方法供配置变更时重建缓存
-- **ChannelSender._channelLocks**：新增 `RemoveChannelLock()` 方法供频道删除时释放 SemaphoreSlim
-- **RateLimitMiddleware.Limiters**：上限从 10000 降至 2000，清理策略从"删除前一半"改为基于 `LastAccessedAt` 的过期淘汰（5分钟无访问→清除），新增 `RateLimiterWithTimestamp` 包装类
+### 🗑️ 移除
 
-### 🔧 LOH 碎片消除（RecyclableMemoryStream）
-
-- **TeeResponseCaptureStream**：`new MemoryStream(64KB)` 改为 `RecyclableMemoryStreamManager.GetStream()`，底层 byte[] 池化复用
-- **RequestRetryMiddleware**：retry 循环中的 `new MemoryStream()` 改为 `RecyclableMemoryStreamManager.GetStream()`
-- **NuGet 依赖新增**：`Microsoft.IO.RecyclableMemoryStream v3.0.1`
-
-### 📐 Allocation 优化
-
-- **截断双重分配修复**：`ReadStreamAsync` 截断路径从 `new string() + "\n...[TRUNCATED]"` 改为在 ArrayPool buffer 内直接追加截断标记，避免中间字符串分配
-- **ArrayPool + .ToArray() 矛盾修复**：`RequestRetryMiddleware.ReadRequestBodyAsync` 使用 `ArrayPool.Rent` + `.ToArray()` 完全抵消了池化收益。改为直接存储 pooled buffer + length marker（`RequestBodyBuffer` struct），不再做中间复制
-
-### 📋 配置变更
-
-- **DashboardOptions.LogBufferCapacity**：默认值从 500 改为 50，标注"仅启动时生效"
-- **新增配置项**：`LogPersistenceEnabled`(bool, 默认true)、`LogMetaRetentionDays`(int, 默认7)、`LogBodyRetentionDays`(int, 默认3)
-
-### ⚡ Session A: 单条 LogEntry 体积减少
-
-- **ContentType 二进制跳过**：`IsResponseBodyCaptureCandidate` 增加 ContentType 二进制类型检查（image/video等），跳过 TeeStream 设置，避免无意义的 RecyclableMemoryStream 分配
-- **TraceId 延迟计算**：TraceId 从 Phase 1（ShouldLog之前）移到 Phase 5（ShouldLog之后），被过滤的请求不再产生 `Guid.NewGuid().ToString("N")` 字符串分配
-- **ReadBodyAsync ArrayPool**：请求体读取从 `StreamReader.ReadToEndAsync()` 改为 `ArrayPool<char>.Shared.Rent` + `ReadAsync`，消除内部 char[] buffer 分配
-- **WafMiddleware ArrayPool**：WAF 请求体扫描从 `new char[maxScanBytes]`（每请求最大100KB）改为 `ArrayPool<char>.Shared.Rent` + `try/finally Return`
-
-### ⚡ Session C1: 持久化架构 — 接口 + 模型 + SQLite Schema + DI
-
-- **新增 IProxyLogPersistenceService**：持久化服务协调接口，含 `DroppedCount` + `WrittenCount` 属性
-- **新增 IProxyLogRepository**：Storage.Abstractions 层完整仓储接口（WriteBatch + Search + GetBody + GetStats + GetTraffic + GetTopIssues + Cleanup + Checkpoint）
-- **新增 ProxyLogMetaEntity/BodyEntity**：冷热分离实体模型，meta 存轻量字段（~200-500B），body 存大字段（按需加载）
-- **新增 ProxyLogSearchRequest/Result/MetaItem/DetailResult**：历史日志搜索模型（分页+多维度筛选+轻量展示+单条详情）
-- **新增 SqliteProxyLogRepository**：完整 SQLite 仓储实现，含批量写入、分页查询、统计聚合（P50/P90/P99百分位）、清理、WAL checkpoint
-- **新增 SqliteProxyLogWriter**：LogEntry → Entity 转换封装器，协调批量写入和清理
-- **SQLite Schema 新迁移 `20260707_001`**：proxy_logs_meta(6索引) + proxy_logs_body(FK CASCADE) + waf_events_meta(3索引) + proxy_log_settings 四张新表
-- **WAL autocheckpoint**：`PRAGMA wal_autocheckpoint=1000` 防止 WAL 文件无限增长
-- **DI 注册**：`IProxyLogRepository` → `SqliteProxyLogRepository`（Storage层）；`SqliteProxyLogWriter` + `AsyncLogPersistenceService(IHostedService)` + `IProxyLogPersistenceService`（Dashboard层）
-
-### ⚡ Session C2: 后台服务 + 查询服务 + API改造
-
-- **新增 AsyncLogPersistenceService**：IHostedService + IProxyLogPersistenceService，从 Channel 消费日志批量100条/500ms → SQLite 写入 → 每小时清理+checkpoint
-- **改造 DashboardLogQueryService**：注入 IProxyLogRepository，新增 `GetHistoryLogsAsync(SQL分页查询)` + `GetLogDetailAsync(body表单条详情)`
-- **改造 IDashboardLogQueryService**：新增 `GetHistoryLogsAsync` + `GetLogDetailAsync`
-- **改造 DashboardApiController**：新增 `/api/logs/history`(历史分页) + `/api/logs/detail/{id}`(单条详情) + `/api/logs/stats`(持久化统计)；`GetStats()` 改为 SQL 聚合优先 + IMemoryCache 缓存 + 内存缓冲区降级 fallback
-- **改造 OperationsController**：注入 IProxyLogRepository，`GetAlertSummary`/`GetTrafficData`/`GetTopIssues` 全改为 SQL 聚合优先 + 内存缓冲区降级 fallback
-
-### ⚡ Session C3: WAF事件持久化 + WAL策略
-
-- **改造 WafEventStore**：缓冲区容量从 1000 → 64（实时展示用）；新增 `Channel<WafSecurityEvent>(500, DropNewest)` 持久化管道；dequeued 前大字段(RequestUri/MatchedValue)置 null 释放 GC 压力；新增 `_droppedCount` 丢失计数器
-- **新增 WafEventPersistenceService**：IHostedService，从 Channel 消费 WAF 事件批量 50条 → SQLite `waf_events_meta` 写入 → 每小时清理(7天保留) + WAL checkpoint
-
-### ⚡ Session D: 前端历史日志 UI
-
-- **标签页切换**：日志页面新增「实时日志」+「历史日志」标签切换，实时标签保留轮询，历史标签不轮询
-- **历史日志搜索**：时间范围/级别/EventType/关键词/RouteId/ClusterId/StatusCode 范围多维度搜索 + 分页控件(上/下页+总数)
-- **详情按需加载**：历史列表仅渲染 ProxyLogMetaItem 轻量字段，展开时调 `/api/logs/detail/{id}` 加载完整 body/headers，带缓存(detailCache Map)
-- **持久化状态检测**：历史标签首次打开自动检查 persistenceEnabled，未启用时显示提示横幅
-- **API endpoints**：`dashboard-api.js` 新增 `getLogHistory` + `getLogDetail` + `getLogStats`
-- **i18n**：中英各新增 24 个 key（historyTab/realtimeTab/searchHistory/timeRange/viewDetail/pagination 等）
-- **Logs.cshtml**：增加标签导航栏 + 历史搜索面板 HTML + 分页控件 + 相关 CSS
-
-### ⚡ Session E: LockFreeStatistics 启用
-
-- **LockFreeStatistics 从 internal→public**：`LockFreeStatistics`、`ConcurrentIntDictionary`、`SimdStatistics` 均改为 `public`，注册为 DI 单例
-- **中间件热路径记录**：`YarpRequestCaptureMiddleware` 注入 `LockFreeStatistics`，在 Phase 6 调用 `RecordRequest(statusCode, latencyMicros, routeIdHash, clusterIdHash)` — 4 个 Interlocked 操作，零分配
-- **Stats API 三级优先**：`DashboardApiController.GetStats()` → 优先 `LockFreeStatistics.GetSnapshot()` (零分配 O(1)) → SQL 聚合 (percentile 精确) → 内存遍历 fallback (最后兜底)
-- **Operations 告警增强**：`OperationsController.ComputeAlertSummary()` 利用 LFS 5xx 计数补充 SQL/in-memory 降级路径
-- **LogEntryStruct 评估**：推迟（风险较高，当前 LFS 已覆盖统计热路径零分配需求）
-
-### ⚙️ Session F: 设置页面（日志策略UI可配置）
-
-- **新增 ILogSettingsRepository**：`Storage.Abstractions` 接口（LoadAllAsync + SaveAsync + SaveBatchAsync + ClearAsync），`SqliteLogSettingsRepository` 实现（双检锁懒建表 + 批量 upsert）
-- **新增 LogSettingsService**：3-tier优先（SQLite overrides → IOptionsMonitor → defaults），IMemoryCache 30秒缓存，Save/Reset 方法
-- **新增 LogSettingsUpdateRequest**：11个可选nullable字段 + 服务器端校验（范围约束 + MinLogLevel枚举 + body≤meta约束）
-- **DashboardApiController**：注入 LogSettingsService，新增 GET/PUT `/api/logs/settings` + PUT `/api/logs/settings/reset`
-- **Settings.cshtml**：新增日志设置卡片（持久化/捕获/采样/过滤/缓冲五区域），动态渲染
-- **dashboard-log-settings.js**：前端模块（load/save/reset/validate + 采样率滑块 + 动态UI行为）
-- **i18n**：zh-CN/en-US config.json 各增37个 `config.logSettings.*` key
-
-### 🧹 Session G: 推迟项补完 — Headers Dictionary→HeaderList + Message冗余去除
-
-- **新增 HeaderList 类型**：`HeaderList` 继承 `List<KeyValuePair<string,string>>`，替代 `Dictionary<string,string>` 存储 headers。消除 Dictionary hash table 开销（buckets + entries 数组），5-10 个 headers 场景下节省 ~240-440B/请求
-- **HeaderListJsonConverter**：自定义 `JsonConverter`，序列化为 `{"key":"value"}` JSON 对象格式（与 Dictionary 格式完全兼容），前端无需改动
-- **LogEntry.Message 冗余去除**：`Message` 从 `string` → `string?`（nullable），ProxyRequest/ProxyResponse 设为 null（前端根据 EventType+Method+UpstreamPath+StatusCode 拼接显示文本），节省 ~100-200B/请求
-- **LogSanitizer**：`SanitizeHeaders()` 返回 `HeaderList?`（线性存储，无 hash table 开销）
-- **SqliteProxyLogWriter**：`SerializeHeaders()` 接收 `HeaderList?`
-- **ProxyLogDetailResult**：headers 字段类型 → `HeaderList?`
-- **DashboardLogQueryService**：`DeserializeHeaders()` 反序列化为 `HeaderList?`
-- **dashboard-logs.js**：displayMessage 拼接逻辑 + logKey 生成适配 Message=null
-
-### ⚡ Session B: 缓存 + 热路径无锁化 + 微优化
-
-- **Stats API IMemoryCache**：`DashboardApiController.GetStats()` 聚合结果缓存 10 秒，减少重复全量遍历
-- **Operations API IMemoryCache**：`OperationsController` — `alert-summary` 10秒缓存、`traffic` 10秒缓存、`top-issues` 30秒缓存
-- **DateTime List 消除**：`BuildStatsResponse` 冗余 `List<DateTime>(totalRequests)` 仅用于 requestsPerMin 计算，改为在聚合循环中直接计数 `recentCount`（阈值 DateTime.Now.AddMinutes(-1)），消除大量分配
-- **NotifySubscribers 无锁化**：`lock + subscribers.ToArray()` 改为不可变数组原子引用替换模式（`ConcurrentDictionary.AddOrUpdate` + copy-on-write），热路径完全零锁
-- **WafSecurityEvent.Id**：`string Id = Guid.NewGuid().ToString("N")`（32字符）改为 `Guid Id = Guid.NewGuid()`（16字节结构体），JSON 保持 `[JsonPropertyName("id")]`
-
-### 🗂️ DI 注册变更
-
-- **新增**：`RecyclableMemoryStreamManager` 注册为 Singleton
-- **修改**：`ProxyLogStore` 构造使用新的 `LogBufferCapacity` 默认值 50
-
-### 🗂️ 修改文件清单
-
-```
-src/Aneiang.Yarp.Dashboard/
-├── Aneiang.Yarp.Dashboard.csproj                      # +RecyclableMemoryStream NuGet
-├── Extensions/DashboardServiceCollectionExtensions.cs # +RecyclableMemoryStreamManager DI
-├── Infrastructure/
-│   ├── DashboardOptions.cs                            # 新增配置项 + LogBufferCapacity→50
-│   └── Yarp/YarpRequestCaptureMiddleware.cs           # P0采样Bug + RecyclableMemoryStream + MinLogLevel + 截断 + UpstreamPath复用
-├── Modules/
-│   ├── Notification/
-│   │   ├── Services/CooldownManager.cs                # 定期清理过期条目
-│   │   └── Services/ChannelSender.cs                  # RemoveChannelLock + SemaphoreSlim清理
-│   ├── ProxyLog/
-│   │   ├── Models/LogEntry.cs                         # 大字段init→set + DroppedCount
-│   │   └── Services/ProxyLogStore.cs                  # 缓冲区缩减 + Channel + DropNewest + 旧条目释放
-│   │   └── Services/IProxyLogStore.cs                 # +DroppedCount接口
-│   ├── RateLimit/Middleware/RateLimitMiddleware.cs     # 上限→2000 + 过期淘汰 + RateLimiterWithTimestamp
-│   ├── Retry/Middleware/RequestRetryMiddleware.cs     # RecyclableMemoryStream + ArrayPool矛盾修复
-│   └── Waf/Helpers/IpMatcher.cs                       # ClearWildcardRegexCache()
-
-src/Aneiang.Yarp/
-└── Services/AneiangProxyConfigProvider.cs              # _heartbeats过期清理
-```
-
-
-## [2.3.0.25] - 2026-06-30
-
-> 代码质量提升：消除同步等待死锁风险、重复代码抽取、类职责拆分
-
-### 🛡️ 代码质量
-
-- **消除 5 处 `GetAwaiter().GetResult()` 死锁风险**：`DynamicYarpConfigService` 启动加载链路全异步化（`LoadConfigFromRepositoryAsync` / `LoadDynamicConfigAsync` / `MarkStaticConfigAsync`），`WafSettingsPersistenceService` `Load()`/`Save()` 改为 `Task.Run` 安全包装
-- **`DynamicYarpConfigService` 职责拆分**：提取 ~200 行纯函数到 `DynamicYarpConfigHelpers`（7 个静态方法：序列化/补丁/健康检查/元数据合并/X-Forwarded 标准化），主文件行数显著减少
-- **统一 ClientIpResolver**：消除 5 处重复 IP 解析代码（WafMiddleware / RateLimitMiddleware / ConfigManagementController / IpBasedLoadBalancingPolicy / RateLimitConfigProvider），合并到 `Aneiang.Yarp.Infrastructure.ClientIpResolver`
-- **DI 注入修复**：`DashboardMvcOptionsSetup` 不再手动 `new DashboardAuthorizationService`，改为通过 DI 注入 `IDashboardAuthorizationService`
-- **静默异常加日志**：`DashboardRouteQueryService` 添加 `ILogger` 依赖，transform 提取失败时输出 `LogWarning`
-- **SQLite 表名校验**：`BackfillInBatchesAsync` 增加白名单校验（6 张合法表），防止内部代码注入
-- **移除废弃 API**：`AddAneiangYarpDeployment(IServiceCollection, IConfiguration)` 已无调用方，直接删除
-- **GC.Collect 注释补充**：`TriggerBackgroundGc()` 添加 Gen0 + Optimized 调用的性能理由注释
-- **移除未使用方法**：删除 `SanitizeClusters`（无调用方）
+- **WAF 实时安全事件**：移除事件存储、持久化服务、AI 工具、独立页面，WAF 拦截仍保留日志和通知
+- **Benchmarks 项目**：移除基准测试项目
+- **部署配置**：移除 docker-compose、systemd、Windows 安装脚本（移至独立仓库）
+- **CI 工作流**：移除 GitHub Actions 配置
+- **GatewayTracing**：移除网关追踪选项和服务扩展
 
 ### 🐛 修复
 
-- **Dashboard 路由/集群重启后消失**：修复 `MarkStaticConfigAsync` 启动时误删所有非 appsettings.json 来源的路由和集群（Source != "config"），并持久化删除到 SQLite。改为仅当 `Source == "config"` 且 ID 不在当前静态配置中时才清除（`DynamicYarpConfigService` 第 217 / 250 行）
-
-### 🗂️ 新增文件
-
-```
-src/Aneiang.Yarp/
-├── Infrastructure/
-│   └── ClientIpResolver.cs                         # 统一客户端 IP 解析
-└── Services/
-    └── DynamicYarpConfigHelpers.cs                  # 静态工具方法（序列化/元数据合并/健康检查等）
-```
+- 历史日志页首次切换到“历史日志”标签时不自动加载数据（异步竞态条件）
+- SQLite `strftime` 时间格式化偏移 8 小时（添加 `localtime` 修饰符）
+- 全项目 `DateTime.UtcNow` 替换为 `DateTime.Now`，统一本地时间处理
 
 
 ## [2.3.0.24] - 2026-06-28
