@@ -21,7 +21,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.AI;
 /// and loaded on construction. SQLite overrides take precedence over appsettings.json,
 /// so the AI module can be fully configured from the Dashboard without touching config files.
 /// </summary>
-public class AISettingsService
+public class AISettingsService : IAISettingsService
 {
     // ──────── Known provider → official BaseUrl (immutable, never overridden by user input) ────────
     private static readonly Dictionary<string, string> _builtinBaseUrls =
@@ -176,7 +176,7 @@ public class AISettingsService
         try
         {
             // Blocking call — acceptable for a singleton constructed once at startup
-            var kv = Task.Run(async () => await _repo.LoadAllAsync()).GetAwaiter().GetResult();
+            var kv = _repo.LoadAllAsync().GetAwaiter().GetResult();
             if (kv.Count == 0) return;
 
             ApplyOverrides(kv);

@@ -1,33 +1,29 @@
-using System.Text.Json;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using Aneiang.Yarp.Dashboard.Infrastructure.State;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 
 /// <summary>
 /// Default implementation of <see cref="IGatewayPluginManager"/>.
+/// Uses <see cref="IStateStore"/> for persistence (default: file system, replaceable).
 /// </summary>
 public class GatewayPluginManager : IGatewayPluginManager
 {
+    private const string StateKey = "plugin-states";
     private readonly Dictionary<string, IGatewayPlugin> _plugins = new();
     private readonly Dictionary<string, bool> _enabledPlugins = new();
     private readonly ILogger<GatewayPluginManager> _logger;
-    private readonly string _stateFilePath;
-    private static readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
+    private readonly IStateStore _stateStore;
 
     public GatewayPluginManager(
         IEnumerable<IGatewayPlugin> plugins,
         IConfiguration configuration,
-        IHostEnvironment hostEnv,
+        IStateStore stateStore,
         ILogger<GatewayPluginManager> logger)
     {
         _logger = logger;
-        _stateFilePath = Path.Combine(hostEnv.ContentRootPath, "plugin-states.json");
+        _stateStore = stateStore;
 
         var section = configuration.GetSection("Gateway:Dashboard:Plugins");
 
@@ -52,6 +48,7 @@ public class GatewayPluginManager : IGatewayPluginManager
         }
 
         // Override defaults with persisted state (if exists)
+        // Blocking call - runs once at startup in singleton constructor
         LoadState();
     }
 
@@ -96,13 +93,13 @@ public class GatewayPluginManager : IGatewayPluginManager
             foreach (var kvp in _enabledPlugins)
                 state[kvp.Key] = kvp.Value;
 
-            var json = JsonSerializer.Serialize(state, _jsonOptions);
-            File.WriteAllText(_stateFilePath, json);
-            _logger.LogDebug("Plugin state saved to {Path}", _stateFilePath);
+            // Fire-and-forget persistence - failure should not block the API response
+            _ = _stateStore.SaveAsync(StateKey, state);
+            _logger.LogDebug("Plugin state saved via IStateStore");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to save plugin state to {Path}", _stateFilePath);
+            _logger.LogWarning(ex, "Failed to save plugin state via IStateStore");
         }
     }
 
@@ -110,11 +107,8 @@ public class GatewayPluginManager : IGatewayPluginManager
     {
         try
         {
-            if (!File.Exists(_stateFilePath))
-                return;
-
-            var json = File.ReadAllText(_stateFilePath);
-            var state = JsonSerializer.Deserialize<Dictionary<string, bool>>(json, _jsonOptions);
+            // Blocking call in singleton constructor - runs once at startup
+            var state = _stateStore.LoadAsync<Dictionary<string, bool>>(StateKey).GetAwaiter().GetResult();
             if (state == null) return;
 
             foreach (var kvp in state)
@@ -129,7 +123,7 @@ public class GatewayPluginManager : IGatewayPluginManager
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to load plugin state from {Path}", _stateFilePath);
+            _logger.LogWarning(ex, "Failed to load plugin state via IStateStore");
         }
     }
 }

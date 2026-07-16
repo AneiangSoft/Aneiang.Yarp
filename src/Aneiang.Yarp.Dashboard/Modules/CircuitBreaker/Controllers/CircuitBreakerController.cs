@@ -1,3 +1,4 @@
+using Aneiang.Yarp.Dashboard.Infrastructure.Common;
 using Aneiang.Yarp.Dashboard.Infrastructure.State;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Models;
@@ -47,7 +48,7 @@ public class CircuitBreakerController : Controller
             return s;
         });
 
-        return Json(new { code = 200, data = enriched });
+        return Json(ApiResponse.Ok(enriched));
     }
 
     /// <summary>
@@ -57,7 +58,7 @@ public class CircuitBreakerController : Controller
     public IActionResult ResetCircuitBreakers()
     {
         _circuitStore.ResetAll();
-        return Json(new { code = 200, message = "All circuit breakers reset" });
+        return Json(ApiResponse.Ok("All circuit breakers reset"));
     }
 
     /// <summary>

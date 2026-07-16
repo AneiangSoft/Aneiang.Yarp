@@ -1,3 +1,4 @@
+using Aneiang.Yarp.Dashboard.Infrastructure.Common;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Microsoft.AspNetCore.Mvc;
 
@@ -26,23 +27,10 @@ public class PluginsController : ControllerBase
             pluginId = p.PluginId,
             displayName = p.DisplayName,
             version = p.Version,
-            description = GetPluginDescription(p),
+            description = p.Description,
             enabled = _manager.IsPluginEnabled(p.PluginId)
         });
-        return Ok(new { code = 200, data = plugins });
-    }
-
-    private static string GetPluginDescription(IGatewayPlugin plugin)
-    {
-        return plugin.PluginId switch
-        {
-            "circuit-breaker" => "Monitors backend service health and trips circuits when failures exceed threshold.",
-            "request-retry" => "Automatically retries failed proxy requests with configurable backoff strategy.",
-            "waf" => "Web Application Firewall: blocks SQL injection, XSS, path traversal, and other attacks.",
-            "rate-limit" => "Rate limiting to protect the gateway from being overloaded.",
-            "ai" => "AI Assistant: intelligent chatbot, log analysis, and smart notifications powered by LLM.",
-            _ => string.Empty
-        };
+        return Ok(ApiResponse.Ok(plugins));
     }
 
     /// <summary>Get a single plugin by ID.</summary>
@@ -51,20 +39,16 @@ public class PluginsController : ControllerBase
     {
         var plugin = _manager.GetPlugin(pluginId);
         if (plugin == null)
-            return NotFound(new { code = 404, message = $"Plugin '{pluginId}' not found" });
+            return NotFound(ApiResponse.Fail($"Plugin '{pluginId}' not found", 404));
 
-        return Ok(new
+        return Ok(ApiResponse.Ok(new
         {
-            code = 200,
-            data = new
-            {
-                pluginId = plugin.PluginId,
-                displayName = plugin.DisplayName,
-                version = plugin.Version,
-                description = GetPluginDescription(plugin),
-                enabled = _manager.IsPluginEnabled(pluginId)
-            }
-        });
+            pluginId = plugin.PluginId,
+            displayName = plugin.DisplayName,
+            version = plugin.Version,
+            description = plugin.Description,
+            enabled = _manager.IsPluginEnabled(pluginId)
+        }));
     }
 
     /// <summary>Enable or disable a plugin.</summary>
@@ -73,10 +57,10 @@ public class PluginsController : ControllerBase
     {
         var plugin = _manager.GetPlugin(pluginId);
         if (plugin == null)
-            return NotFound(new { code = 404, message = $"Plugin '{pluginId}' not found" });
+            return NotFound(ApiResponse.Fail($"Plugin '{pluginId}' not found", 404));
 
         _manager.SetPluginEnabled(pluginId, request.Enabled);
-        return Ok(new { code = 200, data = new { pluginId, enabled = _manager.IsPluginEnabled(pluginId) } });
+        return Ok(ApiResponse.Ok(new { pluginId, enabled = _manager.IsPluginEnabled(pluginId) }));
     }
 
     /// <summary>Reset all plugins to enabled state.</summary>
@@ -87,7 +71,6 @@ public class PluginsController : ControllerBase
         {
             _manager.SetPluginEnabled(plugin.PluginId, true);
         }
-        return Ok(new { code = 200, message = "All plugins enabled" });
+        return Ok(ApiResponse.Ok("All plugins enabled"));
     }
 }
-

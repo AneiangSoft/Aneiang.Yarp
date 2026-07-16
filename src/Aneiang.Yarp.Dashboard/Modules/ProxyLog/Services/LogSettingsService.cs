@@ -12,7 +12,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 /// Settings reads are cached in IMemoryCache for 30 seconds.
 /// Writes update SQLite via ILogSettingsRepository and clear cache.
 /// </summary>
-public class LogSettingsService
+public class LogSettingsService : ILogSettingsService
 {
     private readonly ILogSettingsRepository _logSettingsRepo;
     private readonly IOptionsMonitor<DashboardOptions> _optionsMonitor;
@@ -115,7 +115,7 @@ public class LogSettingsService
 
     private LogSettingsData LoadInternal()
     {
-        return Task.Run(async () => await LoadInternalAsync(CancellationToken.None)).GetAwaiter().GetResult();
+        return LoadInternalAsync(CancellationToken.None).GetAwaiter().GetResult();
     }
 
     private async Task<LogSettingsData> LoadInternalAsync(CancellationToken ct)

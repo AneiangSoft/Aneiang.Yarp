@@ -1,0 +1,123 @@
+@{
+    var currentPage = ViewBag.CurrentPage as string ?? "overview";
+    var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
+    var isEn = (ViewBag.Locale as string) == "en-US";
+
+    var menuGroups = new[]
+    {
+        new {
+            Title = isEn ? "Dashboard" : "仪表盘",
+            Items = new[] {
+                new { Key = "overview", Title = isEn ? "Overview" : "总览", Icon = "bi-speedometer2", Path = $"/{prefix}/", Badge = "", Conditional = false }
+            }
+        },
+        new {
+            Title = isEn ? "Gateway" : "网关管理",
+            Items = new[] {
+                new { Key = "clusters", Title = isEn ? "Clusters" : "服务集群", Icon = "bi-diagram-3", Path = $"/{prefix}/clusters", Badge = "", Conditional = false },
+                new { Key = "routes", Title = isEn ? "Routes" : "路由配置", Icon = "bi-signpost-split", Path = $"/{prefix}/routes", Badge = "", Conditional = false }
+            }
+        },
+        new {
+            Title = isEn ? "Monitoring" : "监控运维",
+            Items = new[] {
+                new { Key = "stats", Title = isEn ? "Statistics" : "访问统计", Icon = "bi-bar-chart-line", Path = $"/{prefix}/stats", Badge = "", Conditional = false },
+                new { Key = "logs", Title = isEn ? "Logs" : "日志", Icon = "bi-journal-text", Path = $"/{prefix}/logs", Badge = "", Conditional = true },
+                new { Key = "circuits", Title = isEn ? "Circuits" : "熔断状态", Icon = "bi-lightning-charge", Path = $"/{prefix}/circuits", Badge = "", Conditional = false },
+                new { Key = "notifications", Title = isEn ? "Notifications" : "通知中心", Icon = "bi-bell", Path = $"/{prefix}/notifications", Badge = "NEW", Conditional = false },
+                new { Key = "healthcheck", Title = isEn ? "Health Check" : "健康检查", Icon = "bi-heart-pulse", Path = $"/{prefix}/healthcheck", Badge = "", Conditional = false }
+            }
+        },
+        new {
+            Title = isEn ? "Security" : "安全策略",
+            Items = new[] {
+                new { Key = "waf", Title = isEn ? "WAF Firewall" : "WAF 防火墙", Icon = "bi-shield-lock", Path = $"/{prefix}/waf", Badge = "", Conditional = false },
+                new { Key = "policies", Title = isEn ? "Policies" : "策略管理", Icon = "bi-shield", Path = $"/{prefix}/policies", Badge = "", Conditional = false },
+                new { Key = "plugins", Title = isEn ? "Plugins" : "插件管理", Icon = "bi-puzzle", Path = $"/{prefix}/plugins", Badge = "", Conditional = false }
+            }
+        },
+        new {
+            Title = isEn ? "System" : "系统管理",
+            Items = new[] {
+                new { Key = "history", Title = isEn ? "History" : "配置历史", Icon = "bi-clock-history", Path = $"/{prefix}/history", Badge = "", Conditional = false },
+                new { Key = "audit", Title = isEn ? "Audit Log" : "审计日志", Icon = "bi-shield-check", Path = $"/{prefix}/audit", Badge = "", Conditional = false },
+                new { Key = "ai", Title = isEn ? "AI Assistant" : "AI 助手", Icon = "bi-robot", Path = $"/{prefix}/ai-settings", Badge = "NEW", Conditional = false },
+                new { Key = "deployment", Title = isEn ? "Deployment" : "运行模式", Icon = "bi-rocket-takeoff", Path = $"/{prefix}/deployment", Badge = "", Conditional = false },
+                new { Key = "settings", Title = isEn ? "Settings" : "设置", Icon = "bi-gear", Path = $"/{prefix}/settings", Badge = "", Conditional = false }
+            }
+        }
+    };
+}
+
+<nav class="sidebar" id="sidebar">
+    <!-- Brand Header -->
+    <div class="brand">
+        <div class="brand-logo">
+            <div class="brand-icon"><i class="bi bi-hdd-rack-fill"></i></div>
+            <div class="brand-text">
+                <div class="brand-title" data-i18n="layout.brand">网关维护仪表盘</div>
+                <div class="brand-subtitle">Gateway Console</div>
+            </div>
+        </div>
+        <div class="brand-divider"></div>
+    </div>
+
+    <div class="sidebar-nav">
+        @foreach (var group in menuGroups)
+        {
+            var visibleItems = new System.Collections.Generic.List<dynamic>();
+            var isActiveGroup = false;
+            foreach (var item in group.Items)
+            {
+                var conditionalProp = item.GetType().GetProperty("Conditional");
+                var isConditional = conditionalProp != null && (bool)(conditionalProp.GetValue(item) ?? false);
+                if (isConditional && ViewBag.EnableProxyLogging == false) continue;
+                visibleItems.Add(item);
+                if (currentPage == item.Key) { isActiveGroup = true; }
+            }
+            if (visibleItems.Count == 0) continue;
+
+            <div class="nav-section">
+                <div class="section-header @(isActiveGroup ? "expanded" : "")" data-toggle="collapse" data-target="nav-group-@group.Title.GetHashCode()">
+                    <span class="section-title">@group.Title</span>
+                    <i class="bi bi-chevron-down section-chevron"></i>
+                </div>
+                <div class="nav-collapse @(isActiveGroup ? "expanded" : "")">
+                    @foreach (var item in visibleItems)
+                    {
+                        <a class="nav-link @(currentPage == item.Key ? "active" : "")"
+                           href="@item.Path" data-page="@item.Key" data-title="@item.Title" data-icon="@item.Icon">
+                            <i class="bi @item.Icon"></i>
+                            <span class="nav-content"><span class="nav-title">@item.Title</span></span>
+                            @if (!string.IsNullOrEmpty(item.Badge))
+                            {
+                                <span class="nav-badge nav-badge-new">@item.Badge</span>
+                            }
+                        </a>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="sidebar-footer">
+        <div class="user-card">
+            <div class="user-avatar"><i class="bi bi-person-circle"></i></div>
+            <div class="user-info">
+                <div class="user-name" id="sidebar-username" data-i18n="layout.user.loggedIn">已登录</div>
+                <div class="user-role">
+                    <span class="user-status-dot"></span>
+                    <span data-i18n="layout.user.online">在线</span>
+                </div>
+            </div>
+        </div>
+        <div class="footer-actions">
+            <a class="footer-action" href="#" onclick="switchLocale();return false;" title="@(isEn ? "切换到中文" : "Switch to English")">
+                <i class="bi bi-translate"></i>
+            </a>
+            <a class="footer-action" href="#" onclick="dashboardLogout();return false;" title="@(isEn ? "Logout" : "退出登录")">
+                <i class="bi bi-box-arrow-right"></i>
+            </a>
+        </div>
+    </div>
+</nav>

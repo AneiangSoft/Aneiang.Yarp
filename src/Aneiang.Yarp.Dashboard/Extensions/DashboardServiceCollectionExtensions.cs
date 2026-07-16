@@ -1,6 +1,8 @@
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Auth;
+using Aneiang.Yarp.Dashboard.Infrastructure.Filters;
 using Aneiang.Yarp.Dashboard.Infrastructure.HostedServices;
+using FluentValidation;
 using Aneiang.Yarp.Dashboard.Infrastructure.State;
 using Aneiang.Yarp.Dashboard.Infrastructure.Performance;
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Services;
@@ -226,6 +228,15 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<IRateLimiterStore, InMemoryRateLimiterStore>();
         services.AddSingleton<CooldownManager>();
 
+        // Persistent state store (default: file system; replaceable for containerized deployments)
+        services.AddSingleton<IStateStore>(sp =>
+        {
+            var env = sp.GetRequiredService<IHostEnvironment>();
+            var logger = sp.GetRequiredService<ILogger<FileStateStore>>();
+            var dir = Path.Combine(env.ContentRootPath, "state");
+            return new FileStateStore(dir, logger);
+        });
+
         return services;
     }
 
@@ -239,8 +250,15 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<GatewayApiAuthFilter>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<MvcOptions>, GatewayApiAuthMvcOptionsSetup>());
 
+        // FluentValidation: register validators from the assembly
+        services.AddValidatorsFromAssemblyContaining<Infrastructure.Validation.LoginRequestValidator>();
+        services.AddSingleton<Infrastructure.Filters.FluentValidationFilter>();
+
         services.AddSingleton<IDashboardAuthorizationService, DashboardAuthorizationService>();
         services.AddSingleton<JwtSecretProvider>();
+        services.AddSingleton<GlobalExceptionFilter>();
+        services.AddSingleton<DashboardRouteAccessor>();
+        services.AddSingleton<IDashboardRouteAccessor>(sp => sp.GetRequiredService<DashboardRouteAccessor>());
         services.AddSingleton<IConfigureOptions<MvcOptions>, DashboardMvcOptionsSetup>();
 
         return services;
@@ -274,6 +292,7 @@ public static class DashboardServiceCollectionExtensions
 
         // LogSettingsService: UI-configurable log settings (SQLite overrides + IOptionsMonitor + cache)
         services.AddSingleton<LogSettingsService>();
+        services.AddSingleton<ILogSettingsService>(sp => sp.GetRequiredService<LogSettingsService>());
 
         return services;
     }
@@ -289,6 +308,16 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<IDashboardRouteQueryService, DashboardRouteQueryService>();
         services.AddSingleton<IDashboardLogQueryService, DashboardLogQueryService>();
         services.AddSingleton<IEditablePolicy, DashboardEditablePolicy>();
+
+        // Application services (business logic extracted from controllers)
+        services.AddSingleton<Modules.Dashboard.Application.IStatsAppService, Modules.Dashboard.Application.StatsAppService>();
+        services.AddSingleton<Modules.Operations.Application.IAlertAppService, Modules.Operations.Application.AlertAppService>();
+        services.AddSingleton<Modules.Operations.Application.IPerformanceAppService, Modules.Operations.Application.PerformanceAppService>();
+        services.AddSingleton<Modules.Operations.Application.IHealthAppService, Modules.Operations.Application.HealthAppService>();
+        services.AddSingleton<Modules.GatewayConfig.Application.IConfigHistoryAppService, Modules.GatewayConfig.Application.ConfigHistoryAppService>();
+        services.AddSingleton<Modules.AI.Application.IAIAppService, Modules.AI.Application.AIAppService>();
+        services.AddSingleton<Modules.Policy.Application.IPolicyAppService, Modules.Policy.Application.PolicyAppService>();
+        services.AddSingleton<Modules.Notification.Application.INotificationAppService, Modules.Notification.Application.NotificationAppService>();
 
         return services;
     }
@@ -414,10 +443,12 @@ public static class DashboardServiceCollectionExtensions
 
         services.AddSingleton<IAIProvider, OpenAICompatibleProvider>();
         services.AddSingleton<AISettingsService>();
+        services.AddSingleton<IAISettingsService>(sp => sp.GetRequiredService<AISettingsService>());
         services.AddSingleton<GatewayContextProvider>();
         services.AddSingleton<GatewayToolRegistry>();
         services.AddSingleton<GatewayToolExecutor>();
         services.AddSingleton<ChatService>();
+        services.AddSingleton<IChatService>(sp => sp.GetRequiredService<ChatService>());
         services.AddSingleton<NotificationEnhancer>();
 
         // Background analysis service (runs only when EnableBackgroundAnalysis=true and provider is available)

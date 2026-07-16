@@ -175,6 +175,6 @@ internal sealed class DashboardLogQueryService : IDashboardLogQueryService
     {
         if (string.IsNullOrEmpty(json)) return null;
         try { return JsonSerializer.Deserialize<HeaderList>(json); }
-        catch { return null; }
+        catch (JsonException) { return null; }
     }
 }

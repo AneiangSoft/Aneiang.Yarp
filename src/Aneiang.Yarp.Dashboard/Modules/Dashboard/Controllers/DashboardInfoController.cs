@@ -1,3 +1,4 @@
+using Aneiang.Yarp.Dashboard.Infrastructure.Common;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,6 +21,6 @@ public class DashboardInfoController : Controller
     public IActionResult GetInfo()
     {
         var info = _infoQuery.GetInfo();
-        return Json(new { code = 200, data = info });
+        return Json(ApiResponse.Ok(info));
     }
 }

@@ -1,3 +1,4 @@
+using Aneiang.Yarp.Dashboard.Infrastructure.Common;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,6 +21,6 @@ public class DashboardRouteController : Controller
     public IActionResult GetRoutes()
     {
         var routes = _routeQuery.GetRoutes();
-        return Json(new { code = 200, data = routes });
+        return Json(ApiResponse.Ok(routes));
     }
 }

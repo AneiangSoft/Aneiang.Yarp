@@ -1,3 +1,4 @@
+using Aneiang.Yarp.Dashboard.Infrastructure.Common;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,6 +21,6 @@ public class DashboardClusterController : Controller
     public IActionResult GetClusters()
     {
         var clusters = _clusterQuery.GetClusters();
-        return Json(new { code = 200, data = clusters });
+        return Json(ApiResponse.Ok(clusters));
     }
 }

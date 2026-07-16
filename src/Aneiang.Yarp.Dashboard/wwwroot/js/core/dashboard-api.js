@@ -106,7 +106,15 @@
                 // Unwrap { code: 200, data: ... } response format
                 if (data && typeof data === 'object' && 'code' in data) {
                     if (data.code === 200) {
-                        return data.data !== undefined ? data.data : data;
+                        // New ApiResponse<T> format: { code, success, data, message }
+                        // Old format: { code, data } or { code, message }
+                        // When data is present and non-null, return it directly.
+                        // When data is null/undefined (message-only response), return whole object
+                        // so callers can access .message if needed.
+                        if (data.data !== null && data.data !== undefined) {
+                            return data.data;
+                        }
+                        return data;
                     } else if (data.code === 401) {
                         this.handleAuthError();
                         throw new Error(data.message || 'Unauthorized');

@@ -15,6 +15,7 @@ public class AIPlugin : IGatewayPlugin
     public string PluginId => "ai";
     public string DisplayName => "AI Assistant";
     public string Version => "1.0";
+    public string Description => "AI Assistant: intelligent chatbot, log analysis, and smart notifications powered by LLM.";
 
     public void ConfigureServices(IServiceCollection services, object? pluginOptions = null)
     {

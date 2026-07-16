@@ -12,6 +12,7 @@ public class CircuitBreakerPlugin : IGatewayPlugin
     public string PluginId => "circuit-breaker";
     public string DisplayName => "Circuit Breaker";
     public string Version => "1.0";
+    public string Description => "Monitors backend service health and trips circuits when failures exceed threshold.";
 
     public void ConfigureServices(IServiceCollection services, object? pluginOptions = null)
     {

@@ -1,5 +1,7 @@
 using Aneiang.Yarp.Dashboard.Infrastructure;
+using Aneiang.Yarp.Dashboard.Infrastructure.Common;
 using Aneiang.Yarp.Dashboard.Infrastructure.I18n;
+using Aneiang.Yarp.Dashboard.Infrastructure.State;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
@@ -14,8 +16,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Controllers;
 /// </summary>
 public class DashboardPagesController : Controller
 {
-    /// <summary>Route prefix, set by convention at startup.</summary>
-    internal static string RoutePrefix { get; set; } = "apigateway";
+    private readonly IDashboardRouteAccessor _routeAccessor;
 
     private readonly IDashboardInfoQueryService _infoQuery;
     private readonly IDashboardClusterQueryService _clusterQuery;
@@ -31,6 +32,7 @@ public class DashboardPagesController : Controller
     /// Initializes a new instance of the <see cref="DashboardPagesController"/> class.
     /// </summary>
     public DashboardPagesController(
+        IDashboardRouteAccessor routeAccessor,
         IDashboardInfoQueryService infoQuery,
         IDashboardClusterQueryService clusterQuery,
         IDashboardRouteQueryService routeQuery,
@@ -38,6 +40,7 @@ public class DashboardPagesController : Controller
         IOptions<DashboardOptions> dashboardOptions,
         IOptions<StorageOptions> storageOptions)
     {
+        _routeAccessor = routeAccessor;
         _infoQuery = infoQuery;
         _clusterQuery = clusterQuery;
         _routeQuery = routeQuery;
@@ -54,7 +57,7 @@ public class DashboardPagesController : Controller
     /// </summary>
     private void SetCommonViewBag(string? currentPage = null)
     {
-        ViewBag.DashboardRoutePrefix = RoutePrefix;
+        ViewBag.DashboardRoutePrefix = _routeAccessor.RoutePrefix;
         ViewBag.EnableProxyLogging = _enableProxyLogging;
         ViewBag.Locale = ResolveLocale();
         ViewBag.AllI18nJson = DashboardI18n.AllAsJson(ViewBag.Locale);
@@ -133,7 +136,7 @@ public class DashboardPagesController : Controller
     {
         var dbPath = ResolveDatabasePath(_storageOptions);
         if (!System.IO.File.Exists(dbPath))
-            return Json(new { code = 404, message = "Database file not found" });
+            return NotFound(ApiResponse.Fail("Database file not found", 404));
 
         var fileName = Path.GetFileName(dbPath);
         return PhysicalFile(dbPath, "application/octet-stream", fileName);

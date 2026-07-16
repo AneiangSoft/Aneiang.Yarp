@@ -12,6 +12,7 @@ public class RequestRetryPlugin : IGatewayPlugin
     public string PluginId => "request-retry";
     public string DisplayName => "Request Retry";
     public string Version => "1.0";
+    public string Description => "Automatically retries failed proxy requests with configurable backoff strategy.";
 
     public void ConfigureServices(IServiceCollection services, object? pluginOptions = null)
     {

@@ -235,12 +235,12 @@
                     );
                 }
 
-                if (response.code === 200) {
+                if (response) {
                     this.originalData = JSON.parse(JSON.stringify(this.draftData));
                     if (window.DashboardModals) window.DashboardModals.showSuccess('Saved successfully');
                     return true;
                 } else {
-                    if (window.DashboardModals) window.DashboardModals.showError('Save failed: ' + (response.message || 'Unknown error'));
+                    if (window.DashboardModals) window.DashboardModals.showError('Save failed: Unknown error');
                     return false;
                 }
             } catch (error) {
@@ -279,20 +279,15 @@
                 // Call backend import
                 var response = await window.DashboardApi.endpoints.importConfig(config);
 
-                if (response.code === 200) {
-                    var data = response.data;
-                    var msg = response.message || 'Import successful';
-                    if (data && (data.importedRoutes || data.importedClusters)) {
-                        msg += ' (' + (data.importedRoutes || 0) + ' routes, ' + (data.importedClusters || 0) + ' clusters)';
-                    }
-                    if (window.DashboardModals) window.DashboardModals.showSuccess(msg);
-                    window.location.reload();
-                    return true;
-                } else {
-                    if (window.DashboardModals) window.DashboardModals.showError(response.message || 'Import failed');
+                // DashboardApi throws on error, so if we get here, import succeeded.
+                // response is the unwrapped data (importResult).
+                var msg = (response && response.message) || 'Import successful';
+                if (response && (response.importedRoutes || response.importedClusters)) {
+                    msg += ' (' + (response.importedRoutes || 0) + ' routes, ' + (response.importedClusters || 0) + ' clusters)';
                 }
-
-                return false;
+                if (window.DashboardModals) window.DashboardModals.showSuccess(msg);
+                window.location.reload();
+                return true;
             } catch (error) {
                 console.error('[ConfigEditor] Import failed:', error);
                 if (window.DashboardModals) window.DashboardModals.showError('Import failed: ' + error.message);
@@ -307,21 +302,20 @@
             try {
                 var response = await window.DashboardApi.endpoints.exportConfig();
 
-                if (response.code === 200) {
-                    var blob = new Blob(
-                        [JSON.stringify(response.data, null, 2)], 
-                        { type: 'application/json' }
-                    );
-                    var url = URL.createObjectURL(blob);
-                    var a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'yarp-config-' + Date.now() + '.json';
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    return true;
-                }
-
-                return false;
+                // DashboardApi throws on error, so if we get here, export succeeded.
+                // response is the unwrapped data: { config, format, exportedAt }
+                var exportData = (response && response.config) ? response.config : response;
+                var blob = new Blob(
+                    [JSON.stringify(exportData, null, 2)],
+                    { type: 'application/json' }
+                );
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = 'yarp-config-' + Date.now() + '.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                return true;
             } catch (error) {
                 console.error('[ConfigEditor] Export failed:', error);
                 if (window.DashboardModals) window.DashboardModals.showError('Export failed: ' + error.message);

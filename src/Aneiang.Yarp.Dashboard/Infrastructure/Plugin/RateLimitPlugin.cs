@@ -12,6 +12,7 @@ public class RateLimitPlugin : IGatewayPlugin
     public string PluginId => "rate-limit";
     public string DisplayName => "Rate Limiting";
     public string Version => "1.0";
+    public string Description => "Rate limiting to protect the gateway from being overloaded.";
 
     public void ConfigureServices(IServiceCollection services, object? pluginOptions = null)
     {

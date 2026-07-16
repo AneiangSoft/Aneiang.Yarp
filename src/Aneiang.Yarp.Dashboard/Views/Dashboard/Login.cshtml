@@ -365,10 +365,11 @@
                     })
                 });
                 const json = await res.json();
-                if (json.code === 200 && json.token) {
-                    localStorage.setItem('dashboard_token', json.token);
+                // New ApiResponse<T> format: { code: 200, success: true, data: { token / requiresTwoFactor }, message: "..." }
+                if (json.code === 200 && json.data && json.data.token) {
+                    localStorage.setItem('dashboard_token', json.data.token);
                     window.location.href = basePath + '/';
-                } else if (json.code === 202 && json.requiresTwoFactor) {
+                } else if (json.code === 200 && json.data && json.data.requiresTwoFactor) {
                     if (twofaGroup) {
                         twofaGroup.classList.remove('d-none');
                         var twofaInput = document.getElementById('twofactor-code');

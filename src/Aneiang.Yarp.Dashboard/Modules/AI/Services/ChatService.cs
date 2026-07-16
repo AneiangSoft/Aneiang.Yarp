@@ -11,7 +11,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.AI.Services;
 /// Orchestrates AI chat conversations: builds system prompt with gateway context,
 /// manages conversation history, delegates to the AI provider, and handles tool calling.
 /// </summary>
-public class ChatService
+public class ChatService : IChatService
 {
     private static readonly JsonSerializerOptions _jsonOpts = new()
     {

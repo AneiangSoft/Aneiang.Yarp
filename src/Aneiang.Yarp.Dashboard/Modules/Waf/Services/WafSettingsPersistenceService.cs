@@ -70,13 +70,13 @@ public class WafSettingsPersistenceService : IWafSettingsPersistenceService
     {
         if (string.IsNullOrEmpty(json)) return [];
         try { return JsonSerializer.Deserialize<List<string>>(json, _jsonOptions) ?? []; }
-        catch { return []; }
+        catch (JsonException) { return []; }
     }
 
     public WafSettingsData? Load()
     {
         if (_initialized && _cachedData != null) return _cachedData;
-        return Task.Run(async () => await LoadInternalAsync(CancellationToken.None)).GetAwaiter().GetResult();
+        return LoadInternalAsync(CancellationToken.None).GetAwaiter().GetResult();
     }
 
     public async Task<WafSettingsData?> LoadAsync(CancellationToken ct = default)
@@ -95,7 +95,7 @@ public class WafSettingsPersistenceService : IWafSettingsPersistenceService
 
     public bool Save(WafSettingsData data)
     {
-        return Task.Run(async () => await SaveCoreAsync(data, CancellationToken.None)).GetAwaiter().GetResult();
+        return SaveCoreAsync(data, CancellationToken.None).GetAwaiter().GetResult();
     }
 
     public async Task<bool> SaveAsync(WafSettingsData data, CancellationToken ct = default)

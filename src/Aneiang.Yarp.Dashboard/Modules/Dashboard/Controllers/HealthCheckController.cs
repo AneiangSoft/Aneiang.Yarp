@@ -1,3 +1,4 @@
+using Aneiang.Yarp.Dashboard.Infrastructure.Common;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,7 +15,7 @@ public class HealthCheckController(DynamicYarpConfigService dynamicConfig) : Con
     {
         var config = dynamicConfig.GetDynamicConfig();
         if (config == null)
-            return Ok(new { code = 200, data = Array.Empty<object>() });
+            return Ok(ApiResponse.Ok(Array.Empty<object>()));
 
         var healthConfigs = config.Clusters.Select(c => new
         {
@@ -23,7 +24,7 @@ public class HealthCheckController(DynamicYarpConfigService dynamicConfig) : Con
             lastHeartbeat = c.LastHeartbeat
         }).ToList();
 
-        return Ok(new { code = 200, data = healthConfigs });
+        return Ok(ApiResponse.Ok(healthConfigs));
     }
 
     /// <summary>Get passive health check status.</summary>
@@ -55,6 +56,6 @@ public class HealthCheckController(DynamicYarpConfigService dynamicConfig) : Con
             destinationCount = c.Destinations?.Count ?? 0
         }).ToList();
 
-        return Ok(new { code = 200, data = status });
+        return Ok(ApiResponse.Ok(status));
     }
 }

@@ -290,11 +290,9 @@
     async function refreshHealth() {
         try {
             // Trigger health check refresh
-            var result = await DashboardApi.get('/api/health-check/clusters');
-            if (result.code === 200) {
-                window.DashboardModals.showSuccess(__('overview.quickActions.healthRefreshed') || '健康状态已刷新');
-                loadAlertSummary();
-            }
+            await DashboardApi.get('/api/health-check/clusters');
+            window.DashboardModals.showSuccess(__('overview.quickActions.healthRefreshed') || '健康状态已刷新');
+            loadAlertSummary();
         } catch (e) {
             console.error('[OpsModule] Health refresh failed:', e);
         }
@@ -307,8 +305,8 @@
     async function exportSnapshot() {
         try {
             var result = await DashboardApi.endpoints.exportSnapshot();
-            if (result.code === 200 && result.data) {
-                var dataStr = JSON.stringify(result.data, null, 2);
+            if (result) {
+                var dataStr = JSON.stringify(result, null, 2);
                 var blob = new Blob([dataStr], { type: 'application/json' });
                 var url = URL.createObjectURL(blob);
                 var a = document.createElement('a');

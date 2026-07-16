@@ -12,6 +12,7 @@ public class WafPlugin : IGatewayPlugin
     public string PluginId => "waf";
     public string DisplayName => "Web Application Firewall";
     public string Version => "1.0";
+    public string Description => "Web Application Firewall: blocks SQL injection, XSS, path traversal, and other attacks.";
 
     public void ConfigureServices(IServiceCollection services, object? pluginOptions = null)
     {

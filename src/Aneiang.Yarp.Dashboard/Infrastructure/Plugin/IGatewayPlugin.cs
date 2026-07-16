@@ -22,6 +22,9 @@ public interface IGatewayPlugin
     /// <summary>Version of this plugin.</summary>
     string Version { get; }
 
+    /// <summary>Human-readable description of the plugin's functionality.</summary>
+    string Description { get; }
+
     /// <summary>
     /// Configure plugin services during DI setup.
     /// Use this to register plugin-specific services, options, and middleware.
