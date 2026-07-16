@@ -24,6 +24,8 @@ Dashboard · Dynamic Routing · WAF · AI Assistant · 2FA · Notifications · I
 
 > **Live Demo**: https://yarp-test.aneiang.com/aneiang &nbsp;·&nbsp; `admin` / `demo123`
 
+> **Online proxy address (site and proxy port are isolated)**: https://yarp-proxy.aneiang.com
+
 ---
 
 ## Packages
