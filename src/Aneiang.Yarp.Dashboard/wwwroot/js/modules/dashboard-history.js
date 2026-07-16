@@ -29,7 +29,10 @@
                 container.innerHTML = this.renderLoading();
 
                 const data = await window.DashboardApi.endpoints.getHistory();
-                this.entries = Array.isArray(data) ? data.map((entry, index) => this.normalizeEntry(entry, index)) : [];
+                // New ApiResponse<T> format: data is { items: [...], count, pagination }
+                // Old format: data was the items array directly
+                const items = Array.isArray(data) ? data : (data && data.items) ? data.items : [];
+                this.entries = items.map((entry, index) => this.normalizeEntry(entry, index));
                 this.applyFilters();
                 this.renderStats();
                 this.renderHistory();

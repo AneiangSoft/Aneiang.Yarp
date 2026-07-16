@@ -33,6 +33,10 @@
                         return;
                     }
                     data = await res.json();
+                    // Unwrap ApiResponse<T> format: { code, success, data }
+                    if (data && typeof data === 'object' && 'code' in data && data.data) {
+                        data = data.data;
+                    }
                 }
                 this.state.summary = data;
                 this.render(data);

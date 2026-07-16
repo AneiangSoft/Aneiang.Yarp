@@ -224,14 +224,11 @@
                 }
 
                 try {
-                    var resp = await DashboardApi.post('/api/2fa/verify', { code: code, secret: this._secret });
-                    if (resp && resp.code === 200) {
-                        bootstrap.Modal.getInstance(document.getElementById('twofactor-setup-modal')).hide();
-                        DashboardModals.showSuccess(__('config.twofactorEnabled') || '2FA 已启用');
-                        this.refreshStatus();
-                    } else {
-                        DashboardModals.showError(resp?.message || __('config.twofactorInvalidCode') || '验证码错误');
-                    }
+                    await DashboardApi.post('/api/2fa/verify', { code: code, secret: this._secret });
+                    // DashboardApi throws on error, so reaching here means success
+                    bootstrap.Modal.getInstance(document.getElementById('twofactor-setup-modal')).hide();
+                    DashboardModals.showSuccess(__('config.twofactorEnabled') || '2FA 已启用');
+                    this.refreshStatus();
                 } catch (e) {
                     DashboardModals.showError(e.message || __('config.twofactorVerifyFailed') || '验证失败');
                 }
