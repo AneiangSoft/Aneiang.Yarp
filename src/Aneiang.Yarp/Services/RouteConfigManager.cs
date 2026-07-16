@@ -4,24 +4,10 @@ using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Services;
 
-/// <summary>
-/// All route CRUD operations on the dynamic config working set. Thread-safe via a shared
-/// <see cref="SemaphoreSlim"/> (shared with the cluster config manager).
-/// Lock/publish/persist plumbing is delegated to <see cref="ConfigManagerBase"/>.
-/// </summary>
 internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
 {
     private readonly ILogger<RouteConfigManager> _logger;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RouteConfigManager"/> class.
-    /// </summary>
-    /// <param name="state">The state.</param>
-    /// <param name="semaphore">The semaphore.</param>
-    /// <param name="persister">The persister.</param>
-    /// <param name="publisher">The publisher.</param>
-    /// <param name="auditLog">The audit log.</param>
-    /// <param name="logger">The logger.</param>
     public RouteConfigManager(
         DynamicConfigState state,
         SemaphoreSlim semaphore,
@@ -40,15 +26,6 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
             operationName, targetName);
     }
 
-    #region TryAddRoute
-
-    /// <summary>
-    /// Tries the add route.
-    /// </summary>
-    /// <param name="request">The request.</param>
-    /// <param name="source">The source.</param>
-    /// <param name="createdBy">The created by.</param>
-    /// <returns>A Task.</returns>
     public async Task<RouteOperationResult> TryAddRoute(
     RegisterRouteRequest request,
     string source = "dynamic",
@@ -94,7 +71,6 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
                 isNew = false;
             }
 
-            // Cluster: create or update
             var dynCluster = config.Clusters.FirstOrDefault(c =>
                 string.Equals(c.Config.ClusterId, request.ClusterName, StringComparison.OrdinalIgnoreCase));
 
@@ -142,17 +118,6 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
         });
     }
 
-    #endregion
-
-    #region TryAddRouteConfig (full native config)
-
-    /// <summary>
-    /// Tries the add route config.
-    /// </summary>
-    /// <param name="route">The route.</param>
-    /// <param name="source">The source.</param>
-    /// <param name="createdBy">The created by.</param>
-    /// <returns>A Task.</returns>
     public async Task<RouteOperationResult> TryAddRouteConfig(
     RouteConfig route,
     string source = "dashboard",
@@ -200,7 +165,6 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
                 isNew = false;
             }
 
-            // Normalize comma-delimited transform values
             for (var ri = 0; ri < config.Routes.Count; ri++)
                 config.Routes[ri].Config = DynamicYarpConfigHelpers.NormalizeTransforms(config.Routes[ri].Config);
 
@@ -217,17 +181,6 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
     }
 
 
-    #endregion
-
-    #region TryRemoveRoute
-
-    /// <summary>
-    /// Tries the remove route.
-    /// </summary>
-    /// <param name="routeName">The route name.</param>
-    /// <param name="clientIp">The client ip.</param>
-    /// <param name="removeOrphanedCluster">If true, remove orphaned cluster.</param>
-    /// <returns>A Task.</returns>
     public async Task<RouteOperationResult> TryRemoveRoute(string routeName, string? clientIp = null, bool removeOrphanedCluster = true)
     {
         if (string.IsNullOrWhiteSpace(routeName))
@@ -245,7 +198,6 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
 
             var clusterId = dynRoute.Config.ClusterId;
 
-            // IP isolation: only remove the matching destination
             if (!string.IsNullOrWhiteSpace(clientIp) && clusterId != null)
             {
                 var dynCluster = config.Clusters.FirstOrDefault(c =>
@@ -282,7 +234,6 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
                     $"Destination for IP '{clientIp}' removed from cluster '{clusterId}'"));
             }
 
-            // Normal: delete route and optionally the orphaned cluster
             config.Routes.RemoveAll(r =>
                 string.Equals(r.Config.RouteId, routeName, StringComparison.OrdinalIgnoreCase));
 
@@ -305,20 +256,6 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
     }
 
 
-    #endregion
-
-
-    #region TryRenameRoute
-
-    /// <summary>
-    /// Tries the rename route.
-    /// </summary>
-    /// <param name="oldRouteId">The old route id.</param>
-    /// <param name="newRouteId">The new route id.</param>
-    /// <param name="request">The request.</param>
-    /// <param name="source">The source.</param>
-    /// <param name="createdBy">The created by.</param>
-    /// <returns>A Task.</returns>
     public async Task<RouteOperationResult> TryRenameRoute(
         string oldRouteId,
         string newRouteId,
@@ -400,16 +337,6 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
         });
     }
 
-    #endregion
-
-    #region UpdateRouteMetadataAsync
-
-    /// <summary>
-    /// Updates the route metadata async.
-    /// </summary>
-    /// <param name="routeId">The route id.</param>
-    /// <param name="metadata">The metadata.</param>
-    /// <returns>A Task.</returns>
     public async Task<bool> UpdateRouteMetadataAsync(string routeId, Dictionary<string, string> metadata)
     {
         if (string.IsNullOrWhiteSpace(routeId) || metadata.Count == 0)
@@ -438,25 +365,10 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
         });
     }
 
-    #endregion
-
-    #region Query methods
-
-    /// <summary>
-    /// Gets the routes.
-    /// </summary>
-    /// <returns>A list of RouteConfigs.</returns>
     public IReadOnlyList<RouteConfig> GetRoutes()
     {
-        // Direct read from volatile snapshot — no lock needed.
         return State.Config.Routes?.Select(r => r.Config).ToList() ?? [];
     }
 
-    /// <summary>
-    /// Gets the dynamic config.
-    /// </summary>
-    /// <returns>A GatewayDynamicConfig.</returns>
     public GatewayDynamicConfig GetDynamicConfig() => State.Config;
-
-    #endregion
 }

@@ -1,8 +1,5 @@
 namespace Aneiang.Yarp.Storage;
 
-/// <summary>
-/// Policy repository for gateway policy entity CRUD operations.
-/// </summary>
 public interface IPolicyRepository
 {
     Task<PolicyEntity?> GetPolicyAsync(string policyId, CancellationToken ct = default);

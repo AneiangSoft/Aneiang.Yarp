@@ -5,10 +5,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
-/// <summary>
-/// Handles batch writes to proxy_logs_meta and proxy_logs_body tables.
-/// Schema-adaptive: discovers actual table columns at init and builds SQL dynamically.
-/// </summary>
 internal sealed class SqliteProxyLogBatchWriter
 {
     private readonly SqliteConnectionFactory _connections;

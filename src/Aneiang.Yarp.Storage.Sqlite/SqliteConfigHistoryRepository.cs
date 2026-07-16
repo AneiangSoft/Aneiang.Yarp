@@ -4,7 +4,6 @@ using System.Globalization;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
-/// <summary>SQLite implementation of <see cref="IConfigHistoryRepository"/>.</summary>
 public sealed class SqliteConfigHistoryRepository : IConfigHistoryRepository
 {
     private readonly SqliteConnectionFactory _connections;

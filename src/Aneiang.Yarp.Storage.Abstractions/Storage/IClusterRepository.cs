@@ -1,8 +1,5 @@
 namespace Aneiang.Yarp.Storage;
 
-/// <summary>
-/// Cluster repository for YARP cluster and destination entity CRUD operations.
-/// </summary>
 public interface IClusterRepository
 {
     Task<ClusterEntity?> GetClusterAsync(string clusterId, CancellationToken ct = default);

@@ -1,6 +1,5 @@
 namespace Aneiang.Yarp.Storage;
 
-/// <summary>Config Audit Log entity for database storage.</summary>
 public class AuditLogEntity
 {
     public string Id { get; set; } = string.Empty;

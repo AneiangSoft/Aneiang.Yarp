@@ -91,7 +91,3 @@ public class PluginsController : ControllerBase
     }
 }
 
-public class TogglePluginRequest
-{
-    public bool Enabled { get; set; }
-}

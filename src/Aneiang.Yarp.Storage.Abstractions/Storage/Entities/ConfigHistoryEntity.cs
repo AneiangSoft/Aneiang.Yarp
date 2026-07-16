@@ -1,6 +1,5 @@
 namespace Aneiang.Yarp.Storage;
 
-/// <summary>Config History entity for database storage.</summary>
 public class ConfigHistoryEntity
 {
     public string VersionId { get; set; } = string.Empty;

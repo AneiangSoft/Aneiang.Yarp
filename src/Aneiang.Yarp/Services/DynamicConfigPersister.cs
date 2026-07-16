@@ -5,11 +5,6 @@ using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Services;
 
-/// <summary>
-/// Persists <see cref="GatewayDynamicConfig"/> to and from SQLite via
-/// <see cref="IRouteRepository"/> and <see cref="IClusterRepository"/>.
-/// Stateless — every call receives the config explicitly.
-/// </summary>
 internal class DynamicConfigPersister : IDynamicConfigPersister
 {
     private readonly IRouteRepository _routeRepo;
@@ -26,7 +21,6 @@ internal class DynamicConfigPersister : IDynamicConfigPersister
         _logger = logger;
     }
 
-    /// <inheritdoc />
     public async Task<GatewayDynamicConfig> LoadAsync()
     {
         try
@@ -60,7 +54,6 @@ internal class DynamicConfigPersister : IDynamicConfigPersister
         }
     }
 
-    /// <inheritdoc />
     public async Task SaveAsync(GatewayDynamicConfig config, string operationName, string? targetName = null)
     {
         try

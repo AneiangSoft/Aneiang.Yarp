@@ -31,15 +31,3 @@ public class ImportResult
     public string? Message { get; set; }
 }
 
-/// <summary>A single item-level import error.</summary>
-public class ImportItemError
-{
-    /// <summary>&quot;Route&quot; or &quot;Cluster&quot;.</summary>
-    public string Type { get; set; } = string.Empty;
-
-    /// <summary>Route ID or Cluster ID.</summary>
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>Human-readable reason.</summary>
-    public string Error { get; set; } = string.Empty;
-}

@@ -6,12 +6,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Realtime;
 
-/// <summary>
-/// Background service that collects real-time traffic metrics from the proxy log store
-/// and broadcasts them to connected SignalR clients for live topology animation.
-/// Uses a sliding window over the ring buffer to compute per-route traffic statistics
-/// (RPS, error rate, latency) and pushes updates every 2 seconds.
-/// </summary>
 internal sealed class TrafficBroadcastService : BackgroundService
 {
     private readonly IHubContext<TrafficHub> _hubContext;
@@ -118,7 +112,7 @@ internal sealed class TrafficBroadcastService : BackgroundService
                     BytesOut = 0,
                     ActiveConnections = 0,
                     Status = errorRate > 10 ? "degraded" : "normal",
-                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                    Timestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds()
                 };
             })
             .ToList();

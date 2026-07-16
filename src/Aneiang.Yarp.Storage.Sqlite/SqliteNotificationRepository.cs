@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
-/// <summary>SQLite implementation of <see cref="INotificationRepository"/>.</summary>
 public sealed class SqliteNotificationRepository : INotificationRepository
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -20,7 +19,6 @@ public sealed class SqliteNotificationRepository : INotificationRepository
     private bool _initialized;
     private readonly SemaphoreSlim _initLock = new(1, 1);
 
-    /// <inheritdoc cref="SqliteNotificationRepository" />
     public SqliteNotificationRepository(SqliteConnectionFactory connections, ILogger<SqliteNotificationRepository> logger)
     {
         _connections = connections;

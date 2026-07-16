@@ -4,12 +4,6 @@ using Aneiang.Yarp.Dashboard.Infrastructure;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
 
-/// <summary>
-/// Applies security response headers to all responses.
-/// Extracted from <see cref="WafMiddleware"/> so it can be enabled/disabled independently.
-/// Headers: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection,
-/// Referrer-Policy, Content-Security-Policy.
-/// </summary>
 public sealed class SecurityHeadersMiddleware
 {
     private readonly RequestDelegate _next;

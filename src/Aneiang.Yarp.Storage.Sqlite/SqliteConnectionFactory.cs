@@ -7,13 +7,6 @@ using Aneiang.Yarp.Storage;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
-/// <summary>
-/// Shared SQLite connection factory used by all storage repositories.
-/// Ensures SQLitePCL provider is initialized once and connection pooling is enabled.
-/// WAL journal mode is enabled via connection string for better concurrency.
-/// Schema migration is triggered lazily on the first <see cref="CreateConnection"/> call
-/// to guarantee tables exist before any repository reads the database.
-/// </summary>
 public sealed class SqliteConnectionFactory : IDbConnectionFactory
 {
     private readonly string _connectionString;
@@ -39,20 +32,12 @@ public sealed class SqliteConnectionFactory : IDbConnectionFactory
         });
     }
 
-    /// <summary>
-    /// Creates a new pooled SQLite connection. The first call triggers schema migration
-    /// if it has not yet completed, ensuring tables exist before any repository access.
-    /// </summary>
     public async ValueTask<SqliteConnection> CreateConnectionAsync(CancellationToken ct = default)
     {
         await _migrationTask.Value;
         return new SqliteConnection(_connectionString);
     }
 
-    /// <summary>
-    /// Creates a new pooled SQLite connection (synchronous wrapper).
-    /// The first call blocks until schema migration completes.
-    /// </summary>
     public SqliteConnection CreateConnection()
     {
         // Block on the migration task; subsequent calls return immediately.
@@ -60,11 +45,6 @@ public sealed class SqliteConnectionFactory : IDbConnectionFactory
         return new SqliteConnection(_connectionString);
     }
 
-    /// <summary>
-    /// Creates a raw connection bypassing migration guard.
-    /// Used internally by <see cref="SqliteSchemaMigrator"/> to avoid deadlock
-    /// when running migrations.
-    /// </summary>
     internal SqliteConnection CreateRawConnection() => new(_connectionString);
 
     // Explicit interface implementations — return DbConnection for storage-agnostic callers

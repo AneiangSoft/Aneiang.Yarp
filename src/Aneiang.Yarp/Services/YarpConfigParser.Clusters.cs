@@ -5,10 +5,8 @@ using Yarp.ReverseProxy.Forwarder;
 
 namespace Aneiang.Yarp.Services;
 
-/// <summary>Cluster parsing methods for <see cref="YarpConfigParser"/>.</summary>
 partial class YarpConfigParser
 {
-    /// <summary>Parse clusters from configuration section.</summary>
     public static List<ClusterConfig> ParseClusters(IConfigurationSection section)
     {
         var clusters = new List<ClusterConfig>();

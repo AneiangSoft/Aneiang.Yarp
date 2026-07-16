@@ -4,10 +4,6 @@ using System.Globalization;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
-/// <summary>
-/// Handles statistical aggregation queries on proxy_logs_meta:
-/// stats, traffic data, top issues, recent 5xx counts.
-/// </summary>
 internal sealed class SqliteProxyLogAggregator
 {
     private readonly SqliteConnectionFactory _connections;

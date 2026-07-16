@@ -4,9 +4,6 @@ using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Storage;
 
-/// <summary>
-/// Maps between domain models and storage entities for core persistence.
-/// </summary>
 public static class ConfigEntityMapper
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -15,13 +12,6 @@ public static class ConfigEntityMapper
         WriteIndented = false
     };
 
-    #region Route
-
-    /// <summary>
-    /// Converts a <see cref="DynamicRouteConfig"/> to a <see cref="RouteEntity"/>.
-    /// </summary>
-    /// <param name="route">The route.</param>
-    /// <returns>A RouteEntity.</returns>
     public static RouteEntity ToEntity(this DynamicRouteConfig route) => new()
     {
         RouteUid = string.IsNullOrWhiteSpace(route.RouteUid) ? StableUid.FromKey("route", route.Config.RouteId ?? string.Empty) : route.RouteUid,
@@ -56,10 +46,6 @@ public static class ConfigEntityMapper
         return route;
     }
 
-    /// <summary>
-    /// Rebuild the native RouteConfig: prefer the full ConfigJson (carries all advanced
-    /// properties); fall back to scattered columns for legacy rows without ConfigJson.
-    /// </summary>
     private static RouteConfig BuildRouteConfig(RouteEntity entity)
     {
         if (!string.IsNullOrEmpty(entity.ConfigJson))
@@ -88,15 +74,6 @@ public static class ConfigEntityMapper
     public static List<DynamicRouteConfig> ToRouteConfigs(this IEnumerable<RouteEntity> entities)
         => entities.Select(e => e.ToRouteConfig()).ToList();
 
-    #endregion
-
-    #region Cluster
-
-    /// <summary>
-    /// Converts a <see cref="DynamicClusterConfig"/> to a <see cref="ClusterEntity"/>.
-    /// </summary>
-    /// <param name="cluster">The cluster.</param>
-    /// <returns>A ClusterEntity.</returns>
     public static ClusterEntity ToEntity(this DynamicClusterConfig cluster) => new()
     {
         ClusterUid = string.IsNullOrWhiteSpace(cluster.ClusterUid) ? StableUid.FromKey("cluster", cluster.Config.ClusterId ?? string.Empty) : cluster.ClusterUid,
@@ -127,11 +104,6 @@ public static class ConfigEntityMapper
         };
     }
 
-    /// <summary>
-    /// Rebuild the native ClusterConfig: prefer the full ConfigJson (carries all advanced
-    /// properties); fall back to scattered columns for legacy rows. Destinations are loaded
-    /// separately from the destination repository and overwritten by the caller.
-    /// </summary>
     private static ClusterConfig BuildClusterConfig(ClusterEntity entity)
     {
         if (!string.IsNullOrEmpty(entity.ConfigJson))
@@ -151,16 +123,6 @@ public static class ConfigEntityMapper
     public static List<DynamicClusterConfig> ToClusterConfigs(this IEnumerable<ClusterEntity> entities)
         => entities.Select(e => e.ToClusterConfig()).ToList();
 
-    #endregion
-
-    #region Destination
-
-    /// <summary>
-    /// Converts a destination key-value pair to a <see cref="DestinationEntity"/>.
-    /// </summary>
-    /// <param name="dest">The destination.</param>
-    /// <param name="clusterId">The cluster id.</param>
-    /// <returns>A DestinationEntity.</returns>
     public static DestinationEntity ToEntity(this KeyValuePair<string, string> dest, string clusterId) => new()
     {
         DestinationId = dest.Key,
@@ -172,15 +134,6 @@ public static class ConfigEntityMapper
     public static Dictionary<string, string> ToDestinations(this IEnumerable<DestinationEntity> entities)
         => entities.ToDictionary(e => e.DestinationId, e => e.Address);
 
-    #endregion
-
-    #region AuditLog
-
-    /// <summary>
-    /// Converts a <see cref="ConfigChangeAudit"/> to an <see cref="AuditLogEntity"/>.
-    /// </summary>
-    /// <param name="audit">The audit.</param>
-    /// <returns>An AuditLogEntity.</returns>
     public static AuditLogEntity ToEntity(this ConfigChangeAudit audit) => new()
     {
         Id = audit.Id,
@@ -215,5 +168,4 @@ public static class ConfigEntityMapper
 
     public static List<ConfigChangeAudit> ToConfigChangeAudits(this IEnumerable<AuditLogEntity> entities)
         => entities.Select(e => e.ToConfigChangeAudit()).ToList();
-    #endregion
 }

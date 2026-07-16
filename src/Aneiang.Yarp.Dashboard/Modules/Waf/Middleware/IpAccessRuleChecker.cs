@@ -4,9 +4,6 @@ using Aneiang.Yarp.Dashboard.Modules.Waf.Helpers;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
 
-/// <summary>
-/// Checks client IP against whitelist/blacklist rules.
-/// </summary>
 public sealed class IpAccessRuleChecker : IWafRuleChecker
 {
     public static readonly IpAccessRuleChecker Instance = new();

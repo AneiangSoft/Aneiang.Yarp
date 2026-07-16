@@ -2,16 +2,8 @@ using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Services;
 
-/// <summary>
-/// Static helper methods extracted from <see cref="DynamicYarpConfigService"/>
-/// to improve separation of concerns and testability.
-/// All methods are pure functions with no dependency on instance state.
-/// </summary>
 internal static class DynamicYarpConfigHelpers
 {
-    /// <summary>
-    /// Normalizes X-Forwarded transform values: any non-standard value is corrected to "Set".
-    /// </summary>
     public static RouteConfig NormalizeTransforms(RouteConfig route)
     {
         if (route.Transforms == null || route.Transforms.Count == 0) return route;
@@ -39,10 +31,6 @@ internal static class DynamicYarpConfigHelpers
         return changed ? route with { Transforms = normalized } : route;
     }
 
-    /// <summary>
-    /// Merges metadata from the serialized config with dynamic record metadata.
-    /// Dynamic record values (policy keys) win over config values.
-    /// </summary>
     public static IReadOnlyDictionary<string, string>? MergeRouteMetadata(
         IReadOnlyDictionary<string, string>? configMetadata,
         Dictionary<string, string> dynamicMetadata)
@@ -62,24 +50,18 @@ internal static class DynamicYarpConfigHelpers
         return merged.Count > 0 ? merged : null;
     }
 
-    /// <summary>Safely serializes a route to JSON; returns null on failure.</summary>
     public static string? TrySerializeRoute(RouteConfig route)
     {
         try { return Serialization.YarpJsonConfig.SerializeRoute(route); }
         catch { return null; }
     }
 
-    /// <summary>Safely serializes a cluster to JSON; returns null on failure.</summary>
     public static string? TrySerializeCluster(ClusterConfig cluster)
     {
         try { return Serialization.YarpJsonConfig.SerializeCluster(cluster); }
         catch { return null; }
     }
 
-    /// <summary>
-    /// Patches basic fields of an existing route ConfigJson while preserving advanced properties.
-    /// Returns null when there is no existing config (caller falls back to basic fields).
-    /// </summary>
     public static string? PatchRouteConfigJson(string? existingJson, string clusterId, string matchPath, int order, List<Dictionary<string, string>>? transforms)
     {
         if (string.IsNullOrWhiteSpace(existingJson)) return null;
@@ -109,10 +91,6 @@ internal static class DynamicYarpConfigHelpers
         return TrySerializeRoute(patched);
     }
 
-    /// <summary>
-    /// Patches basic fields of an existing cluster ConfigJson while preserving advanced properties.
-    /// Returns null when there is no existing config (caller falls back to basic fields).
-    /// </summary>
     public static string? PatchClusterConfigJson(string? existingJson, Dictionary<string, string> destinations, string? loadBalancingPolicy)
     {
         if (string.IsNullOrWhiteSpace(existingJson)) return null;
@@ -141,9 +119,6 @@ internal static class DynamicYarpConfigHelpers
         return TrySerializeCluster(patched);
     }
 
-    /// <summary>
-    /// Converts the domain-model <see cref="Models.HealthCheckConfig"/> to a native YARP health check config.
-    /// </summary>
     public static HealthCheckConfig? BuildClusterHealthCheck(Models.HealthCheckConfig? config)
     {
         if (config == null) return null;

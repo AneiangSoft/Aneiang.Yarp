@@ -4,7 +4,6 @@ using System.Globalization;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
-/// <summary>SQLite implementation of AI conversation history persistence.</summary>
 public class SqliteAIConversationRepository : IAIConversationRepository
 {
     private readonly SqliteConnectionFactory _connections;

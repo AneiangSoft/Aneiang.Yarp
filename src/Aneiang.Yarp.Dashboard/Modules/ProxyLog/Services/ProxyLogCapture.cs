@@ -7,33 +7,6 @@ using Yarp.ReverseProxy.Model;
 namespace Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 
 /// <summary>
-/// Builds and stores proxy log entries. Extracted from YarpRequestCaptureMiddleware
-/// to separate log entry construction from HTTP pipeline orchestration.
-/// </summary>
-public interface IProxyLogCapture
-{
-    /// <summary>
-    /// Builds and stores both ProxyRequest and ProxyResponse log entries.
-    /// </summary>
-    void CaptureLogEntry(
-        HttpContext context,
-        IReverseProxyFeature? proxyFeature,
-        string upstreamPath,
-        string? routeId,
-        string? clusterId,
-        DateTime timestamp,
-        TimeSpan elapsed,
-        HeaderList? requestHeaders,
-        string requestBody,
-        bool requestBodyTruncated,
-        string? responseBodyText,
-        bool responseTruncated,
-        HeaderList? responseHeaders,
-        string? downstreamText,
-        bool downstreamTruncated);
-}
-
-/// <summary>
 /// Default implementation that creates <see cref="LogEntry"/> records and adds them to <see cref="IProxyLogStore"/>.
 /// </summary>
 public sealed class ProxyLogCapture : IProxyLogCapture
@@ -47,6 +20,9 @@ public sealed class ProxyLogCapture : IProxyLogCapture
         _sanitizer = sanitizer;
     }
 
+    /// <summary>
+    /// Builds and stores both ProxyRequest and ProxyResponse log entries.
+    /// </summary>
     public void CaptureLogEntry(
         HttpContext context,
         IReverseProxyFeature? proxyFeature,
@@ -72,7 +48,6 @@ public sealed class ProxyLogCapture : IProxyLogCapture
         var sanitizedResponseBody = _sanitizer.SanitizeJsonBody(responseBodyText ?? string.Empty);
         var responseText = _sanitizer.TruncateText(sanitizedResponseBody, out _);
 
-        // ProxyRequest entry
         _store.Add(new LogEntry
         {
             Timestamp = timestamp,
@@ -87,7 +62,6 @@ public sealed class ProxyLogCapture : IProxyLogCapture
             RequestBodyTruncated = requestBodyTruncated
         });
 
-        // ProxyResponse entry
         var downstreamUrl = ProxyLogBodyReader.GetDownstreamUrl(context)
             ?? BuildDownstreamUrl(proxyFeature, context.Request);
         var downstreamMethod = ProxyLogBodyReader.GetDownstreamMethod(context);

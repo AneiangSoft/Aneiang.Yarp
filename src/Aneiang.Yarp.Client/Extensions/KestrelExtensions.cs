@@ -6,27 +6,8 @@ using Microsoft.Extensions.Configuration;
 
 namespace Aneiang.Yarp.Extensions;
 
-/// <summary>
-/// Kestrel 自动配置扩展方法。支持 HTTP/1.1 + HTTP/2 双协议，确保 gRPC 可用。
-/// </summary>
 public static class KestrelExtensions
 {
-    /// <summary>
-    /// 自动配置 Kestrel 监听 0.0.0.0，支持跨机器访问
-    /// 自动检测并覆盖以下配置：
-    /// 1. "Urls" 配置项
-    /// 2. "Kestrel:EndPoints" 配置节
-    /// 3. ASPNETCORE_URLS 环境变量
-    /// </summary>
-    /// <param name="builder">WebApplicationBuilder</param>
-    /// <param name="forceAnyIP">是否强制监听 0.0.0.0（即使配置中是 localhost）</param>
-    /// <returns>WebApplicationBuilder</returns>
-    /// <example>
-    /// <code>
-    /// var builder = WebApplication.CreateBuilder(args);
-    /// builder.UseYarpKestrelAutoConfig();
-    /// </code>
-    /// </example>
     public static WebApplicationBuilder UseYarpKestrelAutoConfig(
         this WebApplicationBuilder builder,
         bool forceAnyIP = true)
@@ -40,22 +21,6 @@ public static class KestrelExtensions
     }
 
 
-    /// <summary>
-    /// 自动配置 Kestrel 监听 0.0.0.0，支持跨机器访问
-    /// 自动检测并覆盖以下配置：
-    /// 1. "Urls" 配置项
-    /// 2. "Kestrel:EndPoints" 配置节
-    /// 3. ASPNETCORE_URLS 环境变量
-    /// </summary>
-    /// <param name="builder">WebApplicationBuilder</param>
-    /// <param name="forceAnyIP">是否强制监听 0.0.0.0（即使配置中是 localhost）</param>
-    /// <returns>WebApplicationBuilder</returns>
-    /// <example>
-    /// <code>
-    /// var builder = WebApplication.CreateBuilder(args);
-    /// builder.UseYarpKestrelAutoConfig();
-    /// </code>
-    /// </example>
     public static IWebHostBuilder UseYarpKestrelAutoConfig(
         this IWebHostBuilder builder,
         bool forceAnyIP = true)
@@ -68,15 +33,8 @@ public static class KestrelExtensions
         return builder;
     }
 
-    /// <summary>
-    /// Config key for explicit gRPC port override on the gateway.
-    /// When not set, defaults to <c>mainPort + 1</c> in HTTP mode.
-    /// </summary>
     private const string GrpcPortConfigKey = "Gateway:Grpc:Port";
 
-    /// <summary>
-    /// 从所有配置源读取并配置 Kestrel 端点
-    /// </summary>
     private static void ConfigureFromAllSources(
         IConfiguration configuration,
         KestrelServerOptions options,
@@ -108,9 +66,6 @@ public static class KestrelExtensions
         }
     }
 
-    /// <summary>
-    /// Resolves the gRPC port from config (<c>Gateway:Grpc:Port</c>) or falls back to <c>mainPort + 1</c>.
-    /// </summary>
     private static int ResolveGrpcPort(IConfiguration? configuration, int mainPort)
     {
         if (configuration != null)
@@ -122,11 +77,6 @@ public static class KestrelExtensions
         return mainPort + 1;
     }
 
-    /// <summary>
-    /// 从 "Kestrel:EndPoints" 配置节读取并配置。
-    /// 当 Kestrel:Endpoints 存在时，Kestrel 原生配置系统已经自动绑定这些端点，
-    /// 此方法只需返回 true 表示"已配置"，不再手动添加 ListenAnyIP（否则会重复绑定导致 address already in use）。
-    /// </summary>
     private static bool ConfigureFromKestrelSection(
         IConfiguration configuration,
         KestrelServerOptions options,
@@ -150,9 +100,6 @@ public static class KestrelExtensions
         return true;
     }
 
-    /// <summary>
-    /// 从 "Urls" 配置项读取并配置
-    /// </summary>
     private static bool ConfigureFromUrls(
         IConfiguration configuration,
         KestrelServerOptions options,
@@ -176,9 +123,6 @@ public static class KestrelExtensions
         return configured;
     }
 
-    /// <summary>
-    /// 从 ASPNETCORE_URLS 环境变量读取并配置
-    /// </summary>
     private static bool ConfigureFromEnvironment(
         KestrelServerOptions options,
         bool forceAnyIP)
@@ -201,12 +145,6 @@ public static class KestrelExtensions
         return configured;
     }
 
-    /// <summary>
-    /// 解析 URL 并配置 Kestrel 监听。
-    /// 对于纯 HTTP（非 TLS）端点，额外开启 HTTP/2 only 端口给 gRPC
-    /// （.NET 9 Kestrel 不支持在无 TLS 的端点上同时协商 HTTP/1.1 和 HTTP/2）。
-    /// gRPC 端口可通过 <c>Gateway:Grpc:Port</c> 显式指定，否则默认为主端口+1。
-    /// </summary>
     private static bool TryParseAndConfigure(
         string url,
         KestrelServerOptions options,

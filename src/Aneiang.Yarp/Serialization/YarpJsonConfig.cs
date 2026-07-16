@@ -4,29 +4,12 @@ using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Serialization;
 
-/// <summary>
-/// Single source of truth for serializing and deserializing native YARP
-/// <see cref="RouteConfig"/> and <see cref="ClusterConfig"/> objects across the whole stack
-/// (persistence, API parsing, import/export).
-/// Output keys are PascalCase to match the canonical YARP appsettings layout, while reading
-/// is case-insensitive and tolerant of JSON comments and trailing commas.
-/// </summary>
 public static class YarpJsonConfig
 {
-    /// <summary>
-    /// Lenient options used everywhere: PascalCase output, case-insensitive input,
-    /// comments skipped, trailing commas allowed, enums as strings, nulls omitted.
-    /// </summary>
     public static JsonSerializerOptions Options { get; } = BuildOptions(writeIndented: false);
 
-    /// <summary>Same as <see cref="Options"/> but with indentation for human-friendly output.</summary>
     public static JsonSerializerOptions IndentedOptions { get; } = BuildOptions(writeIndented: true);
 
-    /// <summary>
-    /// Builds the options.
-    /// </summary>
-    /// <param name="writeIndented">If true, write indented.</param>
-    /// <returns>A JsonSerializerOptions.</returns>
     private static JsonSerializerOptions BuildOptions(bool writeIndented)
     {
         var options = new JsonSerializerOptions
@@ -45,43 +28,26 @@ public static class YarpJsonConfig
         return options;
     }
 
-    /// <summary>Serialize a route to a PascalCase JSON string.</summary>
     public static string SerializeRoute(RouteConfig route, bool indented = false)
         => JsonSerializer.Serialize(route, indented ? IndentedOptions : Options);
 
-    /// <summary>Serialize a cluster to a PascalCase JSON string.</summary>
     public static string SerializeCluster(ClusterConfig cluster, bool indented = false)
         => JsonSerializer.Serialize(cluster, indented ? IndentedOptions : Options);
 
-    /// <summary>Deserialize a route from a JSON string (comments and trailing commas allowed).</summary>
     public static RouteConfig? DeserializeRoute(string? json)
         => string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<RouteConfig>(json, Options);
 
-    /// <summary>Deserialize a cluster from a JSON string (comments and trailing commas allowed).</summary>
     public static ClusterConfig? DeserializeCluster(string? json)
         => string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<ClusterConfig>(json, Options);
 
-    /// <summary>Deserialize a route from a parsed JSON element.</summary>
     public static RouteConfig? DeserializeRoute(JsonElement element)
         => element.ValueKind == JsonValueKind.Undefined ? null : element.Deserialize<RouteConfig>(Options);
 
-    /// <summary>Deserialize a cluster from a parsed JSON element.</summary>
     public static ClusterConfig? DeserializeCluster(JsonElement element)
         => element.ValueKind == JsonValueKind.Undefined ? null : element.Deserialize<ClusterConfig>(Options);
 
-    /// <summary>
-    /// Handles <see cref="Version"/> values written as relaxed strings such as "2" by
-    /// normalizing them to a parseable form, and writes them back as plain strings.
-    /// </summary>
     private sealed class VersionConverter : JsonConverter<Version>
     {
-        /// <summary>
-        /// Reads the.
-        /// </summary>
-        /// <param name="reader">The reader.</param>
-        /// <param name="typeToConvert">The type to convert.</param>
-        /// <param name="options">The options.</param>
-        /// <returns>A Version? .</returns>
         public override Version? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             var raw = reader.GetString();
@@ -90,32 +56,12 @@ public static class YarpJsonConfig
             return Version.TryParse(normalized, out var version) ? version : null;
         }
 
-        /// <summary>
-        /// Writes the.
-        /// </summary>
-        /// <param name="writer">The writer.</param>
-        /// <param name="value">The value.</param>
-        /// <param name="options">The options.</param>
         public override void Write(Utf8JsonWriter writer, Version value, JsonSerializerOptions options)
             => writer.WriteStringValue(value.ToString());
     }
 
-    /// <summary>
-    /// Accepts booleans written either as native JSON booleans or as relaxed strings
-    /// (e.g. "true"/"false"/"True"/"False"), matching the canonical YARP appsettings style.
-    /// Also tolerates 0/1 numeric forms. Writes back as native JSON booleans.
-    /// This converter is also used for <see cref="Nullable{Boolean}"/> via the framework's
-    /// nullable converter, which delegates element reads to this instance.
-    /// </summary>
     private sealed class LenientBooleanConverter : JsonConverter<bool>
     {
-        /// <summary>
-        /// Reads the.
-        /// </summary>
-        /// <param name="reader">The reader.</param>
-        /// <param name="typeToConvert">The type to convert.</param>
-        /// <param name="options">The options.</param>
-        /// <returns>A bool.</returns>
         public override bool Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             switch (reader.TokenType)
@@ -137,32 +83,12 @@ public static class YarpJsonConfig
             }
         }
 
-        /// <summary>
-        /// Writes the.
-        /// </summary>
-        /// <param name="writer">The writer.</param>
-        /// <param name="value">If true, value.</param>
-        /// <param name="options">The options.</param>
         public override void Write(Utf8JsonWriter writer, bool value, JsonSerializerOptions options)
             => writer.WriteBooleanValue(value);
     }
 
-    /// <summary>
-    /// Accepts string values written as native JSON booleans, numbers, or nulls, converting them
-    /// to their string representation. This mirrors how Microsoft.Extensions.Configuration binds
-    /// scalar values into <c>Dictionary&lt;string, string&gt;</c> (used by YARP Transforms and Metadata).
-    /// For example, <c>"RequestHeadersCopy": true</c> becomes the string <c>"true"</c>.
-    /// Native JSON strings pass through unchanged.
-    /// </summary>
     private sealed class LenientStringConverter : JsonConverter<string>
     {
-        /// <summary>
-        /// Reads the.
-        /// </summary>
-        /// <param name="reader">The reader.</param>
-        /// <param name="typeToConvert">The type to convert.</param>
-        /// <param name="options">The options.</param>
-        /// <returns>A string? .</returns>
         public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return reader.TokenType switch
@@ -176,12 +102,6 @@ public static class YarpJsonConfig
             };
         }
 
-        /// <summary>
-        /// Writes the.
-        /// </summary>
-        /// <param name="writer">The writer.</param>
-        /// <param name="value">The value.</param>
-        /// <param name="options">The options.</param>
         public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options)
             => writer.WriteStringValue(value);
     }

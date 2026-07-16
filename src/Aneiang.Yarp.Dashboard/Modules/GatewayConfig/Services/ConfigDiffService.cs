@@ -4,53 +4,11 @@ using Yarp.ReverseProxy.Configuration;
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 
 /// <summary>
-/// Contract for config diff computation between snapshot versions and live config.
-/// </summary>
-public interface IConfigDiffService
-{
-    /// <summary>Resolve the change type from a snapshot description.</summary>
-    string ResolveHistoryChangeType(string? description);
-
-    /// <summary>Parse route entries from a snapshot JSON config.</summary>
-    List<ConfigDiffService.SnapshotRoute> ParseSnapshotRoutes(JsonElement config);
-
-    /// <summary>Parse cluster entries from a snapshot JSON config.</summary>
-    List<ConfigDiffService.SnapshotCluster> ParseSnapshotClusters(JsonElement config);
-
-    /// <summary>Build a structured diff of routes between a snapshot and live state.</summary>
-    List<object> BuildRouteDiffs(
-        List<ConfigDiffService.SnapshotRoute> snapshotRoutes,
-        IReadOnlyList<RouteConfig> currentRoutes);
-
-    /// <summary>Build a structured diff of clusters between a snapshot and live state.</summary>
-    List<object> BuildClusterDiffs(
-        List<ConfigDiffService.SnapshotCluster> snapshotClusters,
-        IReadOnlyList<ClusterConfig> currentClusters);
-}
-
-/// <summary>
 /// Service for computing configuration diffs between snapshot versions and live configuration.
 /// Extracted from ConfigManagementController to keep controllers lean.
 /// </summary>
 public class ConfigDiffService : IConfigDiffService
 {
-    /// <summary>Snapshot route entry extracted from snapshot config.</summary>
-    public class SnapshotRoute
-    {
-        public string RouteId { get; set; } = string.Empty;
-        public string ClusterId { get; set; } = string.Empty;
-        public string MatchPath { get; set; } = string.Empty;
-        public int Order { get; set; }
-    }
-
-    /// <summary>Snapshot cluster entry extracted from snapshot config.</summary>
-    public class SnapshotCluster
-    {
-        public string ClusterId { get; set; } = string.Empty;
-        public string? LoadBalancingPolicy { get; set; }
-        public Dictionary<string, string> Destinations { get; set; } = new();
-    }
-
     /// <inheritdoc />
     public string ResolveHistoryChangeType(string? description)
     {

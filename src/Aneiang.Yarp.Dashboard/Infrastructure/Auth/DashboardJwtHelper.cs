@@ -4,7 +4,6 @@ using System.Text.Json;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Auth;
 
-/// <summary>JWT token generation and validation (zero external dependency).</summary>
 public static class DashboardJwtHelper
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -12,13 +11,10 @@ public static class DashboardJwtHelper
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    /// <summary>Generate a signed JWT token.</summary>
-    /// <param name="username">Subject claim.</param>
-    /// <param name="secret">HMAC-SHA256 signing key.</param>
     public static string GenerateToken(string username, string secret)
     {
         var header = JsonSerializer.Serialize(new { alg = "HS256", typ = "JWT" }, _jsonOptions);
-        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var now = DateTimeOffset.Now.ToUnixTimeSeconds();
         var payload = JsonSerializer.Serialize(new
         {
             sub = username,
@@ -38,10 +34,6 @@ public static class DashboardJwtHelper
         return $"{headerB64}.{payloadB64}.{signatureB64}";
     }
 
-    /// <summary>Validate a signed JWT token.</summary>
-    /// <param name="token">The JWT string.</param>
-    /// <param name="secret">HMAC-SHA256 signing key.</param>
-    /// <returns>(valid, username) tuple.</returns>
     public static (bool Valid, string? Username) ValidateToken(string token, string secret)
     {
         var parts = token.Split('.');
@@ -61,7 +53,7 @@ public static class DashboardJwtHelper
         if (root.TryGetProperty("exp", out var expEl))
         {
             var expTime = DateTimeOffset.FromUnixTimeSeconds(expEl.GetInt64());
-            if (expTime < DateTimeOffset.UtcNow) return (false, null);
+            if (expTime < DateTimeOffset.Now) return (false, null);
         }
 
         var username = root.TryGetProperty("sub", out var subEl) ? subEl.GetString() : null;
@@ -86,7 +78,6 @@ public static class DashboardJwtHelper
         return Convert.FromBase64String(b64);
     }
 
-    /// <summary>Constant-time comparison to prevent timing attacks.</summary>
     private static bool ConstantTimeEquals(byte[] a, byte[] b)
     {
         if (a.Length != b.Length) return false;

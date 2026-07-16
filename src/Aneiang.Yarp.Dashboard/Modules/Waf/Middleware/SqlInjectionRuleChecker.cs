@@ -2,29 +2,18 @@ using System.Text.RegularExpressions;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
 
-/// <summary>
-/// Detects SQL injection attacks in the decoded query string and request body.
-/// Uses two complementary regex patterns:
-/// <list type="bullet">
-///   <item>Keyword pattern: SELECT/INSERT/UPDATE/DELETE/DROP/UNION/EXEC + comment markers</item>
-///   <item>Value pattern: <c>' OR '1'='1</c> and <c>; DROP TABLE</c> style attacks</item>
-/// </list>
-/// Atomic groups prevent catastrophic backtracking on long inputs.
-/// </summary>
 public sealed class SqlInjectionRuleChecker : IWafRuleChecker
 {
     public static readonly SqlInjectionRuleChecker Instance = new();
 
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(50);
 
-    /// <summary>SQL keyword + comment injection detection.</summary>
     private static readonly Regex KeywordPattern = new(
         @"(?i)(?>\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|UNION|EXEC|EXECUTE|XP_|SP_))" +
         @"|(?>\B--|\B/\*|\*/)",
         RegexOptions.Compiled,
         RegexTimeout);
 
-    /// <summary>SQL injection value pattern: <c>' OR '1'='1</c> and <c>; DROP TABLE</c>.</summary>
     private static readonly Regex ValuePattern = new(
         @"(?i)'(?>\s*(?:OR|AND)\s*)['""]?\w+['""]?(?>\s*)(?:=|LIKE|<|>)" +
         @"|;(?>\s*)(?:DROP|DELETE|INSERT|UPDATE)(?:\b|$)",

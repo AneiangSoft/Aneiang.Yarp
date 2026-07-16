@@ -4,7 +4,6 @@ using System.Globalization;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
-/// <summary>SQLite implementation of <see cref="IClusterRepository"/>.</summary>
 public sealed class SqliteClusterRepository : IClusterRepository
 {
     private readonly SqliteConnectionFactory _connections;

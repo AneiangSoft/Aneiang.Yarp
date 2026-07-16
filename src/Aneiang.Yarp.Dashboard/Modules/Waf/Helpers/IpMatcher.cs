@@ -4,35 +4,17 @@ using System.Text.RegularExpressions;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Waf.Helpers;
 
-/// <summary>
-/// Zero-allocation IP matching utilities (exact, CIDR, wildcard).
-/// Extracted from <see cref="Middleware.WafMiddleware"/> for reuse.
-/// 
-/// Memory optimization (v2.4): WildcardRegexCache Clear() method added
-/// to allow rebuilding the cache when WAF IP rules change, preventing
-/// stale Regex objects from accumulating indefinitely.
-/// </summary>
 public static class IpMatcher
 {
-    /// <summary>Ultra-tight timeout prevents catastrophic backtracking.</summary>
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(5);
 
     private static readonly ConcurrentDictionary<string, Regex> WildcardRegexCache = new();
 
-    /// <summary>
-    /// Clear the wildcard regex cache. Should be called when WAF IP rules
-    /// are updated (e.g., IpWhitelist/IpBlacklist configuration changes)
-    /// to prevent stale patterns from accumulating in memory.
-    /// </summary>
     public static void ClearWildcardRegexCache()
     {
         WildcardRegexCache.Clear();
     }
 
-    /// <summary>
-    /// Matches a client IP against a pattern (exact, CIDR, or wildcard).
-    /// Wildcard patterns use a cached compiled <see cref="Regex"/>.
-    /// </summary>
     public static bool Matches(string pattern, string clientIp)
     {
         if (pattern.Contains('/'))
@@ -51,10 +33,6 @@ public static class IpMatcher
         return string.Equals(pattern, clientIp, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// Checks if client IP is within a CIDR range using zero-allocation bit operations.
-    /// Supports both IPv4 (uint bitmask) and IPv6 (full-byte prefix matching).
-    /// </summary>
     public static bool IsInCidrRange(string cidr, string clientIp)
     {
         var slashIdx = cidr.IndexOf('/');

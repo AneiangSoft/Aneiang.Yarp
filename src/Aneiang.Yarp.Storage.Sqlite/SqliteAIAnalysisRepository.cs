@@ -4,7 +4,6 @@ using System.Globalization;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
-/// <summary>SQLite implementation of AI analysis results persistence.</summary>
 public class SqliteAIAnalysisRepository : IAIAnalysisRepository
 {
     private readonly SqliteConnectionFactory _connections;

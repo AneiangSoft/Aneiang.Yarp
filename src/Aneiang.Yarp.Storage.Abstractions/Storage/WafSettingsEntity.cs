@@ -1,6 +1,5 @@
 namespace Aneiang.Yarp.Storage;
 
-/// <summary>WAF Settings entity for database storage.</summary>
 public class WafSettingsEntity
 {
     public int Id { get; set; } = 1;

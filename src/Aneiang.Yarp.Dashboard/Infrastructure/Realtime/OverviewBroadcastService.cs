@@ -1,4 +1,3 @@
-using System.Text.Json.Serialization;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
@@ -9,11 +8,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Realtime;
 
-/// <summary>
-/// Background service that aggregates overview-level metrics (stat cards,
-/// system health, top errors) and pushes them to all connected Overview
-/// SignalR clients every 5 seconds.
-/// </summary>
 internal sealed class OverviewBroadcastService : BackgroundService
 {
     private readonly IHubContext<OverviewHub> _hubContext;
@@ -199,7 +193,7 @@ internal sealed class OverviewBroadcastService : BackgroundService
             ThreadCount = threadCount,
             TopErrorRoutes = topErrorRoutes,
             TopSlowClusters = topSlowClusters,
-            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            Timestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds()
         };
 
         await _hubContext.Clients.Group("overview").SendCoreAsync(
@@ -218,81 +212,4 @@ internal sealed class OverviewBroadcastService : BackgroundService
         if (lower == upper) return sorted[lower];
         return sorted[lower] + (sorted[upper] - sorted[lower]) * (idx - lower);
     }
-}
-
-// ─── Data models ─────────────────────────────────────────────────────────────
-
-/// <summary>
-/// Aggregated overview snapshot pushed to all connected Overview clients.
-/// </summary>
-public class OverviewSnapshot
-{
-    [JsonPropertyName("clusterCount")]
-    public int ClusterCount { get; set; }
-
-    [JsonPropertyName("routeCount")]
-    public int RouteCount { get; set; }
-
-    [JsonPropertyName("healthyCount")]
-    public int HealthyCount { get; set; }
-
-    [JsonPropertyName("unknownCount")]
-    public int UnknownCount { get; set; }
-
-    [JsonPropertyName("unhealthyCount")]
-    public int UnhealthyCount { get; set; }
-
-    [JsonPropertyName("currentQps")]
-    public double CurrentQps { get; set; }
-
-    [JsonPropertyName("cpuUsage")]
-    public double CpuUsage { get; set; }
-
-    [JsonPropertyName("memoryMb")]
-    public long MemoryMb { get; set; }
-
-    [JsonPropertyName("gcCount")]
-    public int GcCount { get; set; }
-
-    [JsonPropertyName("threadCount")]
-    public int ThreadCount { get; set; }
-
-    [JsonPropertyName("topErrorRoutes")]
-    public List<OverviewErrorRoute> TopErrorRoutes { get; set; } = new();
-
-    [JsonPropertyName("topSlowClusters")]
-    public List<OverviewSlowCluster> TopSlowClusters { get; set; } = new();
-
-    [JsonPropertyName("timestamp")]
-    public long Timestamp { get; set; }
-}
-
-/// <summary>
-/// A single error-route entry in the overview snapshot.
-/// </summary>
-public class OverviewErrorRoute
-{
-    [JsonPropertyName("routeId")]
-    public string RouteId { get; set; } = string.Empty;
-
-    [JsonPropertyName("errorCount")]
-    public int ErrorCount { get; set; }
-
-    [JsonPropertyName("errorRate")]
-    public double ErrorRate { get; set; }
-}
-
-/// <summary>
-/// A single slow-cluster entry in the overview snapshot.
-/// </summary>
-public class OverviewSlowCluster
-{
-    [JsonPropertyName("clusterId")]
-    public string ClusterId { get; set; } = string.Empty;
-
-    [JsonPropertyName("avgLatency")]
-    public double AvgLatency { get; set; }
-
-    [JsonPropertyName("p99Latency")]
-    public double P99Latency { get; set; }
 }

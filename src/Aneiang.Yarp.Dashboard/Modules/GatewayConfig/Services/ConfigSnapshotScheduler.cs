@@ -7,12 +7,6 @@ using Microsoft.Extensions.Options;
 
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 
-public interface IConfigSnapshotScheduler
-{
-    bool QueueSnapshot(string description, string? clientIp = null);
-    ConfigSnapshotMetrics GetMetrics();
-}
-
 /// <summary>
 /// Background snapshot scheduler for low-risk mutations.
 /// It keeps request latency low while preserving configuration history asynchronously.

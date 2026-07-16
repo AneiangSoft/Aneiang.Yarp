@@ -4,10 +4,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
-/// <summary>
-/// SQLite implementation of IAISettingsRepository.
-/// Reads/writes key-value pairs from the ai_settings table.
-/// </summary>
 public sealed class SqliteAISettingsRepository : IAISettingsRepository
 {
     private readonly SqliteConnectionFactory _connections;
@@ -34,7 +30,6 @@ public sealed class SqliteAISettingsRepository : IAISettingsRepository
         finally { _initLock.Release(); }
     }
 
-    /// <inheritdoc />
     public async Task<Dictionary<string, string>> LoadAllAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
@@ -53,7 +48,6 @@ public sealed class SqliteAISettingsRepository : IAISettingsRepository
         return result;
     }
 
-    /// <inheritdoc />
     public async Task SaveAsync(string key, string value, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
@@ -70,7 +64,6 @@ public sealed class SqliteAISettingsRepository : IAISettingsRepository
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    /// <inheritdoc />
     public async Task SaveBatchAsync(IEnumerable<(string Key, string Value)> pairs, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
@@ -95,7 +88,6 @@ public sealed class SqliteAISettingsRepository : IAISettingsRepository
         await tx.CommitAsync(ct);
     }
 
-    /// <inheritdoc />
     public async Task ClearAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);

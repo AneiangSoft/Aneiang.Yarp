@@ -3,9 +3,6 @@ using Microsoft.Data.Sqlite;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
-/// <summary>
-/// Handles paginated queries and detail retrieval from proxy_logs_meta and proxy_logs_body.
-/// </summary>
 internal sealed class SqliteProxyLogReader
 {
     private readonly SqliteConnectionFactory _connections;

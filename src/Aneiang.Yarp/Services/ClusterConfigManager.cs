@@ -4,10 +4,6 @@ using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Services;
 
-/// <summary>
-/// All cluster CRUD operations on the dynamic config working set.
-/// <see cref="DynamicConfigState"/> is the single authoritative data source.
-/// </summary>
 internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
 {
     private readonly AneiangProxyConfigProvider _configProvider;
@@ -29,8 +25,6 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
 
     protected override void LogPersistError(Exception ex, string operationName, string? targetName)
         => _logger.LogError(ex, "Persist failed for {Operation} on {Target}", operationName, targetName);
-
-    #region TryAddClusterConfig (full native config)
 
     public async Task<RouteOperationResult> TryAddClusterConfig(
         ClusterConfig cluster, string source, string? createdBy)
@@ -72,10 +66,6 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
             return new RouteOperationResult(true, $"Cluster '{cluster.ClusterId}' {action}");
         });
     }
-
-    #endregion
-
-    #region TryAddCluster (basic overload)
 
     public async Task<RouteOperationResult> TryAddCluster(string clusterId, Dictionary<string, string> destinations,
         string? loadBalancingPolicy, Models.HealthCheckConfig? healthCheck, string source, string? createdBy)
@@ -123,10 +113,6 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
         });
     }
 
-    #endregion
-
-    #region TryAddCluster (CreateClusterRequest)
-
     public async Task<RouteOperationResult> TryAddCluster(CreateClusterRequest request,
         string source, string? createdBy)
     {
@@ -168,10 +154,6 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
             return new RouteOperationResult(true, $"Cluster '{request.ClusterId}' created successfully");
         });
     }
-
-    #endregion
-
-    #region TryUpdateCluster
 
     public async Task<RouteOperationResult> TryUpdateCluster(string clusterId, UpdateClusterRequest request)
     {
@@ -220,10 +202,6 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
         });
     }
 
-    #endregion
-
-    #region TryRemoveCluster
-
     public async Task<RouteOperationResult> TryRemoveCluster(string clusterId)
     {
         if (string.IsNullOrWhiteSpace(clusterId))
@@ -249,10 +227,6 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
             return new RouteOperationResult(true, $"Cluster '{clusterId}' deleted");
         });
     }
-
-    #endregion
-
-    #region TryRenameCluster
 
     public async Task<RouteOperationResult> TryRenameCluster(string oldClusterId, string newClusterId,
         Dictionary<string, string> destinations, string? loadBalancingPolicy,
@@ -282,7 +256,6 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
                 HealthCheck = healthCheck != null ? DynamicYarpConfigHelpers.BuildClusterHealthCheck(healthCheck) : oldDc.Config.HealthCheck
             };
 
-            // Replace cluster entry, preserving UID
             config.Clusters.Remove(oldDc);
             config.Clusters.Add(new DynamicClusterConfig
             {
@@ -295,7 +268,6 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
                 CreatedBy = createdBy
             });
 
-            // Update all referencing routes
             int updatedRouteCount = 0;
             foreach (var dr in config.Routes.Where(r =>
                 string.Equals(r.Config.ClusterId, oldClusterId, StringComparison.OrdinalIgnoreCase)))
@@ -312,10 +284,6 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
             return new RouteOperationResult(true, $"Cluster '{oldClusterId}' renamed to '{newClusterId}', {updatedRouteCount} route(s) updated");
         });
     }
-
-    #endregion
-
-    #region UpdateClusterCircuitBreakerAsync
 
     public async Task<bool> UpdateClusterCircuitBreakerAsync(string clusterId, CircuitBreakerConfig? config)
     {
@@ -337,13 +305,8 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
         });
     }
 
-    #endregion
-
-    #region Query methods (lock-free reads via volatile provider snapshot)
-
     public IReadOnlyList<ClusterConfig> GetClusters() => _configProvider.GetClusters();
 
     public ClusterConfig? GetCluster(string clusterId) => _configProvider.GetCluster(clusterId);
 
-    #endregion
 }

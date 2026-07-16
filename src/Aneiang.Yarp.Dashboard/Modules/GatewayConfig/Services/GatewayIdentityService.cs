@@ -8,30 +8,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 
-public interface IGatewayIdentityService
-{
-    Task<RouteOperationResult> RenameClusterAsync(
-        string oldClusterId,
-        string newClusterId,
-        Dictionary<string, string> destinations,
-        string? loadBalancingPolicy = null,
-        HealthCheckConfig? healthCheck = null,
-        string? clientIp = null,
-        string? operatorName = "dashboard-user",
-        CancellationToken ct = default);
-
-    Task<RouteOperationResult> RenameRouteAsync(
-        string oldRouteId,
-        string newRouteId,
-        RegisterRouteRequest request,
-        string? clientIp = null,
-        string? operatorName = "dashboard-user",
-        CancellationToken ct = default);
-
-    Task AfterClusterRenamedAsync(string oldClusterId, string newClusterId, CancellationToken ct = default);
-    Task AfterRouteRenamedAsync(string oldRouteId, string newRouteId, CancellationToken ct = default);
-}
-
 /// <summary>
 /// Transitional identity service for key rename operations.
 /// Long term this becomes the single entry point for UID/key rename operations.

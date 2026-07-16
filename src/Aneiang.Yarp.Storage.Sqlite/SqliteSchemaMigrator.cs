@@ -5,20 +5,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
-/// <summary>
-/// Orchestrates versioned SQLite schema migrations.
-/// Discovers <see cref="ISchemaMigration"/> implementations, orders them by
-/// <see cref="ISchemaMigration.Version"/>, and applies any that haven't been
-/// recorded in the <c>schema_migrations</c> tracking table.
-/// </summary>
 public sealed class SqliteSchemaMigrator : IHostedService
 {
     private readonly SqliteConnectionFactory _connections;
     private readonly ILogger<SqliteSchemaMigrator> _logger;
 
-    /// <summary>
-    /// Ordered list of all known migrations. Add new migration types here.
-    /// </summary>
     private static readonly ISchemaMigration[] AllMigrations =
     [
         new Migration001_CoreTables(),
@@ -32,10 +23,6 @@ public sealed class SqliteSchemaMigrator : IHostedService
         new Migration009_AISettingsTable(),
     ];
 
-    /// <summary>
-    /// Maps legacy (pre-refactor) migration IDs to the new migration version IDs
-    /// so that existing databases don't re-run already-applied migrations.
-    /// </summary>
     private static readonly Dictionary<string, string> LegacyIdMap = new(StringComparer.OrdinalIgnoreCase)
     {
         ["20260618_001_enterprise_identity_and_history_schema"] = "001_core_tables",
@@ -58,20 +45,12 @@ public sealed class SqliteSchemaMigrator : IHostedService
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-    /// <summary>
-    /// Run all pending schema migrations. Called lazily by
-    /// <see cref="SqliteConnectionFactory"/> on first connection use, or directly by
-    /// the host when registered as <see cref="IHostedService"/>.
-    /// </summary>
     public async Task RunMigrationAsync(CancellationToken cancellationToken = default)
     {
-        // Use CreateRawConnection to avoid deadlock (CreateConnection awaits migration).
         await using var conn = _connections.CreateRawConnection();
         await conn.OpenAsync(cancellationToken);
 
-        // Reduce "database is locked" stalls during concurrent access / recovery.
         await ExecutePragmaAsync(conn, "PRAGMA busy_timeout=30000;", cancellationToken);
-        // Auto-checkpoint WAL every 1000 pages to prevent unbounded WAL file growth.
         await ExecutePragmaAsync(conn, "PRAGMA wal_autocheckpoint=1000;", cancellationToken);
 
         await EnsureMigrationTableAsync(conn, cancellationToken);
@@ -82,7 +61,6 @@ public sealed class SqliteSchemaMigrator : IHostedService
             if (await IsMigrationAppliedAsync(conn, migration.Id, cancellationToken))
                 continue;
 
-            // Migration006 (data backfill) is time-boxed to 30s
             using var backfillCts = migration is Migration006_DataBackfill
                 ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
                 : null;
@@ -102,7 +80,6 @@ public sealed class SqliteSchemaMigrator : IHostedService
             }
             catch (OperationCanceledException) when (migration is Migration006_DataBackfill)
             {
-                // Backfill time-out is non-fatal — commit what was done so far
                 try { await transaction.CommitAsync(CancellationToken.None); } catch { }
                 _logger.LogWarning("SQLite data backfill exceeded 30s time limit; remaining rows will be backfilled on next startup");
             }
@@ -161,12 +138,8 @@ public sealed class SqliteSchemaMigrator : IHostedService
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    /// <summary>
-    /// Maps legacy migration IDs to new IDs so existing databases skip already-applied migrations.
-    /// </summary>
     private static async Task MarkLegacyMigrationsAsync(SqliteConnection conn, CancellationToken ct)
     {
-        // Check if any legacy IDs exist
         await using var checkCmd = conn.CreateCommand();
         checkCmd.CommandTimeout = 30;
         checkCmd.CommandText = "SELECT id FROM schema_migrations";

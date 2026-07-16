@@ -4,7 +4,6 @@ using System.Globalization;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
-/// <summary>SQLite implementation of <see cref="IPolicyRepository"/>.</summary>
 public sealed class SqlitePolicyRepository : IPolicyRepository
 {
     private readonly SqliteConnectionFactory _connections;

@@ -98,7 +98,7 @@ public partial class GatewayToolExecutor
             return new { success = false, message = $"Cluster '{oldClusterId}' not found." };
 
         var destinations = existing.Destinations?
-            .ToDictionary(d => d.Name, d => d.Address) ?? new Dictionary<string, string>();
+            .ToDictionary(d => d.Name, d => d.Address!) ?? new Dictionary<string, string>();
 
         var result = await _dynamicConfig.TryRenameCluster(
             oldClusterId, newClusterId, destinations,

@@ -1,8 +1,5 @@
 namespace Aneiang.Yarp.Storage;
 
-/// <summary>
-/// Audit log repository for config change audit persistence.
-/// </summary>
 public interface IAuditLogRepository
 {
     Task<IReadOnlyList<AuditLogEntity>> GetAuditLogsAsync(int limit = 200, CancellationToken ct = default);

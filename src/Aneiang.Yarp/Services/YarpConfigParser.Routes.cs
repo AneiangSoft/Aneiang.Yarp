@@ -3,10 +3,8 @@ using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Services;
 
-/// <summary>Route parsing methods for <see cref="YarpConfigParser"/>.</summary>
 partial class YarpConfigParser
 {
-    /// <summary>Parse routes from configuration section.</summary>
     public static List<RouteConfig> ParseRoutes(IConfigurationSection section)
     {
         var routes = new List<RouteConfig>();
@@ -103,9 +101,6 @@ partial class YarpConfigParser
         return list.Count > 0 ? list : null;
     }
 
-    /// <summary>
-    /// Transform keys whose appsettings.json syntax must be converted to API/InMemoryConfigProvider enum format.
-    /// </summary>
     private static readonly HashSet<string> _apiCompatibleTransformKeys = new(StringComparer.OrdinalIgnoreCase)
     {
         "X-Forwarded"
@@ -137,9 +132,6 @@ partial class YarpConfigParser
         return list.Count > 0 ? list : null;
     }
 
-    /// <summary>
-    /// Convert appsettings.json-style descriptive transform values to the API/InMemory enum values.
-    /// </summary>
     private static string MapTransformToApi(string key, string value)
     {
         if (string.Equals(key, "X-Forwarded", StringComparison.OrdinalIgnoreCase))

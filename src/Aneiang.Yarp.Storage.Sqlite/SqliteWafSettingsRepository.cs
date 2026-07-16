@@ -4,7 +4,6 @@ using System.Globalization;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
-/// <summary>SQLite implementation of <see cref="IWafSettingsRepository"/>.</summary>
 public sealed class SqliteWafSettingsRepository : IWafSettingsRepository
 {
     private readonly SqliteConnectionFactory _connections;

@@ -48,13 +48,11 @@ public class GatewayRegistryGrpcService : GatewayGrpc.GatewayRegistryBase
 
         GrpcGatewayRegistryMapper.LogUnsupportedPathsIfNeeded(request, _logger);
 
-        // Phase 2: multi-path → multiple routes sharing the same cluster
         var routeRequests = GrpcGatewayRegistryMapper.ToRegisterRouteRequests(request);
         var clusterName = GrpcGatewayRegistryMapper.BuildClusterName(request);
         var destinations = GrpcGatewayRegistryMapper.BuildDestinations(request);
         var loadBalancingPolicy = GrpcGatewayRegistryMapper.MapLoadBalancingPolicy(request.LoadBalancing);
 
-        // Register all routes
         var routeIds = new List<string>();
         var allSucceeded = true;
         var messages = new List<string>();
@@ -73,7 +71,6 @@ public class GatewayRegistryGrpcService : GatewayGrpc.GatewayRegistryBase
             }
         }
 
-        // Register the cluster with all destinations
         if (routeIds.Count > 0)
         {
             var clusterResult = await _dynamicConfigService.TryAddCluster(
@@ -96,7 +93,7 @@ public class GatewayRegistryGrpcService : GatewayGrpc.GatewayRegistryBase
             Success = allSucceeded && routeIds.Count > 0,
             Message = string.Join("; ", messages),
             ClusterId = clusterName,
-            RegisteredAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            RegisteredAt = DateTimeOffset.Now.ToUnixTimeSeconds()
         };
         response.RouteIds.AddRange(routeIds);
 
@@ -137,7 +134,7 @@ public class GatewayRegistryGrpcService : GatewayGrpc.GatewayRegistryBase
             {
                 Success = updated,
                 Message = updated ? "heartbeat" : $"Route '{routeName}' not found",
-                NextHeartbeat = DateTimeOffset.UtcNow.AddSeconds(30).ToUnixTimeSeconds()
+                NextHeartbeat = DateTimeOffset.Now.AddSeconds(30).ToUnixTimeSeconds()
             });
         }
         catch (Exception ex)

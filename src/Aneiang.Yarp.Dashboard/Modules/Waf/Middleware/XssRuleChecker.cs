@@ -2,11 +2,6 @@ using System.Text.RegularExpressions;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
 
-/// <summary>
-/// Detects cross-site scripting (XSS) attacks in the decoded query string and request body.
-/// Matches script/iframe tags, javascript: protocol, data:text/html URIs, and event-handler attributes.
-/// Atomic group on <c>on\w+</c> prevents backtracking over long word sequences.
-/// </summary>
 public sealed class XssRuleChecker : IWafRuleChecker
 {
     public static readonly XssRuleChecker Instance = new();

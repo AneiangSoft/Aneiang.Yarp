@@ -4,9 +4,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 
-/// <summary>
-/// Persists WAF settings via <see cref="IWafSettingsRepository"/>.
-/// </summary>
 public class WafSettingsPersistenceService : IWafSettingsPersistenceService
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()

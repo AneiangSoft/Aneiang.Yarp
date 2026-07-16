@@ -7,10 +7,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Notification.Services;
 
-/// <summary>
-/// Handles HTTP delivery of notifications to configured channels (DingTalk, Generic Webhook).
-/// Extracted from <see cref="NotificationService"/> for single responsibility.
-/// </summary>
 internal sealed class ChannelSender
 {
     private readonly INotificationRepository _repository;
@@ -20,10 +16,6 @@ internal sealed class ChannelSender
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _channelLocks = new();
 
-    /// <summary>
-    /// Remove the lock for a channel that has been deleted.
-    /// Prevents SemaphoreSlim objects from accumulating indefinitely.
-    /// </summary>
     public static void RemoveChannelLock(string channelId)
     {
         if (_channelLocks.TryRemove(channelId, out var semaphore))
@@ -45,7 +37,6 @@ internal sealed class ChannelSender
         };
     }
 
-    /// <summary>Send a notification event to a specific channel with retry.</summary>
     public async Task<bool> SendToChannelAsync(
         NotificationChannel channel,
         NotificationEvent evt,
@@ -182,7 +173,7 @@ internal sealed class ChannelSender
         // Add signature if secret is configured
         if (!string.IsNullOrEmpty(channel.Secret))
         {
-            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+            var timestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
             var stringToSign = timestamp + "\n" + channel.Secret;
             using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(channel.Secret));
             var sign = Uri.EscapeDataString(Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(stringToSign))));

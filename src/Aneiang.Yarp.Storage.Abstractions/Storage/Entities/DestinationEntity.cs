@@ -1,6 +1,5 @@
 namespace Aneiang.Yarp.Storage;
 
-/// <summary>YARP Destination entity for database storage.</summary>
 public class DestinationEntity
 {
     public string DestinationId { get; set; } = string.Empty;

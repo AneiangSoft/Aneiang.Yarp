@@ -1,8 +1,5 @@
 namespace Aneiang.Yarp.Storage;
 
-/// <summary>
-/// Route repository for YARP route entity CRUD operations.
-/// </summary>
 public interface IRouteRepository
 {
     Task<RouteEntity?> GetRouteAsync(string routeId, CancellationToken ct = default);

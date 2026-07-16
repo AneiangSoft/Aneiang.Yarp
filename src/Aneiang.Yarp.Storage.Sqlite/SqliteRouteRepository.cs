@@ -4,7 +4,6 @@ using System.Globalization;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
-/// <summary>SQLite implementation of <see cref="IRouteRepository"/>.</summary>
 public sealed class SqliteRouteRepository : IRouteRepository
 {
     private readonly SqliteConnectionFactory _connections;

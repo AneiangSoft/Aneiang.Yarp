@@ -1,6 +1,5 @@
 namespace Aneiang.Yarp.Storage;
 
-/// <summary>YARP Route entity for database storage.</summary>
 public class RouteEntity
 {
     public string RouteUid { get; set; } = Guid.NewGuid().ToString("N");
@@ -22,6 +21,5 @@ public class RouteEntity
     public DateTime UpdatedAt { get; set; } = DateTime.Now;
     public string? Metadata { get; set; } // JSON
 
-    /// <summary>Full native YARP RouteConfig serialized as PascalCase JSON. Carries all advanced properties.</summary>
     public string? ConfigJson { get; set; }
 }

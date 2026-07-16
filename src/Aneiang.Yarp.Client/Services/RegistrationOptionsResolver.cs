@@ -6,24 +6,17 @@ using Microsoft.Extensions.Hosting;
 
 namespace Aneiang.Yarp.Services;
 
-/// <summary>
-/// Resolves smart defaults for gateway registration options.
-/// Handles route/cluster naming, path generation, transform building, and destination address resolution.
-/// </summary>
 internal static class RegistrationOptionsResolver
 {
-    /// <summary>Determines whether registration is enabled.</summary>
     public static bool IsEnabled(GatewayRegistrationOptions options)
         => options.Enabled ?? !string.IsNullOrWhiteSpace(options.GatewayUrl);
 
-    /// <summary>Gets the resolved route name.</summary>
     public static string GetRouteName(GatewayRegistrationOptions options)
     {
         return !string.IsNullOrWhiteSpace(options.RouteName)
             ? options.RouteName : Assembly.GetEntryAssembly()?.GetName().Name ?? "my-service";
     }
 
-    /// <summary>Gets the resolved cluster name.</summary>
     public static string GetClusterName(GatewayRegistrationOptions options)
     {
         return !string.IsNullOrWhiteSpace(options.ClusterName)
@@ -31,7 +24,6 @@ internal static class RegistrationOptionsResolver
             : (!string.IsNullOrWhiteSpace(options.RouteName) ? options.RouteName : Assembly.GetEntryAssembly()?.GetName().Name ?? "my-service");
     }
 
-    /// <summary>Gets the resolved match path.</summary>
     public static string GetMatchPath(GatewayRegistrationOptions options)
     {
         var path = !string.IsNullOrWhiteSpace(options.MatchPath) ? options.MatchPath : "/{**catch-all}";
@@ -39,20 +31,12 @@ internal static class RegistrationOptionsResolver
         return path;
     }
 
-    /// <summary>Gets the resolved route order. Default: 50.</summary>
     public static int GetOrder(GatewayRegistrationOptions options) => options.Order ?? int.MaxValue;
 
-    /// <summary>Gets whether auto IP resolution is enabled. Default: true.</summary>
     public static bool GetAutoResolveIp(GatewayRegistrationOptions options) => options.AutoResolveIp ?? true;
 
-    /// <summary>Gets the HTTP timeout in seconds. Default: 5.</summary>
     public static int GetTimeoutSeconds(GatewayRegistrationOptions options) => options.TimeoutSeconds ?? 5;
 
-    /// <summary>
-    /// Build transforms list based on configuration priority:
-    /// 1. Custom Transforms (highest)
-    /// 2. DownstreamPathPrefix
-    /// </summary>
     public static List<Dictionary<string, string>>? GetTransforms(GatewayRegistrationOptions options)
     {
         // Priority 1: User-defined custom transforms
@@ -71,7 +55,6 @@ internal static class RegistrationOptionsResolver
         return null;
     }
 
-    /// <summary>Resolves the destination address (auto-detects from Kestrel if not set).</summary>
     public static string? GetDestinationAddress(GatewayRegistrationOptions options, IServiceProvider sp)
     {
         if (!string.IsNullOrWhiteSpace(options.DestinationAddress)) return options.DestinationAddress;
@@ -138,6 +121,5 @@ internal static class RegistrationOptionsResolver
         return preferHttps ? $"https://localhost:{port}" : $"http://localhost:{port}";
     }
 
-    /// <summary>Gets whether IP-based isolation is enabled.</summary>
     public static bool UseIpIsolation(GatewayRegistrationOptions options) => options.UseIpIsolation ?? false;
 }

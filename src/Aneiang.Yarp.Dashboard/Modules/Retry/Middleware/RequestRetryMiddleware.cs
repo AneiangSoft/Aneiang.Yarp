@@ -15,16 +15,6 @@ using Yarp.ReverseProxy.Health;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Retry.Middleware;
 
-/// <summary>
-/// Request retry middleware for failed proxy requests.
-/// Retries 502/503/504 responses with exponential backoff + jitter.
-/// Supports cross-destination retry and circuit-breaker awareness.
-/// 
-/// Memory optimization (v2.4): Uses RecyclableMemoryStream for request/response
-/// body buffering in retry loop — eliminates LOH fragmentation from repeated
-/// MemoryStream allocations. Also fixes ArrayPool.Rent + .ToArray() contradiction
-/// by storing the pooled buffer directly with a length marker.
-/// </summary>
 public sealed class RequestRetryMiddleware : GatewayMiddlewareBase
 {
     private readonly ILogger<RequestRetryMiddleware> _logger;
@@ -236,16 +226,9 @@ public sealed class RequestRetryMiddleware : GatewayMiddlewareBase
         }
     }
 
-    /// <summary>Maximum request body size for retry buffering. Prevents OOM from large uploads.</summary>
     private const int MaxRetryBodySizeBytes = 1024 * 1024; // 1MB hard limit
 
 
-    /// <summary>
-    /// Read request body into a pooled buffer, returning the buffer and length directly.
-    /// Memory optimization (v2.4): No .ToArray() — stores pooled buffer + length marker.
-    /// The buffer is NOT returned to the pool during retry; it's reused for each attempt.
-    /// It will be GC'd naturally after the retry loop completes (acceptable trade-off for correctness).
-    /// </summary>
     private async Task<RequestBodyBuffer> ReadRequestBodyPooledAsync(HttpRequest request)
     {
         if (request.ContentLength is null or 0)
@@ -283,9 +266,6 @@ public sealed class RequestRetryMiddleware : GatewayMiddlewareBase
         }
     }
 
-    /// <summary>
-    /// Lightweight struct to carry pooled buffer + length (avoids async out parameter limitation).
-    /// </summary>
     private readonly struct RequestBodyBuffer
     {
         public readonly byte[]? Buffer;

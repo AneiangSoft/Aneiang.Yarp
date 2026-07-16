@@ -1,8 +1,5 @@
 namespace Aneiang.Yarp.Storage;
 
-/// <summary>
-/// Config history repository for configuration version management.
-/// </summary>
 public interface IConfigHistoryRepository
 {
     Task<ConfigHistoryEntity?> GetConfigHistoryAsync(string versionId, CancellationToken ct = default);

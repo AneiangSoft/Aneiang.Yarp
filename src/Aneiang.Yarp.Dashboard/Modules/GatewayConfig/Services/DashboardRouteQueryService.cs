@@ -6,21 +6,6 @@ using Microsoft.Extensions.Logging;
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 
 /// <summary>
-/// Lightweight DTO for destination info - eliminates reflection in mapper.
-/// </summary>
-internal readonly struct DestinationInfoEntry
-{
-    public string Name { get; init; }
-    public string? Address { get; init; }
-
-    public DestinationInfoEntry(string name, string? address)
-    {
-        Name = name;
-        Address = address;
-    }
-}
-
-/// <summary>
 /// Implementation of dashboard route query service.
 /// Uses <see cref="IMemoryCache"/> for unified caching (shared across all query services).
 /// </summary>

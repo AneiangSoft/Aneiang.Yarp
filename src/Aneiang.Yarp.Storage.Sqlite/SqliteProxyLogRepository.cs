@@ -4,13 +4,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
-/// <summary>
-/// SQLite implementation of IProxyLogRepository.
-/// Thin facade that delegates to focused sub-components:
-/// - <see cref="SqliteProxyLogBatchWriter"/> for batch writes
-/// - <see cref="SqliteProxyLogReader"/> for paginated queries and detail retrieval
-/// - <see cref="SqliteProxyLogAggregator"/> for statistical aggregation
-/// </summary>
 public sealed class SqliteProxyLogRepository : IProxyLogRepository
 {
     private readonly SqliteConnectionFactory _connections;

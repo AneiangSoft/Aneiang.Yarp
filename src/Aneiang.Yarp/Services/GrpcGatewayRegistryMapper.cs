@@ -7,11 +7,6 @@ namespace Aneiang.Yarp.Services;
 
 internal static class GrpcGatewayRegistryMapper
 {
-    /// <summary>
-    /// Phase 2: Convert a gRPC RegisterServiceRequest to one or more route requests.
-    /// Multiple paths → multiple route configs sharing the same cluster.
-    /// All valid destinations are kept in the cluster for load balancing.
-    /// </summary>
     public static List<RegisterRouteRequest> ToRegisterRouteRequests(RegisterServiceRequest request)
     {
         var routeName = BuildRouteName(request);
@@ -50,10 +45,6 @@ internal static class GrpcGatewayRegistryMapper
         return routeRequests;
     }
 
-    /// <summary>
-    /// Build a destinations dictionary from the gRPC request (all valid destinations).
-    /// Phase 2: keeps all destinations for load balancing.
-    /// </summary>
     public static Dictionary<string, string> BuildDestinations(RegisterServiceRequest request)
     {
         var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

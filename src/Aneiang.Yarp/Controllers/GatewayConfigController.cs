@@ -7,7 +7,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Controllers;
 
-/// <summary>Gateway config API: dynamic route registration, deletion, and query.</summary>
 [Route("api/gateway")]
 [ApiController]
 [Produces("application/json")]
@@ -16,14 +15,12 @@ public class GatewayConfigController : ControllerBase
     private readonly DynamicYarpConfigService _dynamicConfig;
     private readonly ILogger<GatewayConfigController> _logger;
 
-    /// <summary>Creates a new instance of the controller.</summary>
     public GatewayConfigController(DynamicYarpConfigService dynamicConfig, ILogger<GatewayConfigController> logger)
     {
         _dynamicConfig = dynamicConfig;
         _logger = logger;
     }
 
-    /// <summary>Register or update a route and its cluster.</summary>
     [HttpPost("register-route")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -39,9 +36,6 @@ public class GatewayConfigController : ControllerBase
         return Ok(new { code = 200, message = result.Message });
     }
 
-    /// <summary>Delete a route. Also removes the cluster if no remaining routes reference it.</summary>
-    /// <param name="routeName">Route name to delete.</param>
-    /// <param name="clientIp">Optional client IP for IP-based isolation: only removes the matching destination.</param>
     [HttpDelete("{routeName}")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
@@ -53,7 +47,6 @@ public class GatewayConfigController : ControllerBase
             : NotFound(new { code = 404, message = result.Message });
     }
 
-    /// <summary>Get all registered routes.</summary>
     [HttpGet("routes")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public IActionResult GetRoutes()
@@ -68,7 +61,6 @@ public class GatewayConfigController : ControllerBase
         return Ok(new { code = 200, data });
     }
 
-    /// <summary>Get dynamic configuration (routes and clusters with metadata).</summary>
     [HttpGet("dynamic-config")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public IActionResult GetDynamicConfig()
@@ -77,7 +69,6 @@ public class GatewayConfigController : ControllerBase
         return Ok(new { code = 200, data = config });
     }
 
-    /// <summary>Update a route's configuration (JSON format).</summary>
     [HttpPut("routes/{routeId}")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -86,8 +77,7 @@ public class GatewayConfigController : ControllerBase
     {
         try
         {
-            // Validate required fields
-            if (!config.TryGetProperty("clusterId", out var clusterIdProp) ||
+                if (!config.TryGetProperty("clusterId", out var clusterIdProp) ||
                 !config.TryGetProperty("matchPath", out var matchPathProp))
             {
                 return BadRequest(new { code = 400, message = "clusterId and matchPath are required" });
@@ -116,7 +106,6 @@ public class GatewayConfigController : ControllerBase
         }
     }
 
-    /// <summary>Delete a cluster (if no routes reference it).</summary>
     [HttpDelete("clusters/{clusterId}")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -128,7 +117,6 @@ public class GatewayConfigController : ControllerBase
             : BadRequest(new { code = 400, message = result.Message });
     }
 
-    /// <summary>Create a new cluster.</summary>
     [HttpPost("clusters")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -146,7 +134,6 @@ public class GatewayConfigController : ControllerBase
             : BadRequest(new { code = 400, message = result.Message });
     }
 
-    /// <summary>Update an existing cluster.</summary>
     [HttpPut("clusters/{clusterId}")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -161,18 +148,10 @@ public class GatewayConfigController : ControllerBase
                 : BadRequest(new { code = 400, message = result.Message }));
     }
 
-    /// <summary>Health check endpoint.</summary>
     [HttpGet("ping")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public IActionResult Ping() => Ok(new { code = 200, message = "pong" });
 
-    /// <summary>
-    /// Heartbeat endpoint for registered services.
-    /// Services call this periodically to keep their registration alive.
-    /// Gateway tracks last heartbeat time to detect stale registrations.
-    /// </summary>
-    /// <param name="routeName">Route name to update heartbeat for.</param>
-    /// <param name="clientIp">Optional client IP for IP-based isolation.</param>
     [HttpPost("{routeName}/heartbeat")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
@@ -187,7 +166,6 @@ public class GatewayConfigController : ControllerBase
 
     #region Batch Operations
 
-    /// <summary>Batch register routes and clusters in a single atomic operation.</summary>
     [HttpPost("batch/register")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -220,7 +198,6 @@ public class GatewayConfigController : ControllerBase
         return Ok(new { code = 200, message = summary, details = results });
     }
 
-    /// <summary>Batch delete routes in a single atomic operation.</summary>
     [HttpPost("batch/delete-routes")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public async Task<IActionResult> BatchDeleteRoutes([FromBody] BatchDeleteRoutesRequest request)
@@ -253,38 +230,4 @@ public class GatewayConfigController : ControllerBase
     }
 
     #endregion
-}
-
-/// <summary>Request model for batch register operation.</summary>
-public class BatchRegisterRequest
-{
-    /// <summary>
-    /// Gets or sets the routes.
-    /// </summary>
-    public List<RegisterRouteRequest> Routes { get; set; } = new();
-    /// <summary>
-    /// Gets or sets the source.
-    /// </summary>
-    public string? Source { get; set; }
-    /// <summary>
-    /// Gets or sets the created by.
-    /// </summary>
-    public string? CreatedBy { get; set; }
-}
-
-/// <summary>Request model for batch delete routes operation.</summary>
-public class BatchDeleteRoutesRequest
-{
-    /// <summary>
-    /// Gets or sets the route names.
-    /// </summary>
-    public List<string> RouteNames { get; set; } = new();
-    /// <summary>
-    /// Gets or sets the client ip.
-    /// </summary>
-    public string? ClientIp { get; set; }
-    /// <summary>
-    /// Gets or sets a value indicating whether remove orphaned clusters.
-    /// </summary>
-    public bool RemoveOrphanedClusters { get; set; } = true;
 }

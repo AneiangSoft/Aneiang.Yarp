@@ -5,17 +5,10 @@ using Aneiang.Yarp.Infrastructure;
 
 namespace Aneiang.Yarp.Services;
 
-/// <summary>
-/// Custom YARP load balancing policy that routes requests based on client IP address.
-/// Selects the destination tagged with the matching client IP in its metadata.
-/// Falls back to the first available destination if no IP match is found.
-/// </summary>
 public sealed class IpBasedLoadBalancingPolicy : ILoadBalancingPolicy
 {
-    /// <inheritdoc />
     public string Name => "IpBased";
 
-    /// <inheritdoc />
     public DestinationState? PickDestination(
         HttpContext context,
         ClusterState cluster,
@@ -60,9 +53,6 @@ public sealed class IpBasedLoadBalancingPolicy : ILoadBalancingPolicy
         return ClientIpResolver.GetConnectionIp(context);
     }
 
-    /// <summary>
-    /// Convert "192-168-1-100" back to "192.168.1.100".
-    /// </summary>
     private static string RestoreIpAddress(ReadOnlySpan<char> keySpan)
     {
         if (keySpan.IsEmpty)

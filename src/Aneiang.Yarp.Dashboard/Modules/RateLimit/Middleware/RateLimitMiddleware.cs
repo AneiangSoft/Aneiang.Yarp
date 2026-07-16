@@ -15,11 +15,6 @@ using Yarp.ReverseProxy.Model;
 
 namespace Aneiang.Yarp.Dashboard.Modules.RateLimit.Middleware;
 
-/// <summary>
-/// Route-level rate limiting middleware.
-/// Reads RateLimit:* metadata from the matched route and enforces per-partition rate limits.
-/// Falls back to global DashboardOptions.RateLimit when no route-level metadata is configured.
-/// </summary>
 public sealed class RateLimitMiddleware : GatewayMiddlewareBase
 {
     private readonly ILogger<RateLimitMiddleware> _logger;

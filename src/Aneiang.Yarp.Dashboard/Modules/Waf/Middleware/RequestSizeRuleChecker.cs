@@ -2,9 +2,6 @@ using Microsoft.AspNetCore.Http;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
 
-/// <summary>
-/// Validates request size (Content-Length), header count/size, and URI length.
-/// </summary>
 public sealed class RequestSizeRuleChecker : IWafRuleChecker
 {
     public static readonly RequestSizeRuleChecker Instance = new();

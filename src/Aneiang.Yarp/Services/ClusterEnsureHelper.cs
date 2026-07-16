@@ -2,28 +2,13 @@ using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Services;
 
-/// <summary>
-/// Pure cluster-creation and IP-destination helpers extracted from
-/// <see cref="RouteConfigManager"/> to reduce the manager's size (~85 lines).
-/// </summary>
 internal static class ClusterEnsureHelper
 {
-    /// <summary>
-    /// Build the IP-isolation destination key: &quot;ip-10-0-0-1&quot;.
-    /// </summary>
     public static string GetDestinationKey(string clientIp) =>
         $"ip-{clientIp.Replace(".", "-")}";
 
     #region IP-isolation cluster
 
-    /// <summary>
-    /// Ensures an IP-isolation cluster exists with the given destination.
-    /// </summary>
-    /// <param name="clusters">The clusters.</param>
-    /// <param name="clusterName">The cluster name.</param>
-    /// <param name="clientIp">The client IP.</param>
-    /// <param name="destinationAddress">The destination address.</param>
-    /// <returns>A list of ClusterConfigs.</returns>
     public static List<ClusterConfig> EnsureIpCluster(
         List<ClusterConfig> clusters,
         string clusterName,
@@ -79,13 +64,6 @@ internal static class ClusterEnsureHelper
 
     #region Normal (non-IP) cluster
 
-    /// <summary>
-    /// Ensures a normal cluster exists with the given destination.
-    /// </summary>
-    /// <param name="clusters">The clusters.</param>
-    /// <param name="clusterName">The cluster name.</param>
-    /// <param name="destinationAddress">The destination address.</param>
-    /// <returns>A list of ClusterConfigs.</returns>
     public static List<ClusterConfig> EnsureNormalCluster(
         List<ClusterConfig> clusters,
         string clusterName,
@@ -132,10 +110,6 @@ internal static class ClusterEnsureHelper
 
     #region IP destination removal
 
-    /// <summary>
-    /// Remove the IP-specific destination from the cluster.
-    /// Returns (updated clusters, destinationKey, wasClusterRemoved, wasDestinationFound).
-    /// </summary>
     public static (List<ClusterConfig> Clusters, string DestKey, bool ClusterRemoved, bool Found)
         RemoveIpDestination(
             List<ClusterConfig> clusters,

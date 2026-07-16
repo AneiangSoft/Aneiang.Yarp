@@ -1,6 +1,5 @@
 namespace Aneiang.Yarp.Storage;
 
-/// <summary>YARP Cluster entity for database storage.</summary>
 public class ClusterEntity
 {
     public string ClusterUid { get; set; } = Guid.NewGuid().ToString("N");
@@ -20,6 +19,5 @@ public class ClusterEntity
     public DateTime UpdatedAt { get; set; } = DateTime.Now;
     public DateTime? LastHeartbeat { get; set; }
 
-    /// <summary>Full native YARP ClusterConfig serialized as PascalCase JSON. Carries all advanced properties.</summary>
     public string? ConfigJson { get; set; }
 }

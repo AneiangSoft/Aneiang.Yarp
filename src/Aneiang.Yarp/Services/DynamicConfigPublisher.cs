@@ -4,12 +4,6 @@ using Yarp.ReverseProxy.Configuration;
 
 namespace Aneiang.Yarp.Services;
 
-/// <summary>
-/// Builds immutable snapshots from the mutable working set and pushes them to
-/// <see cref="AneiangProxyConfigProvider"/> so YARP can hot-reload.
-/// Policy metadata is merged into route metadata and transforms are normalized
-/// for the published (YARP-facing) copy only; the authoritative records are untouched.
-/// </summary>
 internal class DynamicConfigPublisher : IDynamicConfigPublisher
 {
     private readonly AneiangProxyConfigProvider _configProvider;
@@ -23,7 +17,6 @@ internal class DynamicConfigPublisher : IDynamicConfigPublisher
         _logger = logger;
     }
 
-    /// <inheritdoc />
     public void Publish(GatewayDynamicConfig config, long version)
     {
         var publishRoutes = new List<DynamicRouteConfig>(config.Routes.Count);
@@ -75,7 +68,6 @@ internal class DynamicConfigPublisher : IDynamicConfigPublisher
         _configProvider.ApplyFromDynamic(publishRoutes, publishClusters, version);
     }
 
-    /// <inheritdoc />
     public ClusterConfig SanitizeCluster(ClusterConfig cluster)
     {
         if (cluster.Destinations == null || cluster.Destinations.Count == 0)

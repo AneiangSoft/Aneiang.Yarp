@@ -4,7 +4,6 @@ using System.Globalization;
 
 namespace Aneiang.Yarp.Storage.Sqlite;
 
-/// <summary>SQLite implementation of <see cref="IAuditLogRepository"/>.</summary>
 public sealed class SqliteAuditLogRepository : IAuditLogRepository
 {
     private readonly SqliteConnectionFactory _connections;
