@@ -315,6 +315,23 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<Modules.Operations.Application.IPerformanceAppService, Modules.Operations.Application.PerformanceAppService>();
         services.AddSingleton<Modules.Operations.Application.IHealthAppService, Modules.Operations.Application.HealthAppService>();
         services.AddSingleton<Modules.GatewayConfig.Application.IConfigHistoryAppService, Modules.GatewayConfig.Application.ConfigHistoryAppService>();
+        services.AddSingleton<Modules.GatewayConfig.Application.IConfigKnowledgeService, Modules.GatewayConfig.Application.ConfigKnowledgeService>();
+        services.AddSingleton<Modules.GatewayConfig.Application.IConfigTemplateService, Modules.GatewayConfig.Application.ConfigTemplateService>();
+        services.AddSingleton<Modules.Features.IFeatureCatalogService, Modules.Features.FeatureCatalogService>();
+        // Config Health Score engine + 12 rules
+        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Health.ConfigHealthService>();
+        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Health.IConfigHealthRule, Aneiang.Yarp.Dashboard.Infrastructure.Health.ConfigHealthRules.WafEnabledRule>();
+        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Health.IConfigHealthRule, Aneiang.Yarp.Dashboard.Infrastructure.Health.ConfigHealthRules.IpBlacklistRule>();
+        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Health.IConfigHealthRule, Aneiang.Yarp.Dashboard.Infrastructure.Health.ConfigHealthRules.RequestBodySizeRule>();
+        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Health.IConfigHealthRule, Aneiang.Yarp.Dashboard.Infrastructure.Health.ConfigHealthRules.HealthCheckRule>();
+        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Health.IConfigHealthRule, Aneiang.Yarp.Dashboard.Infrastructure.Health.ConfigHealthRules.CircuitBreakerRule>();
+        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Health.IConfigHealthRule, Aneiang.Yarp.Dashboard.Infrastructure.Health.ConfigHealthRules.SingleBackendRule>();
+        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Health.IConfigHealthRule, Aneiang.Yarp.Dashboard.Infrastructure.Health.ConfigHealthRules.RetryRule>();
+        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Health.IConfigHealthRule, Aneiang.Yarp.Dashboard.Infrastructure.Health.ConfigHealthRules.LoadBalancingRule>();
+        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Health.IConfigHealthRule, Aneiang.Yarp.Dashboard.Infrastructure.Health.ConfigHealthRules.Http2Rule>();
+        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Health.IConfigHealthRule, Aneiang.Yarp.Dashboard.Infrastructure.Health.ConfigHealthRules.RouteOrderRule>();
+        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Health.IConfigHealthRule, Aneiang.Yarp.Dashboard.Infrastructure.Health.ConfigHealthRules.ConfigSnapshotRule>();
+        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Health.IConfigHealthRule, Aneiang.Yarp.Dashboard.Infrastructure.Health.ConfigHealthRules.TransformPathPatternRule>();
         services.AddSingleton<Modules.AI.Application.IAIAppService, Modules.AI.Application.AIAppService>();
         services.AddSingleton<Modules.Policy.Application.IPolicyAppService, Modules.Policy.Application.PolicyAppService>();
         services.AddSingleton<Modules.Notification.Application.INotificationAppService, Modules.Notification.Application.NotificationAppService>();

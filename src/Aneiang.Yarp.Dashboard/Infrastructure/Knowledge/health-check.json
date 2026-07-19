@@ -1,0 +1,30 @@
+{
+  "topicId": "health-check",
+  "title": "健康检查",
+  "category": "可靠性",
+  "summary": "YARP 支持主动和被动两种健康检查机制，自动检测后端目的地可用性并剔除不健康节点。",
+  "content": "健康检查分为主动检查（Active）和被动检查（Passive）两种。主动检查通过定期发送 HTTP 探针请求到指定路径来检测目的地健康状态，支持配置检查间隔（Interval）、超时时间（Timeout）、检查路径（Path）和策略（Policy，如 ConsecutiveFailures）。被动检查通过观察正常请求的响应状态来推断目的地健康状态，支持 TransportFailureRate 策略，基于传输层失败率判断。两种方式可以组合使用。AvailableDestinationsPolicy 控制哪些目的地可用于转发：HealthyAndUnknown 表示健康和未知状态的目的地可用（默认），HealthyOrPanic 表示仅健康可用，但在所有目的地都不健康时回退到全部可用。",
+  "keyPoints": [
+    "Active.Enabled - 启用主动健康检查（定期探针）",
+    "Active.Interval - 探针间隔，默认 15 秒",
+    "Active.Timeout - 探针超时，默认 10 秒",
+    "Active.Path - 探针路径，默认 /",
+    "Passive.Enabled - 启用被动健康检查（观察响应）",
+    "Passive.Policy - 被动策略，如 TransportFailureRate",
+    "AvailableDestinationsPolicy - 可用目的地策略"
+  ],
+  "bestPractices": [
+    "生产环境启用主动健康检查，间隔 10-30 秒",
+    "探针路径应返回 200 状态码且响应快速",
+    "结合被动健康检查实现快速故障检测",
+    "配置合理的超时时间，避免探针超时影响检查周期"
+  ],
+  "commonMistakes": [
+    "探针路径返回非 200 状态码导致目的地被误判不健康",
+    "检查间隔过短导致大量探针请求",
+    "未配置超时导致探针挂起",
+    "仅依赖被动检查，无法及时发现冷启动故障"
+  ],
+  "docUrl": "https://microsoft.github.io/reverse-proxy/articles/health-checks.html",
+  "exampleConfig": "{\n  \"healthCheck\": {\n    \"active\": {\n      \"enabled\": true,\n      \"interval\": \"00:00:15\",\n      \"timeout\": \"00:00:10\",\n      \"path\": \"/health\"\n    },\n    \"passive\": {\n      \"enabled\": true,\n      \"policy\": \"TransportFailureRate\"\n    }\n  }\n}"
+}

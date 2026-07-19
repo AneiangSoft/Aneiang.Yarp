@@ -1,0 +1,30 @@
+{
+  "topicId": "http-client",
+  "title": "HTTP 客户端",
+  "category": "性能",
+  "summary": "配置 YARP 出站 HTTP 连接的 SSL、连接池、HTTP 版本等参数。",
+  "content": "HttpClient 配置在集群级别，控制 YARP 到后端目的地的出站连接。SslProtocols 指定 SSL 协议版本。DangerousAcceptAnyServerCertificate 设为 true 可禁用 SSL 证书验证（不推荐用于生产）。MaxConnectionsPerServer 限制每服务器最大连接数。EnableMultipleHttp2Connections 启用多个 HTTP/2 连接以支持高并发。RequestHeaderEncoding 和 ResponseHeaderEncoding 指定头部编码（如 utf-8）。WebProxy 配置出站代理。HttpRequest 配置出站请求参数：ActivityTimeout 指定请求空闲超时（默认 100 秒），Version 指定 HTTP 版本（默认 2.0），VersionPolicy 指定版本协商策略，AllowResponseBuffering 控制响应缓冲。",
+  "keyPoints": [
+    "SslProtocols - SSL 协议版本",
+    "DangerousAcceptAnyServerCertificate - 禁用 SSL 验证（不推荐）",
+    "MaxConnectionsPerServer - 每服务器最大连接数",
+    "EnableMultipleHttp2Connections - 启用多 HTTP/2 连接",
+    "RequestHeaderEncoding - 请求头编码",
+    "HttpRequest.ActivityTimeout - 请求空闲超时",
+    "HttpRequest.Version - HTTP 版本，默认 2.0"
+  ],
+  "bestPractices": [
+    "高并发场景启用 EnableMultipleHttp2Connections",
+    "生产环境不要禁用 SSL 证书验证",
+    "设置合理的 ActivityTimeout 避免长请求占用连接",
+    "使用 HTTP/2 减少连接数和延迟"
+  ],
+  "commonMistakes": [
+    "在生产环境禁用 SSL 验证",
+    "未启用多 HTTP/2 连接导致高并发时连接耗尽",
+    "ActivityTimeout 过短导致大文件传输中断",
+    "未设置 MaxConnectionsPerServer 导致连接数失控"
+  ],
+  "docUrl": "https://microsoft.github.io/reverse-proxy/articles/http-client-config.html",
+  "exampleConfig": "{\n  \"httpClient\": {\n    \"enableMultipleHttp2Connections\": true,\n    \"maxConnectionsPerServer\": 100\n  },\n  \"httpRequest\": {\n    \"activityTimeout\": \"00:01:40\",\n    \"version\": \"2.0\"\n  }\n}"
+}

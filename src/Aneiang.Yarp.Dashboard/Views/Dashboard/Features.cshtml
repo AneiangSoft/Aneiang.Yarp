@@ -1,0 +1,29 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Features" : "功能目录";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<div class="card-panel mb-4">
+    <div class="card-header">
+        <span><i class="bi bi-grid-3x3-gap me-2" style="color:#6366f1;"></i><span data-i18n="features.title">功能目录</span></span>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3" data-i18n="features.subtitle">YARP 网关支持的所有功能，点击卡片查看详情或跳转配置。</p>
+        <div id="features-grid" class="row g-3">
+            <div class="col-12 text-center py-4">
+                <div class="spinner-border spinner-border-sm text-primary"></div>
+                <span class="text-muted ms-2">Loading...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @await Html.PartialAsync("_DashboardPageInit")
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-features.js"></script>
+    <script>
+        if (window.DashboardFeatures) {
+            DashboardFeatures.init('features-grid');
+        }
+    </script>
+}

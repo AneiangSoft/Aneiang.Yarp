@@ -31,6 +31,9 @@
   <ItemGroup>
     <EmbeddedResource Include="Infrastructure\I18n\zh-CN\*.json" />
     <EmbeddedResource Include="Infrastructure\I18n\en-US\*.json" />
+    <EmbeddedResource Include="Infrastructure\Knowledge\*.json" />
+    <EmbeddedResource Include="Infrastructure\Features\*.json" />
+    <EmbeddedResource Include="Infrastructure\Templates\*.json" />
   </ItemGroup>
 
 </Project>

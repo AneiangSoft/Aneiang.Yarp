@@ -1,0 +1,72 @@
+{
+  "id": "microservice-api-gateway",
+  "name": "微服务 API 网关",
+  "description": "典型微服务架构网关，包含3个路由和集群，负载均衡和健康检查",
+  "category": "基础架构",
+  "difficulty": "beginner",
+  "features": ["负载均衡", "健康检查"],
+  "config": {
+    "Routes": {
+      "user-service": {
+        "ClusterId": "user-cluster",
+        "Order": 100,
+        "Match": { "Path": "/api/users/{**catch-all}" }
+      },
+      "order-service": {
+        "ClusterId": "order-cluster",
+        "Order": 100,
+        "Match": { "Path": "/api/orders/{**catch-all}" }
+      },
+      "product-service": {
+        "ClusterId": "product-cluster",
+        "Order": 100,
+        "Match": { "Path": "/api/products/{**catch-all}" }
+      }
+    },
+    "Clusters": {
+      "user-cluster": {
+        "LoadBalancingPolicy": "PowerOfTwoChoices",
+        "Destinations": {
+          "node1": { "Address": "{{user_backend_1}}" },
+          "node2": { "Address": "{{user_backend_2}}" }
+        },
+        "HealthCheck": {
+          "Active": { "Enabled": true, "Interval": "00:00:15", "Timeout": "00:00:10", "Path": "/health" }
+        }
+      },
+      "order-cluster": {
+        "LoadBalancingPolicy": "PowerOfTwoChoices",
+        "Destinations": {
+          "node1": { "Address": "{{order_backend_1}}" },
+          "node2": { "Address": "{{order_backend_2}}" }
+        },
+        "HealthCheck": {
+          "Active": { "Enabled": true, "Interval": "00:00:15", "Timeout": "00:00:10", "Path": "/health" }
+        }
+      },
+      "product-cluster": {
+        "LoadBalancingPolicy": "PowerOfTwoChoices",
+        "Destinations": {
+          "node1": { "Address": "{{product_backend_1}}" },
+          "node2": { "Address": "{{product_backend_2}}" }
+        },
+        "HealthCheck": {
+          "Active": { "Enabled": true, "Interval": "00:00:15", "Timeout": "00:00:10", "Path": "/health" }
+        }
+      }
+    }
+  },
+  "steps": [
+    "修改各服务后端地址为实际地址",
+    "确认健康检查路径 /health 可用",
+    "根据需要调整负载均衡策略"
+  ],
+  "variables": [
+    { "key": "user_backend_1", "label": "用户服务后端1", "defaultValue": "http://localhost:5001", "description": "用户服务第一个后端地址", "required": true },
+    { "key": "user_backend_2", "label": "用户服务后端2", "defaultValue": "http://localhost:5002", "description": "用户服务第二个后端地址", "required": true },
+    { "key": "order_backend_1", "label": "订单服务后端1", "defaultValue": "http://localhost:5003", "description": "订单服务第一个后端地址", "required": true },
+    { "key": "order_backend_2", "label": "订单服务后端2", "defaultValue": "http://localhost:5004", "description": "订单服务第二个后端地址", "required": true },
+    { "key": "product_backend_1", "label": "商品服务后端1", "defaultValue": "http://localhost:5005", "description": "商品服务第一个后端地址", "required": true },
+    { "key": "product_backend_2", "label": "商品服务后端2", "defaultValue": "http://localhost:5006", "description": "商品服务第二个后端地址", "required": true }
+  ]
+}

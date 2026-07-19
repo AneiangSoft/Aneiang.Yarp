@@ -1,0 +1,28 @@
+{
+  "topicId": "session-affinity",
+  "title": "会话亲和性",
+  "category": "可靠性",
+  "summary": "会话亲和性将相关请求序列绑定到同一目的地，确保有状态服务的会话一致性。",
+  "content": "会话亲和性（Session Affinity）将同一客户端的请求序列绑定到第一次处理请求的目的地。通过 Enabled 启用，Policy 指定存储方式：HashCookie（哈希 Cookie）、ArrCookie（ARR 兼容 Cookie）、Cookie（自定义 Cookie）、CustomHeader（自定义请求头）。FailurePolicy 指定亲和性失效时的处理策略：Redistribute（重新分配到其他目的地）或 Return503Error（返回 503 错误）。AffinityKeyName 指定存储亲和性值的 Cookie 或 Header 名称。Cookie 子对象可配置 Domain、Path、Expiration、MaxAge、SecurePolicy、HttpOnly、SameSite 等属性。",
+  "keyPoints": [
+    "Enabled - 启用/禁用会话亲和性",
+    "Policy - 存储方式：HashCookie/ArrCookie/Cookie/CustomHeader",
+    "FailurePolicy - 失效策略：Redistribute/Return503Error",
+    "AffinityKeyName - Cookie/Header 名称",
+    "Cookie - Cookie 配置（Domain/Path/Expiration/SecurePolicy 等）"
+  ],
+  "bestPractices": [
+    "仅在有状态服务中使用会话亲和性",
+    "使用 Redistribute 策略避免单点故障",
+    "配置 Cookie 过期时间避免长期绑定",
+    "结合健康检查确保亲和目的地可用"
+  ],
+  "commonMistakes": [
+    "无状态服务使用会话亲和性导致负载不均",
+    "使用 Return503Error 策略导致亲和目的地故障时服务不可用",
+    "未配置 Cookie 过期时间导致长期绑定",
+    "忘记配置 SecurePolicy 导致 Cookie 在 HTTP 下泄露"
+  ],
+  "docUrl": "https://microsoft.github.io/reverse-proxy/articles/session-affinity.html",
+  "exampleConfig": "{\n  \"sessionAffinity\": {\n    \"enabled\": true,\n    \"policy\": \"HashCookie\",\n    \"failurePolicy\": \"Redistribute\",\n    \"affinityKeyName\": \"MyAffinity\",\n    \"cookie\": { \"domain\": \".example.com\", \"path\": \"/\", \"httpOnly\": true }\n  }\n}"
+}

@@ -9,6 +9,8 @@ using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Aneiang.Yarp.Dashboard.Modules.Policy.Services;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
+using Aneiang.Yarp.Dashboard.Infrastructure.Health;
+using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Application;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.Logging;
@@ -42,6 +44,9 @@ public partial class GatewayToolExecutor
     private readonly LogSettingsService _logSettingsService;
     private readonly DeploymentRestartState _restartState;
     private readonly IGatewayPolicyService _policyService;
+    private readonly IConfigKnowledgeService? _configKnowledge;
+    private readonly ConfigHealthService? _configHealthService;
+    private readonly IConfigTemplateService? _configTemplateService;
     private readonly ILogger<GatewayToolExecutor> _logger;
 
     public GatewayToolExecutor(
@@ -64,7 +69,10 @@ public partial class GatewayToolExecutor
         DeploymentRestartState restartState,
         IGatewayPolicyService policyService,
         ILogger<GatewayToolExecutor> logger,
-        IWafSettingsPersistenceService? wafPersistence = null)
+        IWafSettingsPersistenceService? wafPersistence = null,
+        IConfigKnowledgeService? configKnowledge = null,
+        ConfigHealthService? configHealthService = null,
+        IConfigTemplateService? configTemplateService = null)
     {
         _dynamicConfig = dynamicConfig;
         _routeQuery = routeQuery;
@@ -85,6 +93,9 @@ public partial class GatewayToolExecutor
         _restartState = restartState;
         _policyService = policyService;
         _wafPersistence = wafPersistence;
+        _configKnowledge = configKnowledge;
+        _configHealthService = configHealthService;
+        _configTemplateService = configTemplateService;
         _logger = logger;
     }
 
@@ -121,6 +132,14 @@ public partial class GatewayToolExecutor
                 "get_config_history" => await ExecuteGetConfigHistoryAsync(),
                 "get_notification_summary" => await ExecuteGetNotificationSummaryAsync(ct),
                 "get_policies" => await ExecuteGetPoliciesAsync(),
+
+                // Config knowledge tools
+                "search_config_docs" => await ExecuteSearchConfigDocsAsync(args, ct),
+                "get_feature_guide" => await ExecuteGetFeatureGuideAsync(args, ct),
+                "check_config_health" => await ExecuteCheckConfigHealthAsync(args, ct),
+                "suggest_configuration" => await ExecuteSuggestConfigurationAsync(args, ct),
+                "get_config_templates" => ExecuteGetConfigTemplates(args),
+                "apply_config_template" => await ExecuteApplyConfigTemplateAsync(args, ct),
 
                 // Write tools
                 "create_route" => await ExecuteCreateRouteAsync(args, ct),

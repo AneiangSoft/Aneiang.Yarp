@@ -1,0 +1,54 @@
+{
+  "id": "gray-release",
+  "name": "灰度发布",
+  "description": "按权重分流，2个集群 + 权重路由 + 熔断器",
+  "category": "高可用",
+  "difficulty": "intermediate",
+  "features": ["负载均衡", "熔断器", "灰度发布"],
+  "config": {
+    "Routes": {
+      "gray-stable": {
+        "ClusterId": "stable-cluster",
+        "Order": 100,
+        "Match": { "Path": "/api/{**catch-all}" },
+        "Transforms": [
+          { "PathPattern": "/api/{**remainder}" }
+        ]
+      }
+    },
+    "Clusters": {
+      "stable-cluster": {
+        "LoadBalancingPolicy": "PowerOfTwoChoices",
+        "Destinations": {
+          "stable1": { "Address": "{{stable_backend_1}}" },
+          "stable2": { "Address": "{{stable_backend_2}}" }
+        },
+        "HealthCheck": {
+          "Active": { "Enabled": true, "Interval": "00:00:15", "Path": "/health" }
+        }
+      },
+      "gray-cluster": {
+        "LoadBalancingPolicy": "PowerOfTwoChoices",
+        "Destinations": {
+          "gray1": { "Address": "{{gray_backend_1}}" },
+          "gray2": { "Address": "{{gray_backend_2}}" }
+        },
+        "HealthCheck": {
+          "Active": { "Enabled": true, "Interval": "00:00:15", "Path": "/health" }
+        }
+      }
+    }
+  },
+  "steps": [
+    "修改稳定版和灰度版后端地址",
+    "在策略管理页面创建熔断器策略并应用到两个集群",
+    "使用路由元数据配置灰度权重（如 Metadata: { \"Gray:Weight\": \"90\" } 表示90%流量到稳定版）",
+    "监控灰度集群的健康状态和错误率"
+  ],
+  "variables": [
+    { "key": "stable_backend_1", "label": "稳定版后端1", "defaultValue": "http://10.0.0.1:8080", "description": "稳定版第一个后端", "required": true },
+    { "key": "stable_backend_2", "label": "稳定版后端2", "defaultValue": "http://10.0.0.2:8080", "description": "稳定版第二个后端", "required": true },
+    { "key": "gray_backend_1", "label": "灰度版后端1", "defaultValue": "http://10.0.0.3:8080", "description": "灰度版第一个后端", "required": true },
+    { "key": "gray_backend_2", "label": "灰度版后端2", "defaultValue": "http://10.0.0.4:8080", "description": "灰度版第二个后端", "required": true }
+  ]
+}

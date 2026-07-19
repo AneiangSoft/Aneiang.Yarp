@@ -1,0 +1,55 @@
+{
+  "id": "high-availability",
+  "name": "高可用代理",
+  "description": "生产级高可用配置，包含主动健康检查、熔断、重试、限流",
+  "category": "高可用",
+  "difficulty": "intermediate",
+  "features": ["健康检查", "熔断器", "请求重试", "限流"],
+  "config": {
+    "Routes": {
+      "ha-service": {
+        "ClusterId": "ha-cluster",
+        "Order": 100,
+        "Match": { "Path": "/api/{**catch-all}" },
+        "Transforms": [
+          { "PathPattern": "/api/{**remainder}" },
+          { "X-Forwarded": "Set", "For": "Set", "Proto": "Set", "Host": "Set" }
+        ]
+      }
+    },
+    "Clusters": {
+      "ha-cluster": {
+        "LoadBalancingPolicy": "PowerOfTwoChoices",
+        "Destinations": {
+          "node1": { "Address": "{{backend_1}}" },
+          "node2": { "Address": "{{backend_2}}" },
+          "node3": { "Address": "{{backend_3}}" }
+        },
+        "HealthCheck": {
+          "Active": { "Enabled": true, "Interval": "00:00:10", "Timeout": "00:00:05", "Path": "/health" },
+          "Passive": { "Enabled": true, "Policy": "TransportFailureRate" }
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:00:30",
+          "Version": "2.0"
+        },
+        "HttpClient": {
+          "EnableMultipleHttp2Connections": true,
+          "MaxConnectionsPerServer": 100
+        }
+      }
+    }
+  },
+  "steps": [
+    "修改3个后端地址为实际地址",
+    "确认健康检查路径 /health 可用",
+    "在策略管理页面创建熔断器策略并应用到 ha-cluster",
+    "在策略管理页面创建重试策略并应用到 ha-service 路由",
+    "根据需要调整 ActivityTimeout 和 MaxConnectionsPerServer"
+  ],
+  "variables": [
+    { "key": "backend_1", "label": "后端地址1", "defaultValue": "http://10.0.0.1:8080", "description": "第一个后端服务地址", "required": true },
+    { "key": "backend_2", "label": "后端地址2", "defaultValue": "http://10.0.0.2:8080", "description": "第二个后端服务地址", "required": true },
+    { "key": "backend_3", "label": "后端地址3", "defaultValue": "http://10.0.0.3:8080", "description": "第三个后端服务地址", "required": true }
+  ]
+}

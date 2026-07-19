@@ -19,6 +19,14 @@
             }
         },
         new {
+            Title = isEn ? "Knowledge" : "配置中心",
+            Items = new[] {
+                new { Key = "features", Title = isEn ? "Features" : "功能目录", Icon = "bi-grid-3x3-gap", Path = $"/{prefix}/features", Badge = "NEW", Conditional = false },
+                new { Key = "templates", Title = isEn ? "Templates" : "模板库", Icon = "bi-file-earmark-code", Path = $"/{prefix}/templates", Badge = "", Conditional = false },
+                new { Key = "transforms", Title = isEn ? "Transforms" : "转换指南", Icon = "bi-arrow-left-right", Path = $"/{prefix}/transforms", Badge = "", Conditional = false }
+            }
+        },
+        new {
             Title = isEn ? "Monitoring" : "监控运维",
             Items = new[] {
                 new { Key = "stats", Title = isEn ? "Statistics" : "访问统计", Icon = "bi-bar-chart-line", Path = $"/{prefix}/stats", Badge = "", Conditional = false },
@@ -121,3 +129,34 @@
         </div>
     </div>
 </nav>
+
+<script>
+    // AI assistant suggestion badge: shows count of Critical config health issues
+    (function() {
+        function updateAIBadge() {
+            var prefix = '@prefix';
+            fetch('/' + prefix + '/api/config/health')
+                .then(function(r) { return r.json(); })
+                .then(function(json) {
+                    var data = json.data || json;
+                    if (!data || !data.issues) return;
+                    var criticalCount = (data.issues || []).filter(function(i) {
+                        return i.level === 'Critical';
+                    }).length;
+                    if (criticalCount > 0) {
+                        var aiLink = document.querySelector('.nav-link[data-page="ai"]');
+                        if (aiLink && !aiLink.querySelector('.ai-suggest-badge')) {
+                            var badge = document.createElement('span');
+                            badge.className = 'ai-suggest-badge nav-badge nav-badge-new';
+                            badge.style.cssText = 'background:#dc3545;font-size:0.65em;';
+                            badge.innerHTML = '<i class="bi bi-lightbulb"></i> ' + criticalCount;
+                            aiLink.appendChild(badge);
+                        }
+                    }
+                })
+                .catch(function() { /* ignore errors */ });
+        }
+        // Delay to allow page to settle
+        setTimeout(updateAIBadge, 3000);
+    })();
+</script>

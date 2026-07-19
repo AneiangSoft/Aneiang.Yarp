@@ -126,6 +126,15 @@ public class DashboardPagesController : Controller
     [HttpGet("ai-settings")]
     public IActionResult AISettings() { SetCommonViewBag("ai"); return View("AISettings"); }
 
+    [HttpGet("features")]
+    public IActionResult Features() { SetCommonViewBag("features"); return View(); }
+
+    [HttpGet("templates")]
+    public IActionResult Templates() { SetCommonViewBag("templates"); return View(); }
+
+    [HttpGet("transforms")]
+    public IActionResult Transforms() { SetCommonViewBag("transforms"); return View(); }
+
     #endregion
 
     #region DB Download

@@ -9,6 +9,9 @@
     <div class="card-header">
         <span><i class="bi bi-hdd-stack me-2" style="color:#3b82f6;"></i><span data-i18n="index.cluster.title">集群 &amp; 目标节点状态</span></span>
         <div class="card-header-actions">
+            <button class="btn btn-sm btn-outline-primary" onclick="DashboardWizard.openCluster()">
+                <i class="bi bi-magic"></i> <span data-i18n="route.wizard">使用向导</span>
+            </button>
         </div>
         <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
             <span class="refresh-badge" id="cluster-refresh-time"></span>
@@ -59,6 +62,7 @@
 <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-diff-panel.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-validation-panel.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-clusters.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-wizard.js?v=@v"></script>
 <!-- Page config (shared scripts now in _DashboardLayout.cshtml) -->
 @await Html.PartialAsync("_DashboardPageInit")
 
@@ -67,6 +71,30 @@
         DashboardApi.init();
         if (window.DashboardApp?.modules?.clusters?.init) await DashboardApp.modules.clusters.init();
         if (window.DashboardApp?.modules?.clusters?.loadClusters) await DashboardApp.modules.clusters.loadClusters();
+
+        // Store clusters for wizard
+        try {
+            window._clustersData = await DashboardApi.endpoints.getClusters();
+        } catch(e) { window._clustersData = []; }
+
+        // Empty state guidance
+        var clusterCount = document.getElementById('cluster-total-count');
+        if (clusterCount && parseInt(clusterCount.textContent) === 0) {
+            var tbody = document.getElementById('cluster-tbody');
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5">' +
+                    '<div class="mb-3"><i class="bi bi-hdd-stack" style="font-size:48px;color:#dee2e6;"></i></div>' +
+                    '<h5>还没有配置任何集群</h5>' +
+                    '<p class="text-muted">开始使用：</p>' +
+                    '<div class="d-flex justify-content-center gap-2">' +
+                    '<a href="/apigateway/templates" class="btn btn-outline-primary"><i class="bi bi-file-earmark-code"></i> 从模板创建</a>' +
+                    '<button class="btn btn-primary" onclick="DashboardWizard.open(window._clustersData || [])"><i class="bi bi-magic"></i> 使用向导</button>' +
+                    '</div>' +
+                    '<div class="mt-2 small text-muted"><i class="bi bi-lightbulb"></i> 建议：点击"使用向导"快速开始</div>' +
+                    '</td></tr>';
+            }
+        }
+
         document.dispatchEvent(new CustomEvent('dashboard:ready'));
     })();
 

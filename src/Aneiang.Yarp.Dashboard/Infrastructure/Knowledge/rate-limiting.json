@@ -1,0 +1,28 @@
+{
+  "topicId": "rate-limiting",
+  "title": "限流",
+  "category": "安全",
+  "summary": "限流通过限制单位时间内的请求数量保护后端服务，防止过载和滥用。",
+  "content": "Aneiang.Yarp 支持四种限流算法：FixedWindow（固定窗口）、SlidingWindow（滑动窗口）、TokenBucket（令牌桶）、Concurrency（并发数限制）。FixedWindow 在固定时间窗口内计数，实现简单但存在边界突刺问题。SlidingWindow 使用滑动窗口平滑计数。TokenBucket 允许突发流量，适合有波动特性的 API。Concurrency 限制最大并发请求数。可配置分区键（PartitionKey）：IpAddress（按 IP）、UserId（按用户）、Route（按路由）、Global（全局共享）。通过 RoutePolicy 配置并应用到路由。",
+  "keyPoints": [
+    "Algorithm - 限流算法：FixedWindow/SlidingWindow/TokenBucket/Concurrency",
+    "PermitLimit - 每窗口最大请求数，默认 100",
+    "Window - 时间窗口，默认 1m",
+    "QueueLimit - 排队数，默认 0（立即拒绝）",
+    "ConcurrencyLimit - 最大并发数（Concurrency 算法）",
+    "PartitionKey - 分区键：IpAddress/UserId/Route/Global"
+  ],
+  "bestPractices": [
+    "根据后端承载能力设置 PermitLimit",
+    "高并发 API 使用 TokenBucket 允许突发",
+    "按 IP 分区防止单用户滥用",
+    "QueueLimit 设为 0 快速拒绝，避免请求堆积"
+  ],
+  "commonMistakes": [
+    "限流阈值过高无法保护后端",
+    "使用 Global 分区导致多用户相互影响",
+    "FixedWindow 边界突刺导致瞬间双倍流量",
+    "未配置冷却期导致限流后立即重试"
+  ],
+  "exampleConfig": "{\n  \"rateLimit\": {\n    \"enabled\": true,\n    \"algorithm\": \"FixedWindow\",\n    \"permitLimit\": 100,\n    \"window\": \"1m\",\n    \"partitionKey\": \"IpAddress\"\n  }\n}"
+}

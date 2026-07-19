@@ -1,0 +1,29 @@
+{
+  "topicId": "circuit-breaker",
+  "title": "熔断器",
+  "category": "可靠性",
+  "summary": "熔断器模式通过监控连续失败次数自动断开故障链路，防止级联故障扩散。",
+  "content": "熔断器有三种状态：Closed（关闭/正常）、Open（打开/熔断）、HalfOpen（半开/试探）。正常状态下所有请求通过；当连续失败次数达到阈值（FailureThreshold）时进入 Open 状态，拒绝所有请求；等待恢复超时（RecoveryTimeout）后进入 HalfOpen 状态，允许少量请求（HalfOpenMaxAttempts）通过以测试后端是否恢复；如果试探请求成功则回到 Closed，失败则回到 Open。可配置哪些 HTTP 状态码计为失败（默认 500/502/503/504）。在 Aneiang.Yarp 中，熔断器通过策略系统管理，创建 ClusterPolicy 并应用到集群即可生效。",
+  "keyPoints": [
+    "FailureThreshold - 连续失败次数阈值，默认 5",
+    "RecoveryTimeoutSeconds - 恢复超时秒数，默认 30",
+    "HalfOpenMaxAttempts - 半开状态最大试探请求数，默认 1",
+    "FailureStatusCodes - 计为失败的状态码，默认 [500,502,503,504]",
+    "Enabled - 全局启用/禁用，默认 true"
+  ],
+  "bestPractices": [
+    "生产环境必须为每个集群配置熔断器",
+    "FailureThreshold 设为 3-10，过低容易误判，过高反应迟钝",
+    "RecoveryTimeout 设为 15-60 秒",
+    "HalfOpenMaxAttempts 设为 1-5，增加试探可更快确认恢复",
+    "503 状态码应计入失败，它通常表示服务不可用"
+  ],
+  "commonMistakes": [
+    "未配置熔断器导致级联故障",
+    "阈值设置过高导致熔断器永不触发",
+    "恢复超时过短导致频繁试探加重后端负担",
+    "忘记将 502/503 计入失败状态码"
+  ],
+  "docUrl": "https://microsoft.github.io/reverse-proxy/articles/circuit-breaker.html",
+  "exampleConfig": "{\n  \"failureThreshold\": 5,\n  \"recoveryTimeoutSeconds\": 30,\n  \"halfOpenMaxAttempts\": 3,\n  \"failureStatusCodes\": [500, 502, 503, 504]\n}"
+}

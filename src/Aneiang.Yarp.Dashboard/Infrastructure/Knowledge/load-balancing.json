@@ -1,0 +1,26 @@
+{
+  "topicId": "load-balancing",
+  "title": "负载均衡",
+  "category": "可靠性",
+  "summary": "YARP 支持 5 种负载均衡策略，用于在多个后端目的地之间分配请求流量。",
+  "content": "负载均衡策略在集群级别配置，通过 LoadBalancingPolicy 字段指定。YARP 支持 PowerOfTwoChoices、RoundRobin、LeastRequests、Random、FirstAlphabetical 五种策略。PowerOfTwoChoices 是推荐的默认策略，它选择两个随机目的地并挑选请求数较少的那个，避免了 Random 可能导致的负载不均，也避免了 LeastRequests 需要维护计数器的开销。RoundRobin 按顺序轮询分配，实现简单但在目的地性能不均时效果不佳。LeastRequests 选择当前活跃请求数最少的目的地，需要每个目的地维护活跃计数。Random 随机选择，实现最简单但不保证均匀。FirstAlphabetical 按字母顺序始终选第一个，仅用于测试场景。",
+  "keyPoints": [
+    "PowerOfTwoChoices - 选择两个随机目的地，挑请求少的（推荐）",
+    "RoundRobin - 轮询分配，依次循环",
+    "LeastRequests - 选择当前请求数最少的",
+    "Random - 随机选择目的地",
+    "FirstAlphabetical - 按字母顺序选第一个（仅测试用）"
+  ],
+  "bestPractices": [
+    "生产环境使用 PowerOfTwoChoices，兼顾性能和均衡性",
+    "每个集群至少配置 2 个后端地址以实现高可用",
+    "结合健康检查自动剔除不健康的目的地"
+  ],
+  "commonMistakes": [
+    "使用 Random 导致短时间流量集中到同一目的地",
+    "单后端集群无法实现负载均衡，仅做代理转发",
+    "忘记配置健康检查导致请求被发送到故障目的地"
+  ],
+  "docUrl": "https://microsoft.github.io/reverse-proxy/articles/load-balancing.html",
+  "exampleConfig": "{\n  \"loadBalancingPolicy\": \"PowerOfTwoChoices\",\n  \"destinations\": {\n    \"node1\": { \"address\": \"http://10.0.0.1:8080\" },\n    \"node2\": { \"address\": \"http://10.0.0.2:8080\" }\n  }\n}"
+}

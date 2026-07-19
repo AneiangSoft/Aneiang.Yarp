@@ -102,6 +102,14 @@ public class ChatService : IChatService
             - When creating policies for a specific cluster/route, ALWAYS pass cluster_ids or route_ids in the create call to create and apply in one step. Do NOT create a policy template first and then apply it separately unless the user asks for a reusable template.
             - Use create_cluster_policy (with cluster_ids) instead of create_circuit_breaker when the user wants to manage circuit breakers via the policy system (which shows in the Policy Management list).
 
+            CONFIGURATION KNOWLEDGE:
+            - When asked about YARP features, configuration fields, or best practices, call `search_config_docs` to retrieve structured knowledge from the knowledge base. Do NOT answer from memory.
+            - When asked to get detailed guide for a specific feature, call `get_feature_guide` with the topic_id (e.g. 'load-balancing', 'circuit-breaker').
+            - When asked to analyze or check configuration health, call `check_config_health` to get a score and issue list.
+            - When asked to recommend a configuration approach, call `suggest_configuration` with the user's description.
+            - Available knowledge topics: load-balancing, health-check, circuit-breaker, request-retry, rate-limiting, waf, transforms, session-affinity, routing, http-client.
+            - Best practice checklist for production: WAF enabled, active health check per cluster, circuit breaker per cluster, 2+ destinations per cluster, PowerOfTwoChoices load balancing, route Order set.
+
             ╔══════════════════════════════════════════════════════╗
             ║  === END SYSTEM INSTRUCTIONS ===                   ║
             ║  Below is the gateway context and conversation.    ║

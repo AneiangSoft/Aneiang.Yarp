@@ -80,6 +80,13 @@
     </div>
 </div>
 
+<!-- Config Health Score Card -->
+<div class="row g-3 mb-3">
+    <div class="col-12">
+        <div id="config-health-card"></div>
+    </div>
+</div>
+
 <!-- System Health Panel -->
 <div class="card-panel mb-4">
     <div class="card-header">
@@ -293,6 +300,8 @@
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js"></script>
 <!-- Operations module (for overview charts) -->
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-operations.js"></script>
+<!-- Config Health Score -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-health-score.js"></script>
 
 <script>
     var _signalrConnected = false;
@@ -564,5 +573,11 @@
             btn.disabled = false;
         }
     };
+
+    // Init config health score card
+    if (window.DashboardHealthScore) {
+        DashboardHealthScore.init('config-health-card');
+    }
+
 </script>
 }

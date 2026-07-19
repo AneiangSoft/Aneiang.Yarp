@@ -1,0 +1,32 @@
+{
+  "topicId": "routing",
+  "title": "路由配置",
+  "category": "配置",
+  "summary": "YARP 路由将入站请求匹配到集群，支持路径、Host、HTTP 方法、头部等多种匹配条件。",
+  "content": "路由通过 ReverseProxy.Routes 配置，每个路由有唯一的 RouteId。核心字段：ClusterId 指定目标集群；Order 设置路由优先级（数值越小优先级越高）；Match 定义匹配规则，必须包含 Path 或 Hosts。Path 使用 ASP.NET 路由模板语法，如 /api/orders/{**catch-all}。Hosts 匹配 Host 头，支持通配符。Methods 限制 HTTP 方法。Headers 和 QueryParameters 支持基于头部和查询参数的匹配。Transforms 定义请求/响应转换。AuthorizationPolicy、RateLimiterPolicy、CorsPolicy 可引用 ASP.NET 策略。Timeout 和 TimeoutPolicy 控制请求超时。",
+  "keyPoints": [
+    "ClusterId - 目标集群名称（必需）",
+    "Order - 路由优先级，越小越高",
+    "Match.Path - 路径模板，如 /api/{**catch-all}",
+    "Match.Hosts - Host 头匹配，支持通配符",
+    "Match.Methods - HTTP 方法限制",
+    "Transforms - 请求/响应转换列表",
+    "AuthorizationPolicy - 授权策略",
+    "RateLimiterPolicy - 限流策略"
+  ],
+  "bestPractices": [
+    "为每条路由设置 Order 值避免匹配歧义",
+    "使用 {**catch-all} 捕获剩余路径段",
+    "路径以 / 开头",
+    "为 API 路由配置 RateLimiterPolicy",
+    "使用 kebab-case 命名 RouteId"
+  ],
+  "commonMistakes": [
+    "未设置 Order 导致路由匹配顺序不确定",
+    "路径不以 / 开头导致匹配失败",
+    "ClusterId 引用不存在的集群",
+    "通配符格式错误，应使用 {**remainder} 而非 /*"
+  ],
+  "docUrl": "https://microsoft.github.io/reverse-proxy/articles/routing.html",
+  "exampleConfig": "{\n  \"order\": 100,\n  \"clusterId\": \"order-service\",\n  \"match\": {\n    \"path\": \"/api/orders/{**catch-all}\",\n    \"methods\": [\"GET\", \"POST\", \"PUT\", \"DELETE\"]\n  }\n}"
+}

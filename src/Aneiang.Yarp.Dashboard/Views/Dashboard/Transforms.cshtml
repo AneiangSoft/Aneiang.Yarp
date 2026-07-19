@@ -1,0 +1,29 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Transforms" : "转换指南";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<div class="card-panel mb-4">
+    <div class="card-header">
+        <span><i class="bi bi-arrow-left-right me-2" style="color:#0ea5e9;"></i><span data-i18n="transforms.title">Transform 转换指南</span></span>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3" data-i18n="transforms.subtitle">YARP 25+ 种 Transform 类型的完整指南，含配置示例和使用建议。</p>
+        <div id="transform-guide" class="row g-3">
+            <div class="col-12 text-center py-4">
+                <div class="spinner-border spinner-border-sm text-primary"></div>
+                <span class="text-muted ms-2">Loading...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @await Html.PartialAsync("_DashboardPageInit")
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-transform-guide.js"></script>
+    <script>
+        if (window.DashboardTransformGuide) {
+            DashboardTransformGuide.init('transform-guide');
+        }
+    </script>
+}

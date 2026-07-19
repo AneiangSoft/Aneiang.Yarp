@@ -1,0 +1,30 @@
+{
+  "topicId": "waf",
+  "title": "WAF 防火墙",
+  "category": "安全",
+  "summary": "Web 应用防火墙检测并拦截 SQL 注入、XSS、路径遍历等常见 Web 攻击。",
+  "content": "WAF（Web Application Firewall）在网关层检测恶意请求。Aneiang.Yarp WAF 支持三种检测：SQL 注入检测（EnableSqlInjectionDetection）拦截包含 SQL 关键字和语法的请求；XSS 检测（EnableXssDetection）拦截包含脚本标签和事件处理器的请求；路径遍历检测（EnablePathTraversalDetection）拦截包含 ../ 等路径遍历序列的请求。IP 白名单（IpWhitelist）始终放行指定 IP，IP 黑名单（IpBlacklist）始终拦截指定 IP，支持 CIDR 表示法。MaxRequestBodySize 限制请求体大小防止大文件攻击。WAF 设置通过独立的 API 管理，不存储在 YARP 配置中。",
+  "keyPoints": [
+    "Enabled - 全局启用/禁用 WAF",
+    "EnableSqlInjectionDetection - SQL 注入检测",
+    "EnableXssDetection - XSS 检测",
+    "EnablePathTraversalDetection - 路径遍历检测",
+    "IpWhitelist - IP 白名单（支持 CIDR）",
+    "IpBlacklist - IP 黑名单（支持 CIDR）",
+    "MaxRequestBodySize - 最大请求体大小，默认 10MB"
+  ],
+  "bestPractices": [
+    "生产环境必须启用 WAF",
+    "三种检测规则全部启用",
+    "配置 IP 黑名单拦截已知恶意 IP",
+    "MaxRequestBodySize 根据业务需求调整，过大会增加 DoS 风险"
+  ],
+  "commonMistakes": [
+    "未启用 WAF 导致网关暴露在攻击面下",
+    "MaxRequestBodySize 设置过大导致 DoS 风险",
+    "仅依赖 WAF 而忽略后端输入验证",
+    "IP 白名单配置过宽导致安全漏洞"
+  ],
+  "docUrl": "https://microsoft.github.io/reverse-proxy/articles/security.html",
+  "exampleConfig": "{\n  \"enabled\": true,\n  \"enableSqlInjectionDetection\": true,\n  \"enableXssDetection\": true,\n  \"enablePathTraversalDetection\": true,\n  \"ipBlacklist\": [\"1.2.3.4\"],\n  \"maxRequestBodySize\": 10485760\n}"
+}

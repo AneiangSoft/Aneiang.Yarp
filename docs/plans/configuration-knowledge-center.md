@@ -628,3 +628,413 @@ src/Aneiang.Yarp.Dashboard/
 4. **知识沉淀**：内联帮助让编辑器本身成为学习工具
 5. **平滑过渡**：向导引导新用户，Monaco 编辑器满足高级用户
 6. **可扩展性**：规则引擎和知识库支持插件扩展
+
+---
+
+## 九、附录：代码库验证与实施细化（2026-07-19）
+
+> 本附录基于对 `src/Aneiang.Yarp.Dashboard` 代码库的全面探索，修正原文中的事实偏差，补充代码级实施指南。
+
+### 9.1 事实修正
+
+| 原文描述 | 实际情况 | 影响 |
+|----------|----------|------|
+| "31 个 AI 工具（18 只读 + 13 写入）" | **实际 40 个工具**（21 只读 + 19 写入），见 `GatewayToolRegistry.cs` | Layer 4 新增 6 个工具后为 46 个，需评估 token 消耗 |
+| "`getSchemaForType()` 被调用但未实现" | 确认：`dashboard-config-editor.js` L137/L203 调用，`dashboard-schema-service.js` 未定义 | Phase 1 必须实现 |
+| "`getSchemaAt()` 不支持 anyOf" | 确认：L78-101 仅处理 `properties` 和 `patternProperties`，`getEnum()` L144-150 有 anyOf 支持但 `getSchemaAt()` 本身没有 | 需在 `getSchemaAt()` 中增加 anyOf 透传 |
+| "Schema 加载分裂" | 确认：`DashboardSchemaService.load()` 加载 `ConfigurationSchema.json`；`DashboardModals` L368-439 有独立 `schemaCache = {cluster, route, full}` + `loadSchema(type)` | 统一时需迁移 `DashboardModals` 的 3 处调用点 |
+| "`dashboard-form-builder.js`" | 实际 **7.4KB / 210 行**，功能极基础：仅支持 enum→select、boolean→checkbox、number→input、object→fieldset、string→text | Layer 3 wizard 模式需大幅增强，预估工作量上调 |
+| "Schema 67KB" | `ConfigurationSchema.json` 67.84KB、`RouteSchema.json` 22.07KB、`ClusterSchema.json` 11.4KB，共 3 个文件 | — |
+
+### 9.2 现有代码模式（新增代码必须遵循）
+
+#### 9.2.1 AI 工具注册与执行模式
+
+**注册**（`GatewayToolRegistry.cs`）：
+```csharp
+// 只读工具
+R("search_config_docs", "Search configuration knowledge base by keyword.",
+  new { query = new { type = "string", description = "Search keyword." } },
+  req: new[] { "query" }),
+
+// 写入工具
+W("apply_config_template", "Apply a configuration template.",
+  new { template_id = new { type = "string", description = "Template ID." } },
+  req: new[] { "template_id" }),
+```
+
+**执行**（`GatewayToolExecutor.cs` L100-147 switch 表达式）：
+```csharp
+"search_config_docs" => await ExecuteSearchConfigDocsAsync(args, ct),
+"apply_config_template" => await ExecuteApplyTemplateAsync(args, ct),
+```
+
+**新增文件**（partial class 按域拆分）：
+- `GatewayToolExecutor.KnowledgeTools.cs` — 4 个知识/健康工具
+- `GatewayToolExecutor.TemplateTools.cs` — 2 个模板工具
+
+**构造函数依赖注入**：`GatewayToolExecutor` 已有 19 个依赖参数，新增 `IConfigKnowledgeService`、`IConfigTemplateService`、`IConfigHealthService` 3 个参数（可选注入，`= null` 模式参考 `_wafPersistence`）。
+
+#### 9.2.2 页面路由模式
+
+**控制器**（`DashboardPagesController.cs`）：
+```csharp
+[HttpGet("features")]
+public IActionResult Features() { SetCommonViewBag("features"); return View(); }
+
+[HttpGet("templates")]
+public IActionResult Templates() { SetCommonViewBag("templates"); return View(); }
+
+[HttpGet("transforms")]
+public IActionResult Transforms() { SetCommonViewBag("transforms"); return View(); }
+```
+
+**侧边栏**（`_Sidebar.cshtml` menuGroups 数组）：
+```csharp
+new {
+    Title = isEn ? "Knowledge" : "配置中心",
+    Items = new[] {
+        new { Key = "features", Title = isEn ? "Features" : "功能目录",
+              Icon = "bi-grid-3x3-gap", Path = $"/{prefix}/features", Badge = "NEW", Conditional = false },
+        new { Key = "templates", Title = isEn ? "Templates" : "模板库",
+              Icon = "bi-file-earmark-code", Path = $"/{prefix}/templates", Badge = "", Conditional = false },
+        new { Key = "transforms", Title = isEn ? "Transforms" : "转换指南",
+              Icon = "bi-arrow-left-right", Path = $"/{prefix}/transforms", Badge = "", Conditional = false },
+    }
+},
+```
+
+#### 9.2.3 DI 注册模式
+
+所有服务在 `Extensions/DashboardServiceCollectionExtensions.cs` 注册，统一使用 `AddSingleton`：
+```csharp
+services.AddSingleton<IConfigKnowledgeService, ConfigKnowledgeService>();
+services.AddSingleton<IConfigTemplateService, ConfigTemplateService>();
+services.AddSingleton<IConfigHealthService, ConfigHealthService>();
+services.AddSingleton<IFeatureCatalogService, FeatureCatalogService>();
+// 规则引擎注册
+services.AddSingleton<IConfigHealthRule, WafEnabledRule>();
+services.AddSingleton<IConfigHealthRule, HealthCheckRule>();
+// ... 12 条规则
+```
+
+`GatewayToolExecutor` 的构造函数参数会自动通过 DI 解析。
+
+#### 9.2.4 嵌入式 JSON 资源模式
+
+**csproj 注册**（`Aneiang.Yarp.Dashboard.csproj` L32-33 既有模式）：
+```xml
+<EmbeddedResource Include="Infrastructure\Features\*.json" />
+<EmbeddedResource Include="Infrastructure\Templates\*.json" />
+<EmbeddedResource Include="Infrastructure\Knowledge\*.json" />
+```
+
+**运行时加载**（参考 `DashboardI18n.cs` L53）：
+```csharp
+var assembly = typeof(ConfigKnowledgeService).Assembly;
+var resourceName = "Aneiang.Yarp.Dashboard.Infrastructure.Knowledge.load-balancing.json";
+using var stream = assembly.GetManifestResourceStream(resourceName);
+```
+
+> **注意**：嵌入式资源名 = `{默认命名空间}.{文件夹路径}.{文件名}`，文件夹路径中的 `\` 转为 `.`。
+
+#### 9.2.5 I18n 模式
+
+- JSON 文件存放于 `Infrastructure/I18n/zh-CN/` 和 `Infrastructure/I18n/en-US/`
+- `DashboardI18n.AllAsJson(locale)` 返回合并后的 JSON，前端通过 `ViewBag.AllI18nJson` 注入
+- 每个新页面需在两个语言目录下添加对应的 i18n JSON 文件（如 `features.json`、`templates.json`）
+- 参考既有 `logs.json`（37 个 key）的规模，预估新增 key 数量
+
+#### 9.2.6 系统提示词模式
+
+`ChatService.BuildSystemPromptAsync()` 当前结构（`ChatService.cs` L61-112）：
+1. `=== SYSTEM INSTRUCTION BOUNDARY ===` 安全边界标记
+2. 角色定义 + 语言规则 + 安全规则
+3. `TOOL USAGE RULES`（4 条）
+4. `General guidelines`（6 条）
+5. `=== END SYSTEM INSTRUCTIONS ===` 结束标记
+6. `{context}` 网关上下文（由 `GatewayContextProvider.BuildContextAsync()` 提供）
+
+**增强策略**（不注入完整知识库，仅注入检索指引）：
+```
+CONFIGURATION KNOWLEDGE:
+- When asked about YARP features, configuration fields, or best practices,
+  call `search_config_docs` to retrieve structured knowledge.
+- When asked to analyze configuration health, call `check_config_health`.
+- When asked to recommend a setup, call `suggest_configuration`.
+- Best practice checklist: WAF enabled, health check per cluster,
+  circuit breaker per cluster, 2+ destinations, PowerOfTwoChoices.
+```
+
+### 9.3 依赖关系图
+
+```
+Phase 1 (Schema 修复) ──────────────────────────────────────┐
+  │                                                          │
+  ├─→ Layer 6 (内联帮助) ─── 依赖 x- 扩展属性                │
+  ├─→ Layer 3 (智能向导) ─── 依赖 SchemaService 修复         │
+  └─→ FormBuilder 增强 ──── 依赖 Schema 元数据               │
+                                                             │
+Phase 2 (AI + 健康) ─────────────────────────────────────────┤
+  │                                                          │
+  ├─→ ConfigKnowledgeService ──┐                            │
+  │                             ├─→ Layer 4 (AI RAG)        │
+  │                             ├─→ Layer 7 (Transform 指南) │
+  │                             └─→ API /api/config/knowledge│
+  ├─→ ConfigHealthService ──────┤                            │
+  │                             ├─→ Layer 5 (健康评分)       │
+  │                             └─→ Layer 4 (check_config_health 工具)
+  └─→ BackgroundAIAnalysisService 增强 ─→ Layer 4.4 (主动推送)│
+                                                             │
+Phase 3 (目录 + 模板) ───────────────────────────────────────┤
+  │                                                          │
+  ├─→ FeatureCatalogService ──→ Layer 1 (功能目录)           │
+  ├─→ ConfigTemplateService ──→ Layer 2 (模板库)             │
+  │         └─→ 依赖 ConfigSnapshotService (Dry-Run 预览)    │
+  └─→ 复用 ConfigKnowledgeService ──→ Layer 7 (Transform)    │
+                                                             │
+Phase 4 (向导 + 帮助) ───────────────────────────────────────┤
+  │                                                          │
+  ├─→ FormBuilder wizard 模式 ──→ Layer 3                    │
+  ├─→ Monaco Hover/Completion ──→ Layer 6                    │
+  └─→ 空状态引导 ──→ Layer 8.1                               │
+                                                             │
+Phase 5 (打磨) ──────────────────────────────────────────────┘
+```
+
+**关键依赖**：
+- `ConfigKnowledgeService` 是 Layer 4 + Layer 7 的共享后端，必须在 Phase 2 完成
+- `ConfigurationSchema.json` 的 x- 扩展属性是 Layer 6 + Layer 3 的共享数据源，必须在 Phase 1 完成
+- `ConfigTemplateService` 的 Dry-Run 预览依赖现有 `ConfigSnapshotService` 的 Diff 能力
+
+### 9.4 风险评估与缓解
+
+| 风险 | 等级 | 表现 | 缓解方案 |
+|------|------|------|----------|
+| **Schema 统一导致 DashboardModals 破裂** | 🔴 高 | `DashboardModals` L368-439 独立加载 3 个 Schema 文件，直接废弃会破坏路由/集群编辑模态框 | 分步迁移：Phase 1 先实现 `getSchemaForType()`，让 `DashboardModals` 调用它，再废弃独立文件 |
+| **FormBuilder 大幅重写** | 🟡 中 | 现有 210 行 FormBuilder 无 wizard 模式、无字段联动、无实时校验、无数组支持 | 新建 `dashboard-wizard.js` 独立模块，不修改 FormBuilder 核心，复用其 `_createInput` 方法 |
+| **AI 工具 token 消耗** | 🟡 中 | 40 → 46 个工具的 JSON Schema 定义全部发送给 AI 模型，增加每次请求 token | 监控 `GatewayToolRegistry.GetToolDefinitions()` 序列化大小；必要时按上下文分组加载工具子集 |
+| **嵌入式资源命名错误** | 🟡 中 | 文件夹路径中的连字符或空格导致 `GetManifestResourceStream` 找不到资源 | 统一用小写连字符命名（如 `load-balancing.json`），编写单元测试验证所有资源可加载 |
+| **健康评分规则误报** | 🟡 中 | 12 条规则可能对特殊场景（如单后端有意为之）产生噪音 | 每条规则支持 `IsApplicable` 前置检查，规则返回 `NotApplicable` 状态而非扣分 |
+| **ConfigurationSchema.json 体积膨胀** | 🟢 低 | 67KB + x- 扩展属性可能翻倍至 130KB+，前端加载变慢 | 启用 gzip 压缩；考虑按需加载（仅编辑器加载相关子树） |
+
+### 9.5 各 Layer 修改文件清单（增量）
+
+#### Layer 1: 功能目录
+| 操作 | 文件 | 说明 |
+|------|------|------|
+| 新增 | `Infrastructure/Features/features.json` | 9 大功能元数据 |
+| 新增 | `Modules/Features/IFeatureCatalogService.cs` | 接口 |
+| 新增 | `Modules/Features/FeatureCatalogService.cs` | 实现（嵌入式资源加载） |
+| 新增 | `Modules/Features/FeatureCatalogController.cs` | `GET /api/features` |
+| 新增 | `Views/Dashboard/Features.cshtml` | 卡片网格页 |
+| 新增 | `wwwroot/js/modules/dashboard-features.js` | 前端逻辑 |
+| 修改 | `Modules/Dashboard/Controllers/DashboardPagesController.cs` | 增加 `Features()` action |
+| 修改 | `Views/Shared/_Sidebar.cshtml` | 增加菜单项 |
+| 修改 | `Extensions/DashboardServiceCollectionExtensions.cs` | 注册 `IFeatureCatalogService` |
+| 修改 | `Aneiang.Yarp.Dashboard.csproj` | 增加 `<EmbeddedResource Include="Infrastructure\Features\*.json" />` |
+| 新增 | `Infrastructure/I18n/zh-CN/features.json` + `en-US/features.json` | i18n |
+
+#### Layer 2: 模板库
+| 操作 | 文件 | 说明 |
+|------|------|------|
+| 新增 | `Infrastructure/Templates/*.json` (8 个) | 模板定义 |
+| 新增 | `Modules/GatewayConfig/Application/IConfigTemplateService.cs` | 接口 |
+| 新增 | `Modules/GatewayConfig/Application/ConfigTemplateService.cs` | 实现 |
+| 新增 | `Modules/GatewayConfig/Controllers/ConfigTemplateController.cs` | API 控制器 |
+| 新增 | `Views/Dashboard/Templates.cshtml` | 模板库页 |
+| 新增 | `wwwroot/js/modules/dashboard-templates.js` | 前端逻辑 |
+| 修改 | `DashboardPagesController.cs` | 增加 `Templates()` action |
+| 修改 | `_Sidebar.cshtml` | 增加菜单项 |
+| 修改 | `DashboardServiceCollectionExtensions.cs` | 注册服务 |
+| 修改 | `.csproj` | 嵌入式资源 |
+| 修改 | `Infrastructure/I18n/zh-CN/templates.json` + `en-US/templates.json` | i18n |
+
+#### Layer 4: AI 增强
+| 操作 | 文件 | 说明 |
+|------|------|------|
+| 新增 | `Modules/GatewayConfig/Application/IConfigKnowledgeService.cs` | 接口 |
+| 新增 | `Modules/GatewayConfig/Application/ConfigKnowledgeService.cs` | RAG 检索实现 |
+| 新增 | `Infrastructure/Knowledge/*.json` (10 个) | 知识库 |
+| 新增 | `Modules/AI/Tools/GatewayToolExecutor.KnowledgeTools.cs` | 4 个工具实现 |
+| 新增 | `Modules/AI/Tools/GatewayToolExecutor.TemplateTools.cs` | 2 个工具实现 |
+| 修改 | `Modules/AI/Tools/GatewayToolRegistry.cs` | 注册 6 个新工具 |
+| 修改 | `Modules/AI/Tools/GatewayToolExecutor.cs` | switch 增加 6 个 case + 构造函数增加 3 个参数 |
+| 修改 | `Modules/AI/Services/ChatService.cs` | `BuildSystemPromptAsync` 增加检索指引 |
+| 修改 | `Modules/AI/Services/BackgroundAIAnalysisService.cs` | 增加配置健康度分析 |
+| 修改 | `DashboardServiceCollectionExtensions.cs` | 注册知识/模板/健康服务 |
+| 修改 | `.csproj` | 嵌入式资源 |
+
+#### Layer 5: 健康评分
+| 操作 | 文件 | 说明 |
+|------|------|------|
+| 新增 | `Infrastructure/Health/IConfigHealthRule.cs` | 规则接口 + `HealthCheckResult` |
+| 新增 | `Infrastructure/Health/ConfigHealthService.cs` | 评分引擎 |
+| 新增 | `Infrastructure/Health/ConfigHealthController.cs` | `GET /api/config/health` |
+| 新增 | `Infrastructure/Health/Rules/*.cs` (12 个) | 12 条规则 |
+| 新增 | `wwwroot/js/modules/dashboard-health-score.js` | 评分卡片 |
+| 修改 | `Views/Dashboard/Overview.cshtml` | 嵌入健康评分卡片 |
+| 修改 | `DashboardServiceCollectionExtensions.cs` | 注册规则引擎 |
+
+#### Layer 6: 内联帮助
+| 操作 | 文件 | 说明 |
+|------|------|------|
+| 修改 | `wwwroot/ConfigurationSchema.json` | 增加 x- 扩展属性（67KB → ~120KB） |
+| 修改 | `wwwroot/js/editors/dashboard-schema-service.js` | 实现 `getSchemaForType()`、修复 `getSchemaAt()` anyOf、增加 `getMetadata(path)` |
+| 修改 | `wwwroot/js/core/dashboard-modals.js` | 迁移到统一 SchemaService（L368-439） |
+| 修改 | `wwwroot/js/editors/dashboard-config-editor.js` | Monaco Hover/Completion Provider 增强 |
+
+#### Layer 3: 智能向导
+| 操作 | 文件 | 说明 |
+|------|------|------|
+| 新增 | `wwwroot/js/modules/dashboard-wizard.js` | 独立模块，复用 FormBuilder._createInput |
+| 修改 | `wwwroot/js/editors/dashboard-form-builder.js` | 增加 `visibleWhen` 条件支持、数组字段支持 |
+| 修改 | `Views/Dashboard/Routes.cshtml` | "新建"按钮旁增加"使用向导" |
+| 修改 | `Views/Dashboard/Clusters.cshtml` | 同上 |
+
+#### Layer 7: Transform 指南
+| 操作 | 文件 | 说明 |
+|------|------|------|
+| 新增 | `Infrastructure/Knowledge/transforms.json` | 25+ Transform 文档 |
+| 新增 | `Views/Dashboard/Transforms.cshtml` | 指南页 |
+| 新增 | `wwwroot/js/modules/dashboard-transform-guide.js` | 前端逻辑 |
+| 修改 | `DashboardPagesController.cs` | 增加 `Transforms()` action |
+| 修改 | `_Sidebar.cshtml` | 增加菜单项 |
+
+#### Layer 8: UX 增强
+| 操作 | 文件 | 说明 |
+|------|------|------|
+| 修改 | `Views/Dashboard/Routes.cshtml` + `Clusters.cshtml` | 空状态引导 |
+| 修改 | `wwwroot/js/modules/dashboard-templates.js` | Dry-Run 变更预览（复用现有 Diff 逻辑） |
+| 修改 | `wwwroot/js/modules/dashboard-routes.js` | cURL 导出功能 |
+
+### 9.6 API 契约细化
+
+#### GET /api/features
+```json
+// Response 200
+{
+  "success": true,
+  "data": [
+    {
+      "id": "load-balancing",
+      "name": "负载均衡",
+      "icon": "bi-arrow-repeat",
+      "category": "可靠性",
+      "summary": "5种负载均衡策略",
+      "keyPoints": ["PowerOfTwoChoices", "RoundRobin"],
+      "configLocation": "Cluster.LoadBalancingPolicy",
+      "exampleConfig": "{ \"loadBalancingPolicy\": \"PowerOfTwoChoices\" }",
+      "docUrl": "https://microsoft.github.io/reverse-proxy/articles/load-balancing.html",
+      "configPageUrl": "/apigateway/clusters",
+      "isPlugin": false
+    }
+  ]
+}
+```
+
+#### GET /api/config/health?forceRefresh=false
+```json
+// Response 200
+{
+  "success": true,
+  "data": {
+    "score": 72,
+    "grade": "C",
+    "totalRules": 12,
+    "triggeredRules": 5,
+    "issues": [
+      {
+        "ruleId": "SEC001",
+        "category": "Security",
+        "level": "Critical",
+        "title": "WAF 未启用",
+        "description": "WAF 防火墙当前处于禁用状态",
+        "recommendation": "启用 SQL注入/XSS/路径遍历检测",
+        "configPageUrl": "/apigateway/waf"
+      }
+    ],
+    "evaluatedAt": "2026-07-19T15:42:00Z"
+  }
+}
+```
+
+#### GET /api/config/knowledge/search?q=负载均衡
+```json
+// Response 200
+{
+  "success": true,
+  "data": {
+    "query": "负载均衡",
+    "results": [
+      {
+        "topicId": "load-balancing",
+        "title": "负载均衡",
+        "summary": "YARP 支持 5 种负载均衡策略...",
+        "relevanceScore": 0.95,
+        "content": "..."
+      }
+    ]
+  }
+}
+```
+
+### 9.7 工作量重新估算
+
+基于代码库实际复杂度，修正原路线图的工作量：
+
+| Phase | 原估时 | 修正估时 | 调整原因 |
+|-------|--------|----------|----------|
+| Phase 1 (Schema) | 2 周 | **2.5 周** | `DashboardModals` 迁移风险高，需分步验证 |
+| Phase 2 (AI + 健康) | 2 周 | **2 周** | AI 工具注册模式清晰，按现有 partial class 模式扩展即可 |
+| Phase 3 (目录 + 模板) | 2 周 | **2 周** | 嵌入式资源 + 控制器模式成熟 |
+| Phase 4 (向导 + 帮助) | 2 周 | **3 周** | FormBuilder 仅 210 行，wizard 模式 + 字段联动 + 数组支持需大量新增 |
+| Phase 5 (打磨) | 1 周 | **1.5 周** | Dry-Run 需对接现有 ConfigSnapshotService Diff 逻辑 |
+| **合计** | **9 周** | **11 周** | +22% |
+
+### 9.8 验收标准
+
+每个 Phase 完成后需满足以下条件方可进入下一 Phase：
+
+| Phase | 验收标准 |
+|-------|----------|
+| Phase | 验收标准 | 状态 |
+|-------|----------|------|
+| Phase 1 | ① `getSchemaForType('route')` 返回正确 Schema ✅；② `getSchemaAt('ReverseProxy.Clusters.*.LoadBalancingPolicy')` 可穿透 anyOf ✅；③ `DashboardModals` 不再独立加载 Schema 文件 ✅；④ WAF/限流/熔断 Schema 补全 ✅；⑤ Monaco 错误信息友好化 ✅ | **已完成 2026-07-20** |
+| Phase 2 | ① `search_config_docs` 工具可检索 10 个知识文件 ✅；② `check_config_health` 返回评分和问题列表 ✅；③ 总览页显示健康评分卡片 ✅；④ 系统提示词含检索指引 ✅ | **已完成 2026-07-20** |
+| Phase 3 | ① 功能目录页展示 9 个卡片，"立即配置"可跳转 ✅；② 8 个模板可预览和应用 ✅；③ Transform 指南页展示 19 个 Transform（6 大类）✅ | **已完成 2026-07-20** |
+| Phase 4 | ① 路由创建向导 5 步完整走通 ✅；② Monaco Hover 显示 x-recommendation ✅；③ 空状态引导出现 ✅ | **已完成 2026-07-20** |
+| Phase 5 | ① Dry-Run 预览正确显示 diff ✅；② cURL 导出可复制 ✅；③ 中英双语完整（74 个 key）✅ | **已完成 2026-07-20** |
+
+> **全部 5 个 Phase + 10 项补全已全部完成。** Configuration Knowledge Center 方案实施完毕。
+
+### 补全项完成状态（2026-07-20）
+
+| # | 补全项 | 状态 |
+|---|--------|------|
+| 1 | 通知规则 Schema（EventType/ChannelIds/Severity/CooldownSeconds/RecordToHistory） | ✅ |
+| 2 | AI 主动推送（BackgroundAIAnalysisService + ConfigHealthService + NotificationService） | ✅ |
+| 3 | 集群创建向导（3 步：集群ID+LB -> 后端地址 -> 健康检查+确认） | ✅ |
+| 4 | 我的模板（localStorage 持久化，保存/加载/删除/分类展示） | ✅ |
+| 5 | 性能优化（健康评分卡片 IntersectionObserver 懒加载） | ✅ |
+| 6 | Transform 指南补全（25 个 Transform + Before/After 对比 + 应用到路由按钮） | ✅ |
+| 7 | FormBuilder buildWizard() 方法（多步骤分页表单 + 进度指示器） | ✅ |
+| 8 | Monaco Transform 智能补全（上下文感知 Transforms 数组补全） | ✅ |
+| 9 | 完整 Git 风格 diff（新增(+)绿色/修改(~)黄色对比） | ✅ |
+| 10 | 删除 RouteSchema.json/ClusterSchema.json 死文件 | ✅ |
+
+### 细节补全（2026-07-20）
+
+| # | 细节项 | 状态 |
+|---|--------|------|
+| 1 | "问问 AI"按钮（功能卡片打开 AI 助手预填问题） | ✅ |
+| 2 | 实时校验路由 ID 重复（向导输入时检查已有路由） | ✅ |
+| 3 | 勾选后自动创建策略（熔断器/重试/限流自动创建并应用） | ✅ |
+| 4 | AI 助手按钮建议徽章（Critical 问题数量徽章） | ✅ |
+| 5 | 配置变更时缓存自动失效（订阅 ConfigChangeAuditLog 事件） | ✅ |
+| 6 | "应用到路由"实际应用（获取路由配置、添加 Transform、保存） | ✅ |
+| 7 | 常见搭配建议（每个 Transform 显示搭配建议） | ✅ |
+| Phase 2 | ① `search_config_docs` 工具可检索 10 个知识文件；② `check_config_health` 返回评分和问题列表；③ 总览页显示健康评分卡片；④ 系统提示词含检索指引 |
+| Phase 3 | ① 功能目录页展示 9 个卡片，"立即配置"可跳转；② 8 个模板可预览和应用；③ Transform 指南页展示 25+ Transform |
+| Phase 4 | ① 路由创建向导 5 步完整走通；② Monaco Hover 显示 x-recommendation；③ 空状态引导出现 |
+| Phase 5 | ① Dry-Run 预览正确显示 diff；② cURL 导出可复制；③ 中英双语完整 |

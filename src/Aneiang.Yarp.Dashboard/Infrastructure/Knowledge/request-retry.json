@@ -1,0 +1,26 @@
+{
+  "topicId": "request-retry",
+  "title": "请求重试",
+  "category": "可靠性",
+  "summary": "请求重试机制在遇到临时故障时自动重发请求，提高系统容错能力。",
+  "content": "请求重试通过 RoutePolicy 配置，启用后对失败的请求自动重试。可配置最大重试次数（MaxRetries，默认 3）和退避延迟（BackoffDelayMs，默认 200ms）。重试策略应谨慎使用，仅对幂等请求（GET/HEAD/PUT/DELETE）启用，避免对非幂等请求（POST）重试导致重复操作。退避延迟建议使用指数退避策略，避免重试风暴。在 Aneiang.Yarp 中，重试通过策略系统管理，创建 RoutePolicy 并设置 retry_enabled=true 即可。",
+  "keyPoints": [
+    "Enabled - 启用/禁用重试，默认 false",
+    "MaxRetries - 最大重试次数，默认 3",
+    "BackoffDelayMs - 退避延迟毫秒，默认 200",
+    "仅对幂等请求启用重试"
+  ],
+  "bestPractices": [
+    "仅对幂等请求（GET/HEAD）启用重试",
+    "MaxRetries 不超过 3 次，避免加重后端负担",
+    "使用指数退避策略",
+    "结合熔断器使用，重试失败后触发熔断"
+  ],
+  "commonMistakes": [
+    "对 POST 请求启用重试导致重复提交",
+    "重试次数过多导致请求放大效应",
+    "未设置退避延迟导致立即重试加重负载",
+    "重试和熔断器未配合使用"
+  ],
+  "exampleConfig": "{\n  \"retry\": {\n    \"enabled\": true,\n    \"maxRetries\": 3,\n    \"backoffDelayMs\": 200\n  }\n}"
+}

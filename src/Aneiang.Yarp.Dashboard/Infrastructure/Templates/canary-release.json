@@ -1,0 +1,62 @@
+{
+  "id": "canary-release",
+  "name": "金丝雀发布",
+  "description": "渐进式发布，权重分配 + 健康检查 + 自动回滚",
+  "category": "高可用",
+  "difficulty": "advanced",
+  "features": ["负载均衡", "健康检查", "熔断器", "渐进式发布"],
+  "config": {
+    "Routes": {
+      "canary-main": {
+        "ClusterId": "production-cluster",
+        "Order": 100,
+        "Match": { "Path": "/api/{**catch-all}" },
+        "Transforms": [
+          { "PathPattern": "/api/{**remainder}" },
+          { "X-Forwarded": "Set", "For": "Set", "Proto": "Set" }
+        ]
+      }
+    },
+    "Clusters": {
+      "production-cluster": {
+        "LoadBalancingPolicy": "PowerOfTwoChoices",
+        "Destinations": {
+          "prod1": { "Address": "{{prod_backend_1}}" },
+          "prod2": { "Address": "{{prod_backend_2}}" },
+          "canary1": { "Address": "{{canary_backend}}" }
+        },
+        "HealthCheck": {
+          "Active": {
+            "Enabled": true,
+            "Interval": "00:00:10",
+            "Timeout": "00:00:05",
+            "Path": "/health"
+          },
+          "Passive": {
+            "Enabled": true,
+            "Policy": "TransportFailureRate"
+          }
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:00:30",
+          "Version": "2.0"
+        },
+        "HttpClient": {
+          "EnableMultipleHttp2Connections": true
+        }
+      }
+    }
+  },
+  "steps": [
+    "修改生产版和金丝雀版后端地址",
+    "在策略管理页面创建熔断器策略（低阈值如 FailureThreshold=3）应用到 production-cluster",
+    "金丝雀后端加入 Destinations 即可开始灰度",
+    "监控金丝雀后端健康状态，如有异常熔断器会自动隔离",
+    "确认稳定后可移除金丝雀后端或提升权重"
+  ],
+  "variables": [
+    { "key": "prod_backend_1", "label": "生产后端1", "defaultValue": "http://10.0.0.1:8080", "description": "生产环境第一个后端", "required": true },
+    { "key": "prod_backend_2", "label": "生产后端2", "defaultValue": "http://10.0.0.2:8080", "description": "生产环境第二个后端", "required": true },
+    { "key": "canary_backend", "label": "金丝雀后端", "defaultValue": "http://10.0.0.10:8080", "description": "金丝雀版本后端地址", "required": true }
+  ]
+}

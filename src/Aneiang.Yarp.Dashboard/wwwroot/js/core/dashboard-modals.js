@@ -365,12 +365,6 @@
         return bsModal;
     };
 
-    const schemaCache = {
-        cluster: null,
-        route: null,
-        full: null
-    };
-    
     /**
      * Register a specific schema for the current editor
      * This is called each time a modal opens with a schemaType
@@ -396,45 +390,25 @@
         });
     }
 
+    /**
+     * Unified schema loading - delegates to DashboardSchemaService.
+     * The full ConfigurationSchema.json is loaded once and cached by SchemaService;
+     * type-specific sub-schemas are extracted via getSchemaForType().
+     * @param {string} type - 'cluster' | 'route' | 'full'
+     * @returns {Promise<object>} Schema for the given type
+     */
     window.DashboardModals.loadSchema = function(type) {
-        const self = this;
-        
-        if (schemaCache[type]) {
-            return Promise.resolve(schemaCache[type]);
+        if (!window.DashboardSchemaService) {
+            return Promise.reject(new Error('DashboardSchemaService not available'));
         }
 
-        const schemaPaths = {
-            cluster: '/_content/Aneiang.Yarp.Dashboard/ClusterSchema.json',
-            route: '/_content/Aneiang.Yarp.Dashboard/RouteSchema.json',
-            full: '/_content/Aneiang.Yarp.Dashboard/ConfigurationSchema.json'
-        }; 
-
-        const path = schemaPaths[type] || schemaPaths.full;
-
-        return new Promise(function(resolve, reject) {
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', path, true);
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === 4) {
-                    if (xhr.status === 200) {
-                        try {
-                            const schema = JSON.parse(xhr.responseText);
-                            schemaCache[type] = schema;
-                            resolve(schema);
-                        } catch (e) {
-                            console.error('[Modals] Schema parse failed:', e);
-                            reject(e);
-                        }
-                    } else {
-                        console.error('[Modals] Schema load failed:', xhr.status);
-                        reject(new Error('Failed to load schema: ' + xhr.status));
-                    }
-                }
-            };
-            xhr.onerror = function() {
-                reject(new Error('Network error loading schema'));
-            };
-            xhr.send();
+        return window.DashboardSchemaService.load().then(function(fullSchema) {
+            var schema = window.DashboardSchemaService.getSchemaForType(type);
+            if (!schema) {
+                console.warn('[Modals] No schema found for type:', type, '- falling back to full schema');
+                schema = fullSchema;
+            }
+            return schema;
         });
     };
 

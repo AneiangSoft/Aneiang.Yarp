@@ -1,0 +1,46 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Templates" : "模板库";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<div class="card-panel mb-4">
+    <div class="card-header">
+        <span><i class="bi bi-file-earmark-code me-2" style="color:#8b5cf6;"></i><span data-i18n="templates.title">配置模板库</span></span>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3" data-i18n="templates.subtitle">开箱即用的配置模板，一键导入后微调即可。</p>
+        <div id="templates-grid" class="row g-3">
+            <div class="col-12 text-center py-4">
+                <div class="spinner-border spinner-border-sm text-primary"></div>
+                <span class="text-muted ms-2">Loading...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Apply Template Modal -->
+<div class="modal fade" id="template-apply-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="template-modal-title">应用模板</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="template-modal-body"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="template-apply-btn">确认应用</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @await Html.PartialAsync("_DashboardPageInit")
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-templates.js"></script>
+    <script>
+        if (window.DashboardTemplates) {
+            DashboardTemplates.init('templates-grid');
+        }
+    </script>
+}

@@ -1,0 +1,36 @@
+{
+  "id": "static-files",
+  "name": "静态文件代理",
+  "description": "前端静态资源代理，路径匹配 + 缓存头",
+  "category": "基础架构",
+  "difficulty": "beginner",
+  "features": ["路由转换", "缓存头"],
+  "config": {
+    "Routes": {
+      "static-files": {
+        "ClusterId": "static-cluster",
+        "Order": 200,
+        "Match": { "Path": "/static/{**catch-all}" },
+        "Transforms": [
+          { "PathPattern": "/{**remainder}" },
+          { "ResponseHeader": "Cache-Control", "Set": "public, max-age=86400", "When": "Success" }
+        ]
+      }
+    },
+    "Clusters": {
+      "static-cluster": {
+        "Destinations": {
+          "cdn": { "Address": "{{static_backend}}" }
+        }
+      }
+    }
+  },
+  "steps": [
+    "修改静态文件后端地址",
+    "根据需要调整 Cache-Control 的 max-age 值",
+    "确认路径匹配规则符合需求"
+  ],
+  "variables": [
+    { "key": "static_backend", "label": "静态文件后端地址", "defaultValue": "http://localhost:3000", "description": "静态文件服务器地址（如 Nginx 或 CDN 源站）", "required": true }
+  ]
+}

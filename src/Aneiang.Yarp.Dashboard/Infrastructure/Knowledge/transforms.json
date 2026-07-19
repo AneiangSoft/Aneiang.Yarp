@@ -1,0 +1,33 @@
+{
+  "topicId": "transforms",
+  "title": "路由转换",
+  "category": "配置",
+  "summary": "YARP Transform 系统支持 25+ 种请求/响应转换，可修改路径、头部、查询参数等。",
+  "content": "Transform 在路由级别配置，通过 Transforms 数组定义。主要类别：路径转换（PathRemovePrefix 移除前缀、PathSet 设置完整路径、PathPrefix 添加前缀、PathPattern 模式匹配替换）；请求头转换（RequestHeader 设置/追加/移除、RequestHeaderRouteValue 从路由值取、RequestHeadersAllowed 允许列表）；响应头转换（ResponseHeader 设置/追加、ResponseTrailer 添加 Trailer）；转发头（X-Forwarded 标准、Forwarded RFC 7239）；查询参数（QueryValueParameter 添加）；HTTP 方法（HttpMethodChange 修改）。PathPattern 是推荐的方式，它使用模板替换而非前缀操作，更灵活且不易出错。Transforms 数组中的每个对象是一个独立的转换，按顺序执行。",
+  "keyPoints": [
+    "PathRemovePrefix - 移除路径前缀",
+    "PathSet - 设置完整路径",
+    "PathPrefix - 添加路径前缀",
+    "PathPattern - 模式匹配替换（推荐）",
+    "RequestHeader - 添加/修改/移除请求头",
+    "ResponseHeader - 添加/修改响应头",
+    "X-Forwarded - 标准 X-Forwarded-* 头",
+    "Forwarded - RFC 7239 Forwarded 头",
+    "QueryValueParameter - 添加查询参数",
+    "HttpMethodChange - 修改 HTTP 方法"
+  ],
+  "bestPractices": [
+    "使用 PathPattern 替代 PathRemovePrefix+PathPrefix 组合",
+    "转发 X-Forwarded-For 和 X-Forwarded-Proto 让后端获取真实客户端信息",
+    "按转换逻辑顺序排列 Transforms 数组",
+    "使用 RequestHeadersAllowed 限制转发的请求头，避免敏感信息泄露"
+  ],
+  "commonMistakes": [
+    "同时使用 PathRemovePrefix 和 PathPrefix 导致路径混乱",
+    "忘记转发 X-Forwarded 头导致后端无法获取客户端 IP",
+    "Transforms 数组顺序错误导致转换结果不符合预期",
+    "未限制转发头导致 Authorization 等敏感头泄露给后端"
+  ],
+  "docUrl": "https://microsoft.github.io/reverse-proxy/articles/transforms.html",
+  "exampleConfig": "{\n  \"transforms\": [\n    { \"PathPattern\": \"/api/{**remainder}\" },\n    { \"X-Forwarded\": \"Set\", \"For\": \"Set\", \"Proto\": \"Set\", \"Host\": \"Set\" }\n  ]\n}"
+}

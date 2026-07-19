@@ -115,11 +115,18 @@
               "properties": {
                 "ClusterId": {
                   "type": "string",
-                  "description": "Name of the cluster this route points to."
+                  "description": "Name of the cluster this route points to.",
+                  "x-example": "order-service-cluster",
+                  "x-recommendation": "必须引用已存在的集群名称。一个集群可被多个路由引用。",
+                  "x-group": "basic",
+                  "x-productionRequired": true
                 },
                 "Order": {
                   "type": [ "number", "null" ],
-                  "description": "Order value for this route. Routes with lower numbers take precedence over higher numbers."
+                  "description": "Order value for this route. Routes with lower numbers take precedence over higher numbers.",
+                  "x-example": 100,
+                  "x-recommendation": "建议为每条路由设置 Order 值，避免路由匹配歧义。数值越小优先级越高。",
+                  "x-group": "advanced"
                 },
                 "MaxRequestBodySize": {
                   "type": [ "number", "null" ],
@@ -155,7 +162,12 @@
                   "properties": {
                     "Path": {
                       "type": [ "string", "null" ],
-                      "description": "Path pattern using ASP.NET route template syntax, e.g. '/something/{**remainder}'."
+                      "description": "Path pattern using ASP.NET route template syntax, e.g. '/something/{**remainder}'.",
+                      "x-example": "/api/orders/{**catch-all}",
+                      "x-recommendation": "使用 {**catch-all} 捕获剩余路径段。路径以 / 开头。",
+                      "x-docUrl": "https://microsoft.github.io/reverse-proxy/articles/routing.html",
+                      "x-group": "basic",
+                      "x-productionRequired": true
                     },
                     "Hosts": {
                       "type": [ "array", "null" ],
@@ -1069,7 +1081,11 @@
                       "properties": {
                         "Address": {
                           "type": "string",
-                          "description": "Destination address (must include scheme)."
+                          "description": "Destination address (must include scheme).",
+                          "x-example": "http://10.0.0.1:8080",
+                          "x-recommendation": "必须包含协议（http:// 或 https://）。生产环境建议至少配置 2 个后端地址以实现高可用。",
+                          "x-group": "basic",
+                          "x-productionRequired": true
                         },
                         "Health": {
                           "type": [ "string", "null" ],
@@ -1110,7 +1126,19 @@
                       "type": [ "string", "null" ]
                     }
                   ],
-                  "description": "Determines traffic distribution among destinations."
+                  "description": "Determines traffic distribution among destinations.",
+                  "x-example": "PowerOfTwoChoices",
+                  "x-recommendation": "生产环境建议使用 PowerOfTwoChoices，它选择两个随机目的地并挑请求较少的，避免最差选择。",
+                  "x-docUrl": "https://microsoft.github.io/reverse-proxy/articles/load-balancing.html",
+                  "x-group": "advanced",
+                  "x-productionRequired": false,
+                  "x-options": {
+                    "PowerOfTwoChoices": "选择两个随机目的地，挑请求较少的（推荐）",
+                    "RoundRobin": "轮询分配，依次循环",
+                    "LeastRequests": "选择当前请求数最少的",
+                    "Random": "随机选择目的地",
+                    "FirstAlphabetical": "按字母顺序选第一个（仅用于测试）"
+                  }
                 },
                 "SessionAffinity": {
                   "type": [ "object", "null" ],
@@ -1258,6 +1286,9 @@
                     "Active": {
                       "type": [ "object", "null" ],
                       "description": "Active health checks are based on sending health probing requests.",
+                      "x-recommendation": "生产环境建议启用 Active 健康检查，设置合理的 Interval 和 Timeout。",
+                      "x-docUrl": "https://microsoft.github.io/reverse-proxy/articles/health-checks.html",
+                      "x-group": "advanced",
                       "properties": {
                         "Enabled": {
                           "anyOf": [
@@ -1425,7 +1456,9 @@
                         }
                       ],
                       "description": "Determines if multiple HTTP/2 connections are enabled.",
-                      "default": true
+                      "default": true,
+                      "x-recommendation": "高并发场景建议启用，允许多路复用连接并行发送请求。",
+                      "x-group": "performance"
                     },
                     "RequestHeaderEncoding": {
                       "type": [ "string", "null" ],
@@ -1543,6 +1576,271 @@
           }
         }
       }
+    },
+    "Plugins": {
+        "type": "object",
+        "description": "Aneiang.Yarp plugin configuration schemas (WAF, RateLimit, CircuitBreaker, Retry).",
+        "properties": {
+          "Waf": {
+            "type": "object",
+            "description": "Web Application Firewall settings.",
+            "x-docUrl": "https://microsoft.github.io/reverse-proxy/articles/security.html",
+            "properties": {
+              "Enabled": {
+                "type": "boolean",
+                "description": "Enable or disable WAF globally.",
+                "default": true,
+                "x-recommendation": "生产环境强烈建议启用 WAF。",
+                "x-group": "basic",
+                "x-productionRequired": true
+              },
+              "EnableSqlInjectionDetection": {
+                "type": "boolean",
+                "description": "Enable SQL injection detection.",
+                "default": true,
+                "x-group": "security"
+              },
+              "EnableXssDetection": {
+                "type": "boolean",
+                "description": "Enable XSS (Cross-Site Scripting) detection.",
+                "default": true,
+                "x-group": "security"
+              },
+              "EnablePathTraversalDetection": {
+                "type": "boolean",
+                "description": "Enable path traversal attack detection.",
+                "default": true,
+                "x-group": "security"
+              },
+              "IpWhitelist": {
+                "type": "array",
+                "description": "IP addresses always allowed. Supports CIDR notation.",
+                "items": { "type": "string" },
+                "x-example": ["10.0.0.0/8", "192.168.1.1"],
+                "x-group": "security"
+              },
+              "IpBlacklist": {
+                "type": "array",
+                "description": "IP addresses always blocked. Supports CIDR notation.",
+                "items": { "type": "string" },
+                "x-example": ["1.2.3.4", "5.6.7.0/24"],
+                "x-group": "security"
+              },
+              "MaxRequestBodySize": {
+                "type": "integer",
+                "description": "Maximum request body size in bytes.",
+                "default": 10485760,
+                "x-example": 10485760,
+                "x-recommendation": "默认 10MB。根据业务需求调整，过大会增加 DoS 风险。",
+                "x-group": "security"
+              }
+            },
+            "additionalProperties": false
+          },
+          "RateLimit": {
+            "type": "object",
+            "description": "Rate limiting configuration.",
+            "properties": {
+              "Enabled": {
+                "type": "boolean",
+                "description": "Enable rate limiting globally.",
+                "default": false,
+                "x-group": "basic"
+              },
+              "Algorithm": {
+                "type": "string",
+                "description": "Rate limiting algorithm.",
+                "enum": ["FixedWindow", "SlidingWindow", "TokenBucket", "Concurrency"],
+                "default": "FixedWindow",
+                "x-options": {
+                  "FixedWindow": "固定时间窗口计数",
+                  "SlidingWindow": "滑动窗口计数（更平滑）",
+                  "TokenBucket": "令牌桶（允许突发）",
+                  "Concurrency": "并发数限制"
+                },
+                "x-group": "advanced"
+              },
+              "PermitLimit": {
+                "type": "integer",
+                "description": "Maximum requests allowed per time window.",
+                "default": 100,
+                "x-example": 100,
+                "x-recommendation": "根据后端承载能力设置。过高无法保护后端，过低影响正常用户。",
+                "x-group": "basic"
+              },
+              "Window": {
+                "type": "string",
+                "description": "Time window duration. Supports 's', 'm', 'h' suffixes.",
+                "default": "1m",
+                "x-example": "1m",
+                "x-group": "basic"
+              },
+              "QueueLimit": {
+                "type": "integer",
+                "description": "Number of queued requests when limit is exceeded. 0 = reject immediately.",
+                "default": 0,
+                "x-group": "advanced"
+              },
+              "ConcurrencyLimit": {
+                "type": "integer",
+                "description": "Maximum parallel requests (Concurrency algorithm only).",
+                "default": 50,
+                "x-group": "advanced"
+              },
+              "PartitionKey": {
+                "type": "string",
+                "description": "Partition key for rate limiting.",
+                "enum": ["IpAddress", "UserId", "Route", "Global"],
+                "default": "IpAddress",
+                "x-options": {
+                  "IpAddress": "按客户端 IP 分区",
+                  "UserId": "按用户 ID 分区",
+                  "Route": "按路由分区",
+                  "Global": "全局共享限制"
+                },
+                "x-group": "advanced"
+              }
+            },
+            "additionalProperties": false
+          },
+          "CircuitBreaker": {
+            "type": "object",
+            "description": "Circuit breaker configuration for fault tolerance.",
+            "properties": {
+              "Enabled": {
+                "type": "boolean",
+                "description": "Enable circuit breaker globally.",
+                "default": true,
+                "x-recommendation": "生产环境建议启用熔断器，防止级联故障。",
+                "x-group": "basic",
+                "x-productionRequired": true
+              },
+              "DefaultFailureThreshold": {
+                "type": "integer",
+                "description": "Number of consecutive failures before opening the circuit.",
+                "default": 5,
+                "x-example": 5,
+                "x-recommendation": "通常 3-10。过低容易误判，过高反应迟钝。",
+                "x-group": "basic"
+              },
+              "DefaultRecoveryTimeoutSeconds": {
+                "type": "integer",
+                "description": "Seconds to wait before transitioning from Open to HalfOpen.",
+                "default": 30,
+                "x-example": 30,
+                "x-recommendation": "通常 15-60 秒。过短导致频繁试探，过长影响恢复。",
+                "x-group": "basic"
+              },
+              "HalfOpenMaxAttempts": {
+                "type": "integer",
+                "description": "Maximum requests allowed in HalfOpen state before deciding circuit state.",
+                "default": 1,
+                "x-example": 3,
+                "x-recommendation": "通常 1-5。增加试探次数可更快确认后端恢复。",
+                "x-group": "advanced"
+              },
+              "MaxCircuitCount": {
+                "type": "integer",
+                "description": "Maximum number of circuit breaker entries to track. Prevents memory exhaustion.",
+                "default": 1000,
+                "x-group": "advanced"
+              }
+            },
+            "additionalProperties": false
+          },
+          "Retry": {
+            "type": "object",
+            "description": "Request retry configuration for transient fault tolerance.",
+            "properties": {
+              "Enabled": {
+                "type": "boolean",
+                "description": "Enable request retry globally.",
+                "default": false,
+                "x-group": "basic"
+              },
+              "MaxRetries": {
+                "type": "integer",
+                "description": "Maximum retry attempts.",
+                "default": 3,
+                "x-example": 3,
+                "x-recommendation": "通常 1-3。过多重试会加重后端负担。",
+                "x-group": "basic"
+              },
+              "BackoffDelayMs": {
+                "type": "integer",
+                "description": "Base backoff delay in milliseconds between retries.",
+                "default": 200,
+                "x-group": "advanced"
+              }
+            },
+            "additionalProperties": false
+          },
+          "Notification": {
+            "type": "object",
+            "description": "Notification rule configuration for event alerts.",
+            "properties": {
+              "Enabled": {
+                "type": "boolean",
+                "description": "Enable this notification rule.",
+                "default": true,
+                "x-group": "basic"
+              },
+              "EventType": {
+                "type": "string",
+                "description": "Event type that triggers this notification.",
+                "enum": ["CircuitBreakerOpen", "CircuitBreakerHalfOpen", "CircuitBreakerClosed", "DestinationUnhealthy", "DestinationRecovered", "WafAttackDetected", "RateLimitExceeded", "ConfigChanged", "GatewayStarted", "GatewayStopped"],
+                "x-options": {
+                  "CircuitBreakerOpen": "熔断器打开（Critical）",
+                  "CircuitBreakerHalfOpen": "熔断器半开（Warning）",
+                  "CircuitBreakerClosed": "熔断器关闭（恢复）",
+                  "DestinationUnhealthy": "后端不健康（Critical）",
+                  "DestinationRecovered": "后端恢复（Info）",
+                  "WafAttackDetected": "WAF 检测到攻击（Warning）",
+                  "RateLimitExceeded": "限流触发（Info）",
+                  "ConfigChanged": "配置变更（Info）",
+                  "GatewayStarted": "网关启动（Info）",
+                  "GatewayStopped": "网关停止（Critical）"
+                },
+                "x-group": "basic",
+                "x-productionRequired": true
+              },
+              "ChannelIds": {
+                "type": "array",
+                "description": "Notification channel IDs to send alerts to.",
+                "items": { "type": "string" },
+                "x-example": ["webhook-1", "email-1"],
+                "x-group": "basic"
+              },
+              "Severity": {
+                "type": "string",
+                "description": "Alert severity level.",
+                "enum": ["Info", "Warning", "Critical"],
+                "default": "Warning",
+                "x-options": {
+                  "Info": "信息级别，仅记录",
+                  "Warning": "警告级别，发送通知",
+                  "Critical": "严重级别，立即通知"
+                },
+                "x-group": "basic"
+              },
+              "CooldownSeconds": {
+                "type": "integer",
+                "description": "Cooldown period in seconds between repeated notifications.",
+                "default": 300,
+                "x-example": 300,
+                "x-recommendation": "通常 60-600 秒。过短导致通知风暴，过长可能漏报。",
+                "x-group": "advanced"
+              },
+              "RecordToHistory": {
+                "type": "boolean",
+                "description": "Record this notification in the history log.",
+                "default": true,
+                "x-group": "advanced"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
     }
   }
 }

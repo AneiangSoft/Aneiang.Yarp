@@ -1,0 +1,36 @@
+{
+  "id": "rate-limiting",
+  "name": "API 限流保护",
+  "description": "按路由限流 + 冷却期 + 重试，防刷防爬",
+  "category": "安全",
+  "difficulty": "beginner",
+  "features": ["限流", "请求重试"],
+  "config": {
+    "Routes": {
+      "api-protected": {
+        "ClusterId": "api-cluster",
+        "Order": 100,
+        "Match": { "Path": "/api/{**catch-all}" }
+      }
+    },
+    "Clusters": {
+      "api-cluster": {
+        "LoadBalancingPolicy": "PowerOfTwoChoices",
+        "Destinations": {
+          "node1": { "Address": "{{backend_1}}" },
+          "node2": { "Address": "{{backend_2}}" }
+        }
+      }
+    }
+  },
+  "steps": [
+    "修改后端地址",
+    "在策略管理页面创建路由策略，启用限流（PermitLimit=100, Window=1m, PartitionKey=IpAddress）",
+    "可选：在策略中启用重试（MaxRetries=3）",
+    "将策略应用到 api-protected 路由"
+  ],
+  "variables": [
+    { "key": "backend_1", "label": "后端地址1", "defaultValue": "http://localhost:5001", "description": "第一个后端服务地址", "required": true },
+    { "key": "backend_2", "label": "后端地址2", "defaultValue": "http://localhost:5002", "description": "第二个后端服务地址", "required": true }
+  ]
+}

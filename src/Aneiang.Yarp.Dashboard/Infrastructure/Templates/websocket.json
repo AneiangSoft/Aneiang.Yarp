@@ -1,0 +1,43 @@
+{
+  "id": "websocket",
+  "name": "WebSocket 代理",
+  "description": "WebSocket 实时通信代理，超时配置和连接保持",
+  "category": "基础架构",
+  "difficulty": "intermediate",
+  "features": ["WebSocket", "超时配置"],
+  "config": {
+    "Routes": {
+      "websocket-route": {
+        "ClusterId": "ws-cluster",
+        "Order": 50,
+        "Match": { "Path": "/ws/{**catch-all}" },
+        "Transforms": [
+          { "RequestHeader": "Connection", "Set": "upgrade" },
+          { "RequestHeader": "Upgrade", "Set": "websocket" }
+        ]
+      }
+    },
+    "Clusters": {
+      "ws-cluster": {
+        "LoadBalancingPolicy": "RoundRobin",
+        "Destinations": {
+          "ws1": { "Address": "{{ws_backend_1}}" },
+          "ws2": { "Address": "{{ws_backend_2}}" }
+        },
+        "HttpRequest": {
+          "ActivityTimeout": "00:10:00",
+          "Version": "1.1"
+        }
+      }
+    }
+  },
+  "steps": [
+    "修改 WebSocket 后端地址",
+    "确认 ActivityTimeout 足够长（默认10分钟）",
+    "WebSocket 使用 HTTP/1.1，不要使用 HTTP/2"
+  ],
+  "variables": [
+    { "key": "ws_backend_1", "label": "WebSocket后端1", "defaultValue": "ws://localhost:8080", "description": "第一个 WebSocket 服务地址", "required": true },
+    { "key": "ws_backend_2", "label": "WebSocket后端2", "defaultValue": "ws://localhost:8081", "description": "第二个 WebSocket 服务地址", "required": true }
+  ]
+}

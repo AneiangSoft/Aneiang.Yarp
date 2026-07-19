@@ -1,0 +1,42 @@
+{
+  "id": "waf-security",
+  "name": "WAF 安全防护",
+  "description": "安全加固配置，WAF 全规则 + IP 黑名单 + 请求大小限制",
+  "category": "安全",
+  "difficulty": "intermediate",
+  "features": ["WAF防火墙", "IP黑白名单", "请求大小限制"],
+  "config": {
+    "Routes": {
+      "secure-api": {
+        "ClusterId": "secure-cluster",
+        "Order": 100,
+        "Match": { "Path": "/api/{**catch-all}" },
+        "Transforms": [
+          { "X-Forwarded": "Set", "For": "Set", "Proto": "Set" }
+        ]
+      }
+    },
+    "Clusters": {
+      "secure-cluster": {
+        "LoadBalancingPolicy": "PowerOfTwoChoices",
+        "Destinations": {
+          "node1": { "Address": "{{backend_1}}" },
+          "node2": { "Address": "{{backend_2}}" }
+        },
+        "HealthCheck": {
+          "Active": { "Enabled": true, "Interval": "00:00:15", "Path": "/health" }
+        }
+      }
+    }
+  },
+  "steps": [
+    "修改后端地址",
+    "在 WAF 页面启用所有检测规则（SQL注入/XSS/路径遍历）",
+    "在 WAF 页面配置 IP 黑名单",
+    "在 WAF 页面设置 MaxRequestBodySize（建议 10MB）"
+  ],
+  "variables": [
+    { "key": "backend_1", "label": "后端地址1", "defaultValue": "http://10.0.0.1:8080", "description": "第一个后端服务地址", "required": true },
+    { "key": "backend_2", "label": "后端地址2", "defaultValue": "http://10.0.0.2:8080", "description": "第二个后端服务地址", "required": true }
+  ]
+}

@@ -100,6 +100,34 @@ public class GatewayToolRegistry
 
             R("get_policies", "Get all gateway policies: route policies (retry, rate-limit, WAF) and cluster policies (circuit breaker). Shows which routes/clusters each policy is applied to."),
 
+            // ===================== CONFIG KNOWLEDGE TOOLS =====================
+
+            R("search_config_docs", "Search the configuration knowledge base by keyword. Returns relevant topics with summaries and snippets about YARP features, configuration fields, and best practices.",
+                new { query = new { type = "string", description = "Search keyword or phrase, e.g. 'load balancing', 'circuit breaker', 'transforms'." } },
+                req: new[] { "query" }),
+
+            R("get_feature_guide", "Get detailed configuration guide for a specific feature. Returns full content including key points, best practices, common mistakes, and example config.",
+                new { topic_id = new { type = "string", description = "Topic ID: load-balancing, health-check, circuit-breaker, request-retry, rate-limiting, waf, transforms, session-affinity, routing, http-client." } },
+                req: new[] { "topic_id" }),
+
+            R("check_config_health", "Analyze the current gateway configuration and return a health score (0-100) with a list of issues and recommendations. Checks WAF, health checks, circuit breakers, load balancing, and best practices.",
+                new { force_refresh = new { type = "boolean", description = "Force refresh the cached health report. Default: false." } }),
+
+            R("suggest_configuration", "Based on a user's description of their requirements, recommend a configuration approach by searching the knowledge base and analyzing current config health.",
+                new { description = new { type = "string", description = "User's description of what they want to configure, e.g. 'high availability for my API gateway'." } },
+                req: new[] { "description" }),
+
+            R("get_config_templates", "Get available configuration templates that can be applied with one click. Each template includes a name, description, difficulty, and the config it provides.",
+                new { category = new { type = "string", description = "Optional: filter by category (basic, security, high-availability)." } }),
+
+            W("apply_config_template", "Apply a configuration template to the gateway. This will create or modify routes, clusters, and policies. Requires user confirmation.",
+                new
+                {
+                    template_id = new { type = "string", description = "Template ID to apply." },
+                    variables = new { type = "object", description = "Variables to fill in the template, e.g. {\"backend_address\": \"http://localhost:5001\"}." }
+                },
+                req: new[] { "template_id" }),
+
             // ===================== WRITE TOOLS =====================
 
             W("create_route", "Create or update a proxy route. Call this tool immediately when the user asks to add/create a route — do not just describe what you plan to do. Specify route name, YARP path pattern, and target cluster. Creates the cluster if it does not exist.",

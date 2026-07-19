@@ -1,5 +1,6 @@
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
+using Aneiang.Yarp.Dashboard.Infrastructure.Health;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,6 +12,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.AI.Services;
 /// Detects anomalies (error rate spikes, latency surges, WAF attack surges),
 /// generates log summaries, and produces configuration suggestions.
 /// Results are stored in the ai_analysis table and severe anomalies trigger notifications.
+/// Also periodically evaluates configuration health and pushes alerts for Critical issues.
 /// </summary>
 public class BackgroundAIAnalysisService : BackgroundService
 {
@@ -21,11 +23,17 @@ public class BackgroundAIAnalysisService : BackgroundService
     private readonly INotificationService _notificationService;
     private readonly AIOptions _options;
     private readonly ILogger<BackgroundAIAnalysisService> _logger;
+    private readonly ConfigHealthService? _configHealthService;
+    private readonly IDynamicYarpConfigService? _dynamicConfig;
 
     // Track the last analysis time to avoid duplicate runs
     private DateTime _lastAnalysisRun = DateTime.MinValue;
     // Track the previous 5xx count for anomaly detection baseline
     private int _previous5xxCount = -1;
+    // Track last config health check to run it less frequently than log analysis
+    private DateTime _lastHealthCheck = DateTime.MinValue;
+    // Track previously notified health issues to avoid duplicate alerts
+    private HashSet<string> _notifiedIssueIds = new();
 
     public BackgroundAIAnalysisService(
         IAIProvider provider,
@@ -34,7 +42,9 @@ public class BackgroundAIAnalysisService : BackgroundService
         GatewayContextProvider contextProvider,
         INotificationService notificationService,
         IOptions<AIOptions> options,
-        ILogger<BackgroundAIAnalysisService> logger)
+        ILogger<BackgroundAIAnalysisService> logger,
+        ConfigHealthService? configHealthService = null,
+        IDynamicYarpConfigService? dynamicConfig = null)
     {
         _provider = provider;
         _logRepo = logRepo;
@@ -43,6 +53,8 @@ public class BackgroundAIAnalysisService : BackgroundService
         _notificationService = notificationService;
         _options = options.Value;
         _logger = logger;
+        _configHealthService = configHealthService;
+        _dynamicConfig = dynamicConfig;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -112,12 +124,115 @@ public class BackgroundAIAnalysisService : BackgroundService
             await GenerateSuggestionsAsync(recentStats, topIssues, gatewayContext, ct);
         }
 
-        // 5. Purge old analysis results (keep 7 days)
+        // 5. Configuration health check (every hour)
+        if (_configHealthService != null && _dynamicConfig != null &&
+            (DateTime.Now - _lastHealthCheck).TotalHours >= 1)
+        {
+            await EvaluateConfigHealthAsync(ct);
+            _lastHealthCheck = DateTime.Now;
+        }
+
+        // 6. Purge old analysis results (keep 7 days)
         await _analysisRepo.PurgeOlderThanAsync(DateTime.Now.AddDays(-7), ct);
 
         _previous5xxCount = recent5xx;
 
         _logger.LogInformation("[AI-Analysis] Analysis cycle completed.");
+    }
+
+    /// <summary>
+    /// Evaluate configuration health and push alerts for Critical issues.
+    /// </summary>
+    private async Task EvaluateConfigHealthAsync(CancellationToken ct)
+    {
+        try
+        {
+            var routes = _dynamicConfig!.GetRoutes();
+            var clusters = _dynamicConfig.GetClusters();
+
+            var context = new ConfigHealthContext();
+
+            foreach (var route in routes)
+            {
+                var routeInfo = new RouteInfo
+                {
+                    RouteId = route.RouteId,
+                    ClusterId = route.ClusterId,
+                    Order = route.Order,
+                    HasTransforms = route.Transforms != null && route.Transforms.Count > 0
+                };
+                if (route.Transforms != null)
+                {
+                    foreach (var t in route.Transforms)
+                    {
+                        if (t.ContainsKey("PathPattern")) routeInfo.UsesPathPattern = true;
+                        if (t.ContainsKey("PathRemovePrefix")) routeInfo.UsesPathRemovePrefix = true;
+                    }
+                }
+                context.Routes.Add(routeInfo);
+            }
+
+            foreach (var cluster in clusters)
+            {
+                var clusterInfo = new ClusterInfo
+                {
+                    ClusterId = cluster.ClusterId,
+                    DestinationCount = cluster.Destinations?.Count ?? 0,
+                    LoadBalancingPolicy = cluster.LoadBalancingPolicy,
+                    HasHealthCheck = cluster.HealthCheck != null,
+                    HasActiveHealthCheck = cluster.HealthCheck?.Active?.Enabled ?? false,
+                    EnableMultipleHttp2Connections = cluster.HttpClient?.EnableMultipleHttp2Connections == true
+                };
+                if (cluster.Metadata != null &&
+                    cluster.Metadata.TryGetValue("CircuitBreaker:Enabled", out var cbVal) &&
+                    bool.TryParse(cbVal, out var cbEnabled) && cbEnabled)
+                {
+                    context.ClustersWithCircuitBreaker.Add(cluster.ClusterId);
+                }
+                context.Clusters.Add(clusterInfo);
+            }
+
+            var report = await _configHealthService!.EvaluateAsync(context, false, ct);
+
+            // Save health report to analysis repo
+            await _analysisRepo.SaveAnalysisAsync(new AIAnalysisEntry
+            {
+                AnalysisType = "config_health",
+                Content = $"Score: {report.Score} ({report.Grade}), Issues: {report.TriggeredRules}/{report.TotalRules}",
+                Severity = report.Issues.Any(i => i.Level == "Critical") ? 2 : report.Issues.Any(i => i.Level == "Warning") ? 1 : 0,
+                CreatedAt = DateTime.Now
+            }, ct);
+
+            // Push notifications for new Critical issues
+            foreach (var issue in report.Issues.Where(i => i.Level == "Critical"))
+            {
+                if (_notifiedIssueIds.Contains(issue.RuleId))
+                    continue; // Already notified
+
+                await _notificationService.NotifyAsync(new NotificationEvent
+                {
+                    EventType = "ConfigHealthCritical",
+                    Title = $"配置健康告警: {issue.Title}",
+                    Message = $"{issue.Description}. 建议: {issue.Recommendation}",
+                    Severity = NotificationSeverity.Critical,
+                    Timestamp = DateTime.Now
+                }, ct);
+
+                _notifiedIssueIds.Add(issue.RuleId);
+                _logger.LogWarning("[AI-Analysis] Config health Critical issue notified: {RuleId} - {Title}", issue.RuleId, issue.Title);
+            }
+
+            // Clear notified issues that are no longer triggered (resolved)
+            var currentIssueIds = report.Issues.Select(i => i.RuleId).ToHashSet();
+            _notifiedIssueIds.RemoveWhere(id => !currentIssueIds.Contains(id));
+
+            _logger.LogInformation("[AI-Analysis] Config health evaluated: Score={Score}, Grade={Grade}, Issues={Issues}",
+                report.Score, report.Grade, report.TriggeredRules);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[AI-Analysis] Config health evaluation failed: {Message}", ex.Message);
+        }
     }
 
     /// <summary>
