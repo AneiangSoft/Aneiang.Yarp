@@ -65,8 +65,8 @@ try
     Console.WriteLine($"  Mode:               {depOptions.Mode}");
     foreach (var ep in depOptions.ResolvedEndpoints)
         Console.WriteLine($"  Endpoint:           {ep.EndpointName} → {ep.IpAddress}:{ep.Port} ({ep.Role})");
-    Console.WriteLine("  Dashboard:          /apigateway");
-    Console.WriteLine("  Login:              /apigateway/login");
+    Console.WriteLine("  Dashboard:          /aneiang");
+    Console.WriteLine("  Login:              /aneiang/login");
     Console.WriteLine("  Credentials:        admin / demo123");
     Console.WriteLine("  Health:             /health, /ready, /live");
     Console.WriteLine("  Logger:             Serilog");
