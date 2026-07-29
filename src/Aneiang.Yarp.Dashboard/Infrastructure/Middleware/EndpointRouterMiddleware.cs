@@ -60,7 +60,7 @@ public class EndpointRouterMiddleware
         }
         if (_options.Mode == DeploymentMode.DashboardOnly)
         {
-            if (!IsDashboardPath(path)) { await Reject(context); return; }
+            if (!IsDashboardPath(path) && !IsControlPlaneApiPath(path)) { await Reject(context); return; }
             await _next(context);
             return;
         }
@@ -80,7 +80,7 @@ public class EndpointRouterMiddleware
             "All"       => true,
             "Health"    => IsHealthPath(path),
             "Admin"     => path.StartsWith("/api/admin", StringComparison.OrdinalIgnoreCase),
-            "Dashboard" => IsDashboardPath(path),
+            "Dashboard" => IsDashboardPath(path) || IsControlPlaneApiPath(path),
             "Proxy"     => !IsDashboardPath(path),
             _           => true
         };
@@ -99,6 +99,14 @@ public class EndpointRouterMiddleware
         path.StartsWith(_dashPrefix, StringComparison.OrdinalIgnoreCase) ||
         path.StartsWith(ContentRoot, StringComparison.OrdinalIgnoreCase) ||
         path.StartsWith(SignalRPrefix, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Core gateway control-plane APIs (route register/unregister/heartbeat/batch).
+    /// These are served by <c>GatewayConfigController</c> at <c>/api/gateway/*</c>
+    /// and must be reachable on the Dashboard port for client auto-registration.
+    /// </summary>
+    private static bool IsControlPlaneApiPath(string path) =>
+        path.StartsWith("/api/gateway", StringComparison.OrdinalIgnoreCase);
 
     private bool IsHealthPath(string path) =>
         path.Equals(_options.HealthCheck.Path, StringComparison.OrdinalIgnoreCase) ||
