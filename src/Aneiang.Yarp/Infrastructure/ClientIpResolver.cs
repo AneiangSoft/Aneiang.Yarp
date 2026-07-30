@@ -10,30 +10,12 @@ namespace Aneiang.Yarp.Infrastructure;
 public static class ClientIpResolver
 {
     /// <summary>
-    /// Resolves the originating client IP using the standard proxy-forwarding chain:
-    /// X-Forwarded-For → X-Real-IP → connection remote address.
-    /// This is the recommended method for audit, WAF, and rate-limiting scenarios
-    /// where the client identity (behind a trusted proxy) matters.
+    /// Resolves the client IP established by ASP.NET Core's trusted forwarded-header middleware.
+    /// Raw forwarding headers are deliberately ignored here because they are attacker-controlled
+    /// unless the application has validated the immediate proxy against KnownProxies/KnownNetworks.
     /// </summary>
     public static string? GetClientIp(HttpContext context)
     {
-        // X-Forwarded-For: comma-separated list, first entry is the originating client
-        if (context.Request.Headers.TryGetValue("X-Forwarded-For", out var forwardedFor))
-        {
-            var value = forwardedFor.FirstOrDefault();
-            if (!string.IsNullOrEmpty(value))
-                return ExtractFirstIp(value);
-        }
-
-        // X-Real-IP: single IP set by some reverse proxies (e.g. nginx proxy_protocol)
-        if (context.Request.Headers.TryGetValue("X-Real-IP", out var realIp))
-        {
-            var value = realIp.FirstOrDefault();
-            if (!string.IsNullOrEmpty(value))
-                return value.Trim();
-        }
-
-        // Fallback to direct connection (gateway's own peer, or proxyless deployment)
         return context.Connection.RemoteIpAddress?.ToString();
     }
 

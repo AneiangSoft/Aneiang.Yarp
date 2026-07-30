@@ -63,8 +63,7 @@ public class HealthCheckMiddleware
         // Token authentication
         if (!string.IsNullOrEmpty(_options.HealthCheck.Token))
         {
-            var token = context.Request.Headers["X-Health-Token"].FirstOrDefault()
-                      ?? context.Request.Query["token"].FirstOrDefault();
+            var token = context.Request.Headers["X-Health-Token"].FirstOrDefault();
             if (!string.Equals(token, _options.HealthCheck.Token, StringComparison.Ordinal))
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;

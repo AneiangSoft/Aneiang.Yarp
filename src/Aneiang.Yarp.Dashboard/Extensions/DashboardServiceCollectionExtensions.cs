@@ -252,10 +252,15 @@ public static class DashboardServiceCollectionExtensions
 
     private static IServiceCollection AddDashboardProxyLog(this IServiceCollection services)
     {
+        services.TryAddSingleton<ProxyLogRuntimeSettings>();
         services.AddSingleton<IProxyLogStore>(sp =>
         {
             var opts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
-            return new ProxyLogStore(opts.LogBufferCapacity);
+            var runtimeSettings = sp.GetRequiredService<ProxyLogRuntimeSettings>();
+            return new ProxyLogStore(
+                opts.LogBufferCapacity,
+                persistenceEnabled: opts.LogPersistenceEnabled,
+                runtimeSettings: runtimeSettings);
         });
         services.AddSingleton<ProxyLogStore>(sp => (ProxyLogStore)sp.GetRequiredService<IProxyLogStore>());
         services.AddSingleton<LogSanitizer>();
@@ -274,6 +279,7 @@ public static class DashboardServiceCollectionExtensions
 
         // LogSettingsService: UI-configurable log settings (SQLite overrides + IOptionsMonitor + cache)
         services.AddSingleton<LogSettingsService>();
+        services.AddHostedService<ProxyLogRuntimeSettingsInitializer>();
 
         return services;
     }

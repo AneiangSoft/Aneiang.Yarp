@@ -25,9 +25,7 @@ public sealed class YarpRequestCaptureMiddleware
     private readonly LogSanitizer _sanitizer;
     private readonly RecyclableMemoryStreamManager _memoryStreamManager;
     private readonly LockFreeStatistics _statistics;
-    private readonly bool _enableRequestBodyCapture;
-    private readonly bool _enableResponseBodyCapture;
-    private readonly int _maxBodyBufferBytes;
+    private readonly ProxyLogRuntimeSettings _runtimeSettings;
 
     public YarpRequestCaptureMiddleware(
         RequestDelegate next,
@@ -36,7 +34,7 @@ public sealed class YarpRequestCaptureMiddleware
         LogSanitizer sanitizer,
         RecyclableMemoryStreamManager memoryStreamManager,
         LockFreeStatistics statistics,
-        IOptions<DashboardOptions> options)
+        ProxyLogRuntimeSettings runtimeSettings)
     {
         _next = next;
         _filter = filter;
@@ -44,11 +42,7 @@ public sealed class YarpRequestCaptureMiddleware
         _sanitizer = sanitizer;
         _memoryStreamManager = memoryStreamManager;
         _statistics = statistics;
-
-        var opt = options.Value;
-        _enableRequestBodyCapture = opt.EnableProxyRequestBodyCapture;
-        _enableResponseBodyCapture = opt.EnableProxyResponseBodyCapture;
-        _maxBodyBufferBytes = Math.Max(0, opt.LogMaxBodyBufferBytes);
+        _runtimeSettings = runtimeSettings;
     }
 
     /// <summary>
@@ -69,88 +63,84 @@ public sealed class YarpRequestCaptureMiddleware
             return;
         }
 
+        var settings = _runtimeSettings.Current;
+
         // ── Phase 1: Capture request data (before _next) ──
         var timestamp = DateTime.Now;
-        var stopwatch = Stopwatch.StartNew();
+        var startTimestamp = Stopwatch.GetTimestamp();
         var upstreamPath = context.Request.Path + context.Request.QueryString.Value;
 
-        var captureRequestBody = _enableRequestBodyCapture && ProxyLogBodyReader.IsRequestBodyCaptureSafe(context.Request);
+        var captureRequestBody = settings.RequestBodyCaptureEnabled && ProxyLogBodyReader.IsRequestBodyCaptureSafe(context.Request);
         var requestBody = captureRequestBody
-            ? await ProxyLogBodyReader.ReadRequestBodyAsync(context.Request, _maxBodyBufferBytes)
+            ? await ProxyLogBodyReader.ReadRequestBodyAsync(context.Request, settings.MaxBodyBufferBytes)
             : string.Empty;
 
-        var sanitizedRequestBody = _sanitizer.SanitizeJsonBody(requestBody);
+        var sanitizedRequestBody = _sanitizer.SanitizeBody(requestBody, context.Request.ContentType);
         var requestText = _sanitizer.TruncateText(sanitizedRequestBody, out var requestTruncated);
-        var requestHeaders = _sanitizer.SanitizeHeaders(context.Request.Headers);
 
         // ── Phase 2: Set up response body capture ──
         TeeResponseCaptureStream? responseBodyStream = null;
         Stream? originalBody = null;
         Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature? originalBodyFeature = null;
 
-        if (_enableResponseBodyCapture)
+        if (settings.ResponseBodyCaptureEnabled)
         {
             responseBodyStream = ProxyLogBodyReader.SetupResponseCapture(
-                context, _maxBodyBufferBytes, _memoryStreamManager,
+                context, settings.MaxBodyBufferBytes, _memoryStreamManager,
                 out originalBody, out originalBodyFeature);
         }
 
-        // ── Phase 3: Process request through YARP pipeline ──
-        await _next(context);
-        stopwatch.Stop();
+        try
+        {
+            // ── Phase 3: Process request through YARP pipeline ──
+            await _next(context);
+            var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
 
-        // ── Phase 4: ShouldLog check ──
-        var proxyFeature = context.Features.Get<IReverseProxyFeature>();
-        var routeId = proxyFeature?.Route?.Config?.RouteId;
-        var clusterId = proxyFeature?.Route?.Config?.ClusterId;
+            // ── Phase 4: ShouldLog check ──
+            var proxyFeature = context.Features.Get<IReverseProxyFeature>();
+            var routeId = proxyFeature?.Route?.Config?.RouteId;
+            var clusterId = proxyFeature?.Route?.Config?.ClusterId;
 
-        if (!_filter.ShouldLog(context, routeId))
+            if (!_filter.ShouldLog(context, routeId))
+                return;
+
+            // ── Phase 5: Process response data ──
+            var responseBodyText = responseBodyStream != null && ProxyLogBodyReader.IsResponseBodyCaptureSafe(context.Response)
+                ? await ProxyLogBodyReader.ReadStreamAsync(responseBodyStream.CapturedBody, settings.MaxBodyBufferBytes)
+                : string.Empty;
+
+            // The current pipeline does not mutate request bodies after this middleware.
+            // Reuse the captured body instead of buffering the YARP HttpContent a second time.
+            var downstreamText = requestText;
+            var downstreamTruncated = requestTruncated;
+
+            var sanitizedResponseBody = _sanitizer.SanitizeBody(responseBodyText, context.Response.ContentType);
+            var responseText = _sanitizer.TruncateText(sanitizedResponseBody, out var responseTruncated);
+            var requestHeaders = _sanitizer.SanitizeHeaders(context.Request.Headers);
+            var responseHeaders = _sanitizer.SanitizeHeaders(context.Response.Headers);
+
+            // ── Phase 6: Build and store log entries ──
+            _capture.CaptureLogEntry(
+                context, proxyFeature, upstreamPath, routeId, clusterId,
+                timestamp, elapsed,
+                requestHeaders, requestText ?? string.Empty, requestTruncated,
+                responseText, responseTruncated, responseHeaders,
+                downstreamText, downstreamTruncated);
+
+            // ── Phase 7: Record statistics (zero-allocation hot path) ──
+            _statistics.RecordRequest(
+                context.Response.StatusCode,
+                (long)(elapsed.TotalMilliseconds * 1000),
+                routeId != null ? JitOptimizedHotPaths.FastStringHash(routeId) : 0,
+                clusterId != null ? JitOptimizedHotPaths.FastStringHash(clusterId) : 0);
+        }
+        finally
         {
             if (responseBodyStream != null)
             {
                 ProxyLogBodyReader.RestoreResponseStream(originalBody!, originalBodyFeature!, context);
                 await responseBodyStream.DisposeAsync();
             }
-            return;
         }
-
-        // ── Phase 5: Process response data ──
-        var responseBodyText = responseBodyStream != null && ProxyLogBodyReader.IsResponseBodyCaptureSafe(context.Response)
-            ? await ProxyLogBodyReader.ReadStreamAsync(responseBodyStream.CapturedBody, _maxBodyBufferBytes)
-            : string.Empty;
-
-        var downstreamBody = ProxyLogBodyReader.GetDownstreamBody(context);
-        string? downstreamText = null;
-        var downstreamTruncated = false;
-        if (downstreamBody != null)
-        {
-            var sanitizedDownstreamBody = _sanitizer.SanitizeJsonBody(downstreamBody);
-            downstreamText = _sanitizer.TruncateText(sanitizedDownstreamBody, out downstreamTruncated);
-        }
-
-        var sanitizedResponseBody = _sanitizer.SanitizeJsonBody(responseBodyText);
-        var responseText = _sanitizer.TruncateText(sanitizedResponseBody, out var responseTruncated);
-        var responseHeaders = _sanitizer.SanitizeHeaders(context.Response.Headers);
-
-        if (responseBodyStream != null)
-        {
-            ProxyLogBodyReader.RestoreResponseStream(originalBody!, originalBodyFeature!, context);
-            await responseBodyStream.DisposeAsync();
-        }
-
-        // ── Phase 6: Build and store log entries ──
-        _capture.CaptureLogEntry(
-            context, proxyFeature, upstreamPath, routeId, clusterId,
-            timestamp, stopwatch.Elapsed,
-            requestHeaders, requestBody, requestTruncated,
-            responseBodyText, responseTruncated, responseHeaders,
-            downstreamText, downstreamTruncated);
-
-        // ── Phase 7: Record statistics (zero-allocation hot path) ──
-        _statistics.RecordRequest(
-            context.Response.StatusCode,
-            (long)(stopwatch.Elapsed.TotalMilliseconds * 1000),
-            routeId != null ? JitOptimizedHotPaths.FastStringHash(routeId) : 0,
-            clusterId != null ? JitOptimizedHotPaths.FastStringHash(clusterId) : 0);
     }
 }

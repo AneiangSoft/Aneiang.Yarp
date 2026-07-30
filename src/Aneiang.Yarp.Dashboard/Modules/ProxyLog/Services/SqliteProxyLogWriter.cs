@@ -34,16 +34,14 @@ public sealed class SqliteProxyLogWriter
     /// </summary>
     public async Task WriteBatchAsync(IEnumerable<LogEntry> entries, CancellationToken ct = default)
     {
-        var metaList = new List<ProxyLogMetaEntity>();
-        var bodyList = new List<ProxyLogBodyEntity>();
+        var capacity = entries.TryGetNonEnumeratedCount(out var count) ? count : 0;
+        var metaList = new List<ProxyLogMetaEntity>(capacity);
+        var bodyList = new List<ProxyLogBodyEntity?>(capacity);
 
         foreach (var entry in entries)
         {
-            var meta = MapToMeta(entry);
-            var body = MapToBody(entry);
-            metaList.Add(meta);
-            if (body != null)
-                bodyList.Add(body);
+            metaList.Add(MapToMeta(entry));
+            bodyList.Add(MapToBody(entry));
         }
 
         if (metaList.Count == 0) return;

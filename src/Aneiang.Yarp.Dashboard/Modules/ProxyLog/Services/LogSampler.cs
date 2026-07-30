@@ -9,19 +9,17 @@ namespace Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 public sealed class LogSampler : ILogSampler
 {
     private static readonly ThreadLocal<Random> ThreadRandom = new(() => new Random());
-    private readonly bool _enabled;
-    private readonly double _rate;
+    private readonly ProxyLogRuntimeSettings _runtimeSettings;
 
-    public LogSampler(IOptions<DashboardOptions> options)
+    public LogSampler(ProxyLogRuntimeSettings runtimeSettings)
     {
-        var opt = options.Value;
-        _enabled = opt.EnableLogSampling;
-        _rate = opt.LogSamplingRate;
+        _runtimeSettings = runtimeSettings;
     }
 
     public bool ShouldSample()
     {
-        if (!_enabled || _rate >= 1.0) return true;
-        return ThreadRandom.Value!.NextDouble() <= _rate;
+        var settings = _runtimeSettings.Current;
+        if (!settings.SamplingEnabled || settings.SamplingRate >= 1.0) return true;
+        return ThreadRandom.Value!.NextDouble() <= settings.SamplingRate;
     }
 }

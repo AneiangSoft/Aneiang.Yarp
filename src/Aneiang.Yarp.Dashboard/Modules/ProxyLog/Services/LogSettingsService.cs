@@ -17,6 +17,7 @@ public class LogSettingsService
     private readonly ILogSettingsRepository _logSettingsRepo;
     private readonly IOptionsMonitor<DashboardOptions> _optionsMonitor;
     private readonly IMemoryCache _cache;
+    private readonly ProxyLogRuntimeSettings _runtimeSettings;
     private readonly ILogger<LogSettingsService> _logger;
     private const string CacheKey = "dashboard:log-settings";
 
@@ -24,11 +25,13 @@ public class LogSettingsService
         ILogSettingsRepository logSettingsRepo,
         IOptionsMonitor<DashboardOptions> optionsMonitor,
         IMemoryCache cache,
+        ProxyLogRuntimeSettings runtimeSettings,
         ILogger<LogSettingsService> logger)
     {
         _logSettingsRepo = logSettingsRepo;
         _optionsMonitor = optionsMonitor;
         _cache = cache;
+        _runtimeSettings = runtimeSettings;
         _logger = logger;
     }
 
@@ -86,8 +89,9 @@ public class LogSettingsService
         // Write to SQLite
         await WriteOverridesAsync(current, ct);
 
-        // Clear cache so next Load reads fresh data
-        _cache.Remove(CacheKey);
+        // Publish only after persistence succeeds so all request-path consumers see one consistent snapshot.
+        _runtimeSettings.Update(current);
+        _cache.Set(CacheKey, current, TimeSpan.FromSeconds(30));
 
         _logger.LogInformation("Log settings updated: persistence={Persistence}, meta={MetaDays}d, body={BodyDays}d, reqBody={ReqBody}, resBody={ResBody}",
             current.LogPersistenceEnabled, current.LogMetaRetentionDays, current.LogBodyRetentionDays,
@@ -106,8 +110,8 @@ public class LogSettingsService
         // Clear all overrides from SQLite
         await _logSettingsRepo.ClearAsync(ct);
 
-        // Clear cache
-        _cache.Remove(CacheKey);
+        _runtimeSettings.Update(defaults);
+        _cache.Set(CacheKey, defaults, TimeSpan.FromSeconds(30));
 
         _logger.LogInformation("Log settings reset to defaults");
         return defaults;

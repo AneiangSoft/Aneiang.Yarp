@@ -26,6 +26,8 @@ public sealed class ProxyLogStore : IProxyLogStore
 
     // Bounded Channel for persistence pipeline — DropNewest so logging never blocks proxy
     private readonly Channel<LogEntry> _persistenceChannel;
+    private readonly bool _initialPersistenceEnabled;
+    private readonly ProxyLogRuntimeSettings? _runtimeSettings;
     private long _droppedCount; // Tracks entries dropped when Channel is full
 
     /// <summary>
@@ -35,19 +37,28 @@ public sealed class ProxyLogStore : IProxyLogStore
     /// </summary>
     /// <param name="capacity">Maximum number of entries to keep in memory buffer. Minimum: 16.</param>
     /// <param name="channelCapacity">Capacity of the persistence Channel. Default: 1000.</param>
-    public ProxyLogStore(int capacity = 50, int channelCapacity = 1000)
+    /// <param name="persistenceEnabled">Whether entries should initially be sent to the persistence Channel.</param>
+    /// <param name="runtimeSettings">Optional runtime settings source used for dynamic persistence toggling.</param>
+    public ProxyLogStore(
+        int capacity = 50,
+        int channelCapacity = 1000,
+        bool persistenceEnabled = true,
+        ProxyLogRuntimeSettings? runtimeSettings = null)
     {
         // Round up to next power of 2 for bit-masking optimization
         var actualCapacity = NextPowerOf2(Math.Max(16, capacity));
         _buffer = new LogEntry[actualCapacity];
         _bufferLength = actualCapacity;
         _bufferMask = actualCapacity - 1; // For fast modulo: x & mask == x % capacity
+        _initialPersistenceEnabled = persistenceEnabled;
+        _runtimeSettings = runtimeSettings;
 
-        // Create bounded Channel with DropNewest — never block proxy request thread
+        // Wait mode makes TryWrite return false when full without blocking the proxy thread,
+        // allowing accurate dropped-entry accounting.
         _persistenceChannel = Channel.CreateBounded<LogEntry>(
             new BoundedChannelOptions(channelCapacity)
             {
-                FullMode = BoundedChannelFullMode.DropNewest,
+                FullMode = BoundedChannelFullMode.Wait,
                 SingleReader = true, // Only AsyncLogPersistenceService reads
                 SingleWriter = false // Multiple middleware threads write
             });
@@ -57,6 +68,8 @@ public sealed class ProxyLogStore : IProxyLogStore
     /// Expose the persistence Channel reader for AsyncLogPersistenceService to consume.
     /// </summary>
     public ChannelReader<LogEntry> PersistenceReader => _persistenceChannel.Reader;
+
+    public void CompletePersistence() => _persistenceChannel.Writer.TryComplete();
 
     /// <summary>
     /// Number of log entries dropped because the persistence Channel was full.
@@ -97,26 +110,15 @@ public sealed class ProxyLogStore : IProxyLogStore
         var index = Interlocked.Increment(ref _head) - 1;
         var slot = FastModulo(index);
 
-        // Release large field references on the old entry being overwritten
-        var old = _buffer[slot];
-        if (old != null)
-        {
-            old.RequestBody = null;
-            old.ResponseBody = null;
-            old.RequestHeaders = null;
-            old.ResponseHeaders = null;
-            old.DownstreamBody = null;
-            old.Exception = null;
-        }
-
         _buffer[slot] = entry;
 
         // Track evictions (no _count — it was dead code, stuck at _bufferLength after fill)
         if (Volatile.Read(ref _head) > _bufferLength)
             Interlocked.Increment(ref _evictedCount);
 
-        // Write to persistence Channel (DropNewest — never block proxy thread)
-        if (!_persistenceChannel.Writer.TryWrite(entry))
+        // Write to persistence Channel only when persistence is enabled.
+        var persistenceEnabled = _runtimeSettings?.Current.PersistenceEnabled ?? _initialPersistenceEnabled;
+        if (persistenceEnabled && !_persistenceChannel.Writer.TryWrite(entry))
         {
             // Channel full — entry dropped, increment counter for frontend warning
             Interlocked.Increment(ref _droppedCount);

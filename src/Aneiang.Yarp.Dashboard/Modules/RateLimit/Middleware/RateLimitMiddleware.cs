@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,6 +12,7 @@ using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
 using Aneiang.Yarp.Infrastructure;
 using System.Threading.RateLimiting;
+using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Model;
 
 namespace Aneiang.Yarp.Dashboard.Modules.RateLimit.Middleware;
@@ -27,6 +29,7 @@ public sealed class RateLimitMiddleware : GatewayMiddlewareBase
     private readonly INotificationService _notificationService;
     private readonly IDynamicYarpConfigService? _yarpConfig;
     private readonly IRateLimiterStore _limiterStore;
+    private readonly ConditionalWeakTable<RouteConfig, CachedRouteConfig> _routeConfigs = new();
 
     private const int MaxLimiterCount = 2000;
     private static readonly TimeSpan DefaultCleanupInterval = TimeSpan.FromMinutes(5);
@@ -66,11 +69,12 @@ public sealed class RateLimitMiddleware : GatewayMiddlewareBase
         }
 
         var proxyFeature = context.Features.Get<IReverseProxyFeature>();
-        var routeMeta = proxyFeature?.Route?.Config?.Metadata;
-        var routeKey = proxyFeature?.Route?.Config?.RouteId;
-
-        var config = ResolveConfig(routeMeta, out var routeId);
-        var routeScopeId = ResolveRouteScopeId(routeKey ?? routeId);
+        var routeConfig = proxyFeature?.Route?.Config;
+        var cached = routeConfig == null ? CreateGlobalConfig() : _routeConfigs.GetValue(routeConfig, CreateRouteConfig);
+        var config = cached.Config;
+        var routeId = cached.RouteId;
+        var routeKey = routeConfig?.RouteId;
+        var routeScopeId = cached.RouteScopeId;
 
         if (!config.Enabled)
         {
@@ -114,6 +118,16 @@ public sealed class RateLimitMiddleware : GatewayMiddlewareBase
         }
 
         await Next(context);
+    }
+
+    private CachedRouteConfig CreateGlobalConfig() =>
+        new(FromGlobalOptions(), null, null);
+
+    private CachedRouteConfig CreateRouteConfig(RouteConfig routeConfig)
+    {
+        var config = ResolveConfig(routeConfig.Metadata, out var metadataRouteId);
+        var routeKey = routeConfig.RouteId ?? metadataRouteId;
+        return new CachedRouteConfig(config, metadataRouteId, ResolveRouteScopeId(routeKey));
     }
 
     private RouteRateLimitConfig ResolveConfig(IReadOnlyDictionary<string, string>? routeMeta, out string? routeId)
@@ -316,6 +330,8 @@ public sealed class RateLimitMiddleware : GatewayMiddlewareBase
         var window = ParseTimeSpan(config.Window);
         return Math.Max(1, (int)Math.Ceiling(window.TotalSeconds));
     }
+
+    private sealed record CachedRouteConfig(RouteRateLimitConfig Config, string? RouteId, string? RouteScopeId);
 
     private sealed class RouteRateLimitConfig
     {

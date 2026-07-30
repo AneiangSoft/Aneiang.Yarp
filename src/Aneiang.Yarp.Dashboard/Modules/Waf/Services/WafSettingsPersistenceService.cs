@@ -78,17 +78,17 @@ public class WafSettingsPersistenceService : IWafSettingsPersistenceService
 
     public WafSettingsData? Load()
     {
-        if (_initialized && _cachedData != null) return _cachedData;
-        return Task.Run(async () => await LoadInternalAsync(CancellationToken.None)).GetAwaiter().GetResult();
+        if (_initialized) return _cachedData;
+        return LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
     }
 
     public async Task<WafSettingsData?> LoadAsync(CancellationToken ct = default)
     {
-        if (_initialized && _cachedData != null) return _cachedData;
+        if (_initialized) return _cachedData;
         await _cacheLock.WaitAsync(ct);
         try
         {
-            if (_initialized && _cachedData != null) return _cachedData;
+            if (_initialized) return _cachedData;
             _cachedData = await LoadInternalAsync(ct);
             _initialized = true;
             return _cachedData;
@@ -128,6 +128,7 @@ public class WafSettingsPersistenceService : IWafSettingsPersistenceService
 
             await _wafRepo.SaveWafSettingsAsync(entity, ct);
             _cachedData = data;
+            _initialized = true;
             _logger.LogDebug("WAF settings saved to repository");
             return true;
         }

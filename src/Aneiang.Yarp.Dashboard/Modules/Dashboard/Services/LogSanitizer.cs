@@ -161,6 +161,29 @@ public sealed class LogSanitizer
     }
 
     /// <summary>
+    /// Sanitizes body content only when its media type is JSON.
+    /// </summary>
+    public string? SanitizeBody(string? body, string? contentType)
+    {
+        if (string.IsNullOrEmpty(body) || !IsJsonContentType(contentType))
+            return body;
+
+        return SanitizeJsonBody(body);
+    }
+
+    private static bool IsJsonContentType(string? contentType)
+    {
+        if (string.IsNullOrWhiteSpace(contentType))
+            return false;
+
+        var separator = contentType.IndexOf(';');
+        var mediaType = separator >= 0 ? contentType.AsSpan(0, separator) : contentType.AsSpan();
+        mediaType = mediaType.Trim();
+        return mediaType.Equals("application/json", StringComparison.OrdinalIgnoreCase) ||
+               mediaType.EndsWith("+json", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Truncates text to maximum allowed length.
     /// </summary>
     /// <param name="text">Original text.</param>

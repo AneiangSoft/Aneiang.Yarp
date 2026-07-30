@@ -32,8 +32,8 @@ public static class ProxyLogBodyReader
     /// </summary>
     public static bool IsResponseBodyCaptureCandidate(HttpRequest request)
     {
-        if (request.ContentType != null && !IsTextLikeContentType(request.ContentType))
-            return false;
+        // The downstream response content type is not available before proxying.
+        // Do not use the upstream request content type to decide whether its response can be logged.
         return !IsStreamingRequest(request) && !request.Headers.ContainsKey("Range");
     }
 
@@ -56,18 +56,17 @@ public static class ProxyLogBodyReader
         if (request.ContentLength > maxBodyBytes)
             return $"[{request.ContentType}] ({request.ContentLength} bytes) - too large to log";
 
-        request.Body.Seek(0, SeekOrigin.Begin);
-        var buffer = ArrayPool<char>.Shared.Rent(maxBodyBytes);
+        var contentLength = (int)request.ContentLength.Value;
+        request.EnableBuffering(bufferThreshold: contentLength, bufferLimit: maxBodyBytes);
+        request.Body.Position = 0;
         try
         {
             using var reader = new StreamReader(request.Body, leaveOpen: true);
-            var read = await reader.ReadAsync(buffer, 0, maxBodyBytes);
-            request.Body.Seek(0, SeekOrigin.Begin);
-            return new string(buffer, 0, read);
+            return await reader.ReadToEndAsync(request.HttpContext.RequestAborted);
         }
         finally
         {
-            ArrayPool<char>.Shared.Return(buffer);
+            request.Body.Position = 0;
         }
     }
 
