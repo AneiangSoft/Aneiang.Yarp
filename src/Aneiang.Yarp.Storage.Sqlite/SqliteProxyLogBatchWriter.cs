@@ -59,57 +59,36 @@ internal sealed class SqliteProxyLogBatchWriter
     public HashSet<string> MetaColumns => _metaColumns;
 
     public async Task WriteBatchAsync(
-        IEnumerable<ProxyLogMetaEntity> metaEntries,
-        IEnumerable<ProxyLogBodyEntity> bodyEntries,
+        IReadOnlyList<ProxyLogMetaEntity> metaEntries,
+        IReadOnlyList<ProxyLogBodyEntity?> bodyEntries,
         CancellationToken ct)
     {
+        if (metaEntries.Count != bodyEntries.Count)
+            throw new ArgumentException("Meta and body entry counts must match.");
+        if (metaEntries.Count == 0)
+            return;
+
         await using var conn = _connections.CreateConnection();
         await conn.OpenAsync(ct);
         await using var tx = conn.BeginTransaction();
         try
         {
-            foreach (var meta in metaEntries)
-            {
-                await using var cmd = conn.CreateCommand();
-                cmd.Transaction = tx;
-                cmd.CommandTimeout = 30;
-                cmd.CommandText = $"INSERT INTO proxy_logs_meta ({_insertMetaColumns}) VALUES ({_insertMetaValues})";
-                AddMetaParams(cmd, meta);
-                await cmd.ExecuteNonQueryAsync(ct);
-            }
+            await using var metaCmd = CreateMetaCommand(conn, tx);
+            await using var bodyCmd = CreateBodyCommand(conn, tx);
 
-            var metaCount = metaEntries.TryGetNonEnumeratedCount(out var c) ? c : metaEntries.Count();
-            if (metaCount > 0 && bodyEntries.Any())
+            for (var i = 0; i < metaEntries.Count; i++)
             {
-                await using var idCmd = conn.CreateCommand();
-                idCmd.Transaction = tx;
-                idCmd.CommandText = """
-                    SELECT Id FROM proxy_logs_meta
-                    WHERE Id > (SELECT COALESCE(MAX(Id), 0) FROM proxy_logs_meta) - @count
-                    ORDER BY Id
-                    """;
-                idCmd.Parameters.AddWithValue("@count", metaCount);
-                var metaIds = new List<long>();
-                await using (var reader = await idCmd.ExecuteReaderAsync(ct))
-                {
-                    while (await reader.ReadAsync(ct))
-                        metaIds.Add(reader.GetInt64(0));
-                }
+                SetMetaParams(metaCmd, metaEntries[i]);
+                var result = await metaCmd.ExecuteScalarAsync(ct);
+                var metaId = Convert.ToInt64(result);
 
-                var bodyList = bodyEntries.ToList();
-                for (int i = 0; i < bodyList.Count && i < metaIds.Count; i++)
-                {
-                    bodyList[i].MetaId = metaIds[i];
-                    await using var cmd = conn.CreateCommand();
-                    cmd.Transaction = tx;
-                    cmd.CommandTimeout = 30;
-                    cmd.CommandText = """
-                        INSERT INTO proxy_logs_body (MetaId, Message, RequestBody, ResponseBody, RequestHeaders, ResponseHeaders, DownstreamBody, Exception)
-                        VALUES (@mid, @msg, @rb, @rsb, @rh, @rsh, @db, @exc)
-                        """;
-                    AddBodyParams(cmd, bodyList[i]);
-                    await cmd.ExecuteNonQueryAsync(ct);
-                }
+                var body = bodyEntries[i];
+                if (body == null)
+                    continue;
+
+                body.MetaId = metaId;
+                SetBodyParams(bodyCmd, body);
+                await bodyCmd.ExecuteNonQueryAsync(ct);
             }
 
             await tx.CommitAsync(ct);
@@ -154,39 +133,66 @@ internal sealed class SqliteProxyLogBatchWriter
             _logger.LogWarning("proxy_logs_meta is missing columns: {Missing}", string.Join(", ", missing));
     }
 
-    private static void AddParamIfColumn(SqliteCommand cmd, HashSet<string> columns, string paramName, string sqlName, object? value)
+    private SqliteCommand CreateMetaCommand(SqliteConnection conn, SqliteTransaction tx)
     {
-        if (columns.Contains(sqlName))
-            cmd.Parameters.AddWithValue(paramName, value ?? DBNull.Value);
+        var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandTimeout = 30;
+        cmd.CommandText = $"INSERT INTO proxy_logs_meta ({_insertMetaColumns}) VALUES ({_insertMetaValues}) RETURNING Id";
+        foreach (var (param, sqlName, _) in AllMetaColumns)
+        {
+            if (_metaColumns.Contains(sqlName))
+                cmd.Parameters.AddWithValue(param, DBNull.Value);
+        }
+        return cmd;
     }
 
-    private void AddMetaParams(SqliteCommand cmd, ProxyLogMetaEntity meta)
+    private static SqliteCommand CreateBodyCommand(SqliteConnection conn, SqliteTransaction tx)
     {
-        var cols = _metaColumns;
-        AddParamIfColumn(cmd, cols, "@ts",  "Timestamp",          (object?)meta.Timestamp ?? "");
-        AddParamIfColumn(cmd, cols, "@et",  "EventType",          (object?)meta.EventType ?? "");
-        AddParamIfColumn(cmd, cols, "@lv",  "Level",              (object?)meta.Level ?? "");
-        AddParamIfColumn(cmd, cols, "@ri",  "RouteId",            meta.RouteId);
-        AddParamIfColumn(cmd, cols, "@ci",  "ClusterId",          meta.ClusterId);
-        AddParamIfColumn(cmd, cols, "@mt",  "Method",             meta.Method);
-        AddParamIfColumn(cmd, cols, "@up",  "UpstreamPath",       meta.UpstreamPath);
-        AddParamIfColumn(cmd, cols, "@sc",  "StatusCode",         meta.StatusCode);
-        AddParamIfColumn(cmd, cols, "@em",  "ElapsedMs",          meta.ElapsedMs);
-        AddParamIfColumn(cmd, cols, "@ti",  "TraceId",            meta.TraceId);
-        AddParamIfColumn(cmd, cols, "@hrb", "HasRequestBody",     meta.HasRequestBody);
-        AddParamIfColumn(cmd, cols, "@hsb", "HasResponseBody",    meta.HasResponseBody);
-        AddParamIfColumn(cmd, cols, "@du",  "DownstreamUrl",      meta.DownstreamUrl);
+        var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandTimeout = 30;
+        cmd.CommandText = """
+            INSERT INTO proxy_logs_body (MetaId, Message, RequestBody, ResponseBody, RequestHeaders, ResponseHeaders, DownstreamBody, Exception)
+            VALUES (@mid, @msg, @rb, @rsb, @rh, @rsh, @db, @exc)
+            """;
+        foreach (var name in new[] { "@mid", "@msg", "@rb", "@rsb", "@rh", "@rsh", "@db", "@exc" })
+            cmd.Parameters.AddWithValue(name, DBNull.Value);
+        return cmd;
     }
 
-    private static void AddBodyParams(SqliteCommand cmd, ProxyLogBodyEntity body)
+    private void SetMetaParams(SqliteCommand cmd, ProxyLogMetaEntity meta)
     {
-        cmd.Parameters.AddWithValue("@mid", body.MetaId);
-        cmd.Parameters.AddWithValue("@msg", (object?)body.Message ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@rb", (object?)body.RequestBody ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@rsb", (object?)body.ResponseBody ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@rh", (object?)body.RequestHeaders ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@rsh", (object?)body.ResponseHeaders ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@db", (object?)body.DownstreamBody ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@exc", (object?)body.Exception ?? DBNull.Value);
+        SetParamIfColumn(cmd, "@ts", "Timestamp", meta.Timestamp ?? "");
+        SetParamIfColumn(cmd, "@et", "EventType", meta.EventType ?? "");
+        SetParamIfColumn(cmd, "@lv", "Level", meta.Level ?? "");
+        SetParamIfColumn(cmd, "@ri", "RouteId", meta.RouteId);
+        SetParamIfColumn(cmd, "@ci", "ClusterId", meta.ClusterId);
+        SetParamIfColumn(cmd, "@mt", "Method", meta.Method);
+        SetParamIfColumn(cmd, "@up", "UpstreamPath", meta.UpstreamPath);
+        SetParamIfColumn(cmd, "@sc", "StatusCode", meta.StatusCode);
+        SetParamIfColumn(cmd, "@em", "ElapsedMs", meta.ElapsedMs);
+        SetParamIfColumn(cmd, "@ti", "TraceId", meta.TraceId);
+        SetParamIfColumn(cmd, "@hrb", "HasRequestBody", meta.HasRequestBody);
+        SetParamIfColumn(cmd, "@hsb", "HasResponseBody", meta.HasResponseBody);
+        SetParamIfColumn(cmd, "@du", "DownstreamUrl", meta.DownstreamUrl);
+    }
+
+    private void SetParamIfColumn(SqliteCommand cmd, string paramName, string sqlName, object? value)
+    {
+        if (_metaColumns.Contains(sqlName))
+            cmd.Parameters[paramName].Value = value ?? DBNull.Value;
+    }
+
+    private static void SetBodyParams(SqliteCommand cmd, ProxyLogBodyEntity body)
+    {
+        cmd.Parameters["@mid"].Value = body.MetaId;
+        cmd.Parameters["@msg"].Value = (object?)body.Message ?? DBNull.Value;
+        cmd.Parameters["@rb"].Value = (object?)body.RequestBody ?? DBNull.Value;
+        cmd.Parameters["@rsb"].Value = (object?)body.ResponseBody ?? DBNull.Value;
+        cmd.Parameters["@rh"].Value = (object?)body.RequestHeaders ?? DBNull.Value;
+        cmd.Parameters["@rsh"].Value = (object?)body.ResponseHeaders ?? DBNull.Value;
+        cmd.Parameters["@db"].Value = (object?)body.DownstreamBody ?? DBNull.Value;
+        cmd.Parameters["@exc"].Value = (object?)body.Exception ?? DBNull.Value;
     }
 }

@@ -13,7 +13,7 @@ public class DashboardAuthOptions
     /// </summary>
     public DashboardAuthMode AuthMode { get; set; } = DashboardAuthMode.None;
 
-    /// <summary>API key value. Clients pass via header (default: X-Api-Key) or query param <c>api-key</c>.</summary>
+    /// <summary>API key value. Clients pass it via the configured header (default: X-Api-Key).</summary>
     public string? ApiKey { get; set; }
 
     /// <summary>Header name for ApiKey mode. Default: X-Api-Key.</summary>

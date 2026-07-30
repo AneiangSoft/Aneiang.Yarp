@@ -11,8 +11,7 @@ public sealed class LogFilter : ILogFilter
 {
     private readonly string _dashPrefix;
     private readonly bool _loggingEnabled;
-    private readonly int _minLogLevelNumeric;
-    private readonly bool _logErrorsOnly;
+    private readonly ProxyLogRuntimeSettings _runtimeSettings;
     private readonly HashSet<string>? _routeWhitelist;
     private readonly HashSet<string>? _routeBlacklist;
     private readonly ILogSampler _sampler;
@@ -29,22 +28,16 @@ public sealed class LogFilter : ILogFilter
         ".html", ".htm", ".xml", ".txt"
     };
 
-    public LogFilter(IOptions<DashboardOptions> options, ILogSampler sampler)
+    public LogFilter(
+        IOptions<DashboardOptions> options,
+        ProxyLogRuntimeSettings runtimeSettings,
+        ILogSampler sampler)
     {
         var opt = options.Value;
         _dashPrefix = "/" + opt.RoutePrefix.Trim('/');
         _loggingEnabled = opt.EnableProxyLogging;
-        _logErrorsOnly = opt.LogErrorsOnly;
+        _runtimeSettings = runtimeSettings;
         _sampler = sampler;
-
-        _minLogLevelNumeric = opt.MinLogLevel switch
-        {
-            "Critical" => 4,
-            "Error" => 3,
-            "Warning" => 2,
-            "Information" => 1,
-            _ => 0
-        };
 
         if (opt.LogRouteWhitelist?.Count > 0)
             _routeWhitelist = new HashSet<string>(opt.LogRouteWhitelist, StringComparer.OrdinalIgnoreCase);
@@ -79,6 +72,8 @@ public sealed class LogFilter : ILogFilter
 
     public bool ShouldLog(HttpContext context, string? routeId)
     {
+        var settings = _runtimeSettings.Current;
+
         // Min log level check
         var currentLevel = context.Response.StatusCode switch
         {
@@ -86,11 +81,11 @@ public sealed class LogFilter : ILogFilter
             >= 400 => 2,
             _ => 1
         };
-        if (currentLevel < _minLogLevelNumeric)
+        if (currentLevel < settings.MinLogLevelNumeric)
             return false;
 
         // Errors-only mode
-        if (_logErrorsOnly && context.Response.StatusCode < 400)
+        if (settings.ErrorsOnly && context.Response.StatusCode < 400)
             return false;
 
         // Route whitelist

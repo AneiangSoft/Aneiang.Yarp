@@ -27,8 +27,8 @@ public sealed class SqliteProxyLogRepository : IProxyLogRepository
     }
 
     public async Task WriteBatchAsync(
-        IEnumerable<ProxyLogMetaEntity> metaEntries,
-        IEnumerable<ProxyLogBodyEntity> bodyEntries,
+        IReadOnlyList<ProxyLogMetaEntity> metaEntries,
+        IReadOnlyList<ProxyLogBodyEntity?> bodyEntries,
         CancellationToken ct = default)
     {
         await _writer.EnsureInitializedAsync(ct);
@@ -68,13 +68,6 @@ public sealed class SqliteProxyLogRepository : IProxyLogRepository
         await using var tx = conn.BeginTransaction();
         try
         {
-            await using var metaCmd = conn.CreateCommand();
-            metaCmd.Transaction = tx;
-            metaCmd.CommandTimeout = 60;
-            metaCmd.CommandText = "DELETE FROM proxy_logs_meta WHERE Timestamp < datetime('now', @metaDays || ' days')";
-            metaCmd.Parameters.AddWithValue("@metaDays", $"-{metaRetentionDays}");
-            await metaCmd.ExecuteNonQueryAsync(ct);
-
             await using var bodyCmd = conn.CreateCommand();
             bodyCmd.Transaction = tx;
             bodyCmd.CommandTimeout = 60;
@@ -87,6 +80,13 @@ public sealed class SqliteProxyLogRepository : IProxyLogRepository
                 """;
             bodyCmd.Parameters.AddWithValue("@bodyDays", $"-{bodyRetentionDays}");
             await bodyCmd.ExecuteNonQueryAsync(ct);
+
+            await using var metaCmd = conn.CreateCommand();
+            metaCmd.Transaction = tx;
+            metaCmd.CommandTimeout = 60;
+            metaCmd.CommandText = "DELETE FROM proxy_logs_meta WHERE Timestamp < datetime('now', @metaDays || ' days')";
+            metaCmd.Parameters.AddWithValue("@metaDays", $"-{metaRetentionDays}");
+            await metaCmd.ExecuteNonQueryAsync(ct);
 
             await tx.CommitAsync(ct);
         }

@@ -78,13 +78,8 @@ public sealed class DashboardAuthorizationService : IDashboardAuthorizationServi
             return true;
         }
 
-        // Check query parameter
-        if (context.Request.Query.TryGetValue("api-key", out var qv) && 
-            qv.Any(v => v == apiKey))
-        {
-            return true;
-        }
-
+        // Query-string credentials are intentionally rejected because URLs commonly leak
+        // through access logs, browser history and referrers.
         return false;
     }
 
@@ -122,11 +117,13 @@ public sealed class DashboardAuthorizationService : IDashboardAuthorizationServi
             return authHeader[7..];
         }
 
-        // WebSocket/SignalR clients often pass the token as a query parameter
-        var queryToken = context.Request.Query["token"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(queryToken))
+        // SignalR only: browser WebSocket clients cannot always send Authorization headers.
+        // Restrict query-string tokens to the two dashboard hub endpoints.
+        if (context.Request.Path.Value?.Contains("/hubs/", StringComparison.OrdinalIgnoreCase) == true)
         {
-            return queryToken;
+            var queryToken = context.Request.Query["access_token"].FirstOrDefault();
+            if (!string.IsNullOrEmpty(queryToken))
+                return queryToken;
         }
 
         // dashboard_token cookie (for browser page loads)

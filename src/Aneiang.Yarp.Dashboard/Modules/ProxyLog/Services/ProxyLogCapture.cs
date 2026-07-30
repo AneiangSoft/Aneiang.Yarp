@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
 using Microsoft.AspNetCore.Http;
 using Yarp.ReverseProxy.Model;
@@ -39,12 +38,10 @@ public interface IProxyLogCapture
 public sealed class ProxyLogCapture : IProxyLogCapture
 {
     private readonly IProxyLogStore _store;
-    private readonly LogSanitizer _sanitizer;
 
-    public ProxyLogCapture(IProxyLogStore store, LogSanitizer sanitizer)
+    public ProxyLogCapture(IProxyLogStore store)
     {
         _store = store;
-        _sanitizer = sanitizer;
     }
 
     public void CaptureLogEntry(
@@ -66,12 +63,6 @@ public sealed class ProxyLogCapture : IProxyLogCapture
     {
         var traceId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N");
 
-        var sanitizedRequestBody = _sanitizer.SanitizeJsonBody(requestBody);
-        var requestText = _sanitizer.TruncateText(sanitizedRequestBody, out _);
-
-        var sanitizedResponseBody = _sanitizer.SanitizeJsonBody(responseBodyText ?? string.Empty);
-        var responseText = _sanitizer.TruncateText(sanitizedResponseBody, out _);
-
         // ProxyRequest entry
         _store.Add(new LogEntry
         {
@@ -83,7 +74,7 @@ public sealed class ProxyLogCapture : IProxyLogCapture
             Method = context.Request.Method,
             UpstreamPath = upstreamPath,
             RequestHeaders = requestHeaders,
-            RequestBody = requestText,
+            RequestBody = requestBody,
             RequestBodyTruncated = requestBodyTruncated
         });
 
@@ -110,7 +101,7 @@ public sealed class ProxyLogCapture : IProxyLogCapture
             StatusCode = context.Response.StatusCode,
             ElapsedMs = elapsed.TotalMilliseconds,
             ResponseHeaders = responseHeaders,
-            ResponseBody = responseText,
+            ResponseBody = responseBodyText,
             ResponseBodyTruncated = responseTruncated
         });
     }

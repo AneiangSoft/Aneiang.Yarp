@@ -14,7 +14,7 @@ public interface IProxyLogRepository
     /// Each LogEntry is split: lightweight fields go to meta, large fields go to body.
     /// Uses a single transaction for the entire batch.
     /// </summary>
-    Task WriteBatchAsync(IEnumerable<ProxyLogMetaEntity> metaEntries, IEnumerable<ProxyLogBodyEntity> bodyEntries, CancellationToken ct = default);
+    Task WriteBatchAsync(IReadOnlyList<ProxyLogMetaEntity> metaEntries, IReadOnlyList<ProxyLogBodyEntity?> bodyEntries, CancellationToken ct = default);
 
     /// <summary>
     /// Get a single log detail (full body fields) by meta ID.

@@ -53,11 +53,10 @@ internal sealed class SqliteProxyLogReader
         await conn.OpenAsync(ct);
 
         var where = BuildWhereClause(routeId, clusterId, level, statusCodeMin, statusCodeMax, startTime, endTime, keyword, eventType);
-        var paramList = BuildSearchParams(routeId, clusterId, level, statusCodeMin, statusCodeMax, startTime, endTime, keyword, eventType);
 
         await using var countCmd = conn.CreateCommand();
         countCmd.CommandText = $"SELECT COUNT(*) FROM proxy_logs_meta WHERE {where}";
-        foreach (var p in paramList) countCmd.Parameters.Add(p);
+        AddSearchParams(countCmd, routeId, clusterId, level, statusCodeMin, statusCodeMax, startTime, endTime, keyword, eventType);
         var totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct));
 
         var offset = (page - 1) * pageSize;
@@ -65,9 +64,9 @@ internal sealed class SqliteProxyLogReader
         dataCmd.CommandText = $"SELECT * FROM proxy_logs_meta WHERE {where} ORDER BY Timestamp DESC LIMIT @lim OFFSET @off";
         dataCmd.Parameters.AddWithValue("@lim", pageSize);
         dataCmd.Parameters.AddWithValue("@off", offset);
-        foreach (var p in paramList) dataCmd.Parameters.Add(p);
+        AddSearchParams(dataCmd, routeId, clusterId, level, statusCodeMin, statusCodeMax, startTime, endTime, keyword, eventType);
 
-        var items = new List<ProxyLogMetaEntity>();
+        var items = new List<ProxyLogMetaEntity>(pageSize);
         await using (var reader = await dataCmd.ExecuteReaderAsync(ct))
         {
             while (await reader.ReadAsync(ct))
@@ -157,26 +156,27 @@ internal sealed class SqliteProxyLogReader
         return string.Join(" AND ", conditions);
     }
 
-    private List<SqliteParameter> BuildSearchParams(
+    private void AddSearchParams(
+        SqliteCommand command,
         string? routeId, string? clusterId, string? level,
         int? statusCodeMin, int? statusCodeMax,
         DateTime? startTime, DateTime? endTime,
         string? keyword, string? eventType)
     {
-        var p = new List<SqliteParameter>();
-        if (routeId != null && HasColumn("RouteId")) p.Add(new SqliteParameter("@ri", routeId));
-        if (clusterId != null && HasColumn("ClusterId")) p.Add(new SqliteParameter("@ci", clusterId));
-        if (level != null) p.Add(new SqliteParameter("@lv", level));
-        if (statusCodeMin != null && HasColumn("StatusCode")) p.Add(new SqliteParameter("@scmin", statusCodeMin.Value));
-        if (statusCodeMax != null && HasColumn("StatusCode")) p.Add(new SqliteParameter("@scmax", statusCodeMax.Value));
-        if (startTime != null) p.Add(new SqliteParameter("@st", startTime.Value.ToString("O")));
-        if (endTime != null) p.Add(new SqliteParameter("@et", endTime.Value.ToString("O")));
+        var parameters = command.Parameters;
+        if (routeId != null && HasColumn("RouteId")) parameters.AddWithValue("@ri", routeId);
+        if (clusterId != null && HasColumn("ClusterId")) parameters.AddWithValue("@ci", clusterId);
+        if (level != null) parameters.AddWithValue("@lv", level);
+        if (statusCodeMin != null && HasColumn("StatusCode")) parameters.AddWithValue("@scmin", statusCodeMin.Value);
+        if (statusCodeMax != null && HasColumn("StatusCode")) parameters.AddWithValue("@scmax", statusCodeMax.Value);
+        if (startTime != null) parameters.AddWithValue("@st", startTime.Value.ToString("O"));
+        if (endTime != null) parameters.AddWithValue("@et", endTime.Value.ToString("O"));
         if (keyword != null)
         {
-            if (HasColumn("UpstreamPath")) p.Add(new SqliteParameter("@kw", $"%{keyword}%"));
-            if (HasColumn("TraceId")) p.Add(new SqliteParameter("@kw2", $"%{keyword}%"));
+            var pattern = $"%{keyword}%";
+            if (HasColumn("UpstreamPath")) parameters.AddWithValue("@kw", pattern);
+            if (HasColumn("TraceId")) parameters.AddWithValue("@kw2", pattern);
         }
-        if (eventType != null && HasColumn("EventType")) p.Add(new SqliteParameter("@evt", eventType));
-        return p;
+        if (eventType != null && HasColumn("EventType")) parameters.AddWithValue("@evt", eventType);
     }
 }

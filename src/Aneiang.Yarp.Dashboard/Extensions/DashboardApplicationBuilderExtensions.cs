@@ -135,12 +135,15 @@ public static class DashboardApplicationBuilderExtensions
             app.UseStaticFiles();
         }
 
-        if (proxyActive)
+        if (proxyActive && autoUseMiddleware && useOptions.UseProxyRequestCapture)
         {
             app.UseMiddleware<YarpRequestCaptureMiddleware>();
         }
 
-        app.UseMiddleware<WafMiddleware>();
+        if (autoUseMiddleware && useOptions.UseWaf)
+        {
+            app.UseMiddleware<WafMiddleware>();
+        }
 
         // Resolve DashboardOptions for route prefix (used by Hub mappings below)
         var dashOpts = app.ApplicationServices.GetService<IOptions<DashboardOptions>>()?.Value;

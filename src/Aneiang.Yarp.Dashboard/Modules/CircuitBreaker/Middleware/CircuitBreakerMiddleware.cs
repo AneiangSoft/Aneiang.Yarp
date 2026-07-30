@@ -75,10 +75,9 @@ public sealed class CircuitBreakerMiddleware : GatewayMiddlewareBase
             return;
         }
 
-        var clusterUid = ResolveClusterUid(clusterId);
+        var (clusterUid, cbConfig) = GetClusterSettings(clusterId);
         var circuitKey = InMemoryCircuitStateStore.BuildCircuitKey(clusterUid, clusterId, destinationId);
 
-        var cbConfig = GetClusterCircuitBreakerConfig(clusterId);
         if (cbConfig == null || !cbConfig.Enabled)
         {
             await Next(context);
@@ -180,12 +179,11 @@ public sealed class CircuitBreakerMiddleware : GatewayMiddlewareBase
         }
     }
 
-    private CircuitBreakerConfig? GetClusterCircuitBreakerConfig(string clusterId)
+    private (string? ClusterUid, CircuitBreakerConfig? CircuitBreaker) GetClusterSettings(string clusterId)
     {
-        var dynConfig = _yarpConfig.GetDynamicConfig();
-        return dynConfig?.Clusters.FirstOrDefault(c =>
-            string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase))
-            ?.CircuitBreaker;
+        var cluster = _yarpConfig.GetDynamicConfig()?.Clusters.FirstOrDefault(c =>
+            string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+        return (cluster?.ClusterUid, cluster?.CircuitBreaker);
     }
 
 
