@@ -1,0 +1,101 @@
+[
+  {
+    "id": "msg-1785467154471-1dopwi",
+    "from": "team-lead",
+    "to": "runtime-domain-dev",
+    "type": "message",
+    "content": "请向 binding-upgrade-dev 提供运行域 prepare/health/swap/rollback 边界；不要直接持久化绑定。",
+    "timestamp": "2026-07-31T03:05:54.471Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467181471-p2c8ao",
+    "from": "binding-upgrade-dev",
+    "to": "runtime-domain-dev",
+    "type": "message",
+    "content": "我负责绑定/升级任务。当前计划在持久化前用候选绑定编译并验证新 GatewaySnapshot；请告知你新增/拟定的新运行域原子切换接口（类型、方法签名、文件），我会让存储事务仅在该验证/切换准备成功后提交，避免接口冲突。",
+    "timestamp": "2026-07-31T03:06:21.471Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467194209-gieu1o",
+    "from": "team-lead",
+    "to": "@team",
+    "type": "broadcast",
+    "content": "基线已记录。请在下一检查点回报：完成度、改动文件、阻塞和是否已编译；继续执行，不要只做审计。注意 `.codebuddy` 是项目数据，不得删除。",
+    "timestamp": "2026-07-31T03:06:34.209Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467267538-z57v4z",
+    "from": "team-lead",
+    "to": "@team",
+    "type": "broadcast",
+    "content": "目前 git diff stat 未显示明显新文件（未跟踪文件不计入 stat）。请现在回复实际进度；若仍在探索，立即收敛并开始落地。优先交付可编译的核心闭环，不要无限扩展。",
+    "timestamp": "2026-07-31T03:07:47.538Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467349877-4xtjm6",
+    "from": "team-lead",
+    "to": "runtime-domain-dev",
+    "type": "message",
+    "content": "当前 PluginRuntimeDomain.cs 缺 `using Microsoft.AspNetCore.Http.Features;` 导致构建失败。请立即补并验证；另确认新 runtime domain delegate 已真正接入主请求/YARP 管线，而非仅定义未使用。",
+    "timestamp": "2026-07-31T03:09:09.877Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467665988-tjk8hr",
+    "from": "team-lead",
+    "to": "runtime-domain-dev",
+    "type": "message",
+    "content": "ExternalGatewayPluginHost.cs:350 IPluginRuntimeResource 无 StopAsync，应调用 StopResourceAsync；FirstPartyPluginRuntime routeConfig/clusterConfig 未赋值。请立即修复两处并构建 Dashboard。",
+    "timestamp": "2026-07-31T03:14:25.988Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467717856-sr5ukn",
+    "from": "binding-upgrade-dev",
+    "to": "runtime-domain-dev",
+    "type": "message",
+    "content": "我已完成绑定候选快照编译→保存→原子发布核心，Dashboard 构建被你当前并行文件错误阻塞：ServiceDiscoveryRefreshService.cs:200 CS0173/CS0136，FirstPartyPluginRuntime.cs:190/193 CS0165，ExternalGatewayPluginHost.cs:350 CS1929。请收敛后告知，我会立即全构建并接入运行域接口。",
+    "timestamp": "2026-07-31T03:15:17.856Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467731423-wopcy5",
+    "from": "team-lead",
+    "to": "runtime-domain-dev",
+    "type": "message",
+    "content": "你回报修复但 ExternalGatewayPluginHost 仍调用 resource.StopAsync；FirstPartyPluginRuntime 使用不存在 TrafficMetricsExecutionConfig/ClusterMetricsExecutionConfig，应统一为 MetricsExecutionConfig。请实际保存文件后构建再回报。",
+    "timestamp": "2026-07-31T03:15:31.423Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785468158641-9rsjep",
+    "from": "team-lead",
+    "to": "@team",
+    "type": "broadcast",
+    "content": "回归项目已成功编译但有6个警告。请各自完成实现后主动回报改动、测试和剩余边界。compatibility-removal-dev 请重点清零仍存在的 Waf/Retry/CircuitBreaker/RateLimit Options 运行时引用。",
+    "timestamp": "2026-07-31T03:22:38.641Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785468345271-6e1rbf",
+    "from": "team-lead",
+    "to": "@team",
+    "type": "broadcast",
+    "content": "当前回归 26 项全通过，构建 0 error/6 warnings。请在本轮内完成你的剩余实现并回报；不要停在部分状态。尤其确认运行域已接入实际管线、绑定升级 API 已原子提交、Destination 协调已由 Retry/CircuitBreaker 实际调用、旧 Options 引用清零。",
+    "timestamp": "2026-07-31T03:25:45.271Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785468415958-7kqc6i",
+    "from": "team-lead",
+    "to": "runtime-domain-dev",
+    "type": "message",
+    "content": "当前 UseAneiangDashboard 仅调用 ReconcileAsync，未见 app.Use 调用 InvokeHttpAsync/InvokeProxyAsync；请把 atomic delegate 真正接入主 HTTP/YARP pipeline，且确保禁用外部插件前旧域资源停止卸载。补请求命中插件中间件回归。",
+    "timestamp": "2026-07-31T03:26:55.958Z",
+    "read": true
+  }
+]

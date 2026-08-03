@@ -1,0 +1,41 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]: 网关仪表盘
+        - generic [ref=e8]: 企业级 API 网关运维管理平台
+        - generic [ref=e9]:
+          - generic [ref=e12]:
+            - strong [ref=e13]: 安全防护
+            - text: WAF、熔断、限流、IP 黑白名单一体化
+          - generic [ref=e16]:
+            - strong [ref=e17]: 动态路由
+            - text: 运行时路由/集群管理，配置热更新
+          - generic [ref=e20]:
+            - strong [ref=e21]: 实时监控
+            - text: 流量可视化、日志追踪、告警通知
+      - generic [ref=e22]: Secure Gateway Control Plane
+    - generic [ref=e24]:
+      - generic [ref=e25]: 欢迎回来
+      - generic [ref=e26]: 请登录以继续管理您的网关
+      - generic [ref=e27]:
+        - generic [ref=e28]:
+          - generic [ref=e29]: 用户名
+          - textbox "请输入用户名" [active] [ref=e31]
+        - generic [ref=e32]:
+          - generic [ref=e33]: 密码
+          - textbox "请输入密码" [ref=e35]
+        - generic [ref=e36]:
+          - generic [ref=e37]: 两步验证码
+          - textbox "输入 6 位验证码" [ref=e39]
+          - generic [ref=e40]: 请打开验证器应用获取 6 位验证码
+        - button "登 录" [ref=e41] [cursor=pointer]:
+          - status
+      - link "English" [ref=e44] [cursor=pointer]:
+        - /url: "#"
+  - generic [ref=e46]:
+    - generic [ref=e47]: v2.3.0
+    - generic [ref=e48]: ·
+    - generic [ref=e49]: MIT License
+    - generic [ref=e50]: ·
+    - generic [ref=e51]: © 2026 Aneiang.Yarp

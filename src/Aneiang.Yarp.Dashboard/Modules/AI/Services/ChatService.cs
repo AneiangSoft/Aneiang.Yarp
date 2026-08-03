@@ -100,7 +100,6 @@ public class ChatService
             - If a tool fails, explain the error and suggest alternatives.
             - When creating routes, use sensible defaults with YARP path wildcard format.
             - When creating policies for a specific cluster/route, ALWAYS pass cluster_ids or route_ids in the create call to create and apply in one step. Do NOT create a policy template first and then apply it separately unless the user asks for a reusable template.
-            - Use create_cluster_policy (with cluster_ids) instead of create_circuit_breaker when the user wants to manage circuit breakers via the policy system (which shows in the Policy Management list).
 
             ╔══════════════════════════════════════════════════════╗
             ║  === END SYSTEM INSTRUCTIONS ===                   ║

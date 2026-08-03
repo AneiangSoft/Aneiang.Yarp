@@ -129,16 +129,17 @@ public sealed class SqliteClusterRepository : IClusterRepository
                 await using var cmd = conn.CreateCommand();
                 cmd.Transaction = tx;
                 cmd.CommandText = """
-                    INSERT INTO yarp_destinations (destination_id, cluster_id, address, host, healthy, metadata)
-                    VALUES (@id, @cid, @addr, @host, @health, @meta)
+                    INSERT INTO yarp_destinations (destination_id, cluster_id, address, host, health, healthy, metadata)
+                    VALUES (@id, @cid, @addr, @host, @healthAddress, @healthy, @meta)
                     ON CONFLICT(cluster_id, destination_id) DO UPDATE SET
-                        address = @addr, host = @host, healthy = @health, metadata = @meta
+                        address = @addr, host = @host, health = @healthAddress, healthy = @healthy, metadata = @meta
                     """;
                 cmd.Parameters.AddWithValue("@id", d.DestinationId);
                 cmd.Parameters.AddWithValue("@cid", clusterId);
                 cmd.Parameters.AddWithValue("@addr", d.Address);
                 cmd.Parameters.AddWithValue("@host", d.Host ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue("@health", d.Healthy ? 1 : 0);
+                cmd.Parameters.AddWithValue("@healthAddress", d.Health ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@healthy", d.Healthy ? 1 : 0);
                 cmd.Parameters.AddWithValue("@meta", d.Metadata ?? (object)DBNull.Value);
                 await cmd.ExecuteNonQueryAsync(ct);
             }

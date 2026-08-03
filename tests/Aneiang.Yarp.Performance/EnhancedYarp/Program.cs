@@ -1,8 +1,10 @@
 using Aneiang.Yarp.Dashboard.Extensions;
+using System.Text.Json;
 using Aneiang.Yarp.Dashboard.Infrastructure;
+using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Extensions;
-using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
+using Aneiang.Yarp.Storage.Entities;
 using Aneiang.Yarp.Storage.Sqlite;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -15,15 +17,6 @@ builder.WebHost.UseUrls("http://127.0.0.1:5302");
 
 var mode = args.FirstOrDefault(x => x.StartsWith("--mode=", StringComparison.OrdinalIgnoreCase))?[7..] ?? "full";
 var wafEnabled = mode is "waf" or "waf-attack";
-var logEnabled = mode.StartsWith("log-", StringComparison.OrdinalIgnoreCase);
-var rateAlgorithm = mode switch
-{
-    "rate-sliding" => "SlidingWindow",
-    "rate-token" => "TokenBucket",
-    "rate-concurrency" => "Concurrency",
-    _ => "FixedWindow"
-};
-var rateEnabled = mode.StartsWith("rate-", StringComparison.OrdinalIgnoreCase);
 var retryEnabled = mode.StartsWith("retry", StringComparison.OrdinalIgnoreCase);
 var circuitEnabled = mode.StartsWith("circuit", StringComparison.OrdinalIgnoreCase);
 
@@ -33,28 +26,11 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
     ["Gateway:Deployment:Mode"] = "ProxyOnly",
     ["Gateway:Deployment:HealthCheck:Enabled"] = "false",
     ["Gateway:Dashboard:AuthMode"] = "None",
-    ["Gateway:Dashboard:EnableProxyLogging"] = logEnabled.ToString(),
-    ["Gateway:Dashboard:ProxyLog:EnableProxyLogging"] = logEnabled.ToString(),
     ["Gateway:Dashboard:ProxyLog:LogPersistenceEnabled"] = (mode == "log-sqlite").ToString(),
     ["Gateway:Dashboard:ProxyLog:EnableProxyRequestBodyCapture"] = (mode is "log-request" or "log-bodies" or "log-sqlite").ToString(),
     ["Gateway:Dashboard:ProxyLog:EnableProxyResponseBodyCapture"] = (mode is "log-response" or "log-bodies" or "log-sqlite").ToString(),
     ["Gateway:Dashboard:ProxyLog:LogMaxBodyLength"] = (256 * 1024).ToString(),
     ["Gateway:Dashboard:ProxyLog:LogMaxBodyBufferBytes"] = (256 * 1024).ToString(),
-    ["Gateway:Dashboard:Waf:Enabled"] = wafEnabled.ToString(),
-    ["Gateway:Dashboard:CircuitBreaker:Enabled"] = circuitEnabled.ToString(),
-    ["Gateway:Dashboard:Retry:Enabled"] = retryEnabled.ToString(),
-    ["Gateway:Dashboard:Retry:DefaultMaxRetries"] = "2",
-    ["Gateway:Dashboard:Retry:BackoffBaseMs"] = "1",
-    ["Gateway:Dashboard:Retry:BackoffJitterMs"] = "1",
-    ["Gateway:Dashboard:RateLimit:Enabled"] = rateEnabled.ToString(),
-    ["Gateway:Dashboard:RateLimit:Algorithm"] = rateAlgorithm,
-    ["Gateway:Dashboard:RateLimit:PermitLimit"] = (mode == "rate-concurrency" ? 8 : 1000).ToString(),
-    ["Gateway:Dashboard:RateLimit:Window"] = "1s",
-    ["Gateway:Dashboard:RateLimit:PartitionKey"] = "Global",
-    ["Gateway:Dashboard:Plugins:circuit-breaker:Enabled"] = circuitEnabled.ToString(),
-    ["Gateway:Dashboard:Plugins:request-retry:Enabled"] = retryEnabled.ToString(),
-    ["Gateway:Dashboard:Plugins:rate-limit:Enabled"] = rateEnabled.ToString(),
-    ["Gateway:Dashboard:Plugins:waf:Enabled"] = wafEnabled.ToString(),
     ["ReverseProxy:Routes:perf:ClusterId"] = "backend",
     ["ReverseProxy:Routes:perf:Match:Path"] = "/api/perf/{**catch-all}",
     ["ReverseProxy:Clusters:backend:Destinations:backend:Address"] = "http://127.0.0.1:5300"
@@ -119,25 +95,60 @@ await app.StartAsync();
 if (retryEnabled || circuitEnabled)
 {
     var configService = app.Services.GetRequiredService<IDynamicYarpConfigService>();
+    var mutations = app.Services.GetRequiredService<IPluginBindingMutationService>();
+    var manifests = app.Services.GetRequiredService<IGatewayPluginManager>();
+    var dynamicConfig = configService.GetDynamicConfig();
     if (retryEnabled)
     {
-        await configService.UpdateRouteMetadataAsync("perf", new Dictionary<string, string>
+        var route = dynamicConfig?.Routes.First(item => item.Config.RouteId == "perf")
+            ?? throw new InvalidOperationException("Performance route is unavailable.");
+        var manifest = manifests.GetManifest("request-retry")
+            ?? throw new InvalidOperationException("Retry plugin manifest is unavailable.");
+        await mutations.UpsertAsync(new PluginBindingEntity
         {
-            ["Retry:Enabled"] = "true",
-            ["Retry:MaxRetries"] = "2",
-            ["Retry:BackoffBaseMs"] = "1",
-            ["Retry:BackoffJitterMs"] = "1",
-            ["Retry:RetryOnStatusCodes"] = "502,503,504"
+            Id = $"route:{route.RouteUid}:request-retry",
+            PluginId = "request-retry",
+            PluginVersion = manifest.Version,
+            Scope = PluginBindingScope.Route,
+            ScopeId = "perf",
+            RouteUid = route.RouteUid,
+            ConfigJson = JsonSerializer.Serialize(new
+            {
+                enabled = true,
+                maxRetries = 2,
+                backoffBaseMs = 1,
+                backoffJitterMs = 1,
+                statusCodes = new[] { 502, 503, 504 }
+            }),
+            SchemaVersion = manifest.Schemas.FirstOrDefault()?.Version ?? 1
         });
     }
     if (circuitEnabled)
     {
-        await configService.UpdateClusterCircuitBreakerAsync("backend", new CircuitBreakerConfig
+        var cluster = dynamicConfig?.Clusters.First(item => item.Config.ClusterId == "backend")
+            ?? throw new InvalidOperationException("Performance cluster is unavailable.");
+        var manifest = manifests.GetManifest("circuit-breaker")
+            ?? throw new InvalidOperationException("Circuit breaker plugin manifest is unavailable.");
+        await mutations.UpsertAsync(new PluginBindingEntity
         {
-            Enabled = true,
-            FailureThreshold = 3,
-            RecoveryTimeoutSeconds = 2,
-            HalfOpenMaxAttempts = 1
+            Id = $"cluster:{cluster.ClusterUid}:circuit-breaker",
+            PluginId = "circuit-breaker",
+            PluginVersion = manifest.Version,
+            Scope = PluginBindingScope.Cluster,
+            ScopeId = "backend",
+            ClusterUid = cluster.ClusterUid,
+            ConfigJson = JsonSerializer.Serialize(new
+            {
+                enabled = true,
+                failureThreshold = 3,
+                recoveryTimeoutSeconds = 2,
+                halfOpenMaxAttempts = 1,
+                failureRatio = 0.5,
+                minimumThroughput = 3,
+                samplingDurationSeconds = 30,
+                failureStatusCodes = new[] { 500, 502, 503, 504 }
+            }),
+            SchemaVersion = manifest.Schemas.FirstOrDefault()?.Version ?? 1
         });
     }
 }

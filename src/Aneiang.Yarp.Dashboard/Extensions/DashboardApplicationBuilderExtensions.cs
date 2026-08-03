@@ -1,12 +1,9 @@
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
 using Aneiang.Yarp.Dashboard.Infrastructure.Middleware;
+using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Infrastructure.Realtime;
 using Aneiang.Yarp.Dashboard.Infrastructure.Yarp;
-using Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
-using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
-using Aneiang.Yarp.Dashboard.Modules.Retry.Middleware;
-using Aneiang.Yarp.Dashboard.Modules.RateLimit.Middleware;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -129,20 +126,21 @@ public static class DashboardApplicationBuilderExtensions
             UseDeploymentMiddlewareIfAvailable(app);
         }
 
-        if (dashboardActive)
+        if (dashboardActive || proxyActive)
         {
             app.UseResponseCompression();
+        }
+
+        if (dashboardActive)
+        {
             app.UseStaticFiles();
         }
 
-        if (proxyActive && autoUseMiddleware && useOptions.UseProxyRequestCapture)
+        if (autoUseMiddleware)
         {
-            app.UseMiddleware<YarpRequestCaptureMiddleware>();
-        }
-
-        if (autoUseMiddleware && useOptions.UseWaf)
-        {
-            app.UseMiddleware<WafMiddleware>();
+            app.Use((context, next) => context.RequestServices
+                .GetRequiredService<PluginRuntimeDomainManager>()
+                .InvokeMiddlewareAsync(context, next));
         }
 
         // Resolve DashboardOptions for route prefix (used by Hub mappings below)
@@ -185,9 +183,9 @@ public static class DashboardApplicationBuilderExtensions
                     if (autoUseMiddleware && useOptions.UseBuiltInProxyPipeline)
                     {
                         proxyPipeline.UseMiddleware<BuiltinTransformMiddleware>();
-                        proxyPipeline.UseMiddleware<RateLimitMiddleware>();
-                        proxyPipeline.UseMiddleware<CircuitBreakerMiddleware>();
-                        proxyPipeline.UseMiddleware<RequestRetryMiddleware>();
+                        proxyPipeline.Use((context, next) => context.RequestServices
+                            .GetRequiredService<PluginRuntimeDomainManager>()
+                            .InvokeProxyPipelineAsync(context, next));
                     }
                     configureProxyPipeline?.Invoke(proxyPipeline);
                 });

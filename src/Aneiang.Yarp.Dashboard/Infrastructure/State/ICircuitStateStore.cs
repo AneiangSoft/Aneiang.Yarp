@@ -14,7 +14,7 @@ public interface ICircuitStateStore
     /// <summary>Get an existing circuit or create a new one atomically.</summary>
     CircuitState GetOrAdd(string key, Func<string, CircuitState> factory);
 
-    /// <summary>Try to get a circuit by key, with legacy key fallback.</summary>
+    /// <summary>Try to get a circuit by its stable runtime key.</summary>
     bool TryGet(string key, out CircuitState? state);
 
     /// <summary>Whether the store contains the given key.</summary>
@@ -43,6 +43,21 @@ public interface ICircuitStateStore
 
     /// <summary>Check if a specific circuit is open (used by retry middleware).</summary>
     bool IsCircuitOpen(string clusterId, string? destinationId = null, string? clusterUid = null);
+
+    /// <summary>Atomically determine whether a destination may receive a request, including a single HalfOpen probe.</summary>
+    bool TryAcquire(
+        string clusterId,
+        string destinationId,
+        string? clusterUid = null,
+        CircuitBreakerConfig? config = null);
+
+    /// <summary>Record a completed destination attempt for rolling failure-ratio evaluation.</summary>
+    void RecordOutcome(
+        string clusterId,
+        string destinationId,
+        bool failed,
+        string? clusterUid = null,
+        CircuitBreakerConfig? config = null);
 
     /// <summary>Get all circuits as DTO for dashboard display.</summary>
     IReadOnlyList<CircuitStateInfo> GetAllStateInfos();

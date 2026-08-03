@@ -77,11 +77,9 @@ public static class DashboardI18n
         "routes.json",
         "logs.json",
         "config.json",
-        "waf.json",
         "notif.json",
         "plugins.json",
         "stats.json",
-        "policies.json",
         "ai.json",
     ];
 }

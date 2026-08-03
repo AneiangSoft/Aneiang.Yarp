@@ -23,22 +23,33 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
     private readonly IRouteConfigManager _routeManager;
     private readonly IClusterConfigManager _clusterManager;
     private readonly IConfigChangeAuditLog _auditLog;
+    private readonly AneiangProxyConfigProvider _configProvider;
+    private readonly IGatewaySnapshotCompiler _snapshotCompiler;
+    private readonly IGatewaySnapshotPublisher _snapshotPublisher;
 
     public DynamicYarpConfigService(
         AneiangProxyConfigProvider configProvider,
         IRouteRepository routeRepo,
         IClusterRepository clusterRepo,
         IConfigChangeAuditLog auditLog,
-        ILoggerFactory loggerFactory)
+        ILoggerFactory loggerFactory,
+        IGatewaySnapshotCompiler snapshotCompiler,
+        IGatewaySnapshotPublisher snapshotPublisher)
     {
         _auditLog = auditLog;
+        _configProvider = configProvider;
+        _snapshotCompiler = snapshotCompiler;
+        _snapshotPublisher = snapshotPublisher;
         _logger = loggerFactory.CreateLogger<DynamicYarpConfigService>();
         _semaphore = new SemaphoreSlim(1, 1);
         _state = new DynamicConfigState();
 
         _persister = new DynamicConfigPersister(routeRepo, clusterRepo,
             loggerFactory.CreateLogger<DynamicConfigPersister>());
-        _publisher = new DynamicConfigPublisher(configProvider,
+        _publisher = new DynamicConfigPublisher(
+            configProvider,
+            snapshotCompiler,
+            snapshotPublisher,
             loggerFactory.CreateLogger<DynamicConfigPublisher>());
 
         _routeManager = new RouteConfigManager(_state, _semaphore, _persister, _publisher, auditLog,
@@ -163,9 +174,6 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
     public Task<RouteOperationResult> TryRenameRoute(string oldRouteId, string newRouteId, RegisterRouteRequest request, string source = "dashboard", string? createdBy = "dashboard-user")
         => _routeManager.TryRenameRoute(oldRouteId, newRouteId, request, source, createdBy);
 
-    public Task<bool> UpdateRouteMetadataAsync(string routeId, Dictionary<string, string> metadata)
-        => _routeManager.UpdateRouteMetadataAsync(routeId, metadata);
-
     public Task<RouteOperationResult> TryAddClusterConfig(ClusterConfig cluster, string source = "dashboard", string? createdBy = "dashboard-user")
         => _clusterManager.TryAddClusterConfig(cluster, source, createdBy);
 
@@ -186,9 +194,6 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
         Dictionary<string, string> destinations, string? loadBalancingPolicy = null,
         Models.HealthCheckConfig? healthCheck = null, string source = "dashboard", string? createdBy = "dashboard-user")
         => _clusterManager.TryRenameCluster(oldClusterId, newClusterId, destinations, loadBalancingPolicy, healthCheck, source, createdBy);
-
-    public Task<bool> UpdateClusterCircuitBreakerAsync(string clusterId, CircuitBreakerConfig? config)
-        => _clusterManager.UpdateClusterCircuitBreakerAsync(clusterId, config);
 
     #endregion
 

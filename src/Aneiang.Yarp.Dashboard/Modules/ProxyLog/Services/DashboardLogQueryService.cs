@@ -33,17 +33,6 @@ internal sealed class DashboardLogQueryService : IDashboardLogQueryService
     /// <inheritdoc />
     public ProxyLogStoreSnapshot GetLogs(int count = 100)
     {
-        if (!_options.EnableProxyLogging)
-        {
-            return new ProxyLogStoreSnapshot
-            {
-                Entries = new List<LogEntry>(),
-                BufferSize = 0,
-                EvictedCount = 0,
-                BufferCapacity = _options.LogBufferCapacity
-            };
-        }
-
         return _logStore.GetRecent(count);
     }
 
@@ -52,21 +41,6 @@ internal sealed class DashboardLogQueryService : IDashboardLogQueryService
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, Math.Max(1, _options.LogBufferCapacity));
-
-        if (!_options.EnableProxyLogging)
-        {
-            return new ProxyLogStoreSnapshot
-            {
-                Entries = new List<LogEntry>(),
-                BufferSize = 0,
-                EvictedCount = 0,
-                BufferCapacity = _options.LogBufferCapacity,
-                Page = page,
-                PageSize = pageSize,
-                Total = 0,
-                TotalPages = 0
-            };
-        }
 
         var snapshot = _logStore.GetRecent(_options.LogBufferCapacity);
         var total = snapshot.BufferSize;
@@ -84,10 +58,7 @@ internal sealed class DashboardLogQueryService : IDashboardLogQueryService
     /// <inheritdoc />
     public void ClearLogs()
     {
-        if (_options.EnableProxyLogging)
-        {
-            _logStore.Clear();
-        }
+        _logStore.Clear();
     }
 
     /// <inheritdoc />

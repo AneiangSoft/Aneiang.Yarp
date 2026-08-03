@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Auth;
 using Aneiang.Yarp.Dashboard.Infrastructure.HostedServices;
@@ -11,13 +12,13 @@ using Aneiang.Yarp.Dashboard.Modules.Dashboard.Controllers;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
+using Aneiang.Yarp.Dashboard.Modules.Plugins;
+using Aneiang.Yarp.Dashboard.Modules.Plugins.Runtime;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
-using Aneiang.Yarp.Dashboard.Modules.Policy.Services;
 using Aneiang.Yarp.Dashboard.Modules.AI;
 using Aneiang.Yarp.Dashboard.Modules.AI.Providers;
 using Aneiang.Yarp.Dashboard.Modules.AI.Services;
 using Aneiang.Yarp.Dashboard.Modules.AI.Tools;
-using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Builder;
@@ -52,7 +53,6 @@ public static class DashboardServiceCollectionExtensions
         services.AddDashboardSecurity();
         services.AddDashboardProxyLog();
         services.AddDashboardQueryServices();
-        services.AddDashboardWafAndPolicy();
         services.AddDashboardNotificationAndPlugins();
         services.AddDashboardRealtimeAndPerformance();
         services.AddDashboardConfigPersistence();
@@ -97,15 +97,6 @@ public static class DashboardServiceCollectionExtensions
                 }
             });
 
-        services.AddOptions<CircuitBreakerOptions>()
-            .BindConfiguration("Gateway:Dashboard:CircuitBreaker");
-        services.AddOptions<RetryOptions>()
-            .BindConfiguration("Gateway:Dashboard:Retry");
-        services.AddOptions<RateLimitOptions>()
-            .BindConfiguration("Gateway:Dashboard:RateLimit");
-        services.AddOptions<WafOptions>()
-            .BindConfiguration("Gateway:Dashboard:Waf");
-
         // Sub-options: Auth and ProxyLog can be injected independently
         services.AddOptions<DashboardAuthOptions>()
             .BindConfiguration("Gateway:Dashboard:Auth");
@@ -115,8 +106,6 @@ public static class DashboardServiceCollectionExtensions
         // Sync facade: copy flat DashboardOptions values to sub-options if sub-options weren't set via config
         services.AddSingleton<IConfigureOptions<DashboardAuthOptions>>(sp =>
             new AuthOptionsSync(sp.GetRequiredService<IOptions<DashboardOptions>>()));
-        services.AddSingleton<IConfigureOptions<ProxyLogOptions>>(sp =>
-            new ProxyLogOptionsSync(sp.GetRequiredService<IOptions<DashboardOptions>>()));
         services.AddOptions<ConfigHistoryOptions>()
             .BindConfiguration(ConfigHistoryOptions.SectionName)
             .PostConfigure(options =>
@@ -136,13 +125,6 @@ public static class DashboardServiceCollectionExtensions
 
         if (configureOptions != null)
             services.Configure(configureOptions);
-
-        // Sync WafOptions.DashboardRoutePrefix from DashboardOptions after configuration loads
-        services.PostConfigure<WafOptions>(wafo =>
-        {
-            if (string.IsNullOrWhiteSpace(wafo.DashboardRoutePrefix))
-                wafo.DashboardRoutePrefix = "apigateway";
-        });
 
         return services;
     }
@@ -218,11 +200,9 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<ConfigChangeEventDispatcher>();
         services.AddHostedService(sp => sp.GetRequiredService<ConfigChangeEventDispatcher>());
 
-        services.AddSingleton<RateLimitConfigProvider>();
-        services.AddRateLimiter(_ => { });
-
         // In-memory state stores (singleton to share state across middleware instances)
         services.AddSingleton<ICircuitStateStore, InMemoryCircuitStateStore>();
+        services.AddSingleton<Infrastructure.Resilience.IDestinationCandidateCoordinator, Infrastructure.Resilience.DestinationCandidateCoordinator>();
         services.AddSingleton<IRateLimiterStore, InMemoryRateLimiterStore>();
         services.AddSingleton<CooldownManager>();
 
@@ -275,11 +255,7 @@ public static class DashboardServiceCollectionExtensions
         // AsyncLogPersistenceService: background service that reads from Channel and writes batches to SQLite
         services.AddSingleton<AsyncLogPersistenceService>();
         services.AddSingleton<IProxyLogPersistenceService>(sp => sp.GetRequiredService<AsyncLogPersistenceService>());
-        services.AddHostedService(sp => sp.GetRequiredService<AsyncLogPersistenceService>());
-
-        // LogSettingsService: UI-configurable log settings (SQLite overrides + IOptionsMonitor + cache)
-        services.AddSingleton<LogSettingsService>();
-        services.AddHostedService<ProxyLogRuntimeSettingsInitializer>();
+        services.AddSingleton<IPluginRuntimeResource>(sp => sp.GetRequiredService<AsyncLogPersistenceService>());
 
         return services;
     }
@@ -294,23 +270,6 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<IDashboardClusterQueryService, DashboardClusterQueryService>();
         services.AddSingleton<IDashboardRouteQueryService, DashboardRouteQueryService>();
         services.AddSingleton<IDashboardLogQueryService, DashboardLogQueryService>();
-        services.AddSingleton<IEditablePolicy, DashboardEditablePolicy>();
-
-        return services;
-    }
-
-    #endregion
-
-    #region WAF + policy services
-
-    private static IServiceCollection AddDashboardWafAndPolicy(this IServiceCollection services)
-    {
-        services.AddSingleton<RoutePolicyService>();
-        services.AddSingleton<ClusterPolicyService>();
-        services.AddSingleton<IGatewayPolicyService, GatewayPolicyService>();
-
-        services.AddSingleton<WafSettingsPersistenceService>();
-        services.AddSingleton<IWafSettingsPersistenceService>(sp => sp.GetRequiredService<WafSettingsPersistenceService>());
 
         return services;
     }
@@ -330,8 +289,36 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<IGatewayPlugin, RequestRetryPlugin>();
         services.AddSingleton<IGatewayPlugin, RateLimitPlugin>();
         services.AddSingleton<IGatewayPlugin, WafPlugin>();
+        services.AddSingleton<IGatewayPlugin, ProxyLogPlugin>();
+        services.AddSingleton<IGatewayPlugin, ResponseCachePlugin>();
+        services.AddSingleton<IGatewayPlugin, DistributedRateLimitPlugin>();
+        services.AddSingleton<IGatewayPlugin, TrafficMetricsPlugin>();
+        services.AddSingleton<IGatewayPlugin, ClusterMetricsPlugin>();
+        services.AddSingleton<IGatewayPlugin, HttpServiceDiscoveryPlugin>();
+        services.AddSingleton<IDistributedRateLimitBackend, MemoryDistributedRateLimitBackend>();
+        services.AddSingleton<IDistributedRateLimitBackend, SqliteDistributedRateLimitBackend>();
+        services.AddSingleton<DistributedRateLimitBackendResolver>();
+        services.AddSingleton<PluginMetricStore>();
         services.AddSingleton<IGatewayPlugin, AIPlugin>();
-        services.AddSingleton<IGatewayPluginManager, GatewayPluginManager>();
+        services.AddSingleton<ExternalGatewayPluginHost>();
+        services.AddSingleton<GatewayPluginManager>();
+        services.AddSingleton<IGatewayPluginManager>(provider => provider.GetRequiredService<GatewayPluginManager>());
+        services.AddSingleton<IPluginRuntimeDomainManager, PluginRuntimeDomainManager>();
+        services.AddSingleton<IPluginBindingMutationService, PluginBindingMutationService>();
+        services.AddSingleton(provider => (PluginRuntimeDomainManager)provider.GetRequiredService<IPluginRuntimeDomainManager>());
+        services.AddHostedService<PluginRuntimeDomainInitializer>();
+        services.AddSingleton<IPluginActivationState>(provider => provider.GetRequiredService<GatewayPluginManager>());
+        services.AddSingleton<GatewayPluginExecutionPlanProvider>();
+        services.AddSingleton<IPluginManifestCatalog>(provider => provider.GetRequiredService<IGatewayPluginManager>());
+        services.AddSingleton<IPluginConfigurationSchemaValidator, PluginConfigurationSchemaValidator>();
+        services.AddSingleton<IPluginConfigurationMigrationService, PluginConfigurationMigrationService>();
+        services.AddSingleton<CircuitBreakerWarmupService>();
+        services.AddSingleton<IPluginRuntimeResource>(provider => provider.GetRequiredService<CircuitBreakerWarmupService>());
+        services.AddSingleton<IPluginRuntimeResource, ServiceDiscoveryRefreshService>();
+        services.AddHttpClient("service-discovery");
+        services.AddSingleton<PluginResourceLifecycleCoordinator>();
+        services.AddSingleton<IPluginResourceLifecycleCoordinator>(provider => provider.GetRequiredService<PluginResourceLifecycleCoordinator>());
+        services.AddHostedService(provider => provider.GetRequiredService<PluginResourceLifecycleCoordinator>());
 
         return services;
     }
@@ -369,8 +356,6 @@ public static class DashboardServiceCollectionExtensions
         services.AddHostedService(sp => sp.GetRequiredService<ConfigSnapshotScheduler>());
         services.AddSingleton<IGatewayIdentityService, GatewayIdentityService>();
 
-        services.AddBackgroundHostedService<DefaultHealthCheckService>();
-
         return services;
     }
 
@@ -380,7 +365,6 @@ public static class DashboardServiceCollectionExtensions
 
     private static IServiceCollection AddDashboardWarmupServices(this IServiceCollection services)
     {
-        services.AddBackgroundHostedService<CircuitBreakerWarmupService>();
         services.AddBackgroundHostedService<StartupWarmupService>();
         return services;
     }

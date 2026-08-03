@@ -7,7 +7,9 @@
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
     <ProjectReference Include="..\..\src\Aneiang.Yarp\Aneiang.Yarp.csproj" />
     <ProjectReference Include="..\..\src\Aneiang.Yarp.Dashboard\Aneiang.Yarp.Dashboard.csproj" />
+    <ProjectReference Include="..\..\src\Aneiang.Yarp.Storage.Sqlite\Aneiang.Yarp.Storage.Sqlite.csproj" />
   </ItemGroup>
 </Project>

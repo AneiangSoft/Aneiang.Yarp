@@ -305,7 +305,6 @@ public class ConfigPersistenceService : IConfigPersistenceService
                 dynCluster.Config = dynCluster.Config with
                 {
                     Destinations = destEntities.ToDestinations()
-                        .ToDictionary(kv => kv.Key, kv => new DestinationConfig { Address = kv.Value })
                 };
                 config.Clusters.Add(dynCluster);
             }

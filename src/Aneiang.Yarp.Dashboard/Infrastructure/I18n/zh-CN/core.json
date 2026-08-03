@@ -171,7 +171,7 @@
   "modal.jsonInput": "JSON 输入",
   "modal.jsonMode": "JSON 模式",
   "modal.minify": "压缩",
-  "modal.policyManagedHint": "策略相关配置（重试、限流、WAF、熔断等）由可视化策略管理，此处不可编辑，请使用「管理策略」按钮操作",
+  "modal.policyManagedHint": "插件能力配置由路由或集群详情中的「绑定能力」区域管理；此处仅编辑原生 YARP 配置。",
   "modal.renameHint": "修改ID将创建新条目并删除旧条目",
   "modal.renameOnly": "ID 修改请使用专用重命名功能",
   "modal.routeId": "输入路由ID",

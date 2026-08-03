@@ -35,7 +35,6 @@ public static class ConfigEntityMapper
         CreatedBy = route.CreatedBy,
         CreatedAt = route.CreatedAt,
         UpdatedAt = DateTime.Now,
-        Metadata = route.Metadata is { Count: > 0 } ? JsonSerializer.Serialize(route.Metadata, _jsonOptions) : null,
         ConfigJson = Serialization.YarpJsonConfig.SerializeRoute(route.Config)
     };
 
@@ -48,10 +47,7 @@ public static class ConfigEntityMapper
             ClusterUid = entity.ClusterUid,
             Source = entity.Source,
             CreatedBy = entity.CreatedBy,
-            CreatedAt = entity.CreatedAt,
-            Metadata = string.IsNullOrEmpty(entity.Metadata)
-                ? new()
-                : JsonSerializer.Deserialize<Dictionary<string, string>>(entity.Metadata, _jsonOptions) ?? new()
+            CreatedAt = entity.CreatedAt
         };
         return route;
     }
@@ -103,7 +99,7 @@ public static class ConfigEntityMapper
         ClusterId = cluster.Config.ClusterId ?? string.Empty,
         LoadBalancingPolicy = cluster.Config.LoadBalancingPolicy,
         HealthCheckConfig = cluster.HealthCheck != null ? JsonSerializer.Serialize(cluster.HealthCheck, _jsonOptions) : null,
-        CircuitBreakerConfig = cluster.CircuitBreaker != null ? JsonSerializer.Serialize(cluster.CircuitBreaker, _jsonOptions) : null,
+        CircuitBreakerConfig = null,
         Source = cluster.Source,
         CreatedBy = cluster.CreatedBy,
         CreatedAt = cluster.CreatedAt,
@@ -119,7 +115,6 @@ public static class ConfigEntityMapper
             Config = BuildClusterConfig(entity),
             ClusterUid = entity.ClusterUid,
             HealthCheck = string.IsNullOrEmpty(entity.HealthCheckConfig) ? null : JsonSerializer.Deserialize<Models.HealthCheckConfig>(entity.HealthCheckConfig, _jsonOptions),
-            CircuitBreaker = string.IsNullOrEmpty(entity.CircuitBreakerConfig) ? null : JsonSerializer.Deserialize<CircuitBreakerConfig>(entity.CircuitBreakerConfig, _jsonOptions),
             Source = entity.Source,
             CreatedBy = entity.CreatedBy,
             CreatedAt = entity.CreatedAt,
@@ -156,21 +151,33 @@ public static class ConfigEntityMapper
     #region Destination
 
     /// <summary>
-    /// Converts a destination key-value pair to a <see cref="DestinationEntity"/>.
+    /// Converts a native YARP destination to its lossless storage representation.
     /// </summary>
-    /// <param name="dest">The destination.</param>
-    /// <param name="clusterId">The cluster id.</param>
-    /// <returns>A DestinationEntity.</returns>
-    public static DestinationEntity ToEntity(this KeyValuePair<string, string> dest, string clusterId) => new()
+    public static DestinationEntity ToEntity(this KeyValuePair<string, DestinationConfig> dest, string clusterId) => new()
     {
         DestinationId = dest.Key,
         ClusterId = clusterId,
-        Address = dest.Value,
-        Healthy = true
+        Address = dest.Value.Address ?? string.Empty,
+        Host = dest.Value.Host,
+        Health = dest.Value.Health,
+        Healthy = true,
+        Metadata = dest.Value.Metadata is { Count: > 0 }
+            ? JsonSerializer.Serialize(dest.Value.Metadata, _jsonOptions)
+            : null
     };
 
-    public static Dictionary<string, string> ToDestinations(this IEnumerable<DestinationEntity> entities)
-        => entities.ToDictionary(e => e.DestinationId, e => e.Address);
+    public static Dictionary<string, DestinationConfig> ToDestinations(this IEnumerable<DestinationEntity> entities)
+        => entities.ToDictionary(
+            e => e.DestinationId,
+            e => new DestinationConfig
+            {
+                Address = e.Address,
+                Host = e.Host,
+                Health = e.Health,
+                Metadata = string.IsNullOrWhiteSpace(e.Metadata)
+                    ? null
+                    : JsonSerializer.Deserialize<IReadOnlyDictionary<string, string>>(e.Metadata, _jsonOptions)
+            });
 
     #endregion
 

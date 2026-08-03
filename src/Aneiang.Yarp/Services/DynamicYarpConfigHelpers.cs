@@ -39,29 +39,6 @@ internal static class DynamicYarpConfigHelpers
         return changed ? route with { Transforms = normalized } : route;
     }
 
-    /// <summary>
-    /// Merges metadata from the serialized config with dynamic record metadata.
-    /// Dynamic record values (policy keys) win over config values.
-    /// </summary>
-    public static IReadOnlyDictionary<string, string>? MergeRouteMetadata(
-        IReadOnlyDictionary<string, string>? configMetadata,
-        Dictionary<string, string> dynamicMetadata)
-    {
-        if ((configMetadata == null || configMetadata.Count == 0) && dynamicMetadata.Count == 0)
-            return null;
-
-        var merged = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (configMetadata != null)
-        {
-            foreach (var kv in configMetadata)
-                merged[kv.Key] = kv.Value;
-        }
-        foreach (var kv in dynamicMetadata)
-            merged[kv.Key] = kv.Value;
-
-        return merged.Count > 0 ? merged : null;
-    }
-
     /// <summary>Safely serializes a route to JSON; returns null on failure.</summary>
     public static string? TrySerializeRoute(RouteConfig route)
     {

@@ -1,5 +1,6 @@
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.I18n;
+using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
@@ -21,10 +22,10 @@ public class DashboardPagesController : Controller
     private readonly IDashboardClusterQueryService _clusterQuery;
     private readonly IDashboardRouteQueryService _routeQuery;
     private readonly IDashboardLogQueryService _logQuery;
+    private readonly IPluginRuntimeDomainManager _runtimeDomains;
     private readonly StorageOptions _storageOptions;
 
     // Cached option values
-    private readonly bool _enableProxyLogging;
     private readonly string _defaultLocale;
 
     /// <summary>
@@ -35,6 +36,7 @@ public class DashboardPagesController : Controller
         IDashboardClusterQueryService clusterQuery,
         IDashboardRouteQueryService routeQuery,
         IDashboardLogQueryService logQuery,
+        IPluginRuntimeDomainManager runtimeDomains,
         IOptions<DashboardOptions> dashboardOptions,
         IOptions<StorageOptions> storageOptions)
     {
@@ -42,11 +44,10 @@ public class DashboardPagesController : Controller
         _clusterQuery = clusterQuery;
         _routeQuery = routeQuery;
         _logQuery = logQuery;
+        _runtimeDomains = runtimeDomains;
         _storageOptions = storageOptions.Value;
 
-        var opt = dashboardOptions.Value;
-        _enableProxyLogging = opt.EnableProxyLogging;
-        _defaultLocale = opt.Locale;
+        _defaultLocale = dashboardOptions.Value.Locale;
     }
 
     /// <summary>
@@ -55,10 +56,10 @@ public class DashboardPagesController : Controller
     private void SetCommonViewBag(string? currentPage = null)
     {
         ViewBag.DashboardRoutePrefix = RoutePrefix;
-        ViewBag.EnableProxyLogging = _enableProxyLogging;
         ViewBag.Locale = ResolveLocale();
         ViewBag.AllI18nJson = DashboardI18n.AllAsJson(ViewBag.Locale);
         ViewBag.CurrentPage = currentPage ?? "overview";
+        ViewBag.PluginNavItems = _runtimeDomains.Current.DashboardBuilder.NavItems;
     }
 
     /// <summary>
@@ -96,17 +97,11 @@ public class DashboardPagesController : Controller
     [HttpGet("notifications")]
     public IActionResult Notifications() { SetCommonViewBag("notifications"); return View(); }
 
-    [HttpGet("waf")]
-    public IActionResult Waf() { SetCommonViewBag("waf"); return View(); }
-
     [HttpGet("healthcheck")]
     public IActionResult HealthCheck() { SetCommonViewBag("healthcheck"); return View(); }
 
     [HttpGet("history")]
     public IActionResult History() { SetCommonViewBag("history"); return View(); }
-
-    [HttpGet("policies")]
-    public IActionResult Policies() { SetCommonViewBag("policies"); return View(); }
 
     [HttpGet("plugins")]
     public IActionResult Plugins() { SetCommonViewBag("plugins"); return View(); }

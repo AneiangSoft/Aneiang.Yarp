@@ -1,0 +1,221 @@
+- generic [active] [ref=f1e1]:
+  - navigation [ref=f1e2]:
+    - generic [ref=f1e6]:
+      - generic [ref=f1e7]: 网关维护仪表盘
+      - generic [ref=f1e8]: Gateway Console
+    - generic [ref=f1e10]:
+      - generic [ref=f1e11]:
+        - generic [ref=f1e12] [cursor=pointer]: 仪表盘
+        - link "总览" [ref=f1e15] [cursor=pointer]:
+          - /url: /aneiang/
+      - generic [ref=f1e18]:
+        - generic [ref=f1e19] [cursor=pointer]: 网关管理
+        - generic:
+          - link "服务集群" [ref=f1e21] [cursor=pointer]:
+            - /url: /aneiang/clusters
+          - link "路由配置" [ref=f1e24] [cursor=pointer]:
+            - /url: /aneiang/routes
+      - generic [ref=f1e27]:
+        - generic [ref=f1e28] [cursor=pointer]: 监控运维
+        - generic:
+          - link "访问统计" [ref=f1e30] [cursor=pointer]:
+            - /url: /aneiang/stats
+          - link "通知中心 NEW" [ref=f1e33] [cursor=pointer]:
+            - /url: /aneiang/notifications
+            - generic [ref=f1e34]: 通知中心
+            - generic [ref=f1e36]: NEW
+          - link "健康检查" [ref=f1e37] [cursor=pointer]:
+            - /url: /aneiang/healthcheck
+      - generic [ref=f1e40]:
+        - generic [ref=f1e41] [cursor=pointer]: 安全策略
+        - link "插件管理" [ref=f1e43] [cursor=pointer]:
+          - /url: /aneiang/plugins
+      - generic [ref=f1e46]:
+        - generic [ref=f1e47] [cursor=pointer]: 系统管理
+        - generic:
+          - link "配置历史" [ref=f1e49] [cursor=pointer]:
+            - /url: /aneiang/history
+          - link "审计日志" [ref=f1e52] [cursor=pointer]:
+            - /url: /aneiang/audit
+          - link "运行模式" [ref=f1e55] [cursor=pointer]:
+            - /url: /aneiang/deployment
+          - link "设置" [ref=f1e58] [cursor=pointer]:
+            - /url: /aneiang/settings
+    - generic [ref=f1e61]:
+      - generic [ref=f1e64]:
+        - generic [ref=f1e65]: 已登录
+        - generic [ref=f1e66]: 在线
+      - generic [ref=f1e68]:
+        - link "Switch to English" [ref=f1e69] [cursor=pointer]:
+          - /url: "#"
+        - link "退出登录" [ref=f1e70] [cursor=pointer]:
+          - /url: "#"
+  - generic [ref=f1e71]:
+    - generic [ref=f1e73]:
+      - generic [ref=f1e74]:
+        - generic [ref=f1e75]:
+          - link "仪表盘" [ref=f1e76] [cursor=pointer]:
+            - /url: /aneiang/
+          - generic [ref=f1e77]: 总览
+        - heading "总览" [level=1] [ref=f1e78]
+      - generic [ref=f1e79]:
+        - generic "在线" [ref=f1e80]
+        - generic [ref=f1e81]: 实时
+    - generic [ref=f1e82]:
+      - generic [ref=f1e83]:
+        - generic [ref=f1e85]:
+          - generic [ref=f1e86]:
+            - generic [ref=f1e87]:
+              - generic [ref=f1e88]: 版本：
+              - strong [ref=f1e89]: "-"
+            - generic [ref=f1e90]:
+              - generic [ref=f1e91]: 环境：
+              - strong [ref=f1e92]: "-"
+            - generic [ref=f1e93]:
+              - generic [ref=f1e94]: 启动：
+              - strong [ref=f1e95]: "-"
+            - generic [ref=f1e96]:
+              - generic [ref=f1e97]: 运行：
+              - strong [ref=f1e98]: "-"
+            - generic [ref=f1e99]:
+              - generic [ref=f1e100]: 内存：
+              - strong [ref=f1e101]: "-"
+            - generic [ref=f1e102]:
+              - generic [ref=f1e103]: 主机：
+              - strong [ref=f1e104]: "-"
+          - generic [ref=f1e105]:
+            - generic "SignalR 断开" [ref=f1e106]
+            - button "刷新" [ref=f1e108]
+        - generic [ref=f1e111]:
+          - link [ref=f1e112] [cursor=pointer]:
+            - /url: /aneiang/clusters
+          - generic [ref=f1e113]:
+            - generic [ref=f1e114]: "-"
+            - generic [ref=f1e115]: 服务集群
+            - generic [ref=f1e116]: "--"
+        - generic [ref=f1e122]:
+          - generic [ref=f1e123]: "-"
+          - generic [ref=f1e124]: 健康状态
+          - generic [ref=f1e125]:
+            - generic [ref=f1e126]:
+              - generic [ref=f1e127]: ●
+              - text: "0"
+            - generic [ref=f1e128]:
+              - generic [ref=f1e129]: ●
+              - text: "0"
+            - generic [ref=f1e130]:
+              - generic [ref=f1e131]: ●
+              - text: "0"
+        - generic [ref=f1e134]:
+          - link [ref=f1e135] [cursor=pointer]:
+            - /url: /aneiang/routes
+          - generic [ref=f1e136]:
+            - generic [ref=f1e137]: "-"
+            - generic [ref=f1e138]: 路由规则
+            - generic [ref=f1e139]: "--"
+        - generic [ref=f1e145]:
+          - generic [ref=f1e146]: "-"
+          - generic [ref=f1e147]: 当前 QPS
+          - generic [ref=f1e148]: "--"
+      - generic [ref=f1e150]:
+        - generic [ref=f1e151]:
+          - generic [ref=f1e152]: 系统健康
+          - generic [ref=f1e154]: 健康
+        - generic [ref=f1e157]:
+          - generic [ref=f1e159]:
+            - generic [ref=f1e160]: 数据库
+            - generic [ref=f1e161]: 已连接
+          - generic [ref=f1e164]:
+            - generic [ref=f1e165]: CPU 使用率
+            - generic [ref=f1e166]: "--"
+          - generic [ref=f1e169]:
+            - generic [ref=f1e170]: 内存使用
+            - generic [ref=f1e171]: "--"
+          - generic [ref=f1e174]:
+            - generic [ref=f1e175]: GC 次数
+            - generic [ref=f1e176]: "-- 线程 --"
+      - generic [ref=f1e178]:
+        - generic [ref=f1e179]: 实时流量趋势 (QPS)
+        - generic [ref=f1e181]:
+          - generic [ref=f1e183]: 0 req/s
+          - combobox [ref=f1e184]:
+            - option "5分钟"
+            - option "15分钟" [selected]
+            - option "1小时"
+      - generic [ref=f1e188]:
+        - generic [ref=f1e190]:
+          - generic [ref=f1e191]:
+            - generic [ref=f1e192]: Top 异常路由
+            - generic [ref=f1e194]: "0"
+          - table [ref=f1e197]:
+            - rowgroup [ref=f1e198]:
+              - row [ref=f1e199]:
+                - columnheader "路由" [ref=f1e200]
+                - columnheader "错误数" [ref=f1e201]
+                - columnheader "错误率" [ref=f1e202]
+            - rowgroup [ref=f1e203]:
+              - row [ref=f1e204]:
+                - cell "暂无数据 一切正常，没有异常路由" [ref=f1e205]:
+                  - generic [ref=f1e206]:
+                    - generic [ref=f1e208]: 暂无数据
+                    - generic [ref=f1e209]: 一切正常，没有异常路由
+        - generic [ref=f1e211]:
+          - generic [ref=f1e212]:
+            - generic [ref=f1e213]: Top 延迟集群
+            - generic [ref=f1e215]: "0"
+          - table [ref=f1e218]:
+            - rowgroup [ref=f1e219]:
+              - row [ref=f1e220]:
+                - columnheader "集群" [ref=f1e221]
+                - columnheader "平均延迟" [ref=f1e222]
+                - columnheader "P99延迟" [ref=f1e223]
+            - rowgroup [ref=f1e224]:
+              - row [ref=f1e225]:
+                - cell "暂无数据 延迟数据采集中" [ref=f1e226]:
+                  - generic [ref=f1e227]:
+                    - generic [ref=f1e229]: 暂无数据
+                    - generic [ref=f1e230]: 延迟数据采集中
+      - generic [ref=f1e231]:
+        - generic [ref=f1e232]:
+          - generic [ref=f1e233]: 服务集群概览
+          - link "查看全部" [ref=f1e235] [cursor=pointer]:
+            - /url: /aneiang/clusters
+        - table [ref=f1e237]:
+          - rowgroup [ref=f1e238]:
+            - row [ref=f1e239]:
+              - columnheader "集群名称" [ref=f1e240]
+              - columnheader "健康状态" [ref=f1e241]
+          - rowgroup [ref=f1e242]:
+            - row [ref=f1e243]:
+              - cell [ref=f1e244]
+      - generic [ref=f1e249]:
+        - generic [ref=f1e250]:
+          - generic [ref=f1e251]: 路由规则概览
+          - link "查看全部" [ref=f1e253] [cursor=pointer]:
+            - /url: /aneiang/routes
+        - table [ref=f1e255]:
+          - rowgroup [ref=f1e256]:
+            - row [ref=f1e257]:
+              - columnheader "路由名称" [ref=f1e258]
+              - columnheader "关联集群" [ref=f1e259]
+          - rowgroup [ref=f1e260]:
+            - row [ref=f1e261]:
+              - cell [ref=f1e262]
+    - generic [ref=f1e267]:
+      - generic [ref=f1e268]: Aneiang.Yarp v2.3.0.25 · © 2024-2026
+      - generic [ref=f1e269]: 系统运行中
+  - button "AI Assistant (Ctrl+/)" [ref=f1e271]
+  - generic [ref=f1e272]:
+    - generic [ref=f1e273]:
+      - generic [ref=f1e275]:
+        - generic [ref=f1e276]: AI 助手
+        - generic [ref=f1e277]: 在线
+      - generic [ref=f1e278]:
+        - button "New conversation" [ref=f1e279]
+        - button "History" [ref=f1e280]
+        - button "Close" [ref=f1e281]
+    - generic [ref=f1e282]:
+      - generic [ref=f1e283]:
+        - textbox "输入问题…" [ref=f1e284]
+        - button [ref=f1e285]
+      - generic [ref=f1e286]: Enter 发送 · Shift+Enter 换行

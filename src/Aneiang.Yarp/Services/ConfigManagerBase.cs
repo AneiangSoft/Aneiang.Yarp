@@ -53,27 +53,6 @@ internal abstract class ConfigManagerBase
     }
 
     /// <summary>
-    /// Execute a metadata update under lock. Returns true when <paramref name="action"/>
-    /// reports a modification was made.
-    /// </summary>
-    protected async Task<bool> ExecuteMetadataWithLockAsync(
-        string operationName,
-        string? targetName,
-        Func<GatewayDynamicConfig, Task<bool>> action)
-    {
-        await Semaphore.WaitAsync();
-        try
-        {
-            State.EnsureInitialized();
-            var modified = await action(State.Config);
-            if (modified)
-                await SaveAndPublishAsync(operationName, targetName);
-            return modified;
-        }
-        finally { Semaphore.Release(); }
-    }
-
-    /// <summary>
     /// Execute a read-only operation under lock.
     /// </summary>
     protected async Task<T> ExecuteReadWithLockAsync<T>(Func<GatewayDynamicConfig, T> action)

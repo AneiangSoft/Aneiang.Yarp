@@ -1,0 +1,83 @@
+[
+  {
+    "id": "msg-1785467154476-4kd62h",
+    "from": "team-lead",
+    "to": "destination-resilience-dev",
+    "type": "message",
+    "content": "避免修改通用 Manifest/Schema 文件；若需新增配置字段，集中在自身模块并告知 native-adapters-dev。",
+    "timestamp": "2026-07-31T03:05:54.476Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467194209-gieu1o",
+    "from": "team-lead",
+    "to": "@team",
+    "type": "broadcast",
+    "content": "基线已记录。请在下一检查点回报：完成度、改动文件、阻塞和是否已编译；继续执行，不要只做审计。注意 `.codebuddy` 是项目数据，不得删除。",
+    "timestamp": "2026-07-31T03:06:34.209Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467267538-z57v4z",
+    "from": "team-lead",
+    "to": "@team",
+    "type": "broadcast",
+    "content": "目前 git diff stat 未显示明显新文件（未跟踪文件不计入 stat）。请现在回复实际进度；若仍在探索，立即收敛并开始落地。优先交付可编译的核心闭环，不要无限扩展。",
+    "timestamp": "2026-07-31T03:07:47.538Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467349891-iry42t",
+    "from": "team-lead",
+    "to": "destination-resilience-dev",
+    "type": "message",
+    "content": "当前未见 Destination coordinator 文件。请立即收敛到可运行核心：状态存储+候选选择+middleware 接入+回归。",
+    "timestamp": "2026-07-31T03:09:09.891Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467608596-3lxmt4",
+    "from": "team-lead",
+    "to": "destination-resilience-dev",
+    "type": "message",
+    "content": "当前 ICircuitStateStore 新增 destinationId 参数，但 InMemoryCircuitStateStore 未同步 TryAcquire/RecordOutcome，阻塞 net8/net9。请立即修复并跑 Dashboard 构建。",
+    "timestamp": "2026-07-31T03:13:28.596Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467665972-p0k4y3",
+    "from": "team-lead",
+    "to": "destination-resilience-dev",
+    "type": "message",
+    "content": "DestinationCandidateCoordinator.cs:56 方法返回 ValueTask<IReadOnlyList<DestinationState>>，当前直接 return List。请 ValueTask.FromResult/IReadOnlyList 转换并构建。",
+    "timestamp": "2026-07-31T03:14:25.972Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467731416-jeebmf",
+    "from": "team-lead",
+    "to": "destination-resilience-dev",
+    "type": "message",
+    "content": "RequestRetryMiddleware 当前构造函数中 `_options = options.Value` 但字段/参数都不存在，后段仍引用 `_options.EnableTracing/IncludeRetryCountHeader/RetryHeaderName`。请移除旧 Options 依赖或改为绑定配置，并立即编译。",
+    "timestamp": "2026-07-31T03:15:31.416Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785468158641-9rsjep",
+    "from": "team-lead",
+    "to": "@team",
+    "type": "broadcast",
+    "content": "回归项目已成功编译但有6个警告。请各自完成实现后主动回报改动、测试和剩余边界。compatibility-removal-dev 请重点清零仍存在的 Waf/Retry/CircuitBreaker/RateLimit Options 运行时引用。",
+    "timestamp": "2026-07-31T03:22:38.641Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785468345271-6e1rbf",
+    "from": "team-lead",
+    "to": "@team",
+    "type": "broadcast",
+    "content": "当前回归 26 项全通过，构建 0 error/6 warnings。请在本轮内完成你的剩余实现并回报；不要停在部分状态。尤其确认运行域已接入实际管线、绑定升级 API 已原子提交、Destination 协调已由 Retry/CircuitBreaker 实际调用、旧 Options 引用清零。",
+    "timestamp": "2026-07-31T03:25:45.271Z",
+    "read": true
+  }
+]

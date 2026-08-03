@@ -46,9 +46,6 @@ public interface IDynamicYarpConfigService
         Dictionary<string, string> destinations, string? loadBalancingPolicy = null,
         Models.HealthCheckConfig? healthCheck = null, string source = "dashboard", string? createdBy = "dashboard-user");
 
-    /// <summary>Update or merge metadata entries on a route. Used by the policy engine.</summary>
-    Task<bool> UpdateRouteMetadataAsync(string routeId, Dictionary<string, string> metadata);
-
     /// <summary>Get all current routes.</summary>
     IReadOnlyList<RouteConfig> GetRoutes();
 
@@ -77,7 +74,4 @@ public interface IDynamicYarpConfigService
     /// <summary>Atomically rename a route (repoint references + delete old).</summary>
     Task<RouteOperationResult> TryRenameRoute(string oldRouteId, string newRouteId, RegisterRouteRequest request,
         string source = "dashboard", string? createdBy = "dashboard-user");
-
-    /// <summary>Update circuit breaker configuration for a cluster.</summary>
-    Task<bool> UpdateClusterCircuitBreakerAsync(string clusterId, Models.CircuitBreakerConfig? config);
 }

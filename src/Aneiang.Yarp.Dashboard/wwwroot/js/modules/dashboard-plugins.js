@@ -69,10 +69,44 @@
             return '#64748b';
         },
 
+        healthBadge: function(health) {
+            var value = health || 'Unknown';
+            var badge = value === 'Healthy' ? 'bg-success'
+                : value === 'Disabled' || value === 'Stopped' ? 'bg-secondary'
+                : value === 'Degraded' || value === 'Starting' || value === 'Stopping' ? 'bg-warning text-dark'
+                : 'bg-danger';
+            return '<span class="badge ' + badge + '">' + window.DashboardUtils.escapeHtml(value) + '</span>';
+        },
+
+        renderDeclaredResources: function(resources) {
+            if (!resources || resources.length === 0) return '<span class="text-muted">' + __('plugin.resourcesNone') + '</span>';
+            return resources.map(function(resource) {
+                var capacity = resource.capacity ? ' (' + window.DashboardUtils.escapeHtml(resource.capacity) + ')' : '';
+                return '<span class="badge bg-light text-dark border me-1 mb-1">' + window.DashboardUtils.escapeHtml(resource.type) + capacity + '</span>';
+            }).join('');
+        },
+
+        renderRuntimeResources: function(resources) {
+            var self = this;
+            if (!resources || resources.length === 0) return '<span class="text-muted">' + __('plugin.resourcesNone') + '</span>';
+            return resources.map(function(resource) {
+                var status = resource.health || (resource.running ? 'Healthy' : 'Stopped');
+                var statistics = Object.entries(resource.statistics || {}).map(function(entry) {
+                    return window.DashboardUtils.escapeHtml(entry[0]) + '=' + window.DashboardUtils.escapeHtml(entry[1]);
+                }).join(', ');
+                return '<div class="border rounded p-2 mb-1">' +
+                    '<div class="d-flex justify-content-between align-items-center gap-2"><code>' + window.DashboardUtils.escapeHtml(resource.resourceId) + '</code>' + self.healthBadge(status) + '</div>' +
+                    '<div class="small text-muted">' + window.DashboardUtils.escapeHtml(resource.resourceType) +
+                    (resource.message ? ' · ' + window.DashboardUtils.escapeHtml(resource.message) : '') +
+                    (statistics ? ' · ' + statistics : '') + '</div></div>';
+            }).join('');
+        },
+
         render: function(data, container) {
             window.DashboardDOM.clear(container);
 
             var plugins = Array.isArray(data) ? data : (data && data.plugins) || [];
+            this.plugins = plugins;
             var enabledCount = plugins.filter(function(p) { return p.enabled; }).length;
 
             var summaryHtml =
@@ -110,11 +144,20 @@
             var cards = plugins.map(function(plugin) {
                 var icon = this.getPluginIcon(plugin.pluginId);
                 var color = this.getPluginColor(plugin.pluginId);
-                var localizedName = __('plugin.name.' + plugin.pluginId) || plugin.displayName || plugin.pluginId;
-                var localizedDesc = __('plugin.desc.' + plugin.pluginId) || plugin.description || '-';
+                var nameKey = 'plugin.name.' + plugin.pluginId;
+                var descKey = 'plugin.desc.' + plugin.pluginId;
+                var translations = window.__dashboard?.I18N || {};
+                var localizedName = translations[nameKey] || plugin.displayName || plugin.pluginId;
+                var localizedDesc = translations[descKey] || plugin.description || '-';
                 var enabledBadge = plugin.enabled
                     ? '<span class="badge bg-success">' + __('plugin.enabled') + '</span>'
                     : '<span class="badge bg-secondary">' + __('plugin.disabled') + '</span>';
+                var health = plugin.healthProbe?.status || plugin.health;
+                var healthMessage = plugin.healthProbe?.message;
+                var resourceHtml = '<div class="row g-3 mt-2 pt-2 border-top">' +
+                    '<div class="col-lg-6"><div class="small fw-semibold mb-1">' + __('plugin.declaredResources') + '</div>' + this.renderDeclaredResources(plugin.declaredResources) + '</div>' +
+                    '<div class="col-lg-6"><div class="small fw-semibold mb-1">' + __('plugin.runtimeResources') + '</div>' + this.renderRuntimeResources(plugin.runtimeResources) + '</div>' +
+                    '</div>';
                 var toggleClass = plugin.enabled ? 'btn-outline-danger' : 'btn-outline-success';
                 var toggleIcon = plugin.enabled ? 'bi-toggle-on text-success' : 'bi-toggle-off text-secondary';
                 var toggleLabel = plugin.enabled ? __('plugin.toggleOff') : __('plugin.toggleOn');
@@ -128,10 +171,11 @@
                             '<div class="flex-grow-1">' +
                                 '<div class="d-flex align-items-center gap-2 mb-1">' +
                                     '<strong>' + window.DashboardUtils.escapeHtml(localizedName) + '</strong>' +
-                                    enabledBadge +
+                                    enabledBadge + this.healthBadge(health) +
                                 '</div>' +
                                 '<div class="text-muted small mb-1"><code>' + window.DashboardUtils.escapeHtml(plugin.pluginId) + '</code></div>' +
                                 '<div class="text-muted small">' + window.DashboardUtils.escapeHtml(localizedDesc) + '</div>' +
+                                (healthMessage ? '<div class="small text-danger mt-1">' + window.DashboardUtils.escapeHtml(healthMessage) + '</div>' : '') +
                             '</div>' +
                             '<div class="flex-shrink-0 d-flex flex-column align-items-end gap-2">' +
                                 '<span class="badge bg-light text-dark border">' +
@@ -141,6 +185,7 @@
                                 '</button>' +
                             '</div>' +
                         '</div>' +
+                        resourceHtml +
                     '</div>' +
                 '</div>';
             }.bind(this)).join('');
@@ -150,7 +195,9 @@
 
         togglePlugin: function(pluginId, enable) {
             var self = this;
-            var localizedName = __('plugin.name.' + pluginId) || pluginId;
+            var nameKey = 'plugin.name.' + pluginId;
+            var plugin = this.plugins.find(function(item) { return item.pluginId === pluginId; });
+            var localizedName = window.__dashboard?.I18N?.[nameKey] || (plugin && plugin.displayName) || pluginId;
             var action = enable ? __('plugin.toggleOn') : __('plugin.toggleOff');
             var msg = __('plugin.toggleConfirm').replace('{action}', action).replace('{name}', localizedName);
             window.DashboardModals.showConfirm(msg, async function() {

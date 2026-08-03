@@ -5,11 +5,13 @@ using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Middleware;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Infrastructure.State;
+using Aneiang.Yarp.Dashboard.Infrastructure.Resilience;
 using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
 using Yarp.ReverseProxy.Model;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
 using Aneiang.Yarp.Models;
+using System.Text.Json;
 
 namespace Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
 
@@ -24,11 +26,13 @@ namespace Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
 /// </summary>
 public sealed class CircuitBreakerMiddleware : GatewayMiddlewareBase
 {
+    private const int MaxCircuitCount = 10_000;
+
     private readonly ILogger<CircuitBreakerMiddleware> _logger;
-    private readonly CircuitBreakerOptions _options;
-    private readonly IDynamicYarpConfigService _yarpConfig;
+    private readonly GatewayPluginExecutionPlanProvider _executionPlans;
     private readonly INotificationService _notificationService;
     private readonly ICircuitStateStore _circuitStore;
+    private readonly IDestinationCandidateCoordinator _destinationCoordinator;
 
     private static readonly TimeSpan _cleanupThreshold = TimeSpan.FromHours(3);
     private long _lastCleanupTicks = DateTime.Now.Ticks;
@@ -36,19 +40,20 @@ public sealed class CircuitBreakerMiddleware : GatewayMiddlewareBase
     public CircuitBreakerMiddleware(
         RequestDelegate next,
         ILogger<CircuitBreakerMiddleware> logger,
-        IOptions<CircuitBreakerOptions> options,
         IOptions<DashboardOptions> dashOptions,
         IGatewayPluginManager pluginManager,
         IDynamicYarpConfigService yarpConfig,
         ICircuitStateStore circuitStore,
+        GatewayPluginExecutionPlanProvider executionPlans,
+        IDestinationCandidateCoordinator destinationCoordinator,
         INotificationService? notificationService = null)
         : base(next, dashOptions, pluginManager, yarpConfig)
     {
         _logger = logger;
-        _options = options.Value;
-        _yarpConfig = yarpConfig;
+        _executionPlans = executionPlans;
         _notificationService = notificationService ?? NullNotificationService.Instance;
         _circuitStore = circuitStore;
+        _destinationCoordinator = destinationCoordinator;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -59,42 +64,41 @@ public sealed class CircuitBreakerMiddleware : GatewayMiddlewareBase
             return;
         }
 
-        if (!IsPluginEnabled("circuit-breaker"))
-        {
-            await Next(context);
-            return;
-        }
-
         var proxyFeature = context.Features.Get<IReverseProxyFeature>();
-        var clusterId = proxyFeature?.Route?.Config?.ClusterId;
-        var destinationId = proxyFeature?.ProxiedDestination?.DestinationId;
+        var clusterId = proxyFeature?.Cluster?.Config?.ClusterId;
 
-        if (string.IsNullOrEmpty(clusterId))
+        if (string.IsNullOrWhiteSpace(clusterId) ||
+            !TryGetBindingConfig(clusterId, out var clusterUid, out var cbConfig))
         {
             await Next(context);
             return;
         }
 
-        var (clusterUid, cbConfig) = GetClusterSettings(clusterId);
+        var candidates = await _destinationCoordinator.ApplyAsync(context, excludeAttempted: false, context.RequestAborted);
+        if (candidates.Count == 0)
+        {
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await context.Response.WriteAsJsonAsync(new
+            {
+                error = "ServiceUnavailable",
+                message = $"No healthy destination with a closed circuit is available for cluster '{clusterId}'."
+            });
+            return;
+        }
+
+        var destinationId = proxyFeature?.ProxiedDestination?.DestinationId;
         var circuitKey = InMemoryCircuitStateStore.BuildCircuitKey(clusterUid, clusterId, destinationId);
 
-        if (cbConfig == null || !cbConfig.Enabled)
-        {
-            await Next(context);
-            return;
-        }
-
-        var effectiveOptions = InMemoryCircuitStateStore.ToOptions(cbConfig, _options.MaxCircuitCount);
-
-        if (_circuitStore.Count >= _options.MaxCircuitCount && !_circuitStore.ContainsKey(circuitKey))
+        if (_circuitStore.Count >= MaxCircuitCount && !_circuitStore.ContainsKey(circuitKey))
         {
             _logger.LogWarning("Circuit count limit reached ({Max}), skipping new circuit for {CircuitKey}",
-                _options.MaxCircuitCount, circuitKey);
+                MaxCircuitCount, circuitKey);
             await Next(context);
             return;
         }
 
-        var state = _circuitStore.GetOrAdd(circuitKey, _ => new CircuitState(effectiveOptions));
+        var state = _circuitStore.GetOrAdd(circuitKey, _ => new CircuitState(cbConfig));
+        state.ApplyConfig(cbConfig);
         state.ClusterUid = clusterUid ?? StableUid.FromKey("cluster", clusterId);
         state.ClusterKeySnapshot = clusterId;
         state.DestinationUid = InMemoryCircuitStateStore.ResolveDestinationUid(destinationId);
@@ -175,18 +179,34 @@ public sealed class CircuitBreakerMiddleware : GatewayMiddlewareBase
         }
         finally
         {
-            UpdateCircuitState(state, circuitKey, context.Response.StatusCode, cbConfig);
+            var actualDestination = proxyFeature?.ProxiedDestination;
+            if (actualDestination is not null)
+            {
+                _destinationCoordinator.MarkAttempted(context, actualDestination);
+                var failed = cbConfig.FailureStatusCodes.Contains(context.Response.StatusCode) || context.Response.StatusCode >= 500;
+                _circuitStore.RecordOutcome(clusterId, actualDestination.DestinationId, failed, clusterUid, cbConfig);
+            }
+            else
+            {
+                UpdateCircuitState(state, circuitKey, context.Response.StatusCode, cbConfig);
+            }
         }
     }
 
-    private (string? ClusterUid, CircuitBreakerConfig? CircuitBreaker) GetClusterSettings(string clusterId)
+    private bool TryGetBindingConfig(
+        string clusterId,
+        out string? clusterUid,
+        out CircuitBreakerConfig config)
     {
-        var cluster = _yarpConfig.GetDynamicConfig()?.Clusters.FirstOrDefault(c =>
-            string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
-        return (cluster?.ClusterUid, cluster?.CircuitBreaker);
+        clusterUid = null;
+        config = null!;
+
+        if (!_executionPlans.Current.CircuitBreakerByCluster.TryGetValue(clusterId, out var resolved) || !resolved.Enabled)
+            return false;
+
+        config = resolved;
+        return true;
     }
-
-
 
     private void UpdateCircuitState(CircuitState state, string circuitKey, int statusCode, CircuitBreakerConfig cbConfig)
     {
@@ -264,18 +284,26 @@ public class CircuitState
     public int MaxHalfOpenAttempts { get; set; }
     public DateTime OpenedAt { get; set; }
     public int HalfOpenRequests { get; set; }
+    public Queue<(DateTime Timestamp, bool Failed)> Samples { get; } = new();
+    public int SampleFailures { get; set; }
+    public double FailureRatio { get; set; } = 0.5;
+    public int MinimumThroughput { get; set; } = 10;
+    public TimeSpan SamplingDuration { get; set; } = TimeSpan.FromSeconds(30);
     public DateTime LastAccessedAt { get; set; } = DateTime.Now;
 
-    public CircuitState(CircuitBreakerOptions? options = null)
+    public CircuitState(CircuitBreakerConfig? config = null)
     {
-        ApplyOptions(options ?? new CircuitBreakerOptions());
+        ApplyConfig(config ?? new CircuitBreakerConfig());
     }
 
-    public void ApplyOptions(CircuitBreakerOptions options)
+    public void ApplyConfig(CircuitBreakerConfig config)
     {
-        FailureThreshold = options.DefaultFailureThreshold > 0 ? options.DefaultFailureThreshold : 5;
-        RecoveryTimeout = TimeSpan.FromSeconds(options.DefaultRecoveryTimeoutSeconds > 0 ? options.DefaultRecoveryTimeoutSeconds : 30);
-        MaxHalfOpenAttempts = options.HalfOpenMaxAttempts > 0 ? options.HalfOpenMaxAttempts : 1;
+        FailureThreshold = config.FailureThreshold > 0 ? config.FailureThreshold : 5;
+        RecoveryTimeout = TimeSpan.FromSeconds(config.RecoveryTimeoutSeconds > 0 ? config.RecoveryTimeoutSeconds : 30);
+        MaxHalfOpenAttempts = config.HalfOpenMaxAttempts > 0 ? config.HalfOpenMaxAttempts : 1;
+        FailureRatio = config.FailureRatio is > 0 and <= 1 ? config.FailureRatio : 0.5;
+        MinimumThroughput = config.MinimumThroughput > 0 ? config.MinimumThroughput : 10;
+        SamplingDuration = TimeSpan.FromSeconds(config.SamplingDurationSeconds > 0 ? config.SamplingDurationSeconds : 30);
     }
 }
 

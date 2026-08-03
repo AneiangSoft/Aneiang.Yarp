@@ -33,11 +33,4 @@ public sealed class DynamicRouteConfig
 
     /// <summary>Who created this route (user name or "auto").</summary>
     public string? CreatedBy { get; set; }
-
-    /// <summary>
-    /// Policy metadata maintained by the policy engine (circuit breaker, retry, rate-limit, WAF keys).
-    /// Kept separate from <see cref="RouteConfig.Metadata"/>; merged into the native metadata only when
-    /// the route is pushed to YARP.
-    /// </summary>
-    public Dictionary<string, string> Metadata { get; set; } = new();
 }

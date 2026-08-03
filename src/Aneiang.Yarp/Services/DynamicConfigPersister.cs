@@ -46,7 +46,6 @@ internal class DynamicConfigPersister : IDynamicConfigPersister
                 cluster.Config = cluster.Config with
                 {
                     Destinations = destEntities.ToDestinations()
-                        .ToDictionary(d => d.Key, d => new DestinationConfig { Address = d.Value })
                 };
                 config.Clusters.Add(cluster);
             }
@@ -111,7 +110,7 @@ internal class DynamicConfigPersister : IDynamicConfigPersister
             {
                 var clusterId = cluster.Config.ClusterId ?? string.Empty;
                 var destEntities = DestinationsToDict(cluster.Config.Destinations)
-                    .Select(d => new KeyValuePair<string, string>(d.Key, d.Value.Address ?? string.Empty).ToEntity(clusterId))
+                    .Select(d => d.ToEntity(clusterId))
                     .ToList();
                 await _clusterRepo.SaveDestinationsAsync(clusterId, destEntities);
             }
@@ -133,7 +132,7 @@ internal class DynamicConfigPersister : IDynamicConfigPersister
     {
         if (string.IsNullOrWhiteSpace(targetName)) return false;
 
-        if (operationName is "AddOrUpdateRoute" or "UpdateRouteMetadata")
+        if (operationName is "AddOrUpdateRoute")
         {
             var route = config.Routes.FirstOrDefault(r =>
                 string.Equals(r.Config.RouteId, targetName, StringComparison.OrdinalIgnoreCase));
@@ -153,7 +152,7 @@ internal class DynamicConfigPersister : IDynamicConfigPersister
                     await _clusterRepo.SaveDestinationsAsync(
                         clusterId,
                         DestinationsToDict(cluster.Config.Destinations)
-                            .Select(d => new KeyValuePair<string, string>(d.Key, d.Value.Address ?? string.Empty).ToEntity(clusterId))
+                            .Select(d => d.ToEntity(clusterId))
                             .ToList());
                 }
             }
@@ -172,7 +171,7 @@ internal class DynamicConfigPersister : IDynamicConfigPersister
             await _clusterRepo.SaveDestinationsAsync(
                 clusterId,
                 DestinationsToDict(cluster.Config.Destinations)
-                    .Select(d => new KeyValuePair<string, string>(d.Key, d.Value.Address ?? string.Empty).ToEntity(clusterId))
+                    .Select(d => d.ToEntity(clusterId))
                     .ToList());
             return true;
         }

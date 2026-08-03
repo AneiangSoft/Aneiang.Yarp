@@ -10,10 +10,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 public sealed class LogFilter : ILogFilter
 {
     private readonly string _dashPrefix;
-    private readonly bool _loggingEnabled;
     private readonly ProxyLogRuntimeSettings _runtimeSettings;
-    private readonly HashSet<string>? _routeWhitelist;
-    private readonly HashSet<string>? _routeBlacklist;
     private readonly ILogSampler _sampler;
 
     private const string ContentRoot = "/_content/Aneiang.Yarp.Dashboard";
@@ -33,20 +30,10 @@ public sealed class LogFilter : ILogFilter
         ProxyLogRuntimeSettings runtimeSettings,
         ILogSampler sampler)
     {
-        var opt = options.Value;
-        _dashPrefix = "/" + opt.RoutePrefix.Trim('/');
-        _loggingEnabled = opt.EnableProxyLogging;
+        _dashPrefix = "/" + options.Value.RoutePrefix.Trim('/');
         _runtimeSettings = runtimeSettings;
         _sampler = sampler;
-
-        if (opt.LogRouteWhitelist?.Count > 0)
-            _routeWhitelist = new HashSet<string>(opt.LogRouteWhitelist, StringComparer.OrdinalIgnoreCase);
-        if (opt.LogRouteBlacklist?.Count > 0)
-            _routeBlacklist = new HashSet<string>(opt.LogRouteBlacklist, StringComparer.OrdinalIgnoreCase);
     }
-
-    /// <summary>Whether proxy logging is enabled at all.</summary>
-    public bool IsLoggingEnabled => _loggingEnabled;
 
     public bool IsSkippedRequest(HttpContext context)
     {
@@ -57,7 +44,7 @@ public sealed class LogFilter : ILogFilter
             path.StartsWithSegments(ContentRoot, StringComparison.OrdinalIgnoreCase))
             return true;
 
-        // Skip gRPC — response body capture breaks HTTP/2 trailer support
+        // Skip gRPC - response body capture breaks HTTP/2 trailer support
         if (context.Request.ContentType != null &&
             context.Request.ContentType.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase))
             return true;
@@ -86,16 +73,6 @@ public sealed class LogFilter : ILogFilter
 
         // Errors-only mode
         if (settings.ErrorsOnly && context.Response.StatusCode < 400)
-            return false;
-
-        // Route whitelist
-        if (_routeWhitelist != null &&
-            (string.IsNullOrEmpty(routeId) || !_routeWhitelist.Contains(routeId)))
-            return false;
-
-        // Route blacklist
-        if (_routeBlacklist != null &&
-            !string.IsNullOrEmpty(routeId) && _routeBlacklist.Contains(routeId))
             return false;
 
         // Sampling

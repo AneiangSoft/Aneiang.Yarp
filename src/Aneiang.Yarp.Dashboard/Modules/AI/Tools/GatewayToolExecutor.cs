@@ -6,20 +6,18 @@ using Aneiang.Yarp.Dashboard.Infrastructure.State;
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
-using Aneiang.Yarp.Dashboard.Modules.Policy.Services;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
-using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
+using Aneiang.Yarp.Storage.Entities;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Aneiang.Yarp.Dashboard.Modules.AI.Tools;
 
 /// <summary>
 /// Executes gateway tool calls requested by the AI model.
 /// Split across partial class files by domain:
-/// RouteTools, ClusterTools, CircuitBreakerTools, PolicyTools, SystemTools.
+/// RouteTools, ClusterTools, CircuitBreakerTools, SystemTools.
 /// </summary>
 public partial class GatewayToolExecutor
 {
@@ -30,18 +28,14 @@ public partial class GatewayToolExecutor
     private readonly IProxyLogRepository _logRepo;
     private readonly ICircuitStateStore _circuitStore;
     private readonly IGatewayPluginManager _pluginManager;
-    private readonly IWafSettingsPersistenceService? _wafPersistence;
-    private readonly RateLimitOptions _rateLimitOptions;
-    private readonly RetryOptions _retryOptions;
-    private readonly IRateLimiterStore _rateLimiterStore;
+    private readonly IPluginConfigurationRepository _pluginBindings;
+    private readonly IPluginBindingMutationService _bindingMutations;
     private readonly ConfigChangeAuditLog _auditLog;
     private readonly IDashboardInfoQueryService _infoService;
     private readonly IConfigPersistenceService _configPersistence;
     private readonly IConfigSnapshotScheduler _snapshotScheduler;
     private readonly INotificationRepository _notificationRepo;
-    private readonly LogSettingsService _logSettingsService;
     private readonly DeploymentRestartState _restartState;
-    private readonly IGatewayPolicyService _policyService;
     private readonly ILogger<GatewayToolExecutor> _logger;
 
     public GatewayToolExecutor(
@@ -52,19 +46,15 @@ public partial class GatewayToolExecutor
         IProxyLogRepository logRepo,
         ICircuitStateStore circuitStore,
         IGatewayPluginManager pluginManager,
-        IOptions<RateLimitOptions> rateLimitOptions,
-        IOptions<RetryOptions> retryOptions,
-        IRateLimiterStore rateLimiterStore,
+        IPluginConfigurationRepository pluginBindings,
+        IPluginBindingMutationService bindingMutations,
         ConfigChangeAuditLog auditLog,
         IDashboardInfoQueryService infoService,
         IConfigPersistenceService configPersistence,
         IConfigSnapshotScheduler snapshotScheduler,
         INotificationRepository notificationRepo,
-        LogSettingsService logSettingsService,
         DeploymentRestartState restartState,
-        IGatewayPolicyService policyService,
-        ILogger<GatewayToolExecutor> logger,
-        IWafSettingsPersistenceService? wafPersistence = null)
+        ILogger<GatewayToolExecutor> logger)
     {
         _dynamicConfig = dynamicConfig;
         _routeQuery = routeQuery;
@@ -73,18 +63,14 @@ public partial class GatewayToolExecutor
         _logRepo = logRepo;
         _circuitStore = circuitStore;
         _pluginManager = pluginManager;
-        _rateLimitOptions = rateLimitOptions.Value;
-        _retryOptions = retryOptions.Value;
-        _rateLimiterStore = rateLimiterStore;
+        _pluginBindings = pluginBindings;
+        _bindingMutations = bindingMutations;
         _auditLog = auditLog;
         _infoService = infoService;
         _configPersistence = configPersistence;
         _snapshotScheduler = snapshotScheduler;
         _notificationRepo = notificationRepo;
-        _logSettingsService = logSettingsService;
         _restartState = restartState;
-        _policyService = policyService;
-        _wafPersistence = wafPersistence;
         _logger = logger;
     }
 
@@ -106,11 +92,8 @@ public partial class GatewayToolExecutor
                 "get_proxy_logs" => ExecuteGetProxyLogs(args),
                 "get_health_summary" => ExecuteGetHealthSummary(),
                 "get_plugins" => ExecuteGetPlugins(),
-                "get_waf_settings" => ExecuteGetWafSettings(),
                 "search_logs" => await ExecuteSearchLogsAsync(args, ct),
                 "get_traffic_stats" => await ExecuteGetTrafficStatsAsync(args, ct),
-                "get_rate_limit_status" => ExecuteGetRateLimitStatus(),
-                "get_retry_config" => ExecuteGetRetryConfig(),
                 "get_audit_log" => ExecuteGetAuditLog(args),
                 "get_gateway_info" => ExecuteGetGatewayInfo(),
                 "get_deployment_info" => ExecuteGetDeploymentInfo(),
@@ -120,7 +103,6 @@ public partial class GatewayToolExecutor
                 "export_config" => await ExecuteExportConfigAsync(),
                 "get_config_history" => await ExecuteGetConfigHistoryAsync(),
                 "get_notification_summary" => await ExecuteGetNotificationSummaryAsync(ct),
-                "get_policies" => await ExecuteGetPoliciesAsync(),
 
                 // Write tools
                 "create_route" => await ExecuteCreateRouteAsync(args, ct),
@@ -131,17 +113,11 @@ public partial class GatewayToolExecutor
                 "create_circuit_breaker" => await ExecuteCreateCircuitBreakerAsync(args),
                 "reset_circuit_breaker" => ExecuteResetCircuitBreaker(args),
                 "toggle_plugin" => ExecuteTogglePlugin(args),
-                "update_waf_settings" => ExecuteUpdateWafSettings(args),
                 "rename_route" => await ExecuteRenameRouteAsync(args),
                 "rename_cluster" => await ExecuteRenameClusterAsync(args),
                 "clear_logs" => ExecuteClearLogs(),
                 "create_config_snapshot" => await ExecuteCreateConfigSnapshotAsync(args),
                 "rollback_config" => await ExecuteRollbackConfigAsync(args),
-                "create_cluster_policy" => await ExecuteCreateClusterPolicyAsync(args),
-                "apply_cluster_policy" => await ExecuteApplyClusterPolicyAsync(args),
-                "create_route_policy" => await ExecuteCreateRoutePolicyAsync(args),
-                "apply_route_policy" => await ExecuteApplyRoutePolicyAsync(args),
-                "delete_policy" => await ExecuteDeletePolicyAsync(args),
 
                 _ => throw new InvalidOperationException($"Unknown tool: {toolName}")
             };

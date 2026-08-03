@@ -1,8 +1,8 @@
 using Aneiang.Yarp.Dashboard.Infrastructure;
+using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
 using Aneiang.Yarp.Storage;
 using Aneiang.Yarp.Storage.Entities;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Threading.Channels;
@@ -23,26 +23,37 @@ namespace Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
 /// - WrittenCount: total entries successfully persisted
 /// - Implements IProxyLogPersistenceService for DI access to stats
 /// </remarks>
-public sealed class AsyncLogPersistenceService : IHostedService, IProxyLogPersistenceService
+public sealed class AsyncLogPersistenceService : IProxyLogPersistenceService, IPluginRuntimeResource
 {
     private readonly ProxyLogStore _logStore;
     private readonly SqliteProxyLogWriter _writer;
     private readonly ProxyLogRuntimeSettings _runtimeSettings;
+    private readonly IGatewayPluginManager _pluginManager;
     private readonly ILogger<AsyncLogPersistenceService> _logger;
     private long _writtenCount;
     private DateTime _lastCleanup = DateTime.Now;
     private CancellationTokenSource? _cts;
     private Task? _consumeTask;
+    private DateTimeOffset? _startedAt;
+    private DateTimeOffset? _stoppedAt;
+    private Exception? _lastError;
+    private long _failureCount;
+
+    public string PluginId => "proxy-log";
+    public string ResourceId => "proxy-log:channel-sqlite-writer";
+    public string ResourceType => "channel-writer";
 
     public AsyncLogPersistenceService(
         ProxyLogStore logStore,
         SqliteProxyLogWriter writer,
         ProxyLogRuntimeSettings runtimeSettings,
+        IGatewayPluginManager pluginManager,
         ILogger<AsyncLogPersistenceService> logger)
     {
         _logStore = logStore;
         _writer = writer;
         _runtimeSettings = runtimeSettings;
+        _pluginManager = pluginManager;
         _logger = logger;
     }
 
@@ -52,32 +63,50 @@ public sealed class AsyncLogPersistenceService : IHostedService, IProxyLogPersis
     /// <inheritdoc />
     public long WrittenCount => Volatile.Read(ref _writtenCount);
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public ValueTask StartResourceAsync(CancellationToken cancellationToken)
     {
+        if (_consumeTask is { IsCompleted: false }) return ValueTask.CompletedTask;
         var settings = _runtimeSettings.Current;
         _logger.LogInformation("AsyncLogPersistenceService starting: enabled={Enabled}, meta={MetaDays}d, body={BodyDays}d",
             settings.PersistenceEnabled, settings.MetaRetentionDays, settings.BodyRetentionDays);
-
-        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _consumeTask = Task.Run(() => ConsumeLoopAsync(_cts.Token), _cts.Token);
-        return Task.CompletedTask;
+        _lastError = null;
+        _startedAt = DateTimeOffset.UtcNow;
+        _cts = new CancellationTokenSource();
+        _consumeTask = Task.Run(() => ConsumeLoopAsync(_cts.Token), CancellationToken.None);
+        return ValueTask.CompletedTask;
     }
 
-    public async Task StopAsync(CancellationToken cancellationToken)
+    public async ValueTask StopResourceAsync(CancellationToken cancellationToken)
     {
-        _logStore.CompletePersistence();
-        if (_consumeTask != null)
+        if (_consumeTask is null) return;
+        _cts?.Cancel();
+        try { await _consumeTask.WaitAsync(cancellationToken); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { }
+        catch (Exception ex)
         {
-            try { await _consumeTask.WaitAsync(cancellationToken); }
-            catch (OperationCanceledException)
-            {
-                _cts?.Cancel();
-                try { await _consumeTask; } catch (OperationCanceledException) { }
-            }
-            catch (Exception ex) { _logger.LogWarning(ex, "AsyncLogPersistenceService consume task stopped with error"); }
+            _lastError = ex;
+            Interlocked.Increment(ref _failureCount);
+            _logger.LogWarning(ex, "AsyncLogPersistenceService consume task stopped with error");
         }
-        _logger.LogInformation("AsyncLogPersistenceService stopped. Written: {WrittenCount}, Dropped: {DroppedCount}",
-            WrittenCount, DroppedCount);
+        _cts?.Dispose();
+        _cts = null;
+        _consumeTask = null;
+        _stoppedAt = DateTimeOffset.UtcNow;
+        _logger.LogInformation("AsyncLogPersistenceService stopped. Written: {WrittenCount}, Dropped: {DroppedCount}", WrittenCount, DroppedCount);
+    }
+
+    public ValueTask<PluginRuntimeResourceSnapshot> CheckHealthAsync(CancellationToken cancellationToken = default)
+    {
+        var running = _consumeTask is { IsCompleted: false };
+        var health = _lastError is not null ? PluginResourceHealthStatus.Faulted :
+            running ? PluginResourceHealthStatus.Healthy : PluginResourceHealthStatus.Stopped;
+        return ValueTask.FromResult(new PluginRuntimeResourceSnapshot(ResourceId, ResourceType, running, health,
+            _startedAt, _stoppedAt, _lastError?.Message, new Dictionary<string, long>
+            {
+                ["writtenEntries"] = WrittenCount,
+                ["droppedEntries"] = DroppedCount,
+                ["failures"] = Interlocked.Read(ref _failureCount)
+            }));
     }
 
     private async Task ConsumeLoopAsync(CancellationToken ct)

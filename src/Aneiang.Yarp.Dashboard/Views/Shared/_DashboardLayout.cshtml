@@ -5,6 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - @((ViewBag.Locale as string) == "en-US" ? "Gateway Dashboard" : "网关维护仪表盘")</title>
+    <script>document.documentElement.classList.add('js');</script>
     <script>
         // Prevent bfcache - critical for single-page-like behavior
         window.addEventListener('pageshow', function(event) {
@@ -298,6 +299,10 @@
         .sidebar .nav-link:hover {
             color: #fff;
             background: rgba(255,255,255,0.04);
+        }
+
+        .js [data-plugin-requires]:not([data-plugin-resolved]) {
+            display: none !important;
         }
 
         .sidebar .nav-link:hover > i {
@@ -2973,8 +2978,6 @@
                 new {
                     Title = isEn ? "Security" : "安全策略",
                     Items = new[] {
-                        new { Key = "waf", Title = isEn ? "WAF Firewall" : "WAF 防火墙", Icon = "bi-shield-lock", Path = $"/{prefix}/waf", Badge = "", Conditional = false },
-                        new { Key = "policies", Title = isEn ? "Policies" : "策略管理", Icon = "bi-shield", Path = $"/{prefix}/policies", Badge = "", Conditional = false },
                         new { Key = "plugins", Title = isEn ? "Plugins" : "插件管理", Icon = "bi-puzzle", Path = $"/{prefix}/plugins", Badge = "", Conditional = false }
                     }
                 },
@@ -2998,9 +3001,6 @@
                 var isActiveGroup = false;
                 foreach (var item in group.Items)
                 {
-                    var conditionalProp = item.GetType().GetProperty("Conditional");
-                    var isConditional = conditionalProp != null && (bool)(conditionalProp.GetValue(item) ?? false);
-                    if (isConditional && ViewBag.EnableProxyLogging == false) continue;
                     visibleItems.Add(item);
                     if (currentPage == item.Key) { isActiveGroup = true; }
                 }
@@ -3018,7 +3018,10 @@
                                href="@item.Path"
                                data-page="@item.Key"
                                data-title="@item.Title"
-                               data-icon="@item.Icon">
+                               data-icon="@item.Icon"
+                               @if (item.Key == "logs") { <text>data-plugin-requires="proxy-log"</text> }
+                               @if (item.Key == "circuits") { <text>data-plugin-requires="circuit-breaker"</text> }
+                               @if (item.Key == "ai") { <text>data-plugin-requires="ai-assistant"</text> }>
                                 <i class="bi @item.Icon"></i>
                                 <span class="nav-content">
                                     <span class="nav-title">@item.Title</span>
@@ -3032,10 +3035,31 @@
                     </div>
                 </div>
             }
+
+            @{
+                var pluginNavItems = ViewBag.PluginNavItems as IReadOnlyList<Aneiang.Yarp.Dashboard.Infrastructure.Plugin.PluginNavItem>;
+            }
+            @if (pluginNavItems is { Count: > 0 })
+            {
+                <div class="nav-group">
+                    <div class="nav-group-title" data-i18n="layout.nav.plugins">插件</div>
+                    <div class="nav-items">
+                        @foreach (var navItem in pluginNavItems.OrderBy(i => i.SortOrder))
+                        {
+                            <a href="@ViewBag.DashboardRoutePrefix@(navItem.Url)" class="nav-item" data-page="@navItem.Id">
+                                @if (!string.IsNullOrEmpty(navItem.Icon))
+                                {
+                                    <i class="@navItem.Icon"></i>
+                                }
+                                <span data-i18n="@navItem.LabelKey">@navItem.LabelKey</span>
+                            </a>
+                        }
+                    </div>
+                </div>
+            }
         </div>
 
         <div class="sidebar-footer">
-            <!-- User Card -->
             <div class="user-card">
                 <div class="user-avatar">
                     <i class="bi bi-person-circle"></i>
@@ -3075,8 +3099,6 @@
                 {"circuits", pgIsEn ? "Circuit Breaker" : "熔断状态"},
                 {"notifications", pgIsEn ? "Notification Center" : "通知中心"},
                 {"healthcheck", pgIsEn ? "Health Check" : "健康检查"},
-                {"waf", pgIsEn ? "WAF Firewall" : "WAF 防火墙"},
-                {"policies", pgIsEn ? "Policy Management" : "策略管理"},
                 {"plugins", pgIsEn ? "Plugin Management" : "插件管理"},
                 {"history", pgIsEn ? "Configuration History" : "配置历史"},
                 {"audit", pgIsEn ? "Audit Log" : "审计日志"},
@@ -3094,8 +3116,6 @@
                 {"circuits", "bi-lightning-charge"},
                 {"notifications", "bi-bell"},
                 {"healthcheck", "bi-heart-pulse"},
-                {"waf", "bi-shield-lock"},
-                {"policies", "bi-sliders"},
                 {"plugins", "bi-puzzle"},
                 {"history", "bi-clock-history"},
                 {"audit", "bi-shield-check"},
@@ -3109,7 +3129,7 @@
             if (new[] { "clusters", "routes" }.Contains(pgName)) parentGroup = pgIsEn ? "Gateway" : "网关管理";
             if (pgName == "overview") parentGroup = "";
             if (new[] { "stats", "logs", "circuits", "notifications", "healthcheck" }.Contains(pgName)) parentGroup = pgIsEn ? "Monitoring" : "监控运维";
-            if (new[] { "waf", "policies", "plugins" }.Contains(pgName)) parentGroup = pgIsEn ? "Security" : "安全策略";
+            if (pgName == "plugins") parentGroup = pgIsEn ? "Security" : "安全策略";
             if (new[] { "history", "audit", "settings" }.Contains(pgName)) parentGroup = pgIsEn ? "System" : "系统管理";
 
             <div class="page-header">
@@ -3192,6 +3212,7 @@
         // Dashboard page config
         window.__dashboard = {
             routePrefix: '@ViewBag.DashboardRoutePrefix',
+            basePath: '/@ViewBag.DashboardRoutePrefix',
             currentPage: '@ViewBag.CurrentPage',
             locale: '@ViewBag.Locale',
             I18N: I18N,
@@ -3381,6 +3402,7 @@
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-storage.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-core.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-capabilities.js?v=@v"></script>
     <!-- 2. Performance Optimizations -->
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-performance.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-indexeddb.js?v=@v"></script>
@@ -3393,6 +3415,33 @@
 
     @await RenderSectionAsync("Scripts", required: false)
     <script>
+        (function () {
+            var contributions = Array.from(document.querySelectorAll('[data-plugin-requires]'));
+            if (!contributions.length) return;
+
+            fetch((window.__dashboard.basePath || '') + '/api/plugin-bindings/plugins', { headers: { 'Accept': 'application/json' } })
+                .then(function (response) {
+                    if (!response.ok) throw new Error('Plugin status request failed');
+                    return response.json();
+                })
+                .then(function (plugins) {
+                    var enabled = new Set((Array.isArray(plugins) ? plugins : [])
+                        .filter(function (plugin) { return plugin && plugin.enabled; })
+                        .map(function (plugin) { return String(plugin.id || '').toLowerCase(); }));
+
+                    contributions.forEach(function (element) {
+                        var required = String(element.dataset.pluginRequires || '').toLowerCase();
+                        element.dataset.pluginResolved = 'true';
+                        element.hidden = !enabled.has(required);
+                    });
+                })
+                .catch(function () {
+                    contributions.forEach(function (element) {
+                        element.dataset.pluginResolved = 'true';
+                    });
+                });
+        })();
+
         // Initialize global loading helpers once scripts are ready.
         if (window.DashboardLoading && window.DashboardLoading.initNetworkStatus) {
             window.DashboardLoading.initNetworkStatus();

@@ -48,8 +48,6 @@ public class GatewayToolRegistry
 
             R("get_plugins", "Get all installed plugins and their enabled/disabled status."),
 
-            R("get_waf_settings", "Get current WAF (Web Application Firewall) settings including enabled rules, IP lists, and size limits."),
-
             R("search_logs", "Search proxy logs with filters. Use this to find specific errors, requests by route, status codes, or keywords within a time range.",
                 new
                 {
@@ -63,10 +61,6 @@ public class GatewayToolRegistry
 
             R("get_traffic_stats", "Get traffic statistics: total requests, success/error rate, latency percentiles (P50/P90/P99), top error routes, and 5xx alert count.",
                 new { time_range_minutes = new { type = "integer", description = "Time range in minutes (default 60)." } }),
-
-            R("get_rate_limit_status", "Get current rate limiting configuration and runtime status (active limiter count)."),
-
-            R("get_retry_config", "Get current request retry configuration (enabled, max retries, backoff delay)."),
 
             R("get_audit_log", "Get recent configuration change audit log entries. Shows who changed what and when.",
                 new
@@ -97,8 +91,6 @@ public class GatewayToolRegistry
             R("get_config_history", "Get configuration change history: list of all configuration snapshots with version ID, timestamp, and description."),
 
             R("get_notification_summary", "Get notification system summary: channel count, rule count, enabled status, and recent notification history."),
-
-            R("get_policies", "Get all gateway policies: route policies (retry, rate-limit, WAF) and cluster policies (circuit breaker). Shows which routes/clusters each policy is applied to."),
 
             // ===================== WRITE TOOLS =====================
 
@@ -162,16 +154,6 @@ public class GatewayToolRegistry
                 },
                 req: new[] { "plugin_id", "enabled" }),
 
-            W("update_waf_settings", "Update WAF (Web Application Firewall) settings. Supports toggling rules, IP lists, and size limits.",
-                new
-                {
-                    enabled = new { type = "boolean", description = "Enable or disable WAF globally." },
-                    enable_sql_injection = new { type = "boolean", description = "Enable SQL injection detection." },
-                    enable_xss = new { type = "boolean", description = "Enable XSS detection." },
-                    enable_path_traversal = new { type = "boolean", description = "Enable path traversal detection." },
-                    ip_blacklist = new { type = "array", items = new { type = "string" }, description = "IP addresses to block." }
-                }),
-
             // ===================== EXTENDED WRITE TOOLS =====================
 
             W("rename_route", "Rename an existing route. Atomically updates the route ID and all references.",
@@ -197,62 +179,7 @@ public class GatewayToolRegistry
 
             W("rollback_config", "Rollback gateway configuration to a previous snapshot version. Use get_config_history first to find the version ID.",
                 new { version_id = new { type = "string", description = "The snapshot version ID to rollback to." } },
-                req: new[] { "version_id" }),
-
-            // ===================== POLICY TOOLS =====================
-
-            W("create_cluster_policy", "Create a cluster policy with circuit breaker settings and optionally apply it to clusters in one step. If cluster_ids is provided, the policy is created and applied to those clusters immediately.",
-                new
-                {
-                    name = new { type = "string", description = "Display name for the policy." },
-                    policy_id = new { type = "string", description = "Optional: custom policy ID. Auto-generated if omitted." },
-                    description = new { type = "string", description = "Optional description." },
-                    failure_threshold = new { type = "integer", description = "Consecutive failures before opening circuit. Default: 5." },
-                    recovery_timeout_seconds = new { type = "integer", description = "Seconds before recovery attempt. Default: 30." },
-                    half_open_max_attempts = new { type = "integer", description = "Max requests in half-open state. Default: 1." },
-                    failure_status_codes = new { type = "array", items = new { type = "integer" }, description = "Failure status codes. Default: [500,502,503,504]." },
-                    cluster_ids = new { type = "array", items = new { type = "string" }, description = "Optional: cluster IDs to apply this policy to immediately after creation." }
-                },
-                req: new[] { "name" }),
-
-            W("apply_cluster_policy", "Apply an existing cluster policy to a specific cluster. The policy's circuit breaker settings will be configured on the cluster.",
-                new
-                {
-                    policy_id = new { type = "string", description = "Cluster policy ID to apply." },
-                    cluster_id = new { type = "string", description = "Target cluster ID." }
-                },
-                req: new[] { "policy_id", "cluster_id" }),
-
-            W("create_route_policy", "Create a route policy with optional retry and rate-limit settings, and optionally apply it to routes in one step. If route_ids is provided, the policy is created and applied to those routes immediately.",
-                new
-                {
-                    name = new { type = "string", description = "Display name for the policy." },
-                    policy_id = new { type = "string", description = "Optional: custom policy ID. Auto-generated if omitted." },
-                    description = new { type = "string", description = "Optional description." },
-                    retry_enabled = new { type = "boolean", description = "Enable retry for this policy. Default: false." },
-                    max_retries = new { type = "integer", description = "Max retry attempts (when retry enabled). Default: 3." },
-                    rate_limit_enabled = new { type = "boolean", description = "Enable rate limiting for this policy. Default: false." },
-                    permit_limit = new { type = "integer", description = "Requests per window (when rate limit enabled). Default: 100." },
-                    window = new { type = "string", description = "Rate limit window duration. Default: '1m'." },
-                    route_ids = new { type = "array", items = new { type = "string" }, description = "Optional: route IDs to apply this policy to immediately after creation." }
-                },
-                req: new[] { "name" }),
-
-            W("apply_route_policy", "Apply an existing route policy to a specific route. The policy's retry/rate-limit/WAF settings will be configured via route metadata.",
-                new
-                {
-                    policy_id = new { type = "string", description = "Route policy ID to apply." },
-                    route_id = new { type = "string", description = "Target route ID." }
-                },
-                req: new[] { "policy_id", "route_id" }),
-
-            W("delete_policy", "Delete a gateway policy (route or cluster). Automatically unapplies from all targets before deletion.",
-                new
-                {
-                    policy_id = new { type = "string", description = "Policy ID to delete." },
-                    type = new { type = "string", description = "Policy type: 'route', 'cluster', or 'auto' (try both). Default: 'auto'.", @enum = new[] { "route", "cluster", "auto" } }
-                },
-                req: new[] { "policy_id" })
+                req: new[] { "version_id" })
         ];
     }
 }

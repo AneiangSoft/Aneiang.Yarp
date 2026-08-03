@@ -105,7 +105,7 @@
 
                 // Unwrap { code: 200, data: ... } response format
                 if (data && typeof data === 'object' && 'code' in data) {
-                    if (data.code === 200) {
+                    if (data.code >= 200 && data.code < 300) {
                         return data.data !== undefined ? data.data : data;
                     } else if (data.code === 401) {
                         this.handleAuthError();
@@ -270,14 +270,7 @@
         getCircuitBreakerStatus: () => DashboardApi.get('/api/circuit-breaker/status'),
         resetCircuitBreakers: () => DashboardApi.post('/api/circuit-breaker/reset', {}),
 
-        // Policies
-        getPolicies: (type) => DashboardApi.get('/api/policies/' + type),
-        getPolicy: (type, id) => DashboardApi.get('/api/policies/' + type + '/' + id),
-        createPolicy: (type, data) => DashboardApi.post('/api/policies/' + type, data),
-        updatePolicy: (type, id, data) => DashboardApi.put('/api/policies/' + type + '/' + id, data),
-        deletePolicy: (type, id) => DashboardApi.delete('/api/policies/' + type + '/' + id),
-        applyPolicy: (type, id, targetId) => DashboardApi.post('/api/policies/' + type + '/' + id + '/apply', { targetId: targetId }),
-        unapplyPolicy: (type, id, targetId) => DashboardApi.delete('/api/policies/' + type + '/' + id + '/apply', { targetId: targetId }),
+        // Route/cluster capability policies
         getRoutePoliciesForRoute: (routeId) => DashboardApi.get('/api/policies/routes/for-route/' + encodeURIComponent(routeId)),
         getClusterPoliciesForCluster: (clusterId) => DashboardApi.get('/api/policies/clusters/for-cluster/' + encodeURIComponent(clusterId)),
 
@@ -287,9 +280,6 @@
         togglePlugin: (id, enabled) => DashboardApi.post('/api/plugins/' + id + '/toggle', { enabled }),
         resetPlugins: () => DashboardApi.post('/api/plugins/reset'),
 
-        // WAF Settings
-        getWafSettings: () => DashboardApi.get('/api/config/waf'),
-        saveWafSettings: (data) => DashboardApi.put('/api/config/waf', data),
 
         // Health Check
         getHealthCheckStatus: () => DashboardApi.get('/api/health-check/status'),
@@ -343,13 +333,6 @@
     window.DashboardApi.getClusters = () => DashboardApi.endpoints.getClusters();
     window.DashboardApi.getCircuitBreakerStatus = () => DashboardApi.endpoints.getCircuitBreakerStatus();
     window.DashboardApi.resetCircuitBreakers = () => DashboardApi.endpoints.resetCircuitBreakers();
-    window.DashboardApi.getPolicies = (type) => DashboardApi.endpoints.getPolicies(type);
-    window.DashboardApi.getPolicy = (type, id) => DashboardApi.endpoints.getPolicy(type, id);
-    window.DashboardApi.createPolicy = (type, data) => DashboardApi.endpoints.createPolicy(type, data);
-    window.DashboardApi.updatePolicy = (type, id, data) => DashboardApi.endpoints.updatePolicy(type, id, data);
-    window.DashboardApi.deletePolicy = (type, id) => DashboardApi.endpoints.deletePolicy(type, id);
-    window.DashboardApi.applyPolicy = (type, id, targetId) => DashboardApi.endpoints.applyPolicy(type, id, targetId);
-    window.DashboardApi.unapplyPolicy = (type, id, targetId) => DashboardApi.endpoints.unapplyPolicy(type, id, targetId);
     window.DashboardApi.getPlugins = () => DashboardApi.endpoints.getPlugins();
     window.DashboardApi.getPlugin = (id) => DashboardApi.endpoints.getPlugin(id);
     window.DashboardApi.togglePlugin = (id, enabled) => DashboardApi.endpoints.togglePlugin(id, enabled);
@@ -357,9 +340,5 @@
 
     window.DashboardApi.getNotificationSettings = () => DashboardApi.endpoints.getNotificationSettings();
     window.DashboardApi.saveNotificationSettings = (data) => DashboardApi.endpoints.saveNotificationSettings(data);
-
-    window.DashboardApi.getLogSettings = () => DashboardApi.endpoints.getLogSettings();
-    window.DashboardApi.updateLogSettings = (data) => DashboardApi.endpoints.updateLogSettings(data);
-    window.DashboardApi.resetLogSettings = () => DashboardApi.endpoints.resetLogSettings();
 
 })();

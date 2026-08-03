@@ -4,6 +4,7 @@ using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Models;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
+using Aneiang.Yarp.Storage.Entities;
 using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
@@ -38,7 +39,7 @@ public interface IGatewayIdentityService
 /// </summary>
 public sealed class GatewayIdentityService : IGatewayIdentityService
 {
-    private readonly IPolicyRepository _policyRepository;
+    private readonly IPluginConfigurationRepository _pluginConfigurationRepository;
     private readonly IConfigPersistenceService _persistenceService;
     private readonly IDynamicYarpConfigService _dynamicConfig;
     private readonly ICircuitStateStore _circuitStore;
@@ -46,13 +47,13 @@ public sealed class GatewayIdentityService : IGatewayIdentityService
     private readonly SemaphoreSlim _renameLock = new(1, 1);
 
     public GatewayIdentityService(
-        IPolicyRepository policyRepository,
+        IPluginConfigurationRepository pluginConfigurationRepository,
         IConfigPersistenceService persistenceService,
         IDynamicYarpConfigService dynamicConfig,
         ICircuitStateStore circuitStore,
         ILogger<GatewayIdentityService> logger)
     {
-        _policyRepository = policyRepository;
+        _pluginConfigurationRepository = pluginConfigurationRepository;
         _persistenceService = persistenceService;
         _dynamicConfig = dynamicConfig;
         _circuitStore = circuitStore;
@@ -145,40 +146,32 @@ public sealed class GatewayIdentityService : IGatewayIdentityService
 
     public async Task AfterClusterRenamedAsync(string oldClusterId, string newClusterId, CancellationToken ct = default)
     {
-        var changed = await RewritePolicyTargetsAsync("cluster", oldClusterId, newClusterId, ct);
+        var changed = await RewritePluginBindingsAsync(PluginBindingScope.Cluster, oldClusterId, newClusterId, ct);
         _circuitStore.RenameClusterKey(oldClusterId, newClusterId);
         _logger.LogInformation(
-            "Cluster identity renamed: {OldClusterId} -> {NewClusterId}; updated {PolicyCount} policy binding(s)",
+            "Cluster identity renamed: {OldClusterId} -> {NewClusterId}; updated {BindingCount} plugin binding(s)",
             oldClusterId, newClusterId, changed);
     }
 
     public async Task AfterRouteRenamedAsync(string oldRouteId, string newRouteId, CancellationToken ct = default)
     {
-        var changed = await RewritePolicyTargetsAsync("route", oldRouteId, newRouteId, ct);
+        var changed = await RewritePluginBindingsAsync(PluginBindingScope.Route, oldRouteId, newRouteId, ct);
         _logger.LogInformation(
-            "Route identity renamed: {OldRouteId} -> {NewRouteId}; updated {PolicyCount} policy binding(s)",
+            "Route identity renamed: {OldRouteId} -> {NewRouteId}; updated {BindingCount} plugin binding(s)",
             oldRouteId, newRouteId, changed);
     }
 
-    private async Task<int> RewritePolicyTargetsAsync(string policyType, string oldTargetId, string newTargetId, CancellationToken ct)
+    private async Task<int> RewritePluginBindingsAsync(PluginBindingScope scope, string oldScopeId, string newScopeId, CancellationToken ct)
     {
-        var changedCount = 0;
-        var policies = await _policyRepository.GetAllPoliciesAsync(ct);
-        foreach (var policy in policies.Where(p => string.Equals(p.PolicyType, policyType, StringComparison.OrdinalIgnoreCase)))
+        var bindings = await _pluginConfigurationRepository.GetBindingsAsync(scope, oldScopeId, ct);
+        foreach (var binding in bindings)
         {
-            var changed = false;
-            var targetRows = await _policyRepository.GetPolicyTargetsAsync(policy.PolicyId, policyType, ct);
-            foreach (var targetRow in targetRows.Where(t => string.Equals(t.TargetKeySnapshot, oldTargetId, StringComparison.OrdinalIgnoreCase)))
-            {
-                targetRow.TargetKeySnapshot = newTargetId;
-                await _policyRepository.SavePolicyTargetAsync(targetRow, ct);
-                changed = true;
-            }
-
-            if (changed) changedCount++;
+            binding.ScopeId = newScopeId;
+            binding.ConfigVersion++;
+            await _pluginConfigurationRepository.UpsertBindingAsync(binding, ct);
         }
 
-        return changedCount;
+        return bindings.Count;
     }
 
     private async Task TryRollbackRenameAsync(ConfigSnapshot? snapshot, string? clientIp, CancellationToken ct)

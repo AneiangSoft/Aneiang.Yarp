@@ -168,18 +168,12 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
             var dynRoute = config.Routes.FirstOrDefault(r =>
                 string.Equals(r.Config.RouteId, route.RouteId, StringComparison.OrdinalIgnoreCase));
 
-            var preservedMetadata = dynRoute?.Metadata ?? new Dictionary<string, string>();
-            var effectiveRoute = route with
-            {
-                Metadata = DynamicYarpConfigHelpers.MergeRouteMetadata(route.Metadata, preservedMetadata)
-            };
-
             bool isNew;
             if (dynRoute == null)
             {
                 dynRoute = new DynamicRouteConfig
                 {
-                    Config = effectiveRoute,
+                    Config = route,
                     ClusterUid = State.ResolveClusterUid(route.ClusterId),
                     Source = source,
                     CreatedAt = DateTime.Now,
@@ -190,7 +184,7 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
             }
             else
             {
-                dynRoute.Config = effectiveRoute;
+                dynRoute.Config = route;
                 dynRoute.ClusterUid = State.ResolveClusterUid(route.ClusterId);
                 if (!string.IsNullOrEmpty(source) && source != dynRoute.Source)
                 {
@@ -382,8 +376,7 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
                 ClusterUid = State.ResolveClusterUid(request.ClusterName ?? newConfig.ClusterId),
                 Source = source,
                 CreatedAt = dynRoute.CreatedAt,
-                CreatedBy = createdBy,
-                Metadata = new Dictionary<string, string>(dynRoute.Metadata)
+                CreatedBy = createdBy
             };
             config.Routes.RemoveAll(r =>
                 string.Equals(r.Config.RouteId, oldRouteId, StringComparison.OrdinalIgnoreCase));
@@ -397,44 +390,6 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
                 new { newRouteId, clusterId = request.ClusterName, matchPath = request.MatchPath, action = "rename" });
             return Task.FromResult(new RouteOperationResult(true,
                 $"Route '{oldRouteId}' renamed to '{newRouteId}'"));
-        });
-    }
-
-    #endregion
-
-    #region UpdateRouteMetadataAsync
-
-    /// <summary>
-    /// Updates the route metadata async.
-    /// </summary>
-    /// <param name="routeId">The route id.</param>
-    /// <param name="metadata">The metadata.</param>
-    /// <returns>A Task.</returns>
-    public async Task<bool> UpdateRouteMetadataAsync(string routeId, Dictionary<string, string> metadata)
-    {
-        if (string.IsNullOrWhiteSpace(routeId) || metadata.Count == 0)
-            return false;
-
-        return await ExecuteMetadataWithLockAsync("UpdateRouteMetadata", routeId, config =>
-        {
-            var route = config.Routes.FirstOrDefault(r =>
-                (r.Config.RouteId ?? string.Empty).Equals(routeId, StringComparison.OrdinalIgnoreCase));
-
-            if (route == null)
-            {
-                _logger.LogWarning("UpdateRouteMetadata: route '{RouteId}' not found", routeId);
-                return Task.FromResult(false);
-            }
-
-            foreach (var kvp in metadata)
-            {
-                route.Metadata[kvp.Key] = kvp.Value;
-            }
-
-            _logger.LogDebug(
-                "Updated metadata for route '{RouteId}': {Keys}",
-                routeId, string.Join(", ", metadata.Keys));
-            return Task.FromResult(true);
         });
     }
 

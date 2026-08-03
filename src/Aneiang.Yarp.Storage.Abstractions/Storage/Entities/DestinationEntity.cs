@@ -7,6 +7,7 @@ public class DestinationEntity
     public string ClusterId { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
     public string? Host { get; set; }
+    public string? Health { get; set; }
     public bool Healthy { get; set; } = true;
     public string? Metadata { get; set; } // JSON
 }

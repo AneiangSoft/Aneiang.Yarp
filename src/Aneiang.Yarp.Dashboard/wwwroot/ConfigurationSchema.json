@@ -9,11 +9,6 @@
           "type": "object",
           "description": "Dashboard UI and logging configuration.",
           "properties": {
-            "EnableProxyLogging": {
-              "type": "boolean",
-              "description": "Enable or disable proxy request/response logging. Default: true.",
-              "default": true
-            },
             "RoutePrefix": {
               "type": "string",
               "description": "Route prefix for all dashboard pages. Default: 'apigateway'.",
@@ -67,16 +62,6 @@
               "type": "boolean",
               "description": "Only log error requests (status code >= 400). Default: false.",
               "default": false
-            },
-            "LogRouteWhitelist": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Whitelist of route IDs to log. If empty, all routes are considered."
-            },
-            "LogRouteBlacklist": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Blacklist of route IDs to exclude from logging."
             },
             "LogMaxBodyLength": {
               "type": "integer",

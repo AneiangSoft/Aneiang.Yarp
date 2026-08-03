@@ -4,7 +4,7 @@ namespace Aneiang.Yarp.Models;
 
 /// <summary>
 /// Dynamic cluster configuration: holds the complete native YARP <see cref="ClusterConfig"/>
-/// plus extension metadata that YARP itself does not track (UID, source, heartbeat, circuit breaker).
+/// plus extension metadata that YARP itself does not track (UID, source and heartbeat).
 /// The native config is the single source of truth for all YARP fields.
 /// </summary>
 public sealed class DynamicClusterConfig
@@ -35,7 +35,4 @@ public sealed class DynamicClusterConfig
 
     /// <summary>Last heartbeat time from registered services. Used for stale detection.</summary>
     public DateTime? LastHeartbeat { get; set; }
-
-    /// <summary>Circuit breaker configuration at cluster level.</summary>
-    public CircuitBreakerConfig? CircuitBreaker { get; set; }
 }
