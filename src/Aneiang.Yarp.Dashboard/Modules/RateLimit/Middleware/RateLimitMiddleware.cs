@@ -1,5 +1,5 @@
-using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -12,24 +12,20 @@ using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
 using Aneiang.Yarp.Infrastructure;
 using System.Threading.RateLimiting;
-using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Model;
 
 namespace Aneiang.Yarp.Dashboard.Modules.RateLimit.Middleware;
 
 /// <summary>
 /// Route-level rate limiting middleware.
-/// Reads RateLimit:* metadata from the matched route and enforces per-partition rate limits.
-/// Falls back to global DashboardOptions.RateLimit when no route-level metadata is configured.
+/// Reads the enabled rate-limit binding from the current gateway snapshot and enforces per-partition limits.
 /// </summary>
 public sealed class RateLimitMiddleware : GatewayMiddlewareBase
 {
     private readonly ILogger<RateLimitMiddleware> _logger;
-    private readonly RateLimitOptions _globalOptions;
     private readonly INotificationService _notificationService;
-    private readonly IDynamicYarpConfigService? _yarpConfig;
+    private readonly GatewayPluginExecutionPlanProvider _executionPlans;
     private readonly IRateLimiterStore _limiterStore;
-    private readonly ConditionalWeakTable<RouteConfig, CachedRouteConfig> _routeConfigs = new();
 
     private const int MaxLimiterCount = 2000;
     private static readonly TimeSpan DefaultCleanupInterval = TimeSpan.FromMinutes(5);
@@ -39,54 +35,45 @@ public sealed class RateLimitMiddleware : GatewayMiddlewareBase
     public RateLimitMiddleware(
         RequestDelegate next,
         ILogger<RateLimitMiddleware> logger,
-        IOptions<RateLimitOptions> options,
         IOptions<DashboardOptions> dashOptions,
         IGatewayPluginManager pluginManager,
         IRateLimiterStore limiterStore,
+        GatewayPluginExecutionPlanProvider executionPlans,
         INotificationService? notificationService = null,
         IDynamicYarpConfigService? yarpConfig = null)
         : base(next, dashOptions, pluginManager, yarpConfig)
     {
         _logger = logger;
-        _globalOptions = options.Value;
         _notificationService = notificationService ?? NullNotificationService.Instance;
-        _yarpConfig = yarpConfig;
+        _executionPlans = executionPlans;
         _limiterStore = limiterStore;
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (!IsPluginEnabled("rate-limit"))
-        {
-            await Next(context);
-            return;
-        }
-
         if (IsDashboardRequest(context))
         {
             await Next(context);
             return;
         }
 
-        var proxyFeature = context.Features.Get<IReverseProxyFeature>();
-        var routeConfig = proxyFeature?.Route?.Config;
-        var cached = routeConfig == null ? CreateGlobalConfig() : _routeConfigs.GetValue(routeConfig, CreateRouteConfig);
-        var config = cached.Config;
-        var routeId = cached.RouteId;
-        var routeKey = routeConfig?.RouteId;
-        var routeScopeId = cached.RouteScopeId;
-
-        if (!config.Enabled)
+        var routeId = context.Features.Get<IReverseProxyFeature>()?.Route?.Config?.RouteId;
+        if (string.IsNullOrWhiteSpace(routeId) ||
+            !TryGetBindingConfig(routeId, out var routeUid, out var config))
         {
             await Next(context);
             return;
         }
 
+        var routeKey = routeId;
+        var routeScopeId = routeUid;
+
         var partitionValue = GetPartitionValue(context, config.PartitionKey);
 
+        var configFingerprint = $"{config.Algorithm}:{config.PermitLimit}:{config.Window}:{config.QueueLimit}:{config.SegmentsPerWindow}:{config.TokenLimit}:{config.TokensPerPeriod}:{config.ReplenishmentPeriod}";
         var limiterKey = string.IsNullOrEmpty(routeScopeId)
-            ? $"global:{partitionValue}"
-            : $"{routeScopeId}:{partitionValue}";
+            ? $"global:{partitionValue}:{configFingerprint}"
+            : $"{routeScopeId}:{partitionValue}:{configFingerprint}";
 
         var limiter = GetOrCreateLimiter(limiterKey, config);
 
@@ -120,84 +107,32 @@ public sealed class RateLimitMiddleware : GatewayMiddlewareBase
         await Next(context);
     }
 
-    private CachedRouteConfig CreateGlobalConfig() =>
-        new(FromGlobalOptions(), null, null);
-
-    private CachedRouteConfig CreateRouteConfig(RouteConfig routeConfig)
+    private bool TryGetBindingConfig(
+        string routeId,
+        out string routeUid,
+        out RouteRateLimitConfig config)
     {
-        var config = ResolveConfig(routeConfig.Metadata, out var metadataRouteId);
-        var routeKey = routeConfig.RouteId ?? metadataRouteId;
-        return new CachedRouteConfig(config, metadataRouteId, ResolveRouteScopeId(routeKey));
-    }
+        routeUid = string.Empty;
+        config = null!;
 
-    private RouteRateLimitConfig ResolveConfig(IReadOnlyDictionary<string, string>? routeMeta, out string? routeId)
-    {
-        routeId = null;
+        if (!_executionPlans.Current.RateLimitByRoute.TryGetValue(routeId, out var compiled) || !compiled.Enabled)
+            return false;
 
-        if (routeMeta == null)
-            return FromGlobalOptions();
-
-        if (routeMeta.TryGetValue("Policy:Id", out var policyId))
-            routeId = policyId;
-        if (routeMeta.TryGetValue("RouteId", out var rid))
-            routeId = rid;
-
-        if (!routeMeta.TryGetValue("RateLimit:Enabled", out var enabledStr) ||
-            !bool.TryParse(enabledStr, out var routeEnabled))
-        {
-            return FromGlobalOptions();
-        }
-
-        if (!routeEnabled)
-        {
-            return new RouteRateLimitConfig { Enabled = false };
-        }
-
-        var algorithm = routeMeta.TryGetValue("RateLimit:Algorithm", out var algStr)
-            ? ParseAlgorithm(algStr)
-            : _globalOptions.Algorithm;
-
-        var permitLimit = routeMeta.TryGetValue("RateLimit:PermitLimit", out var plStr) &&
-                          int.TryParse(plStr, out var pl)
-            ? pl
-            : _globalOptions.PermitLimit;
-
-        var window = routeMeta.TryGetValue("RateLimit:Window", out var winStr)
-            ? winStr
-            : _globalOptions.Window;
-
-        var queueLimit = routeMeta.TryGetValue("RateLimit:QueueLimit", out var qlStr) &&
-                         int.TryParse(qlStr, out var ql)
-            ? ql
-            : _globalOptions.QueueLimit;
-
-        var partitionKey = routeMeta.TryGetValue("RateLimit:PartitionKey", out var pkStr) &&
-                           !string.IsNullOrWhiteSpace(pkStr)
-            ? pkStr
-            : _globalOptions.PartitionKey;
-
-        return new RouteRateLimitConfig
+        routeUid = compiled.RouteUid;
+        config = new RouteRateLimitConfig
         {
             Enabled = true,
-            Algorithm = algorithm,
-            PermitLimit = permitLimit,
-            Window = window,
-            QueueLimit = queueLimit,
-            PartitionKey = partitionKey
+            Algorithm = compiled.Algorithm,
+            PermitLimit = compiled.PermitLimit,
+            Window = compiled.Window,
+            QueueLimit = compiled.QueueLimit,
+            PartitionKey = compiled.PartitionKey,
+            SegmentsPerWindow = compiled.SegmentsPerWindow,
+            TokenLimit = compiled.TokenLimit,
+            TokensPerPeriod = compiled.TokensPerPeriod,
+            ReplenishmentPeriod = compiled.ReplenishmentPeriod
         };
-    }
-
-    private RouteRateLimitConfig FromGlobalOptions()
-    {
-        return new RouteRateLimitConfig
-        {
-            Enabled = _globalOptions.Enabled,
-            Algorithm = _globalOptions.Algorithm,
-            PermitLimit = _globalOptions.PermitLimit,
-            Window = _globalOptions.Window,
-            QueueLimit = _globalOptions.QueueLimit,
-            PartitionKey = _globalOptions.PartitionKey
-        };
+        return true;
     }
 
     private RateLimiter GetOrCreateLimiter(string key, RouteRateLimitConfig config)
@@ -213,26 +148,25 @@ public sealed class RateLimitMiddleware : GatewayMiddlewareBase
     {
         var window = ParseTimeSpan(config.Window);
 
-        // QueueLimit is forced to 0: rate-limited requests must be rejected immediately
-        // (HTTP 429) rather than queued, which would cause the client to hang indefinitely.
+        var queueLimit = Math.Max(0, config.QueueLimit);
         return config.Algorithm switch
         {
             RateLimitAlgorithm.SlidingWindow => new SlidingWindowRateLimiter(new SlidingWindowRateLimiterOptions
             {
                 PermitLimit = Math.Max(1, config.PermitLimit),
                 Window = window,
-                SegmentsPerWindow = Math.Max(2, Math.Min(20, config.PermitLimit / 2)),
+                SegmentsPerWindow = Math.Clamp(config.SegmentsPerWindow, 2, 100),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0
+                QueueLimit = queueLimit
             }),
 
             RateLimitAlgorithm.TokenBucket => new TokenBucketRateLimiter(new TokenBucketRateLimiterOptions
             {
-                TokenLimit = Math.Max(1, config.PermitLimit),
-                TokensPerPeriod = Math.Max(1, config.PermitLimit / Math.Max(1, (int)window.TotalSeconds)),
-                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                TokenLimit = Math.Max(1, config.TokenLimit),
+                TokensPerPeriod = Math.Max(1, config.TokensPerPeriod),
+                ReplenishmentPeriod = ParseTimeSpan(config.ReplenishmentPeriod),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0,
+                QueueLimit = queueLimit,
                 AutoReplenishment = true
             }),
 
@@ -240,7 +174,7 @@ public sealed class RateLimitMiddleware : GatewayMiddlewareBase
             {
                 PermitLimit = Math.Max(1, config.PermitLimit),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0
+                QueueLimit = queueLimit
             }),
 
             _ => new FixedWindowRateLimiter(new FixedWindowRateLimiterOptions
@@ -248,7 +182,7 @@ public sealed class RateLimitMiddleware : GatewayMiddlewareBase
                 PermitLimit = Math.Max(1, config.PermitLimit),
                 Window = window,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0
+                QueueLimit = queueLimit
             })
         };
     }
@@ -261,16 +195,6 @@ public sealed class RateLimitMiddleware : GatewayMiddlewareBase
 
         Interlocked.Exchange(ref _lastCleanupTicks, DateTime.Now.Ticks);
         _limiterStore.Cleanup(StaleLimiterThreshold, MaxLimiterCount);
-    }
-
-    private string? ResolveRouteScopeId(string? routeKey)
-    {
-        if (string.IsNullOrWhiteSpace(routeKey)) return null;
-
-        var routeUid = _yarpConfig?.GetDynamicConfig()?.Routes.FirstOrDefault(r =>
-            string.Equals(r.Config.RouteId, routeKey, StringComparison.OrdinalIgnoreCase))?.RouteUid;
-
-        return string.IsNullOrWhiteSpace(routeUid) ? StableUid.FromKey("route", routeKey) : routeUid;
     }
 
     private static string GetPartitionValue(HttpContext context, string partitionKey)
@@ -318,20 +242,11 @@ public sealed class RateLimitMiddleware : GatewayMiddlewareBase
         };
     }
 
-    private static RateLimitAlgorithm ParseAlgorithm(string value)
-    {
-        return Enum.TryParse<RateLimitAlgorithm>(value, true, out var alg)
-            ? alg
-            : RateLimitAlgorithm.FixedWindow;
-    }
-
     private static int GetRetryAfterSeconds(RouteRateLimitConfig config)
     {
         var window = ParseTimeSpan(config.Window);
         return Math.Max(1, (int)Math.Ceiling(window.TotalSeconds));
     }
-
-    private sealed record CachedRouteConfig(RouteRateLimitConfig Config, string? RouteId, string? RouteScopeId);
 
     private sealed class RouteRateLimitConfig
     {
@@ -341,5 +256,9 @@ public sealed class RateLimitMiddleware : GatewayMiddlewareBase
         public string Window { get; set; } = "1m";
         public int QueueLimit { get; set; } = 0;
         public string PartitionKey { get; set; } = "IpAddress";
+        public int SegmentsPerWindow { get; set; } = 4;
+        public int TokenLimit { get; set; } = 100;
+        public int TokensPerPeriod { get; set; } = 100;
+        public string ReplenishmentPeriod { get; set; } = "1s";
     }
 }

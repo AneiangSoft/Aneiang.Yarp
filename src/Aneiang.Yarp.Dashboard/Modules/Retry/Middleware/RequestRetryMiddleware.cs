@@ -5,8 +5,9 @@ using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Middleware;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Infrastructure.State;
+using Aneiang.Yarp.Dashboard.Infrastructure.Resilience;
 using System.Buffers;
-using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
 using Aneiang.Yarp.Services;
 using Microsoft.IO;
@@ -29,12 +30,11 @@ namespace Aneiang.Yarp.Dashboard.Modules.Retry.Middleware;
 public sealed class RequestRetryMiddleware : GatewayMiddlewareBase
 {
     private readonly ILogger<RequestRetryMiddleware> _logger;
-    private readonly RetryOptions _options;
-    private readonly ConditionalWeakTable<RouteConfig, ParsedRetryConfig> _routeConfigs = new();
+    private readonly GatewayPluginExecutionPlanProvider _executionPlans;
     private readonly IDynamicYarpConfigService? _yarpConfig;
     private readonly RecyclableMemoryStreamManager _memoryStreamManager;
     private readonly ICircuitStateStore _circuitStore;
-
+    private readonly IDestinationCandidateCoordinator _destinationCoordinator;
 
     private static readonly HashSet<string> NonIdempotentMethods = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -44,30 +44,26 @@ public sealed class RequestRetryMiddleware : GatewayMiddlewareBase
     public RequestRetryMiddleware(
         RequestDelegate next,
         ILogger<RequestRetryMiddleware> logger,
-        IOptions<RetryOptions> options,
         IOptions<DashboardOptions> dashOptions,
         IGatewayPluginManager pluginManager,
         RecyclableMemoryStreamManager memoryStreamManager,
         ICircuitStateStore circuitStore,
+        IDestinationCandidateCoordinator destinationCoordinator,
+        GatewayPluginExecutionPlanProvider executionPlans,
         IDynamicYarpConfigService? yarpConfig = null)
         : base(next, dashOptions, pluginManager, yarpConfig)
     {
         _logger = logger;
-        _options = options.Value;
         _memoryStreamManager = memoryStreamManager;
         _circuitStore = circuitStore;
+        _destinationCoordinator = destinationCoordinator;
+        _executionPlans = executionPlans;
         _yarpConfig = yarpConfig;
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
         if (IsDashboardRequest(context))
-        {
-            await Next(context);
-            return;
-        }
-
-        if (!IsPluginEnabled("request-retry"))
         {
             await Next(context);
             return;
@@ -83,8 +79,7 @@ public sealed class RequestRetryMiddleware : GatewayMiddlewareBase
             return;
         }
 
-        var retryConfig = _routeConfigs.GetValue(routeConfig, ParseRetryConfig);
-        if (!retryConfig.Enabled)
+        if (!TryParseRetryConfig(routeConfig.RouteId, out var retryConfig))
         {
             await Next(context);
             return;
@@ -115,12 +110,15 @@ public sealed class RequestRetryMiddleware : GatewayMiddlewareBase
         {
             while (attempt <= retryConfig.MaxRetries)
             {
-                // Check circuit breaker before retry
-                if (attempt > 0 && !string.IsNullOrEmpty(clusterId))
+                if (proxyFeature is not null)
                 {
-                    if (_circuitStore.IsCircuitOpen(clusterId, clusterUid: ResolveClusterUid(clusterId)))
+                    var candidates = await _destinationCoordinator.ApplyAsync(
+                        context,
+                        excludeAttempted: attempt > 0 && retryConfig.UseDifferentDestination,
+                        context.RequestAborted);
+                    if (candidates.Count == 0)
                     {
-                        _logger.LogDebug("Circuit breaker is open, skipping retry");
+                        _logger.LogDebug("No healthy, closed, untried destination is available for retry");
                         break;
                     }
                 }
@@ -137,22 +135,45 @@ public sealed class RequestRetryMiddleware : GatewayMiddlewareBase
                 using var responseStream = _memoryStreamManager.GetStream("RequestRetry-ResponseBody");
                 context.Response.Body = responseStream;
 
+                Exception? attemptException = null;
+                using var attemptTimeout = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+                attemptTimeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(retryConfig.TimeoutSeconds, 1, 300)));
+                var originalRequestAborted = context.RequestAborted;
+                context.RequestAborted = attemptTimeout.Token;
                 try
                 {
                     await Next(context);
                 }
-                catch
+                catch (Exception ex) when (retryConfig.RetryOnExceptions &&
+                                           attempt < retryConfig.MaxRetries &&
+                                           !originalRequestAborted.IsCancellationRequested)
                 {
-                    context.Response.Body = originalResponseBody;
-                    activeOriginalResponseBody = null;
-                    throw;
+                    attemptException = ex;
+                }
+                finally
+                {
+                    context.RequestAborted = originalRequestAborted;
                 }
 
                 responseStream.Seek(0, SeekOrigin.Begin);
 
-                lastStatusCode = context.Response.StatusCode;
+                lastStatusCode = attemptException is null ? context.Response.StatusCode : null;
+                var attemptedDestination = proxyFeature?.ProxiedDestination;
+                _destinationCoordinator.MarkAttempted(context, attemptedDestination);
+                if (attemptedDestination is not null && !string.IsNullOrEmpty(clusterId) &&
+                    _executionPlans.Current.CircuitBreakerByCluster.TryGetValue(clusterId, out var circuitConfig) &&
+                    circuitConfig.Enabled)
+                {
+                    _circuitStore.RecordOutcome(
+                        clusterId,
+                        attemptedDestination.DestinationId,
+                        attemptException is not null || retryConfig.StatusCodes.Contains(context.Response.StatusCode),
+                        config: circuitConfig);
+                }
 
-                if (attempt < retryConfig.MaxRetries && retryConfig.StatusCodes.Contains(context.Response.StatusCode))
+                var shouldRetry = attempt < retryConfig.MaxRetries &&
+                                  (attemptException is not null || retryConfig.StatusCodes.Contains(context.Response.StatusCode));
+                if (shouldRetry)
                 {
                     attempt++;
                     var baseDelay = retryConfig.BackoffBaseMs * (1 << (attempt - 1));
@@ -282,53 +303,40 @@ public sealed class RequestRetryMiddleware : GatewayMiddlewareBase
         }
     }
 
-    private ParsedRetryConfig ParseRetryConfig(RouteConfig routeConfig)
+    private bool TryParseRetryConfig(string routeId, out ParsedRetryConfig config)
     {
-        var metadata = routeConfig.Metadata;
-        var enabled = GetBoolean(metadata, "Retry:Enabled", false);
-        var maxRetries = Math.Clamp(GetInt32(metadata, "Retry:MaxRetries", _options.DefaultMaxRetries), 0, 5);
-        var backoffBaseMs = Math.Max(0, GetInt32(metadata, "Retry:BackoffBaseMs", _options.BackoffBaseMs));
-        var jitterMs = Math.Max(0, GetInt32(metadata, "Retry:BackoffJitterMs", _options.BackoffJitterMs));
-        var statusCodes = ParseStatusCodes(metadata);
-        return new ParsedRetryConfig(
-            enabled,
-            maxRetries,
-            backoffBaseMs,
-            jitterMs,
-            GetBoolean(metadata, "Retry:UseDifferentDestination", _options.UseDifferentDestination),
-            GetBoolean(metadata, "Retry:RetryNonIdempotent", _options.RetryNonIdempotent),
+        config = null!;
+        if (!_executionPlans.Current.RetryByRoute.TryGetValue(routeId, out var configured) || !configured.Enabled)
+            return false;
+
+        const int retryCapacity = 5;
+        var delayCapacity = Math.Max(0, configured.BackoffBaseMs);
+        var jitterCapacity = Math.Max(0, configured.BackoffJitterMs);
+        var statusCodes = configured.RetryOnStatusCodes
+            .Where(code => code is >= 100 and <= 599)
+            .ToHashSet();
+        if (statusCodes.Count == 0) return false;
+
+        config = new ParsedRetryConfig(
+            true,
+            Math.Clamp(configured.MaxRetries, 0, retryCapacity),
+            Math.Clamp(configured.BackoffBaseMs, 0, delayCapacity),
+            Math.Clamp(configured.BackoffJitterMs, 0, jitterCapacity),
+            Math.Clamp(configured.TimeoutSeconds, 1, 300),
+            configured.RetryOnExceptions,
+            configured.UseDifferentDestination,
+            configured.RetryNonIdempotent,
             statusCodes);
+        return true;
     }
-
-    private HashSet<int> ParseStatusCodes(IReadOnlyDictionary<string, string>? metadata)
-    {
-        var value = metadata != null && metadata.TryGetValue("Retry:RetryOnStatusCodes", out var configured)
-            ? configured
-            : string.Join(',', _options.DefaultRetryStatusCodes);
-        var result = new HashSet<int>();
-        foreach (var code in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            if (int.TryParse(code, out var parsed))
-                result.Add(parsed);
-        }
-        return result.Count > 0 ? result : [502, 503, 504];
-    }
-
-    private static bool GetBoolean(IReadOnlyDictionary<string, string>? metadata, string key, bool fallback) =>
-        metadata != null && metadata.TryGetValue(key, out var value) && bool.TryParse(value, out var parsed)
-            ? parsed
-            : fallback;
-
-    private static int GetInt32(IReadOnlyDictionary<string, string>? metadata, string key, int fallback) =>
-        metadata != null && metadata.TryGetValue(key, out var value) && int.TryParse(value, out var parsed)
-            ? parsed
-            : fallback;
 
     private sealed record ParsedRetryConfig(
         bool Enabled,
         int MaxRetries,
         int BackoffBaseMs,
         int JitterMs,
+        int TimeoutSeconds,
+        bool RetryOnExceptions,
         bool UseDifferentDestination,
         bool RetryNonIdempotent,
         HashSet<int> StatusCodes);

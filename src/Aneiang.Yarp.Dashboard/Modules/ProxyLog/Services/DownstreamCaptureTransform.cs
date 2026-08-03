@@ -1,5 +1,4 @@
-using Aneiang.Yarp.Dashboard.Infrastructure;
-using Microsoft.Extensions.Options;
+using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Yarp.ReverseProxy.Transforms;
 using Yarp.ReverseProxy.Transforms.Builder;
 
@@ -25,17 +24,25 @@ internal sealed class DownstreamCaptureTransform : RequestTransform
 /// </summary>
 internal sealed class DownstreamCaptureTransformProvider : ITransformProvider
 {
-    private readonly IOptions<DashboardOptions> _options;
+    private readonly GatewayPluginExecutionPlanProvider _executionPlans;
+    private readonly ProxyLogRuntimeSettings _runtimeSettings;
 
-    public DownstreamCaptureTransformProvider(IOptions<DashboardOptions> options)
+    public DownstreamCaptureTransformProvider(
+        GatewayPluginExecutionPlanProvider executionPlans,
+        ProxyLogRuntimeSettings runtimeSettings)
     {
-        _options = options;
+        _executionPlans = executionPlans;
+        _runtimeSettings = runtimeSettings;
     }
 
     public void Apply(TransformBuilderContext context)
     {
-        var options = _options.Value;
-        if (!options.EnableProxyLogging || !options.EnableProxyRequestBodyCapture)
+        if (!RouteProxyLogSettingsResolver.TryResolve(
+                _executionPlans.Current,
+                context.Route.RouteId,
+                _runtimeSettings.Current,
+                out var settings) ||
+            !settings.RequestBodyCaptureEnabled)
             return;
 
         // Add at the END so metadata reflects the final transformed request.

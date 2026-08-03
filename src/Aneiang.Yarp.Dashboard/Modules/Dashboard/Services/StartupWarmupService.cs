@@ -56,19 +56,15 @@ public sealed class StartupWarmupService : IHostedService
             var notificationRepo = scope.ServiceProvider.GetRequiredService<INotificationRepository>();
             var routeRepo = scope.ServiceProvider.GetRequiredService<IRouteRepository>();
             var clusterRepo = scope.ServiceProvider.GetRequiredService<IClusterRepository>();
-            var policyRepo = scope.ServiceProvider.GetRequiredService<IPolicyRepository>();
             var historyRepo = scope.ServiceProvider.GetRequiredService<IConfigHistoryRepository>();
             var auditRepo = scope.ServiceProvider.GetRequiredService<IAuditLogRepository>();
-            var wafRepo = scope.ServiceProvider.GetRequiredService<IWafSettingsRepository>();
 
             await Task.WhenAll(
                 notificationRepo.GetRulesAsync(ct),
                 routeRepo.GetAllRoutesAsync(),
                 clusterRepo.GetAllClustersAsync(),
-                policyRepo.GetAllPoliciesAsync(),
                 historyRepo.GetConfigHistoryListAsync(1),
-                auditRepo.GetAuditLogsAsync(1),
-                wafRepo.GetWafSettingsAsync(ct)
+                auditRepo.GetAuditLogsAsync(1)
             );
             _logger.LogDebug("Repository warmup done");
         }

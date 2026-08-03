@@ -1,0 +1,49 @@
+{
+  "name": "plugin-architecture-final",
+  "mainConversationId": "3ce1d5b8378b43af8dc71917e51d0d29",
+  "workspacePath": "d:/Codes/Peson/Aneiang.Yarp",
+  "createdAt": "2026-07-31T03:05:08.090Z",
+  "options": {
+    "workspacePath": "d:/Codes/Peson/Aneiang.Yarp",
+    "isAutoTeam": false
+  },
+  "isAutoTeam": false,
+  "members": [
+    {
+      "memberId": "binding-upgrade-dev@plugin-architecture-final",
+      "name": "binding-upgrade-dev",
+      "role": "闭环绑定升级模型",
+      "sessionId": "cf66065ce383421b925b6ff69547a35f"
+    },
+    {
+      "memberId": "runtime-domain-dev@plugin-architecture-final",
+      "name": "runtime-domain-dev",
+      "role": "实现动态插件运行域",
+      "sessionId": "20f0683ba2134f6ba1cc1929c028ed5c"
+    },
+    {
+      "memberId": "destination-resilience-dev@plugin-architecture-final",
+      "name": "destination-resilience-dev",
+      "role": "协调重试熔断目标",
+      "sessionId": "f576bbd88497492c93a39064514fefe4"
+    },
+    {
+      "memberId": "native-adapters-dev@plugin-architecture-final",
+      "name": "native-adapters-dev",
+      "role": "补齐原生能力适配",
+      "sessionId": "598839ee748f41eea01f653539f92cd2"
+    },
+    {
+      "memberId": "infrastructure-plugins-dev@plugin-architecture-final",
+      "name": "infrastructure-plugins-dev",
+      "role": "完善基础设施插件",
+      "sessionId": "02b7912380044146b6140f2c71f71b38"
+    },
+    {
+      "memberId": "compatibility-removal-dev@plugin-architecture-final",
+      "name": "compatibility-removal-dev",
+      "role": "清除旧兼容入口",
+      "sessionId": "f4b42bdeeb1e4b9f844b62d846cb8246"
+    }
+  ]
+}

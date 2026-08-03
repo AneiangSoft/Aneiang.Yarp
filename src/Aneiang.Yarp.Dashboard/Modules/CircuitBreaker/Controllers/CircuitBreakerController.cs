@@ -1,6 +1,6 @@
+using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Infrastructure.State;
 using Aneiang.Yarp.Services;
-using Aneiang.Yarp.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Controllers;
@@ -13,11 +13,16 @@ public class CircuitBreakerController : Controller
 {
     private readonly IDynamicYarpConfigService _yarpConfig;
     private readonly ICircuitStateStore _circuitStore;
+    private readonly GatewayPluginExecutionPlanProvider _executionPlans;
 
-    public CircuitBreakerController(IDynamicYarpConfigService yarpConfig, ICircuitStateStore circuitStore)
+    public CircuitBreakerController(
+        IDynamicYarpConfigService yarpConfig,
+        ICircuitStateStore circuitStore,
+        GatewayPluginExecutionPlanProvider executionPlans)
     {
         _yarpConfig = yarpConfig;
         _circuitStore = circuitStore;
+        _executionPlans = executionPlans;
     }
 
     /// <summary>
@@ -66,14 +71,12 @@ public class CircuitBreakerController : Controller
     private void SyncCircuitsFromConfig()
     {
         var dynConfig = _yarpConfig.GetDynamicConfig();
-        if (dynConfig?.Clusters == null) return;
-
-        foreach (var cluster in dynConfig.Clusters)
+        foreach (var (clusterId, cbConfig) in _executionPlans.Current.CircuitBreakerByCluster)
         {
-            if (cluster.CircuitBreaker is { Enabled: true } cbConfig)
-            {
-                _circuitStore.EnsureCircuitExists(cluster.Config.ClusterId ?? string.Empty, cbConfig, cluster.ClusterUid);
-            }
+            if (!cbConfig.Enabled) continue;
+            var clusterUid = dynConfig?.Clusters.FirstOrDefault(cluster =>
+                string.Equals(cluster.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase))?.ClusterUid;
+            _circuitStore.EnsureCircuitExists(clusterId, cbConfig, clusterUid);
         }
     }
 
@@ -83,11 +86,14 @@ public class CircuitBreakerController : Controller
     private void CleanupStaleCircuits()
     {
         var dynConfig = _yarpConfig.GetDynamicConfig();
-        if (dynConfig?.Clusters == null) return;
-
-        var cbEnabledClusters = dynConfig.Clusters
-            .Where(c => c.CircuitBreaker is { Enabled: true })
-            .Select(c => new { ClusterId = c.Config.ClusterId, c.ClusterUid })
+        var cbEnabledClusters = _executionPlans.Current.CircuitBreakerByCluster
+            .Where(item => item.Value.Enabled)
+            .Select(item => new
+            {
+                ClusterId = item.Key,
+                ClusterUid = dynConfig?.Clusters.FirstOrDefault(cluster =>
+                    string.Equals(cluster.Config.ClusterId, item.Key, StringComparison.OrdinalIgnoreCase))?.ClusterUid
+            })
             .ToList();
 
         var allStates = _circuitStore.GetAllStateInfos();

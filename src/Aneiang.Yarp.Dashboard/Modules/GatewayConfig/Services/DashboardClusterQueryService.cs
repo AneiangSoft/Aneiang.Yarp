@@ -1,3 +1,4 @@
+using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Models;
 using Aneiang.Yarp.Services;
 using Microsoft.Extensions.Caching.Memory;
@@ -11,6 +12,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 internal sealed class DashboardClusterQueryService : IDashboardClusterQueryService
 {
     private readonly DynamicYarpConfigService _dynamicConfig;
+    private readonly GatewayPluginExecutionPlanProvider _executionPlans;
     private readonly IMemoryCache _memoryCache;
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(10);
 
@@ -18,12 +20,15 @@ internal sealed class DashboardClusterQueryService : IDashboardClusterQueryServi
     /// Initializes a new instance of DashboardClusterQueryService.
     /// </summary>
     /// <param name="dynamicConfig">Dynamic YARP config service.</param>
+    /// <param name="executionPlans">Current immutable plugin execution plan provider.</param>
     /// <param name="memoryCache">Unified memory cache for all query services.</param>
     public DashboardClusterQueryService(
         DynamicYarpConfigService dynamicConfig,
+        GatewayPluginExecutionPlanProvider executionPlans,
         IMemoryCache memoryCache)
     {
         _dynamicConfig = dynamicConfig;
+        _executionPlans = executionPlans;
         _memoryCache = memoryCache;
     }
 
@@ -40,7 +45,7 @@ internal sealed class DashboardClusterQueryService : IDashboardClusterQueryServi
         var clusters = _dynamicConfig.GetClusters();
 
         var responses = clusters?
-            .Select(cluster => DashboardClusterMapper.MapToResponse(cluster, _dynamicConfig))
+            .Select(cluster => DashboardClusterMapper.MapToResponse(cluster, _dynamicConfig, _executionPlans.Current))
             .ToList() ?? new List<DashboardClusterResponse>();
 
         _memoryCache.Set(cacheKey, responses, CacheDuration);

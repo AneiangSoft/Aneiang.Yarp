@@ -80,8 +80,8 @@ public partial class GatewayToolExecutor
         {
             RouteName = newRouteId,
             MatchPath = existing.Match?.Path ?? "/",
-            ClusterName = existing.ClusterId,
-            DestinationAddress = existing.Destinations?.FirstOrDefault().Address ?? ""
+            ClusterName = existing.ClusterId ?? "",
+            DestinationAddress = existing.Destinations?.FirstOrDefault()?.Address ?? ""
         };
 
         var result = await _dynamicConfig.TryRenameRoute(oldRouteId, newRouteId, request, "ai-assistant", "ai");

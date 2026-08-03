@@ -43,14 +43,8 @@
             // Set worker environment before loading editor.main
             // This must be set before editor.main runs
             window.MonacoEnvironment = {
-                getWorkerUrl: function(workerId, label) {
-                    if (label === 'json') return MONACO_BASE + '/language/json/jsonWorker.js';
-                    if (label === 'css') return MONACO_BASE + '/language/css/cssWorker.js';
-                    if (label === 'html') return MONACO_BASE + '/language/html/htmlWorker.js';
-                    if (label === 'typescript' || label === 'javascript') {
-                        return MONACO_BASE + '/language/typescript/tsWorker.js';
-                    }
-                    return MONACO_BASE + '/editor/editor.worker.js';
+                getWorkerUrl: function() {
+                    return MONACO_BASE + '/base/worker/workerMain.js';
                 }
             };
 

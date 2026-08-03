@@ -25,14 +25,14 @@ public static class StorageServiceCollectionExtensions
         // Individual repositories
         services.AddSingleton<IRouteRepository, SqliteRouteRepository>();
         services.AddSingleton<IClusterRepository, SqliteClusterRepository>();
-        services.AddSingleton<IPolicyRepository, SqlitePolicyRepository>();
         services.AddSingleton<IConfigHistoryRepository, SqliteConfigHistoryRepository>();
         services.AddSingleton<IAuditLogRepository, SqliteAuditLogRepository>();
-        services.AddSingleton<IWafSettingsRepository, SqliteWafSettingsRepository>();
         services.AddSingleton<INotificationRepository, SqliteNotificationRepository>();
         services.AddSingleton<IProxyLogRepository, SqliteProxyLogRepository>();
-        services.AddSingleton<ILogSettingsRepository, SqliteLogSettingsRepository>();
         services.AddSingleton<IAISettingsRepository, SqliteAISettingsRepository>();
+        services.AddSingleton<IPluginConfigurationRepository, SqlitePluginConfigurationRepository>();
+        services.AddSingleton<IGatewayPluginRepository, SqliteGatewayPluginRepository>();
+        services.AddSingleton<IPluginRuntimeStateRepository, SqlitePluginRuntimeStateRepository>();
 
         // AI repositories (always registered; tables created by migration)
         services.AddSingleton<IAIConversationRepository, SqliteAIConversationRepository>();

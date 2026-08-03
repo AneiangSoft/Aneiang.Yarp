@@ -22,9 +22,6 @@ internal interface IRouteConfigManager
     /// <summary>Atomically rename a route (remove old, add new).</summary>
     Task<RouteOperationResult> TryRenameRoute(string oldRouteId, string newRouteId, RegisterRouteRequest request, string source, string? createdBy);
 
-    /// <summary>Update or merge metadata entries on a route.</summary>
-    Task<bool> UpdateRouteMetadataAsync(string routeId, Dictionary<string, string> metadata);
-
     /// <summary>Get all current routes from the proxy provider.</summary>
     IReadOnlyList<RouteConfig> GetRoutes();
 

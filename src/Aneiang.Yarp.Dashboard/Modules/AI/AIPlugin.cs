@@ -15,6 +15,14 @@ public class AIPlugin : IGatewayPlugin
     public string PluginId => "ai";
     public string DisplayName => "AI Assistant";
     public string Version => "1.0";
+    public PluginManifest Manifest => new(
+        PluginId, DisplayName, Version,
+        [],
+        [PluginCapability.Dashboard],
+        1000,
+        new PluginResourceRequirements(NetworkConnections: true),
+        [],
+        "AI-powered gateway management assistant.");
 
     public void ConfigureServices(IServiceCollection services, object? pluginOptions = null)
     {

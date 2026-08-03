@@ -9,7 +9,6 @@
     dash.token = localStorage.getItem('dashboard_token');
     dash.CURRENT_LOCALE = '@ViewBag.Locale';
     dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
-    dash.logPanelEnabled = @(ViewBag.EnableProxyLogging is false ? "false" : "true");
     dash.currentPage = '@ViewBag.CurrentPage';
     if (window.DashboardI18n) { window.DashboardI18n.init(); }
 </script>

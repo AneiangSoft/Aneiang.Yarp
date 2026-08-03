@@ -2,7 +2,6 @@ using System.Text.Json;
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Models;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
-using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
@@ -12,7 +11,7 @@ using Microsoft.Extensions.Options;
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Controllers;
 
 /// <summary>
-/// Configuration history, export/import, snapshot, rollback, diff, validation, and WAF endpoints.
+/// Configuration history, export/import, snapshot, rollback, diff, and validation endpoints.
 /// </summary>
 [Route("api/config")]
 [ApiController]
@@ -20,7 +19,6 @@ public class ConfigHistoryController : ConfigControllerBase
 {
     private readonly ILogger<ConfigHistoryController> _logger;
     private readonly IConfigDiffService _diffService;
-    private readonly IWafSettingsPersistenceService? _wafPersistence;
 
     public ConfigHistoryController(
         IConfigPersistenceService persistenceService,
@@ -29,13 +27,11 @@ public class ConfigHistoryController : ConfigControllerBase
         IMemoryCache memoryCache,
         IConfigSnapshotScheduler snapshotScheduler,
         IOptionsMonitor<ConfigHistoryOptions> configHistoryOptions,
-        IConfigDiffService diffService,
-        IWafSettingsPersistenceService? wafPersistence = null)
+        IConfigDiffService diffService)
         : base(persistenceService, dynamicConfig, memoryCache, snapshotScheduler, configHistoryOptions)
     {
         _logger = logger;
         _diffService = diffService;
-        _wafPersistence = wafPersistence;
     }
 
     #region Export / Import
@@ -351,70 +347,6 @@ public class ConfigHistoryController : ConfigControllerBase
         {
             _logger.LogError(ex, "Failed to validate configuration");
             return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Validation failed", ex) });
-        }
-    }
-
-    #endregion
-
-    #region WAF Settings
-
-    /// <summary>
-    /// Get current WAF settings.
-    /// </summary>
-    [HttpGet("waf")]
-    public IActionResult GetWafSettings()
-    {
-        try
-        {
-            var data = _wafPersistence?.Load() ?? new WafSettingsData
-            {
-                EnableIpCheck = true,
-                EnableRequestSizeValidation = true,
-                MaxRequestBodySize = 10 * 1024 * 1024,
-                MaxHeaderCount = 64,
-                MaxHeaderSize = 8192,
-                EnableSqlInjectionDetection = true,
-                EnableXssDetection = true,
-                EnablePathTraversalDetection = true
-            };
-
-            return Ok(new { code = 200, data = data });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get WAF settings");
-            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Operation failed", ex) });
-        }
-    }
-
-    /// <summary>
-    /// Update WAF settings.
-    /// </summary>
-    [HttpPut("waf")]
-    public async Task<IActionResult> UpdateWafSettings([FromBody] WafSettingsData request)
-    {
-        try
-        {
-            if (request == null)
-                return BadRequest(new { code = 400, message = "Request body is required" });
-
-            if (_wafPersistence == null)
-                return StatusCode(500, new { code = 500, message = "WAF persistence service not available" });
-
-            var success = await _wafPersistence.SaveAsync(request);
-            if (!success)
-                return StatusCode(500, new { code = 500, message = "Failed to save WAF settings" });
-
-            _logger.LogInformation("WAF settings updated: Enabled={Enabled}, IPCheck={IpCheck}, SQLi={Sqli}, XSS={Xss}, PathTraversal={Pt}",
-                request.Enabled, request.EnableIpCheck, request.EnableSqlInjectionDetection,
-                request.EnableXssDetection, request.EnablePathTraversalDetection);
-
-            return Ok(new { code = 200, message = "WAF settings saved successfully" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update WAF settings");
-            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Operation failed", ex) });
         }
     }
 

@@ -1,5 +1,4 @@
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
-using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Aneiang.Yarp.Storage;
 
 namespace Aneiang.Yarp.Dashboard.Modules.AI.Tools;
@@ -93,26 +92,6 @@ public partial class GatewayToolExecutor
         };
     }
 
-    private object ExecuteGetWafSettings()
-    {
-        var data = _wafPersistence?.Load();
-        if (data == null)
-            return new { message = "WAF settings not available" };
-
-        return new
-        {
-            enabled = data.Enabled,
-            enable_ip_check = data.EnableIpCheck,
-            ip_whitelist = data.IpWhitelist,
-            ip_blacklist = data.IpBlacklist,
-            enable_request_size_validation = data.EnableRequestSizeValidation,
-            max_request_body_size = data.MaxRequestBodySize,
-            enable_sql_injection = data.EnableSqlInjectionDetection,
-            enable_xss = data.EnableXssDetection,
-            enable_path_traversal = data.EnablePathTraversalDetection
-        };
-    }
-
     private async Task<object> ExecuteSearchLogsAsync(ToolArgs args, CancellationToken ct)
     {
         var count = Math.Clamp(args.GetInt("count", 50), 1, 200);
@@ -174,29 +153,6 @@ public partial class GatewayToolExecutor
                 total = i.TotalCount,
                 errors = i.ErrorCount
             })
-        };
-    }
-
-    private object ExecuteGetRateLimitStatus()
-    {
-        return new
-        {
-            enabled = _rateLimitOptions.Enabled,
-            algorithm = _rateLimitOptions.Algorithm.ToString(),
-            permit_limit = _rateLimitOptions.PermitLimit,
-            window = _rateLimitOptions.Window,
-            queue_limit = _rateLimitOptions.QueueLimit,
-            active_limiters = _rateLimiterStore.Count
-        };
-    }
-
-    private object ExecuteGetRetryConfig()
-    {
-        return new
-        {
-            enabled = _retryOptions.Enabled,
-            max_retries = _retryOptions.DefaultMaxRetries,
-            backoff_base_ms = _retryOptions.BackoffBaseMs
         };
     }
 
@@ -400,36 +356,6 @@ public partial class GatewayToolExecutor
             plugin_id = pluginId,
             enabled,
             message = $"Plugin '{pluginId}' {(enabled ? "enabled" : "disabled")}."
-        };
-    }
-
-    private object ExecuteUpdateWafSettings(ToolArgs args)
-    {
-        if (_wafPersistence == null)
-            return new { success = false, message = "WAF persistence service not available." };
-
-        var data = _wafPersistence.Load() ?? new WafSettingsData();
-
-        if (args.HasValue("enabled"))
-            data.Enabled = args.GetBool("enabled");
-        if (args.HasValue("enable_sql_injection"))
-            data.EnableSqlInjectionDetection = args.GetBool("enable_sql_injection");
-        if (args.HasValue("enable_xss"))
-            data.EnableXssDetection = args.GetBool("enable_xss");
-        if (args.HasValue("enable_path_traversal"))
-            data.EnablePathTraversalDetection = args.GetBool("enable_path_traversal");
-        if (args.Has("ip_blacklist"))
-        {
-            data.IpBlacklist.Clear();
-            foreach (var ip in args.GetStringArray("ip_blacklist"))
-                data.IpBlacklist.Add(ip);
-        }
-
-        var saved = _wafPersistence.Save(data);
-        return new
-        {
-            success = saved,
-            message = saved ? "WAF settings updated." : "Failed to save WAF settings."
         };
     }
 

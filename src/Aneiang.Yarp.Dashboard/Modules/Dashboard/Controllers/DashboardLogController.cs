@@ -14,18 +14,15 @@ public class DashboardLogController : Controller
 {
     private readonly IDashboardLogQueryService _logQuery;
     private readonly IProxyLogPersistenceService _persistenceService;
-    private readonly LogSettingsService _logSettings;
     private readonly DashboardOptions _options;
 
     public DashboardLogController(
         IDashboardLogQueryService logQuery,
         IProxyLogPersistenceService persistenceService,
-        LogSettingsService logSettings,
         IOptions<DashboardOptions> dashboardOptions)
     {
         _logQuery = logQuery;
         _persistenceService = persistenceService;
-        _logSettings = logSettings;
         _options = dashboardOptions.Value;
     }
 
@@ -91,43 +88,4 @@ public class DashboardLogController : Controller
         });
     }
 
-    /// <summary>Get current log settings (SQLite overrides → IOptionsMonitor → defaults).</summary>
-    [HttpGet("api/logs/settings")]
-    public async Task<IActionResult> GetLogSettings(CancellationToken ct)
-    {
-        var settings = await _logSettings.LoadAsync(ct);
-        return Json(new { code = 200, data = settings });
-    }
-
-    /// <summary>Update log settings. Only provided fields are updated.</summary>
-    [HttpPut("api/logs/settings")]
-    public async Task<IActionResult> UpdateLogSettings([FromBody] LogSettingsUpdateRequest request, CancellationToken ct)
-    {
-        if (request == null)
-            return Json(new { code = 400, message = "Request body is required" });
-
-        if (request.LogSamplingRate.HasValue && (request.LogSamplingRate.Value < 0 || request.LogSamplingRate.Value > 1))
-            return Json(new { code = 400, message = "LogSamplingRate must be between 0.0 and 1.0" });
-
-        if (request.LogMetaRetentionDays.HasValue && (request.LogMetaRetentionDays.Value < 1 || request.LogMetaRetentionDays.Value > 365))
-            return Json(new { code = 400, message = "LogMetaRetentionDays must be between 1 and 365" });
-
-        if (request.MinLogLevel != null)
-        {
-            var validLevels = new[] { "Debug", "Information", "Warning", "Error", "Critical" };
-            if (!validLevels.Contains(request.MinLogLevel, StringComparer.OrdinalIgnoreCase))
-                return Json(new { code = 400, message = $"MinLogLevel must be one of: {string.Join(", ", validLevels)}" });
-        }
-
-        var updated = await _logSettings.SaveAsync(request, ct);
-        return Json(new { code = 200, data = updated });
-    }
-
-    /// <summary>Reset log settings to defaults (clears SQLite overrides).</summary>
-    [HttpPut("api/logs/settings/reset")]
-    public async Task<IActionResult> ResetLogSettings(CancellationToken ct)
-    {
-        var defaults = await _logSettings.ResetAsync(ct);
-        return Json(new { code = 200, data = defaults });
-    }
 }

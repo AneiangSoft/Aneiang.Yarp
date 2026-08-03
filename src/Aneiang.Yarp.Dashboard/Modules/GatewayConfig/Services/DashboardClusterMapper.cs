@@ -1,3 +1,4 @@
+using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Models;
 using Aneiang.Yarp.Services;
 using Yarp.ReverseProxy.Configuration;
@@ -14,7 +15,8 @@ internal static class DashboardClusterMapper
     /// </summary>
     public static DashboardClusterResponse MapToResponse(
         ClusterConfig cluster,
-        DynamicYarpConfigService dynamicConfig)
+        DynamicYarpConfigService dynamicConfig,
+        GatewayPluginExecutionPlan executionPlan)
     {
         var activeHealthConfigured = cluster.HealthCheck?.Active?.Enabled == true;
         var passiveHealthConfigured = cluster.HealthCheck?.Passive?.Enabled == true;
@@ -61,7 +63,7 @@ internal static class DashboardClusterMapper
             TotalCount = destinations.Count,
             Source = source,
             IsEditable = isEditable,
-            CircuitBreaker = MapCircuitBreaker(cluster.ClusterId ?? string.Empty, dynamicConfig)
+            CircuitBreaker = MapCircuitBreaker(cluster.ClusterId ?? string.Empty, executionPlan)
         };
     }
 
@@ -183,16 +185,11 @@ internal static class DashboardClusterMapper
     }
 
     /// <summary>
-    /// Maps circuit breaker configuration from dynamic config.
+    /// Maps circuit breaker configuration from the current cluster plugin execution plan.
     /// </summary>
-    private static CircuitBreakerInfo? MapCircuitBreaker(string clusterId, DynamicYarpConfigService dynamicConfig)
+    private static CircuitBreakerInfo? MapCircuitBreaker(string clusterId, GatewayPluginExecutionPlan executionPlan)
     {
-        var dynConfig = dynamicConfig.GetDynamicConfig();
-        var dynCluster = dynConfig?.Clusters.FirstOrDefault(dc =>
-            string.Equals(dc.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
-
-        var cb = dynCluster?.CircuitBreaker;
-        if (cb == null)
+        if (!executionPlan.CircuitBreakerByCluster.TryGetValue(clusterId, out var cb))
             return null;
 
         return new CircuitBreakerInfo

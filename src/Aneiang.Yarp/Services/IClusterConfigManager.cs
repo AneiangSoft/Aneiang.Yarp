@@ -31,9 +31,6 @@ internal interface IClusterConfigManager
         Dictionary<string, string> destinations, string? loadBalancingPolicy,
         Models.HealthCheckConfig? healthCheck, string source, string? createdBy);
 
-    /// <summary>Set circuit breaker configuration on a cluster.</summary>
-    Task<bool> UpdateClusterCircuitBreakerAsync(string clusterId, CircuitBreakerConfig? config);
-
     /// <summary>Get all current clusters from the proxy provider.</summary>
     IReadOnlyList<ClusterConfig> GetClusters();
 

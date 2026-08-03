@@ -1,6 +1,9 @@
+using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
+using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Infrastructure.Performance;
+using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using Microsoft.IO;
@@ -26,6 +29,7 @@ public sealed class YarpRequestCaptureMiddleware
     private readonly RecyclableMemoryStreamManager _memoryStreamManager;
     private readonly LockFreeStatistics _statistics;
     private readonly ProxyLogRuntimeSettings _runtimeSettings;
+    private readonly GatewayPluginExecutionPlanProvider _executionPlans;
 
     public YarpRequestCaptureMiddleware(
         RequestDelegate next,
@@ -34,7 +38,8 @@ public sealed class YarpRequestCaptureMiddleware
         LogSanitizer sanitizer,
         RecyclableMemoryStreamManager memoryStreamManager,
         LockFreeStatistics statistics,
-        ProxyLogRuntimeSettings runtimeSettings)
+        ProxyLogRuntimeSettings runtimeSettings,
+        GatewayPluginExecutionPlanProvider executionPlans)
     {
         _next = next;
         _filter = filter;
@@ -43,6 +48,7 @@ public sealed class YarpRequestCaptureMiddleware
         _memoryStreamManager = memoryStreamManager;
         _statistics = statistics;
         _runtimeSettings = runtimeSettings;
+        _executionPlans = executionPlans;
     }
 
     /// <summary>
@@ -51,19 +57,17 @@ public sealed class YarpRequestCaptureMiddleware
     /// </summary>
     public async Task InvokeAsync(HttpContext context)
     {
-        if (!_filter.IsLoggingEnabled)
+        // RouteModel endpoint metadata is populated by endpoint routing before the YARP proxy pipeline runs.
+        var routeId = context.GetEndpoint()?.Metadata.GetMetadata<RouteModel>()?.Config.RouteId;
+        var defaults = _runtimeSettings.Current;
+        if (!RouteProxyLogSettingsResolver.TryResolve(
+                _executionPlans.Current, routeId, defaults, out var settings) ||
+            _filter.IsSkippedRequest(context) ||
+            (settings.SamplingEnabled && Random.Shared.NextDouble() > settings.SamplingRate))
         {
             await _next(context);
             return;
         }
-
-        if (_filter.IsSkippedRequest(context))
-        {
-            await _next(context);
-            return;
-        }
-
-        var settings = _runtimeSettings.Current;
 
         // ── Phase 1: Capture request data (before _next) ──
         var timestamp = DateTime.Now;
@@ -76,7 +80,7 @@ public sealed class YarpRequestCaptureMiddleware
             : string.Empty;
 
         var sanitizedRequestBody = _sanitizer.SanitizeBody(requestBody, context.Request.ContentType);
-        var requestText = _sanitizer.TruncateText(sanitizedRequestBody, out var requestTruncated);
+        var requestText = TruncateText(sanitizedRequestBody, settings.MaxBodyLength, out var requestTruncated);
 
         // ── Phase 2: Set up response body capture ──
         TeeResponseCaptureStream? responseBodyStream = null;
@@ -98,10 +102,10 @@ public sealed class YarpRequestCaptureMiddleware
 
             // ── Phase 4: ShouldLog check ──
             var proxyFeature = context.Features.Get<IReverseProxyFeature>();
-            var routeId = proxyFeature?.Route?.Config?.RouteId;
+            routeId ??= proxyFeature?.Route?.Config?.RouteId;
             var clusterId = proxyFeature?.Route?.Config?.ClusterId;
 
-            if (!_filter.ShouldLog(context, routeId))
+            if (settings.ErrorsOnly && context.Response.StatusCode < 400)
                 return;
 
             // ── Phase 5: Process response data ──
@@ -114,10 +118,15 @@ public sealed class YarpRequestCaptureMiddleware
             var downstreamText = requestText;
             var downstreamTruncated = requestTruncated;
 
-            var sanitizedResponseBody = _sanitizer.SanitizeBody(responseBodyText, context.Response.ContentType);
-            var responseText = _sanitizer.TruncateText(sanitizedResponseBody, out var responseTruncated);
-            var requestHeaders = _sanitizer.SanitizeHeaders(context.Request.Headers);
-            var responseHeaders = _sanitizer.SanitizeHeaders(context.Response.Headers);
+        var sanitizedResponseBody = _sanitizer.SanitizeBody(responseBodyText, context.Response.ContentType);
+        var responseText = TruncateText(sanitizedResponseBody, settings.MaxBodyLength, out var responseTruncated);
+        var requestHeaders = settings.CaptureRequestHeaders
+            ? _sanitizer.SanitizeHeaders(context.Request.Headers)
+            : new HeaderList();
+        var responseHeaders = settings.CaptureResponseHeaders
+            ? _sanitizer.SanitizeHeaders(context.Response.Headers)
+            : new HeaderList();
+
 
             // ── Phase 6: Build and store log entries ──
             _capture.CaptureLogEntry(
@@ -142,5 +151,15 @@ public sealed class YarpRequestCaptureMiddleware
                 await responseBodyStream.DisposeAsync();
             }
         }
+    }
+
+    private static string? TruncateText(string? text, int maxLength, out bool truncated)
+    {
+        truncated = false;
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
+            return text;
+
+        truncated = true;
+        return text[..maxLength] + "\n... [TRUNCATED]";
     }
 }

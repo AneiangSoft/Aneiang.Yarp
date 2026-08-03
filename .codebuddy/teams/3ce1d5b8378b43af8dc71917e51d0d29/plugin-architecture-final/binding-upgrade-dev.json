@@ -1,0 +1,101 @@
+[
+  {
+    "id": "msg-1785467154468-8wopz0",
+    "from": "team-lead",
+    "to": "binding-upgrade-dev",
+    "type": "message",
+    "content": "请与 runtime-domain-dev 同步升级原子切换接口：存储事务只在新运行域/快照验证成功后提交。",
+    "timestamp": "2026-07-31T03:05:54.468Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467186528-ah5zds",
+    "from": "runtime-domain-dev",
+    "to": "binding-upgrade-dev",
+    "type": "message",
+    "content": "运行域边界建议：绑定升级侧只调用/依赖运行域协调接口，不直接写启用状态或绑定持久化。变更流程为 Prepare（按目标启用集构建新域，外部程序集此时才加载并创建专属 IServiceProvider + middleware/proxy delegates）→ Health（探测新域，任何异常即 Dispose/Unload 新域）→ Swap（单次原子替换当前域引用）→ 旧域 Stop/Dispose/Unload。Prepare/Health/Swap 任一步失败都保留旧域与旧执行委托；持久化应由上层仅在成功交换后处理。禁用同样 prepare 不含该插件的新域后交换，不能先卸载当前域。请避免控制器/绑定服务直接调用 ExternalHost.Deactivate 或保存绑定。",
+    "timestamp": "2026-07-31T03:06:26.528Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467194209-gieu1o",
+    "from": "team-lead",
+    "to": "@team",
+    "type": "broadcast",
+    "content": "基线已记录。请在下一检查点回报：完成度、改动文件、阻塞和是否已编译；继续执行，不要只做审计。注意 `.codebuddy` 是项目数据，不得删除。",
+    "timestamp": "2026-07-31T03:06:34.209Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467231857-l5jx2n",
+    "from": "runtime-domain-dev",
+    "to": "binding-upgrade-dev",
+    "type": "message",
+    "content": "我拟新增 `Infrastructure/Plugin/PluginRuntimeDomain.cs`：`IPluginRuntimeDomainManager.PrepareAsync(IReadOnlyCollection<string> enabledPluginIds, CancellationToken)` 返回 `PluginRuntimeDomainPreparation`；preparation 暴露 `CheckHealthAsync`、`CommitAsync`（原子交换）和 `DisposeAsync`（未提交即回滚清理）。另有便捷 `TransitionAsync(...)`。绑定事务应在 `PrepareAsync + CheckHealthAsync` 成功后提交自身数据，再调用 `CommitAsync`；若数据提交与交换必须严格同原子性，建议你只把候选快照验证放 preparation 前，绑定持久化仍由你的事务协调器负责，运行域代码不会写绑定。文件正在实现，若签名微调我会立即同步。",
+    "timestamp": "2026-07-31T03:07:11.857Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467267538-z57v4z",
+    "from": "team-lead",
+    "to": "@team",
+    "type": "broadcast",
+    "content": "目前 git diff stat 未显示明显新文件（未跟踪文件不计入 stat）。请现在回复实际进度；若仍在探索，立即收敛并开始落地。优先交付可编译的核心闭环，不要无限扩展。",
+    "timestamp": "2026-07-31T03:07:47.538Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467349886-8uizva",
+    "from": "team-lead",
+    "to": "binding-upgrade-dev",
+    "type": "message",
+    "content": "当前 PluginBindingsController 仍完全按 ScopeId/RouteId 且未写 PluginVersion。请确认你尚未写入；优先立即完成 controller+repository+compiler 核心闭环。",
+    "timestamp": "2026-07-31T03:09:09.886Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467393595-2xdu9o",
+    "from": "team-lead",
+    "to": "binding-upgrade-dev",
+    "type": "message",
+    "content": "你当前修改 IGatewaySnapshotCompiler 引入未导入 PluginBindingEntity，且实现签名未同步，导致核心 net8/net9 编译失败。请立即修复接口/实现一致性，完成后回报。",
+    "timestamp": "2026-07-31T03:09:53.595Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467780036-slpl81",
+    "from": "runtime-domain-dev",
+    "to": "binding-upgrade-dev",
+    "type": "message",
+    "content": "运行域核心已保存并完成 Dashboard 双目标构建（0 error，20 个既有 warning）。接口最终为 `IPluginRuntimeDomainManager.PrepareAsync(enabledIds, ct) -> PluginRuntimeDomainPreparation`，preparation 提供 `CheckHealthAsync(ct)`、`CommitAsync(ct)`、`DisposeAsync()`；便捷 `TransitionAsync` 已由启停控制器使用。文件 `Infrastructure/Plugin/PluginRuntimeDomain.cs`。ExternalHost 停止方法已改为 `StopResourceAsync`，当前可继续全构建/接入。",
+    "timestamp": "2026-07-31T03:16:20.036Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785468158641-9rsjep",
+    "from": "team-lead",
+    "to": "@team",
+    "type": "broadcast",
+    "content": "回归项目已成功编译但有6个警告。请各自完成实现后主动回报改动、测试和剩余边界。compatibility-removal-dev 请重点清零仍存在的 Waf/Retry/CircuitBreaker/RateLimit Options 运行时引用。",
+    "timestamp": "2026-07-31T03:22:38.641Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785468345271-6e1rbf",
+    "from": "team-lead",
+    "to": "@team",
+    "type": "broadcast",
+    "content": "当前回归 26 项全通过，构建 0 error/6 warnings。请在本轮内完成你的剩余实现并回报；不要停在部分状态。尤其确认运行域已接入实际管线、绑定升级 API 已原子提交、Destination 协调已由 Retry/CircuitBreaker 实际调用、旧 Options 引用清零。",
+    "timestamp": "2026-07-31T03:25:45.271Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785468405652-6c6jc5",
+    "from": "team-lead",
+    "to": "binding-upgrade-dev",
+    "type": "message",
+    "content": "审阅发现 PersistAndPublishAsync 仍先 Upsert DB，再 Publish，再 runtime Commit；若 Publish/Commit 失败 DB 已改变，违反回滚。请实现仓储事务或保存旧绑定并 catch 恢复，顺序建议 prepare+health+compile，持久化，runtime commit，snapshot publish；任一步失败恢复旧记录/删除新记录并保持旧 snapshot/domain。DeleteBinding 同样先删后发布需回滚。补精确回归。",
+    "timestamp": "2026-07-31T03:26:45.652Z",
+    "read": true
+  }
+]

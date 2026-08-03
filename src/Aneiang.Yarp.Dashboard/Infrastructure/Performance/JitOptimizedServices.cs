@@ -415,8 +415,8 @@ internal static class GcOptimizations
 /// </summary>
 internal static class JitOptimizationInitializer
 {
-    [ModuleInitializer]
 #pragma warning disable CA2255
+    [ModuleInitializer]
     public static void Initialize()
 #pragma warning restore CA2255
     {

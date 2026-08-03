@@ -171,7 +171,7 @@
   "modal.jsonInput": "JSON Input",
   "modal.jsonMode": "JSON Mode",
   "modal.minify": "Minify",
-  "modal.policyManagedHint": "Policy-related configs (Retry, Rate Limit, WAF, Circuit Breaker, etc.) are managed visually and cannot be edited here. Use the \"Manage Policy\" button instead",
+  "modal.policyManagedHint": "Manage plugin capabilities in the Binding Capabilities section of the route or cluster details. This editor only changes native YARP configuration.",
   "modal.renameHint": "Changing ID will create a new entry and delete the old one",
   "modal.renameOnly": "Use the dedicated rename feature to change the ID",
   "modal.routeId": "Enter Route ID",

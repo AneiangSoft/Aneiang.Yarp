@@ -21,23 +21,7 @@ public sealed class InMemoryCircuitStateStore : ICircuitStateStore
         => _circuits.GetOrAdd(key, factory);
 
     public bool TryGet(string key, out CircuitState? state)
-    {
-        if (_circuits.TryGetValue(key, out state))
-            return true;
-
-        // Legacy key fallback
-        var lastColon = key.LastIndexOf(':');
-        if (lastColon > 0)
-        {
-            var legacyKey = key[(lastColon + 1)..] == "any"
-                ? key[..lastColon] + ":any"
-                : key;
-            return _circuits.TryGetValue(legacyKey, out state);
-        }
-
-        state = null;
-        return false;
-    }
+        => _circuits.TryGetValue(key, out state);
 
     public bool ContainsKey(string key) => _circuits.ContainsKey(key);
 
@@ -89,12 +73,11 @@ public sealed class InMemoryCircuitStateStore : ICircuitStateStore
     public void EnsureCircuitExists(string clusterId, CircuitBreakerConfig cbConfig, string? clusterUid)
     {
         var circuitKey = BuildCircuitKey(clusterUid, clusterId, null);
-        var options = ToOptions(cbConfig, maxCircuitCount: 1000);
-        var state = _circuits.GetOrAdd(circuitKey, _ => new CircuitState(options));
+        var state = _circuits.GetOrAdd(circuitKey, _ => new CircuitState(cbConfig));
 
         lock (_stateLock)
         {
-            state.ApplyOptions(options);
+            state.ApplyConfig(cbConfig);
             state.ClusterUid = clusterUid ?? StableUid.FromKey("cluster", clusterId);
             state.ClusterKeySnapshot = clusterId;
             state.DestinationUid = "any";
@@ -105,17 +88,101 @@ public sealed class InMemoryCircuitStateStore : ICircuitStateStore
     public bool IsCircuitOpen(string clusterId, string? destinationId = null, string? clusterUid = null)
     {
         var key = BuildCircuitKey(clusterUid, clusterId, destinationId);
-        if (!_circuits.TryGetValue(key, out var state))
+        if (!_circuits.TryGetValue(key, out var state)) return false;
+        lock (state.SyncRoot)
         {
-            var legacyKey = $"{clusterId}:{destinationId ?? "any"}";
-            _circuits.TryGetValue(legacyKey, out state);
+            return state.Status == CircuitStatus.Open && DateTime.Now - state.OpenedAt < state.RecoveryTimeout;
         }
+    }
 
-        if (state == null) return false;
-        lock (_stateLock)
+    public bool TryAcquire(
+        string clusterId,
+        string destinationId,
+        string? clusterUid = null,
+        CircuitBreakerConfig? config = null)
+    {
+        var key = BuildCircuitKey(clusterUid, clusterId, destinationId);
+        var state = _circuits.GetOrAdd(key, _ => new CircuitState());
+        lock (state.SyncRoot)
         {
-            return state.Status == CircuitStatus.Open;
+            if (config != null) state.ApplyConfig(config);
+            state.ClusterUid = clusterUid ?? StableUid.FromKey("cluster", clusterId);
+            state.ClusterKeySnapshot = clusterId;
+            state.DestinationUid = ResolveDestinationUid(destinationId);
+            state.DestinationKeySnapshot = destinationId;
+            state.LastAccessedAt = DateTime.Now;
+            if (state.Status == CircuitStatus.Open)
+            {
+                if (DateTime.Now - state.OpenedAt < state.RecoveryTimeout) return false;
+                state.Status = CircuitStatus.HalfOpen;
+                state.HalfOpenRequests = 0;
+            }
+
+            if (state.Status == CircuitStatus.HalfOpen)
+            {
+                if (state.HalfOpenRequests >= state.MaxHalfOpenAttempts) return false;
+                state.HalfOpenRequests++;
+            }
+
+            return true;
         }
+    }
+
+    public void RecordOutcome(
+        string clusterId,
+        string destinationId,
+        bool failed,
+        string? clusterUid = null,
+        CircuitBreakerConfig? config = null)
+    {
+        var key = BuildCircuitKey(clusterUid, clusterId, destinationId);
+        var state = _circuits.GetOrAdd(key, _ => new CircuitState());
+        lock (state.SyncRoot)
+        {
+            if (config != null) state.ApplyConfig(config);
+            var now = DateTime.Now;
+            state.LastAccessedAt = now;
+            if (state.Status == CircuitStatus.HalfOpen)
+            {
+                if (failed)
+                {
+                    state.Status = CircuitStatus.Open;
+                    state.OpenedAt = now;
+                    state.HalfOpenRequests = 0;
+                }
+                else
+                {
+                    ResetClosed(state);
+                }
+                return;
+            }
+
+            if (state.Status != CircuitStatus.Closed) return;
+            state.Samples.Enqueue((now, failed));
+            if (failed) state.SampleFailures++;
+            var cutoff = now - state.SamplingDuration;
+            while (state.Samples.TryPeek(out var sample) && sample.Timestamp < cutoff)
+            {
+                state.Samples.Dequeue();
+                if (sample.Failed) state.SampleFailures--;
+            }
+            state.ConsecutiveFailures = state.SampleFailures;
+            if (state.Samples.Count >= state.MinimumThroughput &&
+                (double)state.SampleFailures / state.Samples.Count >= state.FailureRatio)
+            {
+                state.Status = CircuitStatus.Open;
+                state.OpenedAt = now;
+            }
+        }
+    }
+
+    private static void ResetClosed(CircuitState state)
+    {
+        state.Status = CircuitStatus.Closed;
+        state.ConsecutiveFailures = 0;
+        state.HalfOpenRequests = 0;
+        state.SampleFailures = 0;
+        state.Samples.Clear();
     }
 
     public IReadOnlyList<CircuitStateInfo> GetAllStateInfos()
@@ -176,18 +243,6 @@ public sealed class InMemoryCircuitStateStore : ICircuitStateStore
 
     internal static string ResolveDestinationUid(string? destinationKey)
         => string.IsNullOrWhiteSpace(destinationKey) ? "any" : StableUid.FromKey("destination", destinationKey);
-
-    internal static CircuitBreakerOptions ToOptions(CircuitBreakerConfig cbConfig, int maxCircuitCount)
-    {
-        return new CircuitBreakerOptions
-        {
-            Enabled = cbConfig.Enabled,
-            DefaultFailureThreshold = cbConfig.FailureThreshold > 0 ? cbConfig.FailureThreshold : 5,
-            DefaultRecoveryTimeoutSeconds = cbConfig.RecoveryTimeoutSeconds > 0 ? cbConfig.RecoveryTimeoutSeconds : 30,
-            HalfOpenMaxAttempts = cbConfig.HalfOpenMaxAttempts > 0 ? cbConfig.HalfOpenMaxAttempts : 1,
-            MaxCircuitCount = maxCircuitCount
-        };
-    }
 
     internal static (string ClusterId, string? DestinationId) ParseCircuitKey(string key)
     {

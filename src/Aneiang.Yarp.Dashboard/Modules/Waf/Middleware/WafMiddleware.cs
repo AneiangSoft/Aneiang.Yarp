@@ -1,13 +1,13 @@
 using System.Buffers;
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Middleware;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
-using Aneiang.Yarp.Dashboard.Modules.Waf.Services;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Infrastructure;
 using Yarp.ReverseProxy.Model;
@@ -17,19 +17,13 @@ namespace Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
 /// <summary>
 /// Web Application Firewall middleware — orchestrator.
 /// Delegates detection to the <see cref="IWafRuleChecker"/> chain and records security events.
-/// Settings are loaded from <see cref="IWafSettingsPersistenceService"/> when available,
-/// falling back to <see cref="WafOptions"/> from configuration.
+/// Business settings come exclusively from the current route's enabled plugin binding snapshot.
 /// </summary>
 public sealed class WafMiddleware : GatewayMiddlewareBase
 {
     private readonly ILogger<WafMiddleware> _logger;
-    private readonly WafOptions _wafOptions;
-    private readonly IWafSettingsPersistenceService? _wafPersistence;
+    private readonly GatewayPluginExecutionPlanProvider _executionPlans;
     private readonly INotificationService _notificationService;
-
-    // F4 fix: Removed per-middleware TTL cache. WafSettingsPersistenceService.Load()
-    // already returns cached data instantly (null-check only) and auto-invalidates on Save().
-    // Creating a WafOptions object per request is negligible overhead.
 
     /// <summary>
     /// Stateless checker chain. Each checker is a singleton — thread-safe, no per-request state.
@@ -47,39 +41,26 @@ public sealed class WafMiddleware : GatewayMiddlewareBase
     public WafMiddleware(
         RequestDelegate next,
         ILogger<WafMiddleware> logger,
-        IOptions<WafOptions> wafOptions,
         IOptions<DashboardOptions> dashOptions,
         IGatewayPluginManager pluginManager,
-        IWafSettingsPersistenceService? wafPersistence = null,
+        GatewayPluginExecutionPlanProvider executionPlans,
         INotificationService? notificationService = null)
         : base(next, dashOptions, pluginManager)
     {
         _logger = logger;
-        _wafOptions = wafOptions.Value;
-        var prefix = _wafOptions.DashboardRoutePrefix;
-        if (string.IsNullOrWhiteSpace(prefix) || prefix == "apigateway")
-            prefix = dashOptions.Value.RoutePrefix;
-        DashPrefix = "/" + prefix.Trim('/');
-        _wafPersistence = wafPersistence;
+        _executionPlans = executionPlans;
+        DashPrefix = "/" + dashOptions.Value.RoutePrefix.Trim('/');
         _notificationService = notificationService ?? NullNotificationService.Instance;
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var opts = ResolveEffectiveOptions();
-        var path = context.Request.Path.Value ?? "";
-
-        // Fast-path: WAF disabled globally or per-route
-        bool globallyEnabled = opts.Enabled && IsPluginEnabled("waf");
-        if (!globallyEnabled)
+        var routeId = context.Features.Get<IReverseProxyFeature>()?.Route?.Config?.RouteId
+            ?? context.GetEndpoint()?.Metadata.GetMetadata<RouteModel>()?.Config.RouteId;
+        if (!TryResolveBindingOptions(routeId, out var opts))
         {
-            var routeMeta = context.Features.Get<IReverseProxyFeature>()?.Route?.Config?.Metadata;
-            if (routeMeta == null || !routeMeta.TryGetValue("Waf:Enabled", out var v) ||
-                !bool.TryParse(v, out var parsed) || !parsed)
-            {
-                await Next(context);
-                return;
-            }
+            await Next(context);
+            return;
         }
 
         // Skip dashboard static content and UI routes
@@ -135,31 +116,16 @@ public sealed class WafMiddleware : GatewayMiddlewareBase
 
     #region Private helpers
 
-    /// <summary>
-    /// Resolves the effective WAF options by merging persisted settings over configuration defaults.
-    /// Uses IWafSettingsPersistenceService's built-in cache (instant return, auto-invalidated on Save).
-    /// </summary>
-    private WafOptions ResolveEffectiveOptions()
+    private bool TryResolveBindingOptions(string? routeId, out WafBindingOptions options)
     {
-        var data = _wafPersistence?.Load();
-        if (data == null) return _wafOptions;
+        options = null!;
+        if (string.IsNullOrWhiteSpace(routeId)) return false;
 
-        return new WafOptions
-        {
-            Enabled = data.Enabled,
-            DashboardRoutePrefix = _wafOptions.DashboardRoutePrefix,
-            IpWhitelist = data.IpWhitelist.Count > 0 ? data.IpWhitelist : _wafOptions.IpWhitelist,
-            IpBlacklist = data.IpBlacklist.Count > 0 ? data.IpBlacklist : _wafOptions.IpBlacklist,
-            MaxRequestBodySize = data.MaxRequestBodySize,
-            MaxHeaderCount = data.MaxHeaderCount,
-            MaxHeaderSize = data.MaxHeaderSize,
-            EnableSqlInjectionDetection = data.EnableSqlInjectionDetection,
-            EnableXssDetection = data.EnableXssDetection,
-            EnablePathTraversalDetection = data.EnablePathTraversalDetection,
-            EnableIpCheck = data.EnableIpCheck,
-            EnableRequestSizeValidation = data.EnableRequestSizeValidation,
-            ExtraScriptSources = _wafOptions.ExtraScriptSources
-        };
+        if (!_executionPlans.Current.WafByRoute.TryGetValue(routeId, out var configured) || !configured.Enabled)
+            return false;
+
+        options = configured;
+        return true;
     }
 
     private static string GetRawRequestPath(HttpContext context)

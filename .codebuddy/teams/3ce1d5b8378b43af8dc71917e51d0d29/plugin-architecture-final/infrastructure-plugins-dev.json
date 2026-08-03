@@ -1,0 +1,74 @@
+[
+  {
+    "id": "msg-1785467194209-gieu1o",
+    "from": "team-lead",
+    "to": "@team",
+    "type": "broadcast",
+    "content": "基线已记录。请在下一检查点回报：完成度、改动文件、阻塞和是否已编译；继续执行，不要只做审计。注意 `.codebuddy` 是项目数据，不得删除。",
+    "timestamp": "2026-07-31T03:06:34.209Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467267538-z57v4z",
+    "from": "team-lead",
+    "to": "@team",
+    "type": "broadcast",
+    "content": "目前 git diff stat 未显示明显新文件（未跟踪文件不计入 stat）。请现在回复实际进度；若仍在探索，立即收敛并开始落地。优先交付可编译的核心闭环，不要无限扩展。",
+    "timestamp": "2026-07-31T03:07:47.538Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467349881-qcooog",
+    "from": "team-lead",
+    "to": "infrastructure-plugins-dev",
+    "type": "message",
+    "content": "DistributedRateLimitBackends.cs 直接引用 Microsoft.Data.Sqlite，但 Dashboard 无包引用。优先复用 Storage 抽象/Sqlite 项目仓储，或添加合理项目依赖；不要仅为了后端把实现绑死 Dashboard。立即修复编译。",
+    "timestamp": "2026-07-31T03:09:09.881Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467665981-wvc463",
+    "from": "team-lead",
+    "to": "infrastructure-plugins-dev",
+    "type": "message",
+    "content": "ServiceDiscoveryRefreshService.cs:200 条件表达式 ArrayEnumerator vs JsonElement[] 且 item 名冲突。请立即拆分成 IEnumerable<JsonElement> 并改变量名，构建 Dashboard。",
+    "timestamp": "2026-07-31T03:14:25.981Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785467802091-h1o4eh",
+    "from": "team-lead",
+    "to": "infrastructure-plugins-dev",
+    "type": "message",
+    "content": "回归 Program.cs 第58/60行用 PluginManifest.ConfigSchema，但实际属性应是 Schema。请修复测试并构建回归。",
+    "timestamp": "2026-07-31T03:16:42.091Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785468158641-9rsjep",
+    "from": "team-lead",
+    "to": "@team",
+    "type": "broadcast",
+    "content": "回归项目已成功编译但有6个警告。请各自完成实现后主动回报改动、测试和剩余边界。compatibility-removal-dev 请重点清零仍存在的 Waf/Retry/CircuitBreaker/RateLimit Options 运行时引用。",
+    "timestamp": "2026-07-31T03:22:38.641Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785468177414-7o0zl9",
+    "from": "team-lead",
+    "to": "infrastructure-plugins-dev",
+    "type": "message",
+    "content": "当前回归唯一失败：Infrastructure plugin schemas expose shared backends and discovery adapters，字典 key 不存在。请检查测试期望的 storageBackend/providerType 与实际 Schema 层级/字段，统一实现并重跑。",
+    "timestamp": "2026-07-31T03:22:57.414Z",
+    "read": true
+  },
+  {
+    "id": "msg-1785468345271-6e1rbf",
+    "from": "team-lead",
+    "to": "@team",
+    "type": "broadcast",
+    "content": "当前回归 26 项全通过，构建 0 error/6 warnings。请在本轮内完成你的剩余实现并回报；不要停在部分状态。尤其确认运行域已接入实际管线、绑定升级 API 已原子提交、Destination 协调已由 Retry/CircuitBreaker 实际调用、旧 Options 引用清零。",
+    "timestamp": "2026-07-31T03:25:45.271Z",
+    "read": true
+  }
+]

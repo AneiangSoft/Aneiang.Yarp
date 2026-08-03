@@ -10,7 +10,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.Waf.Middleware;
 public sealed class WafCheckContext
 {
     public required HttpContext HttpContext { get; init; }
-    public required WafOptions Options { get; init; }
+    public required WafBindingOptions Options { get; init; }
 
     /// <summary>Decoded query string (empty when absent).</summary>
     public required string DecodedQueryString { get; init; }

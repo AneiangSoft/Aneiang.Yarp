@@ -202,9 +202,8 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
                 };
             }
 
-            dc.Config = new ClusterConfig
+            dc.Config = existing with
             {
-                ClusterId = existing.ClusterId,
                 Destinations = request.Destinations?.ToDictionary(d => d.Key, d => new DestinationConfig { Address = d.Value }) ?? existing.Destinations,
                 LoadBalancingPolicy = request.LoadBalancingPolicy ?? existing.LoadBalancingPolicy,
                 HealthCheck = dmHc != null
@@ -274,10 +273,12 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
                 string.Equals(c.Config.ClusterId, newClusterId, StringComparison.OrdinalIgnoreCase)))
             { AuditLog.RecordFailure("UpdateCluster", oldClusterId, $"Cluster '{newClusterId}' already exists"); return new RouteOperationResult(false, $"Cluster '{newClusterId}' already exists"); }
 
-            var newCluster = new ClusterConfig
+            var newCluster = oldDc.Config with
             {
                 ClusterId = newClusterId,
-                Destinations = destinations.ToDictionary(d => d.Key, d => new DestinationConfig { Address = d.Value }),
+                Destinations = destinations.Count > 0
+                    ? destinations.ToDictionary(d => d.Key, d => new DestinationConfig { Address = d.Value })
+                    : oldDc.Config.Destinations,
                 LoadBalancingPolicy = loadBalancingPolicy ?? oldDc.Config.LoadBalancingPolicy,
                 HealthCheck = healthCheck != null ? DynamicYarpConfigHelpers.BuildClusterHealthCheck(healthCheck) : oldDc.Config.HealthCheck
             };
@@ -289,7 +290,6 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
                 Config = newCluster,
                 ClusterUid = oldDc.ClusterUid,
                 HealthCheck = healthCheck ?? oldDc.HealthCheck,
-                CircuitBreaker = oldDc.CircuitBreaker,
                 Source = source,
                 CreatedAt = DateTime.Now,
                 CreatedBy = createdBy
@@ -310,30 +310,6 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
                 new { oldClusterId, routesUpdated = updatedRouteCount, action = "rename" },
                 new { newClusterId, destinations, loadBalancingPolicy, action = "rename" });
             return new RouteOperationResult(true, $"Cluster '{oldClusterId}' renamed to '{newClusterId}', {updatedRouteCount} route(s) updated");
-        });
-    }
-
-    #endregion
-
-    #region UpdateClusterCircuitBreakerAsync
-
-    public async Task<bool> UpdateClusterCircuitBreakerAsync(string clusterId, CircuitBreakerConfig? config)
-    {
-        if (string.IsNullOrWhiteSpace(clusterId)) return false;
-
-        return await ExecuteMetadataWithLockAsync("UpdateClusterCircuitBreaker", clusterId, async state =>
-        {
-            var dc = state.Clusters.FirstOrDefault(c =>
-                string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
-            if (dc == null)
-            {
-                _logger.LogWarning("UpdateClusterCircuitBreaker: cluster '{ClusterId}' not found", clusterId);
-                return false;
-            }
-            dc.CircuitBreaker = config;
-            _logger.LogDebug("Updated circuit breaker config for cluster '{ClusterId}': Enabled={Enabled}",
-                clusterId, config?.Enabled ?? false);
-            return true;
         });
     }
 

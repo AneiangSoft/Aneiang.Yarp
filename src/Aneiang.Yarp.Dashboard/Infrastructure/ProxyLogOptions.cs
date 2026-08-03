@@ -7,12 +7,6 @@ namespace Aneiang.Yarp.Dashboard.Infrastructure;
 public class ProxyLogOptions
 {
     /// <summary>
-    /// Enable or disable proxy request/response logging.
-    /// Default: true.
-    /// </summary>
-    public bool EnableProxyLogging { get; set; } = true;
-
-    /// <summary>
     /// Maximum number of log entries kept in the in-memory ring buffer.
     /// Default: 50 (aligned to 64 internally).
     /// </summary>
@@ -52,16 +46,6 @@ public class ProxyLogOptions
     /// Minimum log level to capture. Default: "Debug".
     /// </summary>
     public string MinLogLevel { get; set; } = "Debug";
-
-    /// <summary>
-    /// Whitelist of route IDs to log. If empty, all routes are considered.
-    /// </summary>
-    public List<string>? LogRouteWhitelist { get; set; }
-
-    /// <summary>
-    /// Blacklist of route IDs to exclude from logging.
-    /// </summary>
-    public List<string>? LogRouteBlacklist { get; set; }
 
     /// <summary>
     /// Maximum request/response body length to log (in bytes). Default: 8192.

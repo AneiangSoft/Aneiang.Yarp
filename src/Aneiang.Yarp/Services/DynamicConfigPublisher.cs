@@ -7,19 +7,25 @@ namespace Aneiang.Yarp.Services;
 /// <summary>
 /// Builds immutable snapshots from the mutable working set and pushes them to
 /// <see cref="AneiangProxyConfigProvider"/> so YARP can hot-reload.
-/// Policy metadata is merged into route metadata and transforms are normalized
-/// for the published (YARP-facing) copy only; the authoritative records are untouched.
+/// Transforms are normalized for the published (YARP-facing) copy only;
+/// the authoritative records are untouched.
 /// </summary>
 internal class DynamicConfigPublisher : IDynamicConfigPublisher
 {
     private readonly AneiangProxyConfigProvider _configProvider;
+    private readonly IGatewaySnapshotCompiler _snapshotCompiler;
+    private readonly IGatewaySnapshotPublisher _snapshotPublisher;
     private readonly ILogger<DynamicConfigPublisher> _logger;
 
     public DynamicConfigPublisher(
         AneiangProxyConfigProvider configProvider,
+        IGatewaySnapshotCompiler snapshotCompiler,
+        IGatewaySnapshotPublisher snapshotPublisher,
         ILogger<DynamicConfigPublisher> logger)
     {
         _configProvider = configProvider;
+        _snapshotCompiler = snapshotCompiler;
+        _snapshotPublisher = snapshotPublisher;
         _logger = logger;
     }
 
@@ -29,8 +35,7 @@ internal class DynamicConfigPublisher : IDynamicConfigPublisher
         var publishRoutes = new List<DynamicRouteConfig>(config.Routes.Count);
         foreach (var dynRoute in config.Routes)
         {
-            var mergedMetadata = DynamicYarpConfigHelpers.MergeRouteMetadata(dynRoute.Config.Metadata, dynRoute.Metadata);
-            var publishedConfig = DynamicYarpConfigHelpers.NormalizeTransforms(dynRoute.Config with { Metadata = mergedMetadata });
+            var publishedConfig = DynamicYarpConfigHelpers.NormalizeTransforms(dynRoute.Config);
             publishRoutes.Add(new DynamicRouteConfig
             {
                 Config = publishedConfig,
@@ -39,8 +44,7 @@ internal class DynamicConfigPublisher : IDynamicConfigPublisher
                 DisplayName = dynRoute.DisplayName,
                 Source = dynRoute.Source,
                 CreatedAt = dynRoute.CreatedAt,
-                CreatedBy = dynRoute.CreatedBy,
-                Metadata = dynRoute.Metadata
+                CreatedBy = dynRoute.CreatedBy
             });
         }
 
@@ -67,9 +71,33 @@ internal class DynamicConfigPublisher : IDynamicConfigPublisher
                 Source = dynCluster.Source,
                 CreatedAt = dynCluster.CreatedAt,
                 CreatedBy = dynCluster.CreatedBy,
-                LastHeartbeat = dynCluster.LastHeartbeat,
-                CircuitBreaker = dynCluster.CircuitBreaker
+                LastHeartbeat = dynCluster.LastHeartbeat
             });
+        }
+
+        var snapshotVersion = Math.Max(_snapshotPublisher.Current.Version + 1, Math.Max(1, version));
+        var gatewaySnapshot = _snapshotCompiler.CompileAsync(
+                publishRoutes.Select(x => x.Config).ToList(),
+                publishClusters.Select(x => x.Config).ToList(),
+                snapshotVersion)
+            .GetAwaiter()
+            .GetResult();
+        _snapshotPublisher.Publish(gatewaySnapshot);
+
+        var compiledRoutes = gatewaySnapshot.Routes
+            .ToDictionary(x => x.RouteId ?? string.Empty, StringComparer.OrdinalIgnoreCase);
+        foreach (var route in publishRoutes)
+        {
+            if (compiledRoutes.TryGetValue(route.Config.RouteId ?? string.Empty, out var compiled))
+                route.Config = compiled;
+        }
+
+        var compiledClusters = gatewaySnapshot.Clusters
+            .ToDictionary(x => x.ClusterId ?? string.Empty, StringComparer.OrdinalIgnoreCase);
+        foreach (var cluster in publishClusters)
+        {
+            if (compiledClusters.TryGetValue(cluster.Config.ClusterId ?? string.Empty, out var compiled))
+                cluster.Config = compiled;
         }
 
         _configProvider.ApplyFromDynamic(publishRoutes, publishClusters, version);

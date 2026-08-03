@@ -1,5 +1,7 @@
 using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
-using Aneiang.Yarp.Models;
+using System.Text.Json;
+using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
+using Aneiang.Yarp.Storage.Entities;
 
 namespace Aneiang.Yarp.Dashboard.Modules.AI.Tools;
 
@@ -35,50 +37,67 @@ public partial class GatewayToolExecutor
     {
         var clusterId = args.Get("cluster_id");
 
-        var clusters = _clusterQuery.GetClusters();
-        if (clusters.All(c => !string.Equals(c.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase)))
+        var cluster = _dynamicConfig.GetDynamicConfig()?.Clusters.FirstOrDefault(item =>
+            string.Equals(item.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+        if (cluster == null)
             return new { success = false, message = $"Cluster '{clusterId}' not found. Create the cluster first." };
 
+        var existing = (await _pluginBindings.GetBindingsAsync()).FirstOrDefault(binding =>
+            binding.Scope == PluginBindingScope.Cluster &&
+            string.Equals(binding.PluginId, "circuit-breaker", StringComparison.OrdinalIgnoreCase) &&
+            (string.Equals(binding.ClusterUid, cluster.ClusterUid, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(binding.ScopeId, clusterId, StringComparison.OrdinalIgnoreCase)));
         var enabled = args.GetBool("enabled", true);
-
         if (!enabled)
         {
-            var removed = await _dynamicConfig.UpdateClusterCircuitBreakerAsync(clusterId, null);
+            var removed = existing != null && await _bindingMutations.DeleteAsync(existing.Id);
             return new
             {
-                success = removed,
+                success = existing == null || removed,
                 cluster_id = clusterId,
-                message = removed
-                    ? $"Circuit breaker disabled for cluster '{clusterId}'."
+                message = existing == null || removed
+                    ? $"Circuit breaker plugin binding disabled for cluster '{clusterId}'."
                     : $"Failed to disable circuit breaker for cluster '{clusterId}'."
             };
         }
 
-        var config = new CircuitBreakerConfig
+        var manifest = _pluginManager.GetManifest("circuit-breaker");
+        if (manifest == null)
+            return new { success = false, message = "Circuit breaker plugin manifest is unavailable." };
+        var config = new
         {
+            enabled = true,
+            failureThreshold = args.GetInt("failure_threshold", 5),
+            recoveryTimeoutSeconds = args.GetInt("recovery_timeout_seconds", 30),
+            halfOpenMaxAttempts = args.GetInt("half_open_max_attempts", 1),
+            failureRatio = 0.5,
+            minimumThroughput = Math.Max(1, args.GetInt("failure_threshold", 5)),
+            samplingDurationSeconds = 30,
+            failureStatusCodes = args.GetIntArray("failure_status_codes", new List<int> { 500, 502, 503, 504 })
+        };
+        var binding = new PluginBindingEntity
+        {
+            Id = existing?.Id ?? $"cluster:{cluster.ClusterUid}:circuit-breaker",
+            PluginId = "circuit-breaker",
+            PluginVersion = manifest.Version,
+            Scope = PluginBindingScope.Cluster,
+            ScopeId = clusterId,
+            ClusterUid = cluster.ClusterUid,
+            ConfigJson = JsonSerializer.Serialize(config),
+            SchemaVersion = manifest.Schemas.FirstOrDefault()?.Version ?? 1,
             Enabled = true,
-            FailureThreshold = args.GetInt("failure_threshold", 5),
-            RecoveryTimeoutSeconds = args.GetInt("recovery_timeout_seconds", 30),
-            HalfOpenMaxAttempts = args.GetInt("half_open_max_attempts", 1),
-            FailureStatusCodes = args.GetIntArray("failure_status_codes", new List<int> { 500, 502, 503, 504 })
+            Order = existing?.Order ?? 0,
+            CreatedAt = existing?.CreatedAt ?? DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
 
-        var success = await _dynamicConfig.UpdateClusterCircuitBreakerAsync(clusterId, config);
+        await _bindingMutations.UpsertAsync(binding);
         return new
         {
-            success,
+            success = true,
             cluster_id = clusterId,
-            config = new
-            {
-                enabled = true,
-                failure_threshold = config.FailureThreshold,
-                recovery_timeout_seconds = config.RecoveryTimeoutSeconds,
-                half_open_max_attempts = config.HalfOpenMaxAttempts,
-                failure_status_codes = config.FailureStatusCodes
-            },
-            message = success
-                ? $"Circuit breaker created for cluster '{clusterId}': threshold={config.FailureThreshold}, recovery={config.RecoveryTimeoutSeconds}s, half-open max={config.HalfOpenMaxAttempts}."
-                : $"Failed to create circuit breaker for cluster '{clusterId}'."
+            config,
+            message = $"Circuit breaker plugin binding created for cluster '{clusterId}'."
         };
     }
 

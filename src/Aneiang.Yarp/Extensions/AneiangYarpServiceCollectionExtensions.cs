@@ -72,6 +72,11 @@ public static class AneiangYarpServiceCollectionExtensions
         // which are registered by Dashboard when AddAneiangYarpDashboard is called)
         services.AddSingleton<DynamicYarpConfigService>();
         services.AddSingleton<IDynamicYarpConfigService>(sp => sp.GetRequiredService<DynamicYarpConfigService>());
+        services.AddSingleton<NativePluginAdapters>();
+        services.AddSingleton<IRoutePluginCompiler>(provider => provider.GetRequiredService<NativePluginAdapters>());
+        services.AddSingleton<IClusterPluginCompiler>(provider => provider.GetRequiredService<NativePluginAdapters>());
+        services.AddSingleton<IGatewaySnapshotCompiler, GatewaySnapshotCompiler>();
+        services.AddSingleton<IGatewaySnapshotPublisher, GatewaySnapshotPublisher>();
 
         // Built-in transform options
         services.AddOptions<BuiltinTransformOptions>()

@@ -989,23 +989,6 @@
             renameBtn.appendChild(window.DashboardDOM.create('i', { className: 'bi bi-input-cursor-text' }));
             container.appendChild(renameBtn);
 
-            // Policy button
-            const policyBtn = window.DashboardDOM.create('button', {
-                className: 'btn btn-outline-info',
-                attributes: { title: __('index.route.managePolicy') || 'Manage Policy' },
-                events: {
-                    click: (e) => {
-                        e.stopPropagation();
-                        RoutesModule.showPolicyModal(route.routeId);
-                    }
-                }
-            });
-            const policyIcon = window.DashboardDOM.create('i', {
-                className: 'bi bi-shield-check'
-            });
-            policyBtn.appendChild(policyIcon);
-            container.appendChild(policyBtn);
-
             // Delete button
             const deleteBtn = window.DashboardDOM.create('button', {
                 className: 'btn btn-outline-danger',
@@ -1242,9 +1225,15 @@
                 detailHtml.push('</div>');
             }
                 
+            detailHtml.push('<div class="dashboard-capabilities" data-scope="Route" data-scope-id="' + window.DashboardUtils.escapeHtml(route.routeId) + '"></div>');
             detailHtml.push('</div>');
             td.innerHTML = detailHtml.join('');
             tr.appendChild(td);
+
+            const capabilityHost = td.querySelector('.dashboard-capabilities');
+            if (window.DashboardCapabilities && capabilityHost) {
+                window.DashboardCapabilities.mount(capabilityHost, 'Route', route.routeId);
+            }
                 
             return tr;
         },
@@ -1570,94 +1559,6 @@
             }; 
             const config = methodMap[method] || { css: 'bg-secondary', icon: 'bi-circle-fill' }; 
             return `<span class="badge ${config.css}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;margin-right:4px;"><i class="bi ${config.icon}"></i>${method}</span>`;
-        },
-
-        showPolicyModal: async function(routeId) {
-            try {
-                const policies = await window.DashboardApi.endpoints.getRoutePoliciesForRoute(routeId);
-                const allPolicies = await window.DashboardApi.endpoints.getPolicies('routes');
-                const policyList = (allPolicies && allPolicies.data) || allPolicies || [];
-                const appliedIds = [];
-                
-                if (policies) {
-                    var policyData = policies.data || policies;
-                    if (Array.isArray(policyData)) {
-                        policyData.forEach(function(p) { appliedIds.push(p.policyId); });
-                    }
-                }
-                
-                var itemsHtml = policyList.map(function(policy) {
-                    var isApplied = appliedIds.indexOf(policy.policyId) >= 0;
-                    var features = [];
-                    if (policy.retry && policy.retry.enabled) features.push(__('policy.retry') || 'Retry');
-                    if (policy.rateLimit && policy.rateLimit.enabled) features.push(__('policy.rateLimit') || 'Rate Limit');
-                    if (policy.wafEnabled === true) features.push(__('policy.wafOn') || 'WAF On');
-                    else if (policy.wafEnabled === false) features.push(__('policy.wafOff') || 'WAF Off');
-                    var featureStr = features.length > 0 ? ' <span class="text-muted small">(' + features.join(', ') + ')</span>' : '';
-                    return '<div class="form-check">' +
-                        '<input class="form-check-input route-policy-check" type="checkbox" value="' + window.DashboardUtils.escapeHtml(policy.policyId) + '" id="rpolicy-' + window.DashboardUtils.escapeHtml(policy.policyId) + '" ' + (isApplied ? 'checked' : '') + ' />' +
-                        '<label class="form-check-label" for="rpolicy-' + window.DashboardUtils.escapeHtml(policy.policyId) + '">' + window.DashboardUtils.escapeHtml(policy.displayName || policy.policyId) + featureStr + '</label>' +
-                    '</div>';
-                }).join('');
-
-                if (policyList.length === 0) {
-                    itemsHtml = '<div class="text-muted text-center py-3">' + (__('policy.empty') || 'No policies') + '</div>';
-                }
-
-                var modalId = 'routePolicyModal';
-                var existing = document.getElementById(modalId);
-                if (existing) existing.remove();
-
-                var modalHtml = '<div class="modal fade" id="' + modalId + '" tabindex="-1">' +
-                    '<div class="modal-dialog modal-dialog-centered">' +
-                        '<div class="modal-content">' +
-                            '<div class="modal-header">' +
-                                '<h5 class="modal-title"><i class="bi bi-shield-check me-2"></i>' + (__('index.route.managePolicy') || 'Manage Policy') + ' - ' + window.DashboardUtils.escapeHtml(routeId) + '</h5>' +
-                                '<button type="button" class="btn-close" data-bs-dismiss="modal"></button>' +
-                            '</div>' +
-                            '<div class="modal-body">' +
-                                '<div class="text-muted small mb-2">' + (__('policy.applyHelpRoute') || 'Select policies to apply to this route') + '</div>' +
-                                '<div style="max-height:300px;overflow-y:auto">' + itemsHtml + '</div>' +
-                            '</div>' +
-                            '<div class="modal-footer">' +
-                                '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">' + (__('policy.cancel') || 'Cancel') + '</button>' +
-                                '<button type="button" class="btn btn-primary" id="routePolicySaveBtn"><i class="bi bi-check-lg me-1"></i><span>' + (__('policy.confirm') || 'Confirm') + '</span></button>' +
-                            '</div>' +
-                        '</div>' +
-                    '</div>' +
-                '</div>';
-
-                document.body.insertAdjacentHTML('beforeend', modalHtml);
-                var modalEl = document.getElementById(modalId);
-                var bsModal = new bootstrap.Modal(modalEl);
-
-                document.getElementById('routePolicySaveBtn').addEventListener('click', async function() {
-                    var checkboxes = document.querySelectorAll('.route-policy-check');
-                    var promises = [];
-                    checkboxes.forEach(function(cb) {
-                        var policyId = cb.value;
-                        if (cb.checked && appliedIds.indexOf(policyId) < 0) {
-                            promises.push(window.DashboardApi.endpoints.applyPolicy('routes', policyId, routeId));
-                        } else if (!cb.checked && appliedIds.indexOf(policyId) >= 0) {
-                            promises.push(window.DashboardApi.endpoints.unapplyPolicy('routes', policyId, routeId).catch(function() {}));
-                        }
-                    });
-                    try {
-                        await Promise.all(promises);
-                        if (window.DashboardModals) window.DashboardModals.showToast(__('policy.applySuccess') || 'Policy applied successfully', 'success');
-                        bsModal.hide();
-                        await RoutesModule.loadRoutes(true);
-                    } catch (err) {
-                        if (window.DashboardModals) window.DashboardModals.showError(__('policy.applyFailed') || 'Failed to apply policy');
-                    }
-                });
-
-                modalEl.addEventListener('hidden.bs.modal', function() { modalEl.remove(); });
-                bsModal.show();
-            } catch (error) {
-                console.error('[Routes] Load policy modal failed:', error);
-                if (window.DashboardModals) window.DashboardModals.showError(__('policy.loadFailed') || 'Failed to load policies');
-            }
         },
 
         toggleRoute: function(routeId) {
