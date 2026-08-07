@@ -169,6 +169,98 @@ public sealed class SqlitePluginConfigurationRepository : IPluginConfigurationRe
         UpdatedAt = DateTime.Parse(reader.GetString(13), null, System.Globalization.DateTimeStyles.RoundtripKind)
     };
 
+    // --- Strategy Presets ---
+
+    private const string PresetColumns = "id, name, description, plugin_id, config_json, schema_version, created_at, updated_at";
+
+    public async Task<IReadOnlyList<PluginConfigPresetEntity>> GetPresetsAsync(CancellationToken ct = default)
+    {
+        await using var conn = await _connections.CreateConnectionAsync(ct);
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"SELECT {PresetColumns} FROM plugin_config_presets ORDER BY plugin_id, name";
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        var result = new List<PluginConfigPresetEntity>();
+        while (await reader.ReadAsync(ct)) result.Add(ReadPreset(reader));
+        return result;
+    }
+
+    public async Task<IReadOnlyList<PluginConfigPresetEntity>> GetPresetsByPluginAsync(string pluginId, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
+        await using var conn = await _connections.CreateConnectionAsync(ct);
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"SELECT {PresetColumns} FROM plugin_config_presets WHERE plugin_id = @pluginId ORDER BY name";
+        cmd.Parameters.AddWithValue("@pluginId", pluginId);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        var result = new List<PluginConfigPresetEntity>();
+        while (await reader.ReadAsync(ct)) result.Add(ReadPreset(reader));
+        return result;
+    }
+
+    public async Task<PluginConfigPresetEntity?> GetPresetAsync(string id, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        await using var conn = await _connections.CreateConnectionAsync(ct);
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"SELECT {PresetColumns} FROM plugin_config_presets WHERE id = @id";
+        cmd.Parameters.AddWithValue("@id", id);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? ReadPreset(reader) : null;
+    }
+
+    public async Task UpsertPresetAsync(PluginConfigPresetEntity preset, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+        ArgumentException.ThrowIfNullOrWhiteSpace(preset.Id);
+        ArgumentException.ThrowIfNullOrWhiteSpace(preset.PluginId);
+        preset.UpdatedAt = DateTime.UtcNow;
+        await using var conn = await _connections.CreateConnectionAsync(ct);
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO plugin_config_presets (id, name, description, plugin_id, config_json, schema_version, created_at, updated_at)
+            VALUES (@id, @name, @description, @pluginId, @configJson, @schemaVersion, @createdAt, @updatedAt)
+            ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description,
+                plugin_id = excluded.plugin_id, config_json = excluded.config_json,
+                schema_version = excluded.schema_version, updated_at = excluded.updated_at
+            """;
+        cmd.Parameters.AddWithValue("@id", preset.Id);
+        cmd.Parameters.AddWithValue("@name", preset.Name);
+        cmd.Parameters.AddWithValue("@description", (object?)preset.Description ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@pluginId", preset.PluginId);
+        cmd.Parameters.AddWithValue("@configJson", preset.ConfigJson);
+        cmd.Parameters.AddWithValue("@schemaVersion", preset.SchemaVersion);
+        cmd.Parameters.AddWithValue("@createdAt", preset.CreatedAt.ToString("O"));
+        cmd.Parameters.AddWithValue("@updatedAt", preset.UpdatedAt.ToString("O"));
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task<bool> DeletePresetAsync(string id, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        await using var conn = await _connections.CreateConnectionAsync(ct);
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM plugin_config_presets WHERE id = @id";
+        cmd.Parameters.AddWithValue("@id", id);
+        return await cmd.ExecuteNonQueryAsync(ct) > 0;
+    }
+
+    private static PluginConfigPresetEntity ReadPreset(Microsoft.Data.Sqlite.SqliteDataReader reader) => new()
+    {
+        Id = reader.GetString(0),
+        Name = reader.GetString(1),
+        Description = reader.IsDBNull(2) ? null : reader.GetString(2),
+        PluginId = reader.GetString(3),
+        ConfigJson = reader.GetString(4),
+        SchemaVersion = reader.GetInt32(5),
+        CreatedAt = DateTime.Parse(reader.GetString(6), null, System.Globalization.DateTimeStyles.RoundtripKind),
+        UpdatedAt = DateTime.Parse(reader.GetString(7), null, System.Globalization.DateTimeStyles.RoundtripKind)
+    };
+
     private static PluginSchemaEntity ReadSchema(Microsoft.Data.Sqlite.SqliteDataReader reader) => new()
     {
         PluginId = reader.GetString(0), SchemaVersion = reader.GetInt32(1), SchemaJson = reader.GetString(2),

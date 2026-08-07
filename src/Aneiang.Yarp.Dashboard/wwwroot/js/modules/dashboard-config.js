@@ -589,7 +589,7 @@
         const self = this;
 
         window.DashboardModals.showConfirm(
-            __('config.rollbackConfirm') || `确认回滚到版本 ${versionId}？`,
+            __('config.rollbackConfirm', { versionId: versionId }) || `Confirm rollback to version ${versionId}?`,
             async function() {
                 try {
                     window.DashboardModals.showInfo(__('config.rollbacking'));
@@ -739,9 +739,9 @@
 
         // Event types section HTML
         var eventGroups = [
-            { key: 'route', label: __('webhook.events.routeGroup') || '路由变更', icon: 'bi-signpost-split', color: '#3b82f6' },
-            { key: 'cluster', label: __('webhook.events.clusterGroup') || '集群变更', icon: 'bi-hdd-network', color: '#8b5cf6' },
-            { key: 'config', label: __('webhook.events.configGroup') || '配置管理', icon: 'bi-gear', color: '#f59e0b' }
+            { key: 'route', label: __('webhook.events.routeGroup') || 'Route Changes', icon: 'bi-signpost-split', color: '#3b82f6' },
+            { key: 'cluster', label: __('webhook.events.clusterGroup') || 'Cluster Changes', icon: 'bi-hdd-network', color: '#8b5cf6' },
+            { key: 'config', label: __('webhook.events.configGroup') || 'Config Management', icon: 'bi-gear', color: '#f59e0b' }
         ];
 
         function eventSectionHtml() {
@@ -749,11 +749,11 @@
             html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">';
             html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#10b981,#34d399);color:#fff;font-size:16px;">';
             html += '<i class="bi bi-broadcast"></i></span>';
-            html += '<div><div style="font-weight:600;font-size:15px;color:#1e293b;">' + (__('webhook.events.title') || '通知事件') + '</div>';
-            html += '<small style="color:#64748b;font-size:12px;">' + (__('webhook.events.help') || '选择需要推送通知的事件类型') + '</small></div>';
+            html += '<div><div style="font-weight:600;font-size:15px;color:#1e293b;">' + (__('webhook.events.title') || 'Notification Events') + '</div>';
+            html += '<small style="color:#64748b;font-size:12px;">' + (__('webhook.events.help') || 'Select event types to push notifications for') + '</small></div>';
             html += '<div style="margin-left:auto;display:flex;gap:6px;">';
-            html += '<button type="button" id="webhook-events-select-all" class="btn btn-sm btn-light">' + (__('notif.selectAll') || '全选') + '</button>';
-            html += '<button type="button" id="webhook-events-deselect-all" class="btn btn-sm btn-light">' + (__('webhook.events.deselectAll') || '全不选') + '</button>';
+            html += '<button type="button" id="webhook-events-select-all" class="btn btn-sm btn-light">' + (__('notif.selectAll') || 'Select All') + '</button>';
+            html += '<button type="button" id="webhook-events-deselect-all" class="btn btn-sm btn-light">' + (__('webhook.events.deselectAll') || 'Deselect All') + '</button>';
             html += '</div></div>';
 
             eventGroups.forEach(function(eg) {

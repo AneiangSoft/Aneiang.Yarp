@@ -2,14 +2,11 @@ using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Infrastructure.State;
 using Microsoft.AspNetCore.Http;
 using Yarp.ReverseProxy.Model;
+using Aneiang.Yarp.Infrastructure.State;
+using Aneiang.Yarp.Infrastructure.Resilience;
+using Aneiang.Yarp.Services;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Resilience;
-
-public interface IDestinationCandidateCoordinator
-{
-    ValueTask<IReadOnlyList<DestinationState>> ApplyAsync(HttpContext context, bool excludeAttempted, CancellationToken cancellationToken = default);
-    void MarkAttempted(HttpContext context, DestinationState? destination);
-}
 
 public sealed class DestinationCandidateCoordinator(
     ICircuitStateStore circuitStateStore,

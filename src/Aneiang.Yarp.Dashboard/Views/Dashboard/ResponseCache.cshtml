@@ -1,0 +1,48 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Response Cache" : "响应缓存";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<div id="response-cache-app">
+    <div class="page-help-bar" id="response-cache-help-bar">
+        <i class="bi bi-info-circle"></i>
+        <span class="help-text" data-i18n="page.help.responseCache">响应缓存配置，缓存后端响应以加速后续请求。</span>
+        <button class="help-close" onclick="document.getElementById('response-cache-help-bar').classList.add('collapsed')">&times;</button>
+    </div>
+    <div class="card-panel mb-4">
+        <div class="card-header">
+            <span><i class="bi bi-hdd-network me-2 text-success"></i><span data-i18n="responseCache.title">响应缓存</span></span>
+            <div class="card-header-actions">
+                <span id="cache-refresh-time" class="refresh-badge"></span>
+                <button class="btn btn-sm btn-outline-primary btn-icon-only" onclick="ResponseCacheModule.load()" data-i18n-title="index.btn.refresh" title="刷新" aria-label="刷新">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+        <div id="cache-content" class="card-body">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <div class="loading-text" data-i18n="pluginPage.loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/plugin-binding-manager.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-response-cache.js"></script>
+@await Html.PartialAsync("_DashboardPageInit")
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+        await ResponseCacheModule.load();
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

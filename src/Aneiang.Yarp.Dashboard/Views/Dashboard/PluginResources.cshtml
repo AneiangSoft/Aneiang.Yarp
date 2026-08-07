@@ -1,0 +1,48 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Plugin Resources" : "插件资源";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<div id="plugin-resources-app">
+    <div class="page-help-bar" id="plugin-resources-help-bar">
+        <i class="bi bi-info-circle"></i>
+        <span class="help-text" data-i18n="page.help.pluginResources">此页面展示每个插件在运行时的资源占用和请求统计。数据在请求经过网关时自动采集。</span>
+        <button class="help-close" onclick="document.getElementById('plugin-resources-help-bar').classList.add('collapsed')">&times;</button>
+    </div>
+    <div class="card-panel mb-4">
+        <div class="card-header">
+            <span><i class="bi bi-cpu me-2 text-primary"></i><span data-i18n="pluginResources.title">插件资源</span></span>
+            <div class="card-header-actions">
+                <span id="pr-refresh-time" class="refresh-badge"></span>
+                <button class="btn btn-sm btn-outline-primary btn-icon-only" onclick="PluginResourcesModule.load()" data-i18n-title="index.btn.refresh" title="刷新" aria-label="刷新">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+        <div id="pr-content" class="card-body">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <div class="loading-text" data-i18n="pluginPage.loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-plugin-resources.js"></script>
+@await Html.PartialAsync("_DashboardPageInit")
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+        PluginResourcesModule.init();
+        await PluginResourcesModule.load();
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

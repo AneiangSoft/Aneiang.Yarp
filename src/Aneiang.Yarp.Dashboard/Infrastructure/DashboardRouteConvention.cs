@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc.ApplicationModels;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure;
 
-/// <summary>Prepends the dashboard route prefix to all Dashboard assembly controllers.</summary>
+/// <summary>Prepends the dashboard route prefix to Dashboard and plugin controllers.</summary>
 /// <remarks>
 /// For controllers with a controller-level [Route] attribute, the prefix is prepended to the
 /// controller route template (e.g. <c>[Route("api/config")]</c> → <c>[Route("apigateway/api/config")]</c>).
@@ -19,8 +19,11 @@ internal sealed class DashboardRouteConvention : IApplicationModelConvention
     {
         foreach (var ctrl in application.Controllers)
         {
-            // Only process controllers from the Dashboard assembly
-            if (ctrl.ControllerType.Assembly != typeof(DashboardPagesController).Assembly)
+            var controllerAssembly = ctrl.ControllerType.Assembly;
+            var isDashboardController = controllerAssembly == typeof(DashboardPagesController).Assembly;
+            var isPluginController = controllerAssembly.GetName().Name?.StartsWith(
+                "Aneiang.Yarp.Plugin.", StringComparison.Ordinal) == true;
+            if (!isDashboardController && !isPluginController)
                 continue;
 
             var controllerSelector = ctrl.Selectors

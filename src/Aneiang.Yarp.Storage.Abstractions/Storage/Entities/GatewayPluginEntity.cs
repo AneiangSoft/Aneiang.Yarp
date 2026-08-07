@@ -12,4 +12,5 @@ public sealed class GatewayPluginEntity
     public string? LastError { get; set; }
     public DateTime InstalledAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? EnabledAt { get; set; }
 }

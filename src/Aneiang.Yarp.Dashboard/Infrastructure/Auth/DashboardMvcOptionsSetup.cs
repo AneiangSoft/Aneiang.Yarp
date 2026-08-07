@@ -33,11 +33,11 @@ internal sealed class DashboardMvcOptionsSetup : IConfigureOptions<MvcOptions>
         var prefix = opts.RoutePrefix.Trim('/');
 
         DashboardPagesController.RoutePrefix = prefix;
-        opts.JwtSecret = _jwtSecretProvider.GetSecret(opts.JwtSecret);
+        opts.Auth.JwtSecret = _jwtSecretProvider.GetSecret(opts.Auth.JwtSecret);
 
         mvcOptions.Conventions.Add(new DashboardRouteConvention(prefix));
 
-        if (opts.AuthMode != DashboardAuthMode.None || opts.AuthorizeRequest != null)
+        if (opts.Auth.AuthMode != DashboardAuthMode.None || opts.Auth.AuthorizeRequest != null)
         {
             var authFilter = new DashboardAuthFilter(_authService, prefix);
             mvcOptions.Filters.Add(authFilter);

@@ -1,6 +1,8 @@
+using Aneiang.Yarp.Dashboard.Infrastructure.I18n;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Mvc;
+using Aneiang.Yarp.Plugins;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Controllers;
 
@@ -27,6 +29,17 @@ public class PluginsController : ControllerBase
         _runtimeDomains = runtimeDomains;
     }
 
+    /// <summary>Resolve locale from cookie, default to zh-CN.</summary>
+    private string ResolveLocale() =>
+        Request.Cookies["dashboard_locale"] == "en-US" ? "en-US" : "zh-CN";
+
+    /// <summary>Look up a localized value from i18n resources; fall back to the manifest value.</summary>
+    private string Localize(string i18nKey, string fallback)
+    {
+        var dict = DashboardI18n.GetDict(ResolveLocale());
+        return dict.TryGetValue(i18nKey, out var localized) ? localized : fallback;
+    }
+
     /// <summary>Get all registered plugins.</summary>
     [HttpGet]
     public async Task<IActionResult> GetPlugins(CancellationToken cancellationToken)
@@ -42,9 +55,9 @@ public class PluginsController : ControllerBase
             plugins.Add(new
             {
                 pluginId = manifest.Id,
-                displayName = manifest.Name,
+                displayName = Localize($"plugin.name.{manifest.Id}", manifest.Name),
                 version = manifest.Version,
-                description = manifest.Description,
+                description = Localize($"plugin.desc.{manifest.Id}", manifest.Description),
                 scopes = manifest.Scopes,
                 capabilities = manifest.Capabilities,
                 order = manifest.Order,
@@ -121,9 +134,9 @@ public class PluginsController : ControllerBase
             data = new
             {
                 pluginId = manifest.Id,
-                displayName = manifest.Name,
+                displayName = Localize($"plugin.name.{manifest.Id}", manifest.Name),
                 version = manifest.Version,
-                description = manifest.Description,
+                description = Localize($"plugin.desc.{manifest.Id}", manifest.Description),
                 scopes = manifest.Scopes,
                 capabilities = manifest.Capabilities,
                 order = manifest.Order,
@@ -240,6 +253,48 @@ public class PluginsController : ControllerBase
         }
     }
 
+    /// <summary>Install an external plugin from a source directory.</summary>
+    [HttpPost("install")]
+    public IActionResult InstallPlugin([FromBody] InstallPluginRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request?.SourceDirectory))
+            return BadRequest(new { code = 400, message = "SourceDirectory is required." });
+
+        var result = _manager.InstallPlugin(request.SourceDirectory);
+        if (!result.Succeeded)
+            return Conflict(new { code = 409, message = result.Error });
+
+        _dynamicConfig.RefreshConfig();
+        return Ok(new { code = 200, message = "Plugin installed successfully" });
+    }
+
+    /// <summary>Uninstall an external plugin (must be disabled and unbound).</summary>
+    [HttpDelete("{pluginId}")]
+    public IActionResult UninstallPlugin(string pluginId)
+    {
+        var result = _manager.UninstallPlugin(pluginId);
+        if (!result.Succeeded)
+            return Conflict(new { code = 409, message = result.Error });
+
+        _dynamicConfig.RefreshConfig();
+        return Ok(new { code = 200, message = "Plugin uninstalled successfully" });
+    }
+
+    /// <summary>Upgrade an external plugin from a source directory.</summary>
+    [HttpPost("{pluginId}/upgrade")]
+    public IActionResult UpgradePlugin(string pluginId, [FromBody] InstallPluginRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request?.SourceDirectory))
+            return BadRequest(new { code = 400, message = "SourceDirectory is required." });
+
+        var result = _manager.UpgradePlugin(pluginId, request.SourceDirectory);
+        if (!result.Succeeded)
+            return Conflict(new { code = 409, message = result.Error });
+
+        _dynamicConfig.RefreshConfig();
+        return Ok(new { code = 200, message = "Plugin upgraded successfully" });
+    }
+
     private string[] GetEnabledPluginIds() => _manager.GetAllManifests()
         .Where(item => _manager.IsPluginEnabled(item.Id))
         .Select(item => item.Id)
@@ -258,4 +313,9 @@ public class PluginsController : ControllerBase
 public class TogglePluginRequest
 {
     public bool Enabled { get; set; }
+}
+
+public class InstallPluginRequest
+{
+    public string? SourceDirectory { get; set; }
 }

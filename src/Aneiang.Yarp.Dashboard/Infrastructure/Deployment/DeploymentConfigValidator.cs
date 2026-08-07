@@ -72,7 +72,7 @@ public class DeploymentConfigValidator : IHostedService
             else if (string.Equals(kvp.Value, "Dashboard", StringComparison.OrdinalIgnoreCase) && isPublic)
             {
                 warnings.Add($"SECURITY: Dashboard endpoint '{kvp.Key}' is publicly bound to {uri.Host}. Consider binding to 127.0.0.1.");
-                if (isProduction && dashboardOptions.AuthMode == DashboardAuthMode.None && dashboardOptions.AuthorizeRequest == null)
+                if (isProduction && dashboardOptions.Auth.AuthMode == DashboardAuthMode.None && dashboardOptions.Auth.AuthorizeRequest == null)
                 {
                     errors.Add($"Dashboard endpoint '{kvp.Key}' is publicly bound ({uri.Host}) with AuthMode=None in Production. Enable Dashboard auth or bind to loopback.");
                 }

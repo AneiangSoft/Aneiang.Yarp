@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Aneiang.Yarp.Plugins;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
 using Aneiang.Yarp.Storage.Entities;
@@ -9,48 +10,6 @@ using Microsoft.Extensions.Configuration;
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 
 /// <summary>
-/// Manages gateway plugins lifecycle: discovery, configuration, and pipeline integration.
-/// </summary>
-public sealed record PluginStateChangeResult(bool Succeeded, string? Error = null)
-{
-    public static PluginStateChangeResult Success { get; } = new(true);
-}
-
-public sealed record PluginRuntimeState(
-    PluginManifest Manifest,
-    bool Enabled,
-    bool IsBuiltIn,
-    IReadOnlyList<string> MissingDependencies,
-    IReadOnlyList<string> BindingTargets,
-    string Health,
-    ExternalPluginRegistrationStatus? RegistrationStatus = null,
-    string? RegistrationError = null);
-
-public interface IGatewayPluginManager : IPluginManifestCatalog
-{
-    /// <summary>Get all registered runtime plugins.</summary>
-    IReadOnlyList<IGatewayPlugin> GetAllPlugins();
-
-    /// <summary>Get a plugin by its ID.</summary>
-    IGatewayPlugin? GetPlugin(string pluginId);
-
-    /// <summary>Check if a plugin is enabled.</summary>
-    bool IsPluginEnabled(string pluginId);
-
-    /// <summary>Validate an enable or disable operation without changing state.</summary>
-    PluginStateChangeResult ValidatePluginStateChange(string pluginId, bool enabled);
-
-    /// <summary>Enable or disable a plugin after dependency and binding safety checks.</summary>
-    PluginStateChangeResult SetPluginEnabled(string pluginId, bool enabled);
-
-    /// <summary>Returns runtime state, dependencies, bindings and resource declarations for all manifests.</summary>
-    IReadOnlyList<PluginRuntimeState> GetPluginStates();
-
-    /// <summary>Save current plugin states to persistent storage.</summary>
-    void SaveState();
-}
-
-/// <summary>
 /// Default implementation of <see cref="IGatewayPluginManager"/>.
 /// </summary>
 public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationState
@@ -58,13 +17,12 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
     private readonly Dictionary<string, IGatewayPlugin> _plugins = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, PluginManifest> _manifests = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, bool> _enabledPlugins = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, DateTimeOffset> _pluginEnabledAt = new(StringComparer.OrdinalIgnoreCase);
     private readonly ILogger<GatewayPluginManager> _logger;
     private readonly IGatewaySnapshotPublisher _snapshotPublisher;
     private readonly ExternalGatewayPluginHost _externalPluginHost;
     private readonly IGatewayPluginRepository? _pluginRepository;
     private readonly Dictionary<string, GatewayPluginEntity> _persistedPlugins = new(StringComparer.OrdinalIgnoreCase);
-    private readonly string _legacyStateFilePath;
-    private bool _legacyStateImported;
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -84,13 +42,13 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
         _snapshotPublisher = snapshotPublisher;
         _externalPluginHost = externalPluginHost;
         _pluginRepository = pluginRepository;
-        _legacyStateFilePath = Path.Combine(hostEnv.ContentRootPath, "plugin-states.json");
 
         foreach (var plugin in plugins)
         {
             _plugins[plugin.PluginId] = plugin;
             _manifests[plugin.Manifest.Id] = plugin.Manifest;
             _enabledPlugins[plugin.PluginId] = true;
+            _pluginEnabledAt[plugin.PluginId] = DateTimeOffset.UtcNow;
 
             _logger.LogDebug(
                 "Plugin '{PluginName}' v{Version} ({PluginId}) registered, enabled: {Enabled}",
@@ -102,6 +60,7 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
         {
             _manifests[manifest.Id] = manifest;
             _enabledPlugins[manifest.Id] = true;
+            _pluginEnabledAt[manifest.Id] = DateTimeOffset.UtcNow;
         }
 
         foreach (var manifest in _externalPluginHost.Manifests)
@@ -114,6 +73,7 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
 
             _manifests[manifest.Id] = manifest;
             _enabledPlugins[manifest.Id] = true;
+            _pluginEnabledAt[manifest.Id] = DateTimeOffset.UtcNow;
         }
 
         // Database is authoritative. The legacy JSON file is imported only when the database has no rows.
@@ -160,6 +120,7 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
             var health = !enabled ? "Disabled"
                 : registration is { Status: ExternalPluginRegistrationStatus.DependencyUnsatisfied or ExternalPluginRegistrationStatus.LoadFailed or ExternalPluginRegistrationStatus.InvalidManifest } ? "Unhealthy"
                 : missingDependencies.Length > 0 ? "Degraded" : "Healthy";
+            var enabledAt = enabled && _pluginEnabledAt.TryGetValue(manifest.Id, out var at) ? at : (DateTimeOffset?)null;
             return new PluginRuntimeState(
                 manifest,
                 enabled,
@@ -168,7 +129,8 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
                 bindingTargets,
                 health,
                 registration?.Status,
-                registration?.Error);
+                registration?.Error,
+                enabledAt);
         }).ToArray();
 
     public PluginStateChangeResult ValidatePluginStateChange(string pluginId, bool enabled)
@@ -211,7 +173,12 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
             return validation;
 
         var previous = _enabledPlugins[pluginId];
+        var previousEnabledAt = _pluginEnabledAt.TryGetValue(pluginId, out var previousAt) ? previousAt : (DateTimeOffset?)null;
         _enabledPlugins[pluginId] = enabled;
+        if (enabled && !_pluginEnabledAt.ContainsKey(pluginId))
+            _pluginEnabledAt[pluginId] = DateTimeOffset.UtcNow;
+        else if (!enabled)
+            _pluginEnabledAt.Remove(pluginId);
         try
         {
             SaveStateOrThrow();
@@ -221,6 +188,10 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
         catch (Exception ex)
         {
             _enabledPlugins[pluginId] = previous;
+            if (previousEnabledAt.HasValue)
+                _pluginEnabledAt[pluginId] = previousEnabledAt.Value;
+            else
+                _pluginEnabledAt.Remove(pluginId);
             _logger.LogError(ex, "Failed to persist plugin '{PluginId}' state", pluginId);
             return new(false, ex.Message);
         }
@@ -269,7 +240,6 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
             throw new InvalidOperationException("Plugin state persistence is unavailable because no gateway plugin repository is registered.");
 
         SaveStateAsync().GetAwaiter().GetResult();
-        CompleteLegacyStateImport();
     }
 
     private async Task SaveStateAsync()
@@ -279,17 +249,21 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
             var now = DateTime.UtcNow;
             var registration = GetExternalRegistration(manifest.Id);
             _persistedPlugins.TryGetValue(manifest.Id, out var persisted);
+            var enabled = _enabledPlugins.GetValueOrDefault(manifest.Id);
             var entity = new GatewayPluginEntity
             {
                 PluginId = manifest.Id,
                 Version = manifest.Version,
-                Enabled = _enabledPlugins.GetValueOrDefault(manifest.Id),
+                Enabled = enabled,
                 IsBuiltIn = registration == null,
                 SourcePath = registration?.ManifestPath,
                 RegistrationStatus = registration?.Status.ToString() ?? "Loaded",
                 LastError = registration?.Error,
                 InstalledAt = persisted?.InstalledAt ?? now,
-                UpdatedAt = now
+                UpdatedAt = now,
+                EnabledAt = enabled && _pluginEnabledAt.TryGetValue(manifest.Id, out var enabledAt)
+                    ? enabledAt.UtcDateTime
+                    : (persisted?.EnabledAt)
             };
             await _pluginRepository!.UpsertAsync(entity).ConfigureAwait(false);
             _persistedPlugins[manifest.Id] = entity;
@@ -309,13 +283,6 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
         try
         {
             var rows = _pluginRepository.GetAllAsync().GetAwaiter().GetResult();
-            if (rows.Count == 0)
-            {
-                _legacyStateImported = TryImportLegacyState();
-                if (_legacyStateImported)
-                    _logger.LogInformation("Imported plugin state from legacy plugin-states.json; the file will be removed after database persistence succeeds");
-                return;
-            }
 
             foreach (var row in rows)
             {
@@ -324,57 +291,93 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
                     continue;
 
                 _enabledPlugins[row.PluginId] = row.Enabled;
+                if (row.Enabled && row.EnabledAt.HasValue)
+                    _pluginEnabledAt[row.PluginId] = row.EnabledAt.Value;
+                else if (!row.Enabled)
+                    _pluginEnabledAt.Remove(row.PluginId);
                 _logger.LogInformation("Plugin '{PluginId}' state loaded from gateway_plugins: {Enabled}", row.PluginId, row.Enabled);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to load plugin state from gateway_plugins; legacy plugin-states.json fallback is disabled");
+            _logger.LogWarning(ex, "Failed to load plugin state from gateway_plugins");
         }
     }
 
-    private bool TryImportLegacyState()
+    /// <inheritdoc />
+    public PluginStateChangeResult InstallPlugin(string sourceDirectory)
     {
-        try
+        if (!_externalPluginHost.TryInstall(sourceDirectory, out var error))
+            return new(false, error);
+
+        // Register the newly installed manifest
+        var newManifests = _externalPluginHost.Manifests
+            .Where(m => !_manifests.ContainsKey(m.Id))
+            .ToArray();
+        foreach (var manifest in newManifests)
         {
-            if (!File.Exists(_legacyStateFilePath))
-                return false;
-
-            var json = File.ReadAllText(_legacyStateFilePath);
-            var state = JsonSerializer.Deserialize<Dictionary<string, bool>>(json, _jsonOptions);
-            if (state == null)
-                return false;
-
-            foreach (var (pluginId, enabled) in state)
-            {
-                if (_manifests.ContainsKey(pluginId))
-                    _enabledPlugins[pluginId] = enabled;
-            }
-
-            return true;
+            _manifests[manifest.Id] = manifest;
+            _enabledPlugins[manifest.Id] = true;
+            _pluginEnabledAt[manifest.Id] = DateTimeOffset.UtcNow;
         }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to import legacy plugin state from {Path}", _legacyStateFilePath);
-            return false;
-        }
+        SaveState();
+        return PluginStateChangeResult.Success;
     }
 
-    private void CompleteLegacyStateImport()
+    /// <inheritdoc />
+    public PluginStateChangeResult UninstallPlugin(string pluginId)
     {
-        if (!_legacyStateImported)
-            return;
+        var registration = GetExternalRegistration(pluginId);
+        if (registration == null)
+            return new(false, $"Plugin '{pluginId}' is a built-in plugin and cannot be uninstalled.");
 
-        try
+        if (IsPluginEnabled(pluginId))
+            return new(false, "Plugin must be disabled before uninstalling.");
+
+        var bindingTargets = GetBindingTargets(pluginId);
+        if (bindingTargets.Count > 0)
+            return new(false, $"Remove plugin bindings first: {string.Join(", ", bindingTargets)}.");
+
+        if (!_externalPluginHost.TryUninstall(pluginId, out var error))
+            return new(false, error);
+
+        _manifests.Remove(pluginId);
+        _enabledPlugins.Remove(pluginId);
+        _persistedPlugins.Remove(pluginId);
+
+        // Remove from database
+        if (_pluginRepository != null)
         {
-            File.Delete(_legacyStateFilePath);
-            _legacyStateImported = false;
-            _logger.LogInformation("Removed imported legacy plugin state file {Path}", _legacyStateFilePath);
+            try { _pluginRepository.DeleteAsync(pluginId).GetAwaiter().GetResult(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete plugin {PluginId} from database", pluginId); }
         }
-        catch (Exception ex)
+
+        _logger.LogInformation("Plugin '{PluginId}' uninstalled", pluginId);
+        return PluginStateChangeResult.Success;
+    }
+
+    /// <inheritdoc />
+    public PluginStateChangeResult UpgradePlugin(string pluginId, string sourceDirectory)
+    {
+        var registration = GetExternalRegistration(pluginId);
+        if (registration == null)
+            return new(false, $"Plugin '{pluginId}' is a built-in plugin and cannot be upgraded.");
+
+        if (IsPluginEnabled(pluginId))
+            return new(false, "Plugin must be disabled before upgrading.");
+
+        if (!_externalPluginHost.TryUpgrade(pluginId, sourceDirectory, out var error))
+            return new(false, error);
+
+        // Update manifest in catalog
+        var updatedRegistration = GetExternalRegistration(pluginId);
+        if (updatedRegistration != null)
         {
-            _logger.LogWarning(ex, "Legacy plugin state was imported but file {Path} could not be removed", _legacyStateFilePath);
+            _manifests[pluginId] = updatedRegistration.Manifest;
         }
+        SaveState();
+        _logger.LogInformation("Plugin '{PluginId}' upgraded", pluginId);
+        return PluginStateChangeResult.Success;
     }
 
     private ExternalPluginRegistration? GetExternalRegistration(string pluginId) =>

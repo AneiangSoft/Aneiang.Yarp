@@ -1,6 +1,7 @@
 using Aneiang.Yarp.Dashboard.Infrastructure.Performance;
 using Aneiang.Yarp.Dashboard.Infrastructure;
-using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
+using Aneiang.Yarp.Plugin.ProxyLog;
+using Aneiang.Yarp.Plugin.ProxyLog.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
@@ -12,7 +13,7 @@ namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 /// Handles header blacklisting, query parameter filtering, and JSON field sanitization.
 /// Optimized with cached HashSets and pre-allocated collections.
 /// </summary>
-public sealed class LogSanitizer
+public sealed class LogSanitizer : ILogSanitizer
 {
     private static readonly HashSet<string> _defaultHeaderBlacklist = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -45,22 +46,22 @@ public sealed class LogSanitizer
     public LogSanitizer(IOptions<DashboardOptions> options)
     {
         var opt = options.Value;
-        _maxBodyLength = opt.LogMaxBodyLength;
+        _maxBodyLength = opt.ProxyLog.LogMaxBodyLength;
 
         // Build header blacklist - merged default + custom
         _headerBlacklist = new HashSet<string>(
-            opt.LogHeaderBlacklist ?? (IEnumerable<string>)_defaultHeaderBlacklist,
+            opt.ProxyLog.LogHeaderBlacklist ?? (IEnumerable<string>)_defaultHeaderBlacklist,
             StringComparer.OrdinalIgnoreCase);
 
         // Build JSON field sanitize list - merged default + custom
         _jsonFieldSanitizeList = new HashSet<string>(
-            opt.LogJsonFieldSanitizeList ?? (IEnumerable<string>)_defaultJsonFieldSanitizeList,
+            opt.ProxyLog.LogJsonFieldSanitizeList ?? (IEnumerable<string>)_defaultJsonFieldSanitizeList,
             StringComparer.OrdinalIgnoreCase);
 
         // Cache query blacklist to avoid rebuilding on every SanitizeQueryString call
-        if (opt.LogQueryBlacklist != null && opt.LogQueryBlacklist.Count > 0)
+        if (opt.ProxyLog.LogQueryBlacklist != null && opt.ProxyLog.LogQueryBlacklist.Count > 0)
         {
-            _queryBlacklist = new HashSet<string>(opt.LogQueryBlacklist, StringComparer.OrdinalIgnoreCase);
+            _queryBlacklist = new HashSet<string>(opt.ProxyLog.LogQueryBlacklist, StringComparer.OrdinalIgnoreCase);
             _hasQueryBlacklist = true;
         }
     }

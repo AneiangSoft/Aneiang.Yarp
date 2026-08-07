@@ -99,7 +99,6 @@ public static class ConfigEntityMapper
         ClusterId = cluster.Config.ClusterId ?? string.Empty,
         LoadBalancingPolicy = cluster.Config.LoadBalancingPolicy,
         HealthCheckConfig = cluster.HealthCheck != null ? JsonSerializer.Serialize(cluster.HealthCheck, _jsonOptions) : null,
-        CircuitBreakerConfig = null,
         Source = cluster.Source,
         CreatedBy = cluster.CreatedBy,
         CreatedAt = cluster.CreatedAt,

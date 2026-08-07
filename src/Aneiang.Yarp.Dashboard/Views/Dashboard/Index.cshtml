@@ -1,4 +1,4 @@
-@using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
+@using Aneiang.Yarp.Plugin.ProxyLog.Models
 @{
     ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Overview" : "总览";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
@@ -43,9 +43,9 @@
                     <div class="stat-card__value" id="stat-healthy" style="color:#22c55e;">-</div>
                     <div class="stat-card__label" data-i18n="index.stat.health">健康状态</div>
                     <div class="stat-card__trend">
-                        <span style="color:#22c55e;">●</span> 健康
-                        <span style="color:#f59e0b;margin-left:6px;">●</span> 未知
-                        <span style="color:#ef4444;margin-left:6px;">●</span> 异常
+                        <span style="color:#22c55e;">●</span> <span data-i18n="index.health.healthy">健康</span>
+                        <span style="color:#f59e0b;margin-left:6px;">●</span> <span data-i18n="index.health.unknown">未知</span>
+                        <span style="color:#ef4444;margin-left:6px;">●</span> <span data-i18n="index.health.unhealthy">异常</span>
                     </div>
                 </div>
             </div>

@@ -1,10 +1,15 @@
-@using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
+@using Aneiang.Yarp.Plugin.ProxyLog.Models
 @{
     ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Clusters" : "服务集群";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
 <!-- Cluster panel -->
+<div class="page-help-bar" id="clusters-help-bar">
+    <i class="bi bi-info-circle"></i>
+    <span class="help-text" data-i18n="page.help.clusters">服务集群是一组后端服务节点的集合，路由规则会将请求转发到指定的集群。点击行可展开查看节点详情和绑定的插件能力。</span>
+    <button class="help-close" onclick="document.getElementById('clusters-help-bar').classList.add('collapsed')">&times;</button>
+</div>
 <div id="cluster-panel" class="card-panel mb-4">
     <div class="card-header">
         <span><i class="bi bi-hdd-stack me-2" style="color:#3b82f6;"></i><span data-i18n="index.cluster.title">集群 &amp; 目标节点状态</span></span>

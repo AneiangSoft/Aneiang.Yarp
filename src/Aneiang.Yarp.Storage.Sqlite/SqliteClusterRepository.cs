@@ -166,17 +166,16 @@ public sealed class SqliteClusterRepository : IClusterRepository
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;
         cmd.CommandText = """
-            INSERT INTO yarp_clusters (cluster_uid, cluster_id, load_balancing_policy, health_check_config, circuit_breaker_config, source, created_by, created_at, updated_at, last_heartbeat, config_json)
-            VALUES (@uid, @id, @lb, @hc, @cbc, @src, @cb, @ca, @ua, @lh, @cfg)
+            INSERT INTO yarp_clusters (cluster_uid, cluster_id, load_balancing_policy, health_check_config, source, created_by, created_at, updated_at, last_heartbeat, config_json)
+            VALUES (@uid, @id, @lb, @hc, @src, @cb, @ca, @ua, @lh, @cfg)
             ON CONFLICT(cluster_id) DO UPDATE SET
-                cluster_uid = @uid, load_balancing_policy = @lb, health_check_config = @hc, circuit_breaker_config = @cbc,
+                cluster_uid = @uid, load_balancing_policy = @lb, health_check_config = @hc,
                 source = @src, updated_at = @ua, last_heartbeat = @lh, config_json = @cfg
             """;
         cmd.Parameters.AddWithValue("@uid", uid);
         cmd.Parameters.AddWithValue("@id", c.ClusterId);
         cmd.Parameters.AddWithValue("@lb", c.LoadBalancingPolicy ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@hc", c.HealthCheckConfig ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@cbc", c.CircuitBreakerConfig ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@src", c.Source);
         cmd.Parameters.AddWithValue("@cb", c.CreatedBy ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@ca", c.CreatedAt.ToString("O"));
@@ -192,7 +191,6 @@ public sealed class SqliteClusterRepository : IClusterRepository
         ClusterId = ReadString(r, "cluster_id") ?? string.Empty,
         LoadBalancingPolicy = ReadString(r, "load_balancing_policy"),
         HealthCheckConfig = ReadString(r, "health_check_config"),
-        CircuitBreakerConfig = ReadString(r, "circuit_breaker_config"),
         Source = ReadString(r, "source") ?? "dynamic",
         CreatedBy = ReadString(r, "created_by"),
         CreatedAt = ReadDateTime(r, "created_at") ?? DateTime.MinValue,

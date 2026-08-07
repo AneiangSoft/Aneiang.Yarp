@@ -6,10 +6,10 @@ using Aneiang.Yarp.Dashboard.Extensions;
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Auth;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
-using Aneiang.Yarp.Dashboard.Modules.AI.Tools;
-using Aneiang.Yarp.Dashboard.Modules.Plugins;
-using Aneiang.Yarp.Dashboard.Modules.Plugins.Runtime;
-using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
+using Aneiang.Yarp.Plugins;
+using Aneiang.Yarp.Plugin.ProxyLog;
+using Aneiang.Yarp.Plugin.ProxyLog.Services;
+using Aneiang.Yarp.Plugin.ServiceDiscovery;
 using Aneiang.Yarp.Infrastructure;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
@@ -56,33 +56,8 @@ Run("Removed compatibility contracts stay isolated from runtime source", () =>
     }
 });
 
-await RunAsync("Distributed rate limit backends preserve atomic window counts", async () =>
+Run("Infrastructure plugin schemas expose discovery adapters", () =>
 {
-    var memory = new MemoryDistributedRateLimitBackend();
-    var expiry = DateTimeOffset.UtcNow.AddMinutes(1);
-    var memoryCounts = await Task.WhenAll(Enumerable.Range(0, 100).Select(_ => memory.IncrementAsync("memory", expiry, default).AsTask()));
-    Equal(100, memoryCounts.Max());
-
-    var path = Path.Combine(Path.GetTempPath(), $"aneiang-rate-limit-{Guid.NewGuid():N}.db");
-    Environment.SetEnvironmentVariable("ANEIANG_RATE_LIMIT_SQLITE", $"Data Source={path};Mode=ReadWriteCreate;Cache=Shared;Pooling=False");
-    try
-    {
-        var sqlite = new SqliteDistributedRateLimitBackend();
-        var sqliteCounts = await Task.WhenAll(Enumerable.Range(0, 40).Select(_ => sqlite.IncrementAsync("sqlite", expiry, default).AsTask()));
-        Equal(40, sqliteCounts.Max());
-        Equal(40, sqliteCounts.Distinct().Count());
-    }
-    finally
-    {
-        Environment.SetEnvironmentVariable("ANEIANG_RATE_LIMIT_SQLITE", null);
-        if (File.Exists(path)) File.Delete(path);
-    }
-});
-
-Run("Infrastructure plugin schemas expose shared backends and discovery adapters", () =>
-{
-    var rateSchema = JsonDocument.Parse(new DistributedRateLimitPlugin().Manifest.Schemas.Single().ConfigJsonSchema);
-    True(rateSchema.RootElement.GetProperty("properties").GetProperty("backend").GetProperty("enum").EnumerateArray().Any(x => x.GetString() == "Sqlite"));
     var discoverySchema = JsonDocument.Parse(new HttpServiceDiscoveryPlugin().Manifest.Schemas.Single().ConfigJsonSchema);
     var modes = discoverySchema.RootElement.GetProperty("properties").GetProperty("mode").GetProperty("enum").EnumerateArray().Select(x => x.GetString()).ToHashSet();
     True(new[] { "Consul", "Nacos", "Eureka", "Kubernetes" }.All(modes.Contains));
@@ -181,13 +156,13 @@ await RunAsync("Plugin runtime domain drains in-flight requests before disposal"
 
 Run("Plugin manifest dependencies are exposed and built-in adapters are protected", () =>
 {
-    var manifest = new Aneiang.Yarp.Dashboard.Infrastructure.Plugin.PluginManifest(
+    var manifest = new Aneiang.Yarp.Plugins.PluginManifest(
         "dependent", "Dependent", "1.0", [], [], 0, new(), [], "test")
     {
         Dependencies = [new("base")]
     };
     Equal("base", manifest.Dependencies.Single().PluginId);
-    True(!new Aneiang.Yarp.Dashboard.Infrastructure.Plugin.PluginStateChangeResult(false, "blocked").Succeeded);
+    True(!new PluginStateChangeResult(false, "blocked").Succeeded);
 });
 
 Run("ClientIpResolver ignores spoofed forwarding headers", () =>
@@ -201,7 +176,7 @@ Run("ClientIpResolver ignores spoofed forwarding headers", () =>
 
 await RunAsync("Dashboard API key is header-only", async () =>
 {
-    var options = Options.Create(new DashboardOptions { AuthMode = DashboardAuthMode.ApiKey, ApiKey = "secret", ApiKeyHeaderName = "X-Api-Key" });
+    var options = Options.Create(new DashboardOptions { Auth = new DashboardAuthOptions { AuthMode = DashboardAuthMode.ApiKey, ApiKey = "secret", ApiKeyHeaderName = "X-Api-Key" } });
     var service = new DashboardAuthorizationService(options, NullLogger<DashboardAuthorizationService>.Instance);
     var queryContext = new DefaultHttpContext();
     queryContext.Request.QueryString = new QueryString("?api-key=secret");
@@ -215,7 +190,7 @@ await RunAsync("JWT query token is restricted to dashboard hubs", async () =>
 {
     const string secret = "regression-test-secret-that-is-long-enough";
     var token = DashboardJwtHelper.GenerateToken("tester", secret);
-    var service = new DashboardAuthorizationService(Options.Create(new DashboardOptions { AuthMode = DashboardAuthMode.CustomJwt, JwtSecret = secret }), NullLogger<DashboardAuthorizationService>.Instance);
+    var service = new DashboardAuthorizationService(Options.Create(new DashboardOptions { Auth = new DashboardAuthOptions { AuthMode = DashboardAuthMode.CustomJwt, JwtSecret = secret } }), NullLogger<DashboardAuthorizationService>.Instance);
     var apiContext = new DefaultHttpContext();
     apiContext.Request.Path = "/apigateway/api/routes";
     apiContext.Request.QueryString = new QueryString($"?access_token={token}");
@@ -237,7 +212,7 @@ Run("Response capture does not depend on request content type", () =>
 
 Run("Proxy log runtime settings use dashboard defaults", () =>
 {
-    var runtime = new ProxyLogRuntimeSettings(Options.Create(new DashboardOptions
+    var runtime = new ProxyLogRuntimeSettings(Options.Create(new ProxyLogPluginOptions
     {
         LogPersistenceEnabled = true,
         LogMetaRetentionDays = 7,
@@ -426,7 +401,6 @@ async Task TestSnapshotCompilerAsync()
     [
         NewBinding("route-on", PluginBindingScope.Route, "route-a", NativePluginAdapters.RouteTimeout, true, "{\"Timeout\":\"00:00:05\"}"),
         NewBinding("route-cors", PluginBindingScope.Route, "route-a", NativePluginAdapters.RouteCors, true, "{\"CorsPolicy\":\"route-cors-policy\"}"),
-        NewBinding("route-rate-limit", PluginBindingScope.Route, "route-a", NativePluginAdapters.RouteRateLimit, true, "{\"RateLimiterPolicy\":\"route-rate-policy\"}"),
         NewBinding("route-compression", PluginBindingScope.Route, "route-a", NativePluginAdapters.RouteCompression, true, "{\"Enabled\":false}"),
         NewBinding("route-pipeline", PluginBindingScope.Route, "route-a", OrderedRouteCompiler.PluginId, true, "{\"value\":17}"),
         NewBinding("route-disabled", PluginBindingScope.Route, "route-a", NativePluginAdapters.RouteTimeout, false, "{\"Timeout\":\"00:00:10\"}"),
@@ -447,13 +421,12 @@ async Task TestSnapshotCompilerAsync()
     var snapshot = await compiler.CompileAsync(routes, clusters, 7);
     Equal(7L, snapshot.Version);
     True(snapshot.RoutePlugins["route-a"].Select(x => x.BindingId).ToHashSet(StringComparer.Ordinal).SetEquals([
-        "route-on", "route-cors", "route-rate-limit", "route-compression", "route-pipeline"]));
+        "route-on", "route-cors", "route-compression", "route-pipeline"]));
     True(snapshot.ClusterPlugins["cluster-a"].Select(x => x.BindingId).SequenceEqual(["cluster-on", "cluster-pipeline"]));
     False(snapshot.RoutePlugins.ContainsKey("missing-route"));
     False(snapshot.ClusterPlugins.ContainsKey("missing-cluster"));
     Equal(TimeSpan.FromSeconds(5), snapshot.Routes[0].Timeout);
     Equal("route-cors-policy", snapshot.Routes[0].CorsPolicy);
-    Equal("route-rate-policy", snapshot.Routes[0].RateLimiterPolicy);
     True(snapshot.Routes[0].Transforms!.Any(transform =>
         transform.TryGetValue("RequestHeaderRemove", out var header) && header == "Accept-Encoding"));
     Equal("RoundRobin", snapshot.Clusters[0].LoadBalancingPolicy);
@@ -641,17 +614,6 @@ void TestLegacyGlobalPolicyIsolation()
         .ToHashSet(StringComparer.Ordinal);
     foreach (var pluginType in new[] { "CircuitBreakerPlugin", "RequestRetryPlugin", "RateLimitPlugin", "WafPlugin" })
         True(pluginIds.Contains(pluginType));
-
-    var publishedTools = new GatewayToolRegistry().GetToolDefinitions().Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
-    foreach (var legacyTool in new[]
-    {
-        "get_waf_settings", "update_waf_settings", "get_policies", "create_cluster_policy",
-        "apply_cluster_policy", "create_route_policy", "apply_route_policy", "delete_policy",
-        "get_rate_limit_status", "get_retry_config"
-    })
-    {
-        False(publishedTools.Contains(legacyTool));
-    }
 }
 
 void Run(string name, Action action)
@@ -892,4 +854,12 @@ sealed class InMemoryPluginRepository(IReadOnlyList<PluginBindingEntity> binding
     public Task<IReadOnlyList<PluginSchemaEntity>> GetSchemasAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<PluginSchemaEntity>>([]);
     public Task<PluginSchemaEntity?> GetSchemaAsync(string pluginId, int schemaVersion, CancellationToken ct = default) => Task.FromResult<PluginSchemaEntity?>(null);
     public Task UpsertSchemaAsync(PluginSchemaEntity schema, CancellationToken ct = default) => throw new NotSupportedException();
+
+    // --- Strategy Presets ---
+    private static readonly IReadOnlyList<PluginConfigPresetEntity> _emptyPresets = Array.Empty<PluginConfigPresetEntity>();
+    public Task<IReadOnlyList<PluginConfigPresetEntity>> GetPresetsAsync(CancellationToken ct = default) => Task.FromResult(_emptyPresets);
+    public Task<IReadOnlyList<PluginConfigPresetEntity>> GetPresetsByPluginAsync(string pluginId, CancellationToken ct = default) => Task.FromResult(_emptyPresets);
+    public Task<PluginConfigPresetEntity?> GetPresetAsync(string id, CancellationToken ct = default) => Task.FromResult<PluginConfigPresetEntity?>(null);
+    public Task UpsertPresetAsync(PluginConfigPresetEntity preset, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<bool> DeletePresetAsync(string id, CancellationToken ct = default) => throw new NotSupportedException();
 }

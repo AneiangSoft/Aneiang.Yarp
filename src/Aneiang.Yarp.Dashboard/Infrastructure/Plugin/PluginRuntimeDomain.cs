@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -6,7 +7,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Aneiang.Yarp.Services;
+using Aneiang.Yarp.Storage;
 using Yarp.ReverseProxy.Model;
+using Aneiang.Yarp.Plugins;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 
@@ -36,22 +39,22 @@ public sealed class PluginRuntimeDomain : IAsyncDisposable
         IReadOnlyDictionary<string, IGatewayPlugin> plugins,
         RequestDelegate middleware,
         RequestDelegate proxyPipeline,
-        IPluginDashboardBuilder dashboardBuilder,
-        IReadOnlyList<IAsyncDisposable> externalLoads)
+        IReadOnlyList<IAsyncDisposable> externalLoads,
+        PluginDashboardBuilder? dashboardBuilder = null)
     {
         Services = services;
         Plugins = plugins;
         Middleware = middleware;
         ProxyPipeline = proxyPipeline;
-        DashboardBuilder = dashboardBuilder;
         _externalLoads = externalLoads;
+        DashboardBuilder = dashboardBuilder ?? new PluginDashboardBuilder();
     }
 
     public IServiceProvider Services { get; }
     public IReadOnlyDictionary<string, IGatewayPlugin> Plugins { get; }
     public RequestDelegate Middleware { get; }
     public RequestDelegate ProxyPipeline { get; }
-    public IPluginDashboardBuilder DashboardBuilder { get; }
+    public PluginDashboardBuilder DashboardBuilder { get; }
 
     public bool TryAcquire(out PluginRuntimeDomainLease lease)
     {
@@ -104,7 +107,6 @@ public sealed class PluginRuntimeDomain : IAsyncDisposable
         new Dictionary<string, IGatewayPlugin>(StringComparer.OrdinalIgnoreCase),
         _ => Task.CompletedTask,
         _ => Task.CompletedTask,
-        new PluginDashboardBuilder(),
         []);
 }
 
@@ -168,10 +170,31 @@ public sealed class PluginRuntimeDomainPreparation : IAsyncDisposable
 public sealed class PluginRuntimeDomainInitializer(
     IGatewayPluginManager plugins,
     IPluginRuntimeDomainManager runtimeDomains,
+    IPluginConfigurationRepository pluginConfigRepository,
     ILogger<PluginRuntimeDomainInitializer> logger) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        // Clean up stale plugin bindings for plugins that no longer exist
+        try
+        {
+            var knownIds = plugins.GetAllManifests().Select(m => m.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var bindings = await pluginConfigRepository.GetBindingsAsync(cancellationToken);
+            var stale = bindings.Where(b => !knownIds.Contains(b.PluginId)).ToArray();
+            if (stale.Length > 0)
+            {
+                foreach (var s in stale)
+                {
+                    logger.LogWarning("Removing stale binding '{BindingId}' for removed plugin '{PluginId}'.", s.Id, s.PluginId);
+                    await pluginConfigRepository.DeleteBindingAsync(s.Id, cancellationToken);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to clean up stale plugin bindings during startup.");
+        }
+
         var enabled = plugins.GetAllManifests()
             .Where(manifest => plugins.IsPluginEnabled(manifest.Id))
             .Select(manifest => manifest.Id)
@@ -188,7 +211,7 @@ public sealed class PluginRuntimeDomainManager : IPluginRuntimeDomainManager, IA
 {
     private static readonly object PipelineContinuationKey = new();
     private static readonly string[] ProxyPluginOrder =
-        ["distributed-rate-limit", "rate-limit", "circuit-breaker", "request-retry", "response-cache", "proxy-log", "traffic-metrics", "cluster-metrics"];
+        ["rate-limit", "circuit-breaker", "request-retry", "response-cache", "proxy-log", "traffic-metrics", "cluster-metrics"];
 
     private readonly IServiceProvider _rootServices;
     private readonly IReadOnlyDictionary<string, IGatewayPlugin> _firstPartyPlugins;
@@ -237,9 +260,22 @@ public sealed class PluginRuntimeDomainManager : IPluginRuntimeDomainManager, IA
                     continue;
                 }
 
-                var load = _externalHost.LoadRuntime(pluginId);
-                externalLoads.Add(load);
-                plugins.Add(pluginId, load.Plugin);
+                try
+                {
+                    if (!_externalHost.HasManifest(pluginId))
+                    {
+                        _logger.LogWarning("Plugin '{PluginId}' is enabled but its manifest was not found (may have been removed). Skipping.", pluginId);
+                        continue;
+                    }
+
+                    var load = _externalHost.LoadRuntime(pluginId);
+                    externalLoads.Add(load);
+                    plugins.Add(pluginId, load.Plugin);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "Failed to load plugin '{PluginId}'. Skipping.", pluginId);
+                }
             }
 
             var services = new ServiceCollection();
@@ -260,14 +296,11 @@ public sealed class PluginRuntimeDomainManager : IPluginRuntimeDomainManager, IA
             var middleware = BuildMiddlewarePipeline(servicesWithFallback, plugins);
             var proxyPipeline = BuildProxyPipeline(servicesWithFallback, plugins);
 
-            // Collect Dashboard navigation/widget contributions from each plugin
             var dashboardBuilder = new PluginDashboardBuilder();
             foreach (var plugin in plugins.Values)
                 plugin.ConfigureDashboard(dashboardBuilder);
 
-            var candidate = new PluginRuntimeDomain(
-                servicesWithFallback, plugins, middleware, proxyPipeline,
-                dashboardBuilder, externalLoads);
+            var candidate = new PluginRuntimeDomain(servicesWithFallback, plugins, middleware, proxyPipeline, externalLoads, dashboardBuilder);
             return new PluginRuntimeDomainPreparation(this, candidate);
         }
         catch
@@ -352,6 +385,57 @@ public sealed class PluginRuntimeDomainManager : IPluginRuntimeDomainManager, IA
         }
     }
 
+    private static RequestDelegate BuildProxyPipeline(
+        IServiceProvider services,
+        IReadOnlyDictionary<string, IGatewayPlugin> plugins)
+    {
+        var builder = new ReverseProxyApplicationBuilderAdapter(new ApplicationBuilder(services));
+
+        // Track per-plugin request metrics: latency, success/failure, uptime start
+        builder.Use(async (context, next) =>
+        {
+            var sw = Stopwatch.StartNew();
+            bool succeeded = true;
+            try
+            {
+                await next(context);
+            }
+            catch
+            {
+                succeeded = false;
+                throw;
+            }
+            finally
+            {
+                sw.Stop();
+                try
+                {
+                    var monitor = context.RequestServices.GetService<IPluginResourceMonitor>();
+                    var pluginManager = context.RequestServices.GetService<IGatewayPluginManager>();
+                    if (monitor != null)
+                    {
+                        var enabledIds = pluginManager?.GetPluginStates()
+                            .Where(s => s.Enabled)
+                            .Select(s => s.Manifest.Id)
+                            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                        foreach (var plugin in plugins.Values)
+                        {
+                            if (enabledIds?.Contains(plugin.PluginId) == true)
+                                monitor.RecordRequest(plugin.PluginId, sw.ElapsedMilliseconds, succeeded);
+                        }
+                    }
+                }
+                catch { /* best-effort monitoring */ }
+            }
+        });
+
+        foreach (var pluginId in ProxyPluginOrder)
+            if (plugins.TryGetValue(pluginId, out var plugin))
+                plugin.ConfigureProxyPipeline(builder);
+        builder.Run(ContinueHostPipelineAsync);
+        return builder.Build();
+    }
+
     private static RequestDelegate BuildMiddlewarePipeline(
         IServiceProvider services,
         IReadOnlyDictionary<string, IGatewayPlugin> plugins)
@@ -363,17 +447,7 @@ public sealed class PluginRuntimeDomainManager : IPluginRuntimeDomainManager, IA
         return builder.Build();
     }
 
-    private static RequestDelegate BuildProxyPipeline(
-        IServiceProvider services,
-        IReadOnlyDictionary<string, IGatewayPlugin> plugins)
-    {
-        var builder = new ReverseProxyApplicationBuilderAdapter(new ApplicationBuilder(services));
-        foreach (var pluginId in ProxyPluginOrder)
-            if (plugins.TryGetValue(pluginId, out var plugin))
-                plugin.ConfigureProxyPipeline(builder);
-        builder.Run(ContinueHostPipelineAsync);
-        return builder.Build();
-    }
+
 
     private static Task ContinueHostPipelineAsync(HttpContext context) =>
         context.Items.TryGetValue(PipelineContinuationKey, out var continuation) && continuation is RequestDelegate next

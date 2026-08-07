@@ -15,7 +15,6 @@ public sealed class NativePluginAdapters : IRoutePluginCompiler, IClusterPluginC
     public const string RouteAuthorization = "native.route.authorization";
     public const string RouteTransforms = "native.route.transforms";
     public const string RouteCors = "native.route.cors";
-    public const string RouteRateLimit = "native.route.rate-limit";
     public const string RouteCompression = "native.route.compression";
     public const string ClusterLoadBalancing = "native.cluster.load-balancing";
     public const string ClusterHealthCheck = "native.cluster.health-check";
@@ -29,7 +28,6 @@ public sealed class NativePluginAdapters : IRoutePluginCompiler, IClusterPluginC
         new(RouteAuthorization, "Route Authorization", PluginBindingScope.Route),
         new(RouteTransforms, "Route Transforms", PluginBindingScope.Route),
         new(RouteCors, "Route CORS", PluginBindingScope.Route),
-        new(RouteRateLimit, "Route Rate Limit", PluginBindingScope.Route),
         new(RouteCompression, "Route Compression", PluginBindingScope.Route),
         new(ClusterLoadBalancing, "Cluster Load Balancing", PluginBindingScope.Cluster),
         new(ClusterHealthCheck, "Cluster Health Check", PluginBindingScope.Cluster),
@@ -110,7 +108,6 @@ public sealed class NativePluginAdapters : IRoutePluginCompiler, IClusterPluginC
             RouteAuthorization => route with { AuthorizationPolicy = Required(((RouteAuthorizationConfig)(runtimeConfig = Deserialize<RouteAuthorizationConfig>(binding.ConfigJson))).AuthorizationPolicy, "AuthorizationPolicy") },
             RouteTransforms => route with { Transforms = ValidateTransforms(((RouteTransformsConfig)(runtimeConfig = Deserialize<RouteTransformsConfig>(binding.ConfigJson))).Transforms) },
             RouteCors => route with { CorsPolicy = Required(((RouteCorsConfig)(runtimeConfig = Deserialize<RouteCorsConfig>(binding.ConfigJson))).CorsPolicy, "CorsPolicy") },
-            RouteRateLimit => route with { RateLimiterPolicy = Required(((RouteRateLimitConfig)(runtimeConfig = Deserialize<RouteRateLimitConfig>(binding.ConfigJson))).RateLimiterPolicy, "RateLimiterPolicy") },
             RouteCompression => ApplyCompression(route, (RouteCompressionConfig)(runtimeConfig = Deserialize<RouteCompressionConfig>(binding.ConfigJson))),
             _ => throw new ArgumentException($"Unknown native route adapter '{binding.PluginId}'.")
         };
@@ -161,9 +158,6 @@ public sealed class NativePluginAdapters : IRoutePluginCompiler, IClusterPluginC
                 break;
             case RouteCors:
                 Required(Deserialize<RouteCorsConfig>(json).CorsPolicy, "CorsPolicy");
-                break;
-            case RouteRateLimit:
-                Required(Deserialize<RouteRateLimitConfig>(json).RateLimiterPolicy, "RateLimiterPolicy");
                 break;
             case RouteCompression:
                 ApplyCompression(new RouteConfig(), Deserialize<RouteCompressionConfig>(json));
@@ -345,11 +339,6 @@ public sealed class RouteTransformsConfig
 public sealed class RouteCorsConfig
 {
     public string? CorsPolicy { get; init; }
-}
-
-public sealed class RouteRateLimitConfig
-{
-    public string? RateLimiterPolicy { get; init; }
 }
 
 public sealed class RouteCompressionConfig

@@ -4,21 +4,23 @@ using Aneiang.Yarp.Dashboard.Infrastructure.Auth;
 using Aneiang.Yarp.Dashboard.Infrastructure.HostedServices;
 using Aneiang.Yarp.Dashboard.Infrastructure.State;
 using Aneiang.Yarp.Dashboard.Infrastructure.Performance;
-using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Services;
+using Aneiang.Yarp.Infrastructure.Performance;
+using Aneiang.Yarp.Plugins.CircuitBreaker.Services;
 using Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Infrastructure.Realtime;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Controllers;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
-using Aneiang.Yarp.Dashboard.Modules.Notification.Services;
-using Aneiang.Yarp.Dashboard.Modules.Plugins;
-using Aneiang.Yarp.Dashboard.Modules.Plugins.Runtime;
-using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
-using Aneiang.Yarp.Dashboard.Modules.AI;
-using Aneiang.Yarp.Dashboard.Modules.AI.Providers;
-using Aneiang.Yarp.Dashboard.Modules.AI.Services;
-using Aneiang.Yarp.Dashboard.Modules.AI.Tools;
+using Aneiang.Yarp.Plugin.Cache;
+using Aneiang.Yarp.Plugin.CircuitBreaker;
+using Aneiang.Yarp.Plugin.Metrics;
+using Aneiang.Yarp.Plugin.ProxyLog;
+using Aneiang.Yarp.Plugin.ProxyLog.Services;
+using Aneiang.Yarp.Plugin.RateLimit;
+using Aneiang.Yarp.Plugin.Retry;
+using Aneiang.Yarp.Plugin.ServiceDiscovery;
+using Aneiang.Yarp.Plugin.Waf;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Builder;
@@ -33,6 +35,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IO;
 using Yarp.ReverseProxy.Transforms.Builder;
+using Aneiang.Yarp.Infrastructure.State;
+using Aneiang.Yarp.Infrastructure.Resilience;
+using Aneiang.Yarp.Plugins;
 
 namespace Aneiang.Yarp.Dashboard.Extensions;
 
@@ -57,7 +62,6 @@ public static class DashboardServiceCollectionExtensions
         services.AddDashboardRealtimeAndPerformance();
         services.AddDashboardConfigPersistence();
         services.AddDashboardWarmupServices();
-        services.AddDashboardAI();
         return services;
     }
 
@@ -75,25 +79,25 @@ public static class DashboardServiceCollectionExtensions
                 if (controlPlane == null || string.IsNullOrWhiteSpace(controlPlane.AuthMode)) return;
 
                 // Explicit Dashboard auth config still wins. Unified control-plane config fills only when Dashboard auth is None.
-                if (options.AuthMode != DashboardAuthMode.None || options.AuthorizeRequest != null) return;
+                if (options.Auth.AuthMode != DashboardAuthMode.None || options.Auth.AuthorizeRequest != null) return;
 
                 if (string.Equals(controlPlane.AuthMode, "ApiKey", StringComparison.OrdinalIgnoreCase))
                 {
-                    options.AuthMode = DashboardAuthMode.ApiKey;
-                    options.ApiKey = controlPlane.ApiKey;
-                    options.ApiKeyHeaderName = string.IsNullOrWhiteSpace(controlPlane.ApiKeyHeaderName) ? "X-Api-Key" : controlPlane.ApiKeyHeaderName;
+                    options.Auth.AuthMode = DashboardAuthMode.ApiKey;
+                    options.Auth.ApiKey = controlPlane.ApiKey;
+                    options.Auth.ApiKeyHeaderName = string.IsNullOrWhiteSpace(controlPlane.ApiKeyHeaderName) ? "X-Api-Key" : controlPlane.ApiKeyHeaderName;
                 }
                 else if (string.Equals(controlPlane.AuthMode, "CustomJwt", StringComparison.OrdinalIgnoreCase))
                 {
-                    options.AuthMode = DashboardAuthMode.CustomJwt;
-                    options.JwtUsername = controlPlane.Username ?? "admin";
-                    options.JwtPassword = controlPlane.Password;
+                    options.Auth.AuthMode = DashboardAuthMode.CustomJwt;
+                    options.Auth.JwtUsername = controlPlane.Username ?? "admin";
+                    options.Auth.JwtPassword = controlPlane.Password;
                 }
                 else if (string.Equals(controlPlane.AuthMode, "DefaultJwt", StringComparison.OrdinalIgnoreCase) ||
                          string.Equals(controlPlane.AuthMode, "BasicAuth", StringComparison.OrdinalIgnoreCase))
                 {
-                    options.AuthMode = DashboardAuthMode.DefaultJwt;
-                    options.JwtPassword = controlPlane.Password;
+                    options.Auth.AuthMode = DashboardAuthMode.DefaultJwt;
+                    options.Auth.JwtPassword = controlPlane.Password;
                 }
             });
 
@@ -103,9 +107,6 @@ public static class DashboardServiceCollectionExtensions
         services.AddOptions<ProxyLogOptions>()
             .BindConfiguration("Gateway:Dashboard:ProxyLog");
 
-        // Sync facade: copy flat DashboardOptions values to sub-options if sub-options weren't set via config
-        services.AddSingleton<IConfigureOptions<DashboardAuthOptions>>(sp =>
-            new AuthOptionsSync(sp.GetRequiredService<IOptions<DashboardOptions>>()));
         services.AddOptions<ConfigHistoryOptions>()
             .BindConfiguration(ConfigHistoryOptions.SectionName)
             .PostConfigure(options =>
@@ -140,6 +141,7 @@ public static class DashboardServiceCollectionExtensions
         // accept relaxed JSON (matching docs/yarp_all.json style).
         services.AddMvcCore()
             .AddApplicationPart(typeof(DashboardPagesController).Assembly)
+            .AddApplicationPart(typeof(Aneiang.Yarp.Plugins.CircuitBreaker.Controllers.CircuitBreakerController).Assembly)
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
@@ -202,9 +204,8 @@ public static class DashboardServiceCollectionExtensions
 
         // In-memory state stores (singleton to share state across middleware instances)
         services.AddSingleton<ICircuitStateStore, InMemoryCircuitStateStore>();
-        services.AddSingleton<Infrastructure.Resilience.IDestinationCandidateCoordinator, Infrastructure.Resilience.DestinationCandidateCoordinator>();
+        services.AddSingleton<Aneiang.Yarp.Infrastructure.Resilience.IDestinationCandidateCoordinator, Infrastructure.Resilience.DestinationCandidateCoordinator>();
         services.AddSingleton<IRateLimiterStore, InMemoryRateLimiterStore>();
-        services.AddSingleton<CooldownManager>();
 
         return services;
     }
@@ -232,18 +233,44 @@ public static class DashboardServiceCollectionExtensions
 
     private static IServiceCollection AddDashboardProxyLog(this IServiceCollection services)
     {
+        // Register ProxyLogPluginOptions mapped from DashboardOptions.ProxyLog
+        services.AddSingleton<IConfigureOptions<ProxyLogPluginOptions>>(sp =>
+        {
+            return new ConfigureNamedOptions<ProxyLogPluginOptions>(Options.DefaultName, pluginOpts =>
+            {
+                var dashboardOpts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
+                var logOpts = dashboardOpts.ProxyLog;
+                pluginOpts.LogPersistenceEnabled = logOpts.LogPersistenceEnabled;
+                pluginOpts.LogMetaRetentionDays = logOpts.LogMetaRetentionDays;
+                pluginOpts.LogBodyRetentionDays = logOpts.LogBodyRetentionDays;
+                pluginOpts.EnableProxyRequestBodyCapture = logOpts.EnableProxyRequestBodyCapture;
+                pluginOpts.EnableProxyResponseBodyCapture = logOpts.EnableProxyResponseBodyCapture;
+                pluginOpts.LogMaxBodyLength = logOpts.LogMaxBodyLength;
+                pluginOpts.LogMaxBodyBufferBytes = logOpts.LogMaxBodyBufferBytes;
+                pluginOpts.EnableLogSampling = logOpts.EnableLogSampling;
+                pluginOpts.LogSamplingRate = logOpts.LogSamplingRate;
+                pluginOpts.LogErrorsOnly = logOpts.LogErrorsOnly;
+                pluginOpts.MinLogLevel = logOpts.MinLogLevel;
+                pluginOpts.LogBufferCapacity = logOpts.LogBufferCapacity;
+                pluginOpts.LogHeaderBlacklist = logOpts.LogHeaderBlacklist ?? [];
+                pluginOpts.LogQueryBlacklist = logOpts.LogQueryBlacklist ?? [];
+                pluginOpts.LogJsonFieldSanitizeList = logOpts.LogJsonFieldSanitizeList ?? [];
+            });
+        });
+
         services.TryAddSingleton<ProxyLogRuntimeSettings>();
         services.AddSingleton<IProxyLogStore>(sp =>
         {
             var opts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;
             var runtimeSettings = sp.GetRequiredService<ProxyLogRuntimeSettings>();
             return new ProxyLogStore(
-                opts.LogBufferCapacity,
-                persistenceEnabled: opts.LogPersistenceEnabled,
+                opts.ProxyLog.LogBufferCapacity,
+                persistenceEnabled: opts.ProxyLog.LogPersistenceEnabled,
                 runtimeSettings: runtimeSettings);
         });
         services.AddSingleton<ProxyLogStore>(sp => (ProxyLogStore)sp.GetRequiredService<IProxyLogStore>());
         services.AddSingleton<LogSanitizer>();
+        services.AddSingleton<ILogSanitizer>(sp => sp.GetRequiredService<LogSanitizer>());
 
         // Log sampling + filtering (extracted from YarpRequestCaptureMiddleware)
         services.AddSingleton<ILogSampler, LogSampler>();
@@ -280,10 +307,7 @@ public static class DashboardServiceCollectionExtensions
 
     private static IServiceCollection AddDashboardNotificationAndPlugins(this IServiceCollection services)
     {
-        // INotificationRepository is registered by the host application's storage backend (e.g. AddAneiangStorage).
-        services.AddHttpClient("notification");
-        services.AddSingleton<INotificationService, NotificationService>();
-        services.AddBackgroundHostedService<NotificationWarmupService>();
+        // Notification module removed in Phase 6 cleanup.
 
         services.AddSingleton<IGatewayPlugin, CircuitBreakerPlugin>();
         services.AddSingleton<IGatewayPlugin, RequestRetryPlugin>();
@@ -291,15 +315,10 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<IGatewayPlugin, WafPlugin>();
         services.AddSingleton<IGatewayPlugin, ProxyLogPlugin>();
         services.AddSingleton<IGatewayPlugin, ResponseCachePlugin>();
-        services.AddSingleton<IGatewayPlugin, DistributedRateLimitPlugin>();
         services.AddSingleton<IGatewayPlugin, TrafficMetricsPlugin>();
         services.AddSingleton<IGatewayPlugin, ClusterMetricsPlugin>();
         services.AddSingleton<IGatewayPlugin, HttpServiceDiscoveryPlugin>();
-        services.AddSingleton<IDistributedRateLimitBackend, MemoryDistributedRateLimitBackend>();
-        services.AddSingleton<IDistributedRateLimitBackend, SqliteDistributedRateLimitBackend>();
-        services.AddSingleton<DistributedRateLimitBackendResolver>();
         services.AddSingleton<PluginMetricStore>();
-        services.AddSingleton<IGatewayPlugin, AIPlugin>();
         services.AddSingleton<ExternalGatewayPluginHost>();
         services.AddSingleton<GatewayPluginManager>();
         services.AddSingleton<IGatewayPluginManager>(provider => provider.GetRequiredService<GatewayPluginManager>());
@@ -312,6 +331,11 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<IPluginManifestCatalog>(provider => provider.GetRequiredService<IGatewayPluginManager>());
         services.AddSingleton<IPluginConfigurationSchemaValidator, PluginConfigurationSchemaValidator>();
         services.AddSingleton<IPluginConfigurationMigrationService, PluginConfigurationMigrationService>();
+        services.AddSingleton<IPluginConfigurationMigrator, CircuitBreakerConfigMigrator>();
+        services.AddSingleton<IPluginConfigurationMigrator, RetryConfigMigrator>();
+        services.AddSingleton<IPluginConfigurationMigrator, WafConfigMigrator>();
+        services.AddSingleton<IPluginConfigurationMigrator, RateLimitConfigMigrator>();
+        services.AddSingleton<IPluginConfigurationMigrator, ProxyLogConfigMigrator>();
         services.AddSingleton<CircuitBreakerWarmupService>();
         services.AddSingleton<IPluginRuntimeResource>(provider => provider.GetRequiredService<CircuitBreakerWarmupService>());
         services.AddSingleton<IPluginRuntimeResource, ServiceDiscoveryRefreshService>();
@@ -319,6 +343,8 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<PluginResourceLifecycleCoordinator>();
         services.AddSingleton<IPluginResourceLifecycleCoordinator>(provider => provider.GetRequiredService<PluginResourceLifecycleCoordinator>());
         services.AddHostedService(provider => provider.GetRequiredService<PluginResourceLifecycleCoordinator>());
+        services.AddSingleton<PluginResourceMonitor>();
+        services.AddSingleton<IPluginResourceMonitor>(provider => provider.GetRequiredService<PluginResourceMonitor>());
 
         return services;
     }
@@ -394,28 +420,5 @@ public static class DashboardServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, Aneiang.Yarp.Dashboard.Infrastructure.HostedServices.KestrelEndpointChangeDetector>());
         return services;
     }
-
-    #region AI Module
-
-    private static IServiceCollection AddDashboardAI(this IServiceCollection services)
-    {
-        services.AddOptions<AIOptions>()
-            .BindConfiguration(AIOptions.SectionName);
-
-        services.AddSingleton<IAIProvider, OpenAICompatibleProvider>();
-        services.AddSingleton<AISettingsService>();
-        services.AddSingleton<GatewayContextProvider>();
-        services.AddSingleton<GatewayToolRegistry>();
-        services.AddSingleton<GatewayToolExecutor>();
-        services.AddSingleton<ChatService>();
-        services.AddSingleton<NotificationEnhancer>();
-
-        // Background analysis service (runs only when EnableBackgroundAnalysis=true and provider is available)
-        services.AddHostedService<BackgroundAIAnalysisService>();
-
-        return services;
-    }
-
-    #endregion
 
 }

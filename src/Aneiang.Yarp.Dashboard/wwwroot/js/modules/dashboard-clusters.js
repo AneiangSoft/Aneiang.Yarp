@@ -648,7 +648,7 @@
             detailHtml.push('<div class="detail-actions-bar">');
             detailHtml.push(`<div class="detail-actions-left"><span class="detail-actions-label"><i class="bi bi-gear"></i> ${__('index.cluster.title')}</span></div>`);
             detailHtml.push('<div class="detail-actions-right">');
-            detailHtml.push(`<button class="btn btn-sm btn-outline-success detail-action-btn" onclick="ClustersModule.showQuickAddRouteModal('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('cluster.quickAddRoute', { cluster: cluster.clusterId }) || 'Quick add route to ' + cluster.clusterId}"><i class="bi bi-signpost-plus"></i> ${__('cluster.quickAddRouteTitle') || '快速添加路由'}</button>`);
+            detailHtml.push(`<button class="btn btn-sm btn-outline-success detail-action-btn" onclick="ClustersModule.showQuickAddRouteModal('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('cluster.quickAddRoute', { cluster: cluster.clusterId })}"><i class="bi bi-signpost-plus"></i> ${__('cluster.quickAddRouteTitle')}</button>`);
             detailHtml.push(`<button class="btn btn-sm btn-outline-secondary detail-action-btn" onclick="ClustersModule.showEditModal('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('index.cluster.edit')}"><i class="bi bi-pencil"></i> ${__('index.cluster.edit')}</button>`);
             detailHtml.push(`<button class="btn btn-sm btn-outline-primary detail-action-btn" onclick="ClustersModule.copyClusterJson('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('index.copyJson.title')}"><i class="bi bi-clipboard-data"></i> ${__('index.copyJson')}</button>`);
             detailHtml.push('</div>');
@@ -1468,7 +1468,7 @@
             var defaultPath = '/api/' + clusterId + '/{**catchAll}';
 
             window.DashboardModals.showFormModal({
-                title: (__('cluster.quickAddRouteTitle') || '快速添加路由') + ' → ' + clusterId,
+                title: __('cluster.quickAddRouteTitle') + ' → ' + clusterId,
                 icon: 'bi-signpost-plus',
                 size: 'md',
                 fields: [
@@ -1500,12 +1500,12 @@
                 onSave: function(formData) {
                     var routeId = (formData.routeId || '').trim();
                     if (!routeId) {
-                        window.DashboardModals.showError(__('cluster.quickRouteIdRequired') || '请输入 Route ID');
+                        window.DashboardModals.showError(__('cluster.quickRouteIdRequired'));
                         return false;
                     }
                     var matchPath = (formData.matchPath || '').trim();
                     if (!matchPath) {
-                        window.DashboardModals.showError(__('cluster.quickRoutePathRequired') || '请输入匹配路径');
+                        window.DashboardModals.showError(__('cluster.quickRoutePathRequired'));
                         return false;
                     }
 

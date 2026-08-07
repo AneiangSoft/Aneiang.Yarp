@@ -1987,31 +1987,20 @@
             }
         },
 
-        clearLogs: async function() {
+        clearLogs: function() {
+            var self = this;
             window.DashboardModals.showConfirm(__('index.log.clearConfirm'), async function() {
                 try {
+                    await window.DashboardApi.endpoints.clearLogs();
                     window.DashboardState.set('data.logs', []);
                     window.DashboardState.set('data.logMeta', {});
                     self.renderLogs();
                     window.DashboardModals.showSuccess(__('index.log.cleared'));
-                } catch (e) { window.DashboardModals.showError(__('index.log.clearFailed')); }
-            }, null, { danger: true });
-
-            try {
-                await window.DashboardApi.endpoints.clearLogs();
-                window.DashboardState.set('data.logs', []);
-                this.renderLogs();
-                
-                // Show success message
-                if (window.DashboardModals) {
-                    window.DashboardModals.showSuccess(__('index.log.cleared'));
-                }
-            } catch (error) {
-                console.error('[Logs] Clear failed:', error);
-                if (window.DashboardModals) {
+                } catch (error) {
+                    console.error('[Logs] Clear failed:', error);
                     window.DashboardModals.showError(__('index.log.clearFailed'));
                 }
-            }
+            }, null, { danger: true });
         },
 
         setupEvents: function() {

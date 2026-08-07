@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
+using Aneiang.Yarp.Plugin.ProxyLog.Models;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Models;
 

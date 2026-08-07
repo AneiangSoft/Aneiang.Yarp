@@ -12,6 +12,7 @@
             if (this.initialized) return;
             this.setupEvents();
             this.initialized = true;
+            await this.loadAuditLogs();
         },
 
         loadAuditLogs: async function() {
@@ -22,7 +23,7 @@
                 window.DashboardDOM.showLoading(container, __('audit.loading'));
 
                 var actionFilter = window.DashboardState.get('filters.audit.action') || '';
-                var data = await window.DashboardApi.get('/api/audit-logs', { count: 100, action: actionFilter });
+                var data = await window.DashboardApi.get('/api/audit-logs', { page: 1, pageSize: 100, action: actionFilter });
 
                 this.renderAuditLogs(data, container);
             } catch (error) {

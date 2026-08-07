@@ -1,0 +1,64 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Cluster Metrics" : "集群指标";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<div id="cluster-metrics-app">
+    <div class="card-panel mb-4">
+        <div class="card-header">
+            <span><i class="bi bi-diagram-3-fill me-2 text-primary"></i><span data-i18n="clusterMetrics.title">集群指标</span></span>
+            <div class="card-header-actions">
+                <span id="cm-refresh-time" class="refresh-badge"></span>
+                <button class="btn btn-sm btn-outline-primary btn-icon-only" onclick="ClusterMetricsModule.load()" data-i18n-title="index.btn.refresh" title="刷新" aria-label="刷新">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+        <div id="cm-content" class="card-body">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <div class="loading-text" data-i18n="pluginPage.loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration panel -->
+    <div class="card-panel mb-4">
+        <div class="card-header">
+            <span><i class="bi bi-gear me-2 text-secondary"></i><span data-i18n="clusterMetrics.config.title">集群指标插件配置</span></span>
+            <div class="card-header-actions">
+                <span id="cm-config-refresh-time" class="refresh-badge"></span>
+                <button class="btn btn-sm btn-outline-primary btn-icon-only" onclick="ClusterMetricsConfigModule.load()" title="刷新" aria-label="刷新">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+        <div id="cm-config-content" class="card-body">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <div class="loading-text" data-i18n="common.loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-cluster-metrics.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/plugin-binding-manager.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-cluster-metrics-config.js"></script>
+@await Html.PartialAsync("_DashboardPageInit")
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+        await ClusterMetricsModule.load();
+        await ClusterMetricsConfigModule.load();
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

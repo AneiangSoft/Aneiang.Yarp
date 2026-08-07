@@ -5,11 +5,6 @@ public class RouteEntity
 {
     public string RouteUid { get; set; } = Guid.NewGuid().ToString("N");
     public string RouteId { get; set; } = string.Empty;
-    public string RouteKey
-    {
-        get => RouteId;
-        set => RouteId = value;
-    }
     public string? DisplayName { get; set; }
     public string? ClusterUid { get; set; }
     public string ClusterId { get; set; } = string.Empty;

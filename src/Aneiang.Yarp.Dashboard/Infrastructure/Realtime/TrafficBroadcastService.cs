@@ -1,5 +1,5 @@
-using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
-using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
+using Aneiang.Yarp.Plugin.ProxyLog.Models;
+using Aneiang.Yarp.Plugin.ProxyLog.Services;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

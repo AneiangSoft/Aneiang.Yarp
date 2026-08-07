@@ -26,19 +26,19 @@ public sealed class DashboardAuthorizationService : IDashboardAuthorizationServi
     public async Task<bool> IsAuthorizedAsync(HttpContext context)
     {
         // Priority 1: Custom delegate (highest)
-        if (_options.AuthorizeRequest != null)
+        if (_options.Auth.AuthorizeRequest != null)
         {
-            return await _options.AuthorizeRequest(context);
+            return await _options.Auth.AuthorizeRequest(context);
         }
 
         // Priority 2: API Key
-        if (_options.AuthMode == DashboardAuthMode.ApiKey && !string.IsNullOrEmpty(_options.ApiKey))
+        if (_options.Auth.AuthMode == DashboardAuthMode.ApiKey && !string.IsNullOrEmpty(_options.Auth.ApiKey))
         {
             return CheckApiKey(context);
         }
 
         // Priority 3: JWT (DefaultJwt / CustomJwt)
-        if (_options.AuthMode is DashboardAuthMode.CustomJwt or DashboardAuthMode.DefaultJwt)
+        if (_options.Auth.AuthMode is DashboardAuthMode.CustomJwt or DashboardAuthMode.DefaultJwt)
         {
             return CheckJwt(context);
         }
@@ -50,14 +50,14 @@ public sealed class DashboardAuthorizationService : IDashboardAuthorizationServi
     /// <inheritdoc />
     public string GetAuthModeDescription()
     {
-        if (_options.AuthorizeRequest != null)
+        if (_options.Auth.AuthorizeRequest != null)
             return "Custom Delegate";
 
-        return _options.AuthMode switch
+        return _options.Auth.AuthMode switch
         {
             DashboardAuthMode.None => "None",
             DashboardAuthMode.ApiKey => "API Key",
-            DashboardAuthMode.CustomJwt => $"JWT (User: {_options.JwtUsername ?? "N/A"})",
+            DashboardAuthMode.CustomJwt => $"JWT (User: {_options.Auth.JwtUsername ?? "N/A"})",
             DashboardAuthMode.DefaultJwt => "JWT (Admin)",
             _ => "Unknown"
         };
@@ -68,8 +68,8 @@ public sealed class DashboardAuthorizationService : IDashboardAuthorizationServi
     /// </summary>
     private bool CheckApiKey(HttpContext context)
     {
-        var apiKey = _options.ApiKey!;
-        var headerName = _options.ApiKeyHeaderName;
+        var apiKey = _options.Auth.ApiKey!;
+        var headerName = _options.Auth.ApiKeyHeaderName;
 
         // Check header
         if (context.Request.Headers.TryGetValue(headerName, out var hv) && 
@@ -88,7 +88,7 @@ public sealed class DashboardAuthorizationService : IDashboardAuthorizationServi
     /// </summary>
     private bool CheckJwt(HttpContext context)
     {
-        var secret = _options.JwtSecret;
+        var secret = _options.Auth.JwtSecret;
         if (string.IsNullOrEmpty(secret))
             return false;
 

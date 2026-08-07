@@ -4,6 +4,13 @@
     var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
 }
 
+<!-- Help bar -->
+<div class="page-help-bar" id="overview-help-bar">
+    <i class="bi bi-info-circle"></i>
+    <span class="help-text" data-i18n="page.help.overview">网关维护仪表盘总览，展示集群、路由、健康状态和实时流量。点击统计卡片可跳转到对应管理页面。</span>
+    <button class="help-close" onclick="document.getElementById('overview-help-bar').classList.add('collapsed')">&times;</button>
+</div>
+
 <!-- Stat cards -->
 <div id="stat-bar" class="row g-3 mb-3">
     <div class="col-12">
@@ -17,7 +24,7 @@
                 <span><i class="bi bi-pc-display"></i><span data-i18n="index.label.host">主机：</span><strong id="info-machine">-</strong></span>
             </div>
             <div class="info-bar-actions card-header-actions">
-                <span id="signalr-status" class="signalr-indicator signalr-off" title="SignalR 断开">
+                <span id="signalr-status" class="signalr-indicator signalr-off" data-i18n-title="overview.signalr.disconnected" title="SignalR 断开">
                     <span class="signalr-dot"></span>
                 </span>
                 <button class="btn btn-sm btn-outline-secondary btn-icon-only" onclick="overviewRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
@@ -76,6 +83,23 @@
                     <div class="stat-card__trend"><span class="stat-trend neutral" id="trend-qps"><i class="bi bi-dash"></i> --</span></div>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card-panel mb-4">
+    <div class="card-header">
+        <span><i class="bi bi-lightning-charge me-2" style="color:#f59e0b;"></i><span data-i18n="overview.quickActions">快捷操作</span></span>
+    </div>
+    <div class="card-body">
+        <div class="d-flex flex-wrap gap-2">
+            <a href="/@prefix/clusters" class="btn btn-outline-primary btn-sm"><i class="bi bi-diagram-3 me-1"></i><span data-i18n="overview.action.addCluster">添加集群</span></a>
+            <a href="/@prefix/routes" class="btn btn-outline-primary btn-sm"><i class="bi bi-signpost-split me-1"></i><span data-i18n="overview.action.addRoute">添加路由</span></a>
+            <a href="/@prefix/logs" class="btn btn-outline-info btn-sm"><i class="bi bi-journal-text me-1"></i><span data-i18n="overview.action.viewLogs">查看日志</span></a>
+            <a href="/@prefix/traffic" class="btn btn-outline-success btn-sm"><i class="bi bi-graph-up-arrow me-1"></i><span data-i18n="overview.action.viewTraffic">流量监控</span></a>
+            <a href="/@prefix/plugins" class="btn btn-outline-secondary btn-sm"><i class="bi bi-puzzle me-1"></i><span data-i18n="overview.action.managePlugins">插件管理</span></a>
+            <a href="/@prefix/settings" class="btn btn-outline-secondary btn-sm"><i class="bi bi-gear me-1"></i><span data-i18n="overview.action.settings">系统设置</span></a>
         </div>
     </div>
 </div>
@@ -154,11 +178,6 @@
         <div class="card-header-actions">
             <span class="pulse-dot me-1"></span>
             <span class="badge bg-success" id="current-qps">0 req/s</span>
-            <select class="form-select form-select-sm" id="chart-time-range" style="width:110px;" onchange="OpsModule.changeTimeRange(this.value)">
-                <option value="5" data-i18n="overview.chart.timeRange.5min">5分钟</option>
-                <option value="15" selected data-i18n="overview.chart.timeRange.15min">15分钟</option>
-                <option value="60" data-i18n="overview.chart.timeRange.1hour">1小时</option>
-            </select>
         </div>
     </div>
     <div class="card-body">
@@ -291,8 +310,6 @@
 
 <!-- Home module (for stat bar — version, clusters, routes, QPS) -->
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js"></script>
-<!-- Operations module (for overview charts) -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-operations.js"></script>
 
 <script>
     var _signalrConnected = false;
@@ -307,7 +324,6 @@
             // Init modules
             if (window.DashboardApp?.modules?.home?.init) await DashboardApp.modules.home.init();
             if (window.DashboardApp?.modules?.stats?.init) await DashboardApp.modules.stats.init();
-            if (window.OpsModule?.init) await OpsModule.init();
 
             // Direct API calls as primary path (most reliable)
             try {
@@ -354,13 +370,6 @@
             // Load additional overview charts
             if (window.DashboardApp?.modules?.home?.loadInfo) await DashboardApp.modules.home.loadInfo();
             if (window.DashboardApp?.modules?.stats?.loadStats) await DashboardApp.modules.stats.loadStats();
-            if (window.OpsModule?.loadAlertSummary) await OpsModule.loadAlertSummary();
-            if (window.OpsModule?.loadTrafficChart) await OpsModule.loadTrafficChart();
-            if (window.OpsModule?.loadTopErrors) await OpsModule.loadTopErrors();
-            if (window.OpsModule?.loadSystemHealth) await OpsModule.loadSystemHealth();
-
-            // Start periodic chart updates (every 10s)
-            if (window.OpsModule?.startAutoRefresh) OpsModule.startAutoRefresh();
 
             document.dispatchEvent(new CustomEvent('dashboard:ready'));
 
@@ -431,7 +440,7 @@
         if (!el) return;
         el.classList.remove('signalr-on', 'signalr-off');
         el.classList.add(connected ? 'signalr-on' : 'signalr-off');
-        el.title = connected ? 'SignalR 实时连接' : 'SignalR 断开，轮询中';
+        el.title = connected ? (window.__ ? __('overview.signalr.connected') : 'SignalR Connected') : (window.__ ? __('overview.signalr.disconnected') : 'SignalR Disconnected');
     }
 
     /**
@@ -469,7 +478,7 @@
         if (healthBadge) {
             var hasIssue = s.unhealthyCount > 0 || s.cpuUsage > 80;
             healthBadge.className = 'badge ' + (hasIssue ? 'bg-warning text-dark' : 'bg-success');
-            healthBadge.textContent = hasIssue ? '注意' : '健康';
+            healthBadge.textContent = hasIssue ? (window.__ ? __('overview.attention') : 'Attention') : (window.__ ? __('overview.healthy') : 'Healthy');
         }
 
         // Top error routes table
@@ -533,9 +542,7 @@
         _pollingFallbackId = setInterval(async function() {
             if (_signalrConnected) { stopPollingFallback(); return; }
             try {
-                if (window.OpsModule?.loadTrafficChart) await OpsModule.loadTrafficChart();
-                if (window.OpsModule?.loadAlertSummary) await OpsModule.loadAlertSummary();
-                if (window.OpsModule?.loadSystemHealth) await OpsModule.loadSystemHealth();
+                if (window.DashboardApp?.modules?.home?.loadInfo) await DashboardApp.modules.home.loadInfo();
             } catch (_) { /* ignore */ }
         }, 10000);
     }
@@ -554,10 +561,7 @@
         try {
             await Promise.all([
                 window.DashboardApp?.modules?.home?.loadInfo?.(),
-                window.DashboardApp?.modules?.stats?.loadStats?.(),
-                window.OpsModule?.loadAlertSummary?.(),
-                window.OpsModule?.loadTrafficChart?.(),
-                window.OpsModule?.loadTopErrors?.()
+                window.DashboardApp?.modules?.stats?.loadStats?.()
             ]);
         } finally {
             btn.innerHTML = originalText;

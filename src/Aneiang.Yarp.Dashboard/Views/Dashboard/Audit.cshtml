@@ -1,10 +1,15 @@
-@using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
+@using Aneiang.Yarp.Plugin.ProxyLog.Models
 @{
     ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Audit Log" : "审计日志";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
 <!-- Audit log panel -->
+<div class="page-help-bar" id="audit-help-bar">
+    <i class="bi bi-info-circle"></i>
+    <span class="help-text" data-i18n="page.help.audit">审计日志记录所有配置变更操作，包括操作人、时间和变更内容。</span>
+    <button class="help-close" onclick="document.getElementById('audit-help-bar').classList.add('collapsed')">&times;</button>
+</div>
 <div id="audit-panel" class="card-panel mb-4">
     <div class="card-header">
         <span><i class="bi bi-shield-check me-2" style="color:#22c55e;"></i><span data-i18n="audit.title">审计日志</span></span>
