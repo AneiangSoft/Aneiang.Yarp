@@ -21,20 +21,18 @@ public class AuditLogController : Controller
     /// <summary>
     /// Get recent audit log entries.
     /// </summary>
-    /// <param name="count">Maximum number of entries to return for legacy callers.</param>
     /// <param name="action">Optional filter by action type (e.g. "AddRoute", "RemoveCluster").</param>
-    /// <param name="page">Page number for paged callers.</param>
-    /// <param name="pageSize">Page size for paged callers.</param>
+    /// <param name="page">Page number (1-based).</param>
+    /// <param name="pageSize">Page size (max 200).</param>
     /// <returns>Audit log entries in reverse chronological order.</returns>
     [HttpGet]
     public IActionResult GetAuditLogs(
-        [FromQuery] int count = 50,
         [FromQuery] string? action = null,
-        [FromQuery] int? page = null,
-        [FromQuery] int? pageSize = null)
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50)
     {
-        var effectivePage = Math.Max(1, page ?? 1);
-        var effectivePageSize = Math.Clamp(pageSize ?? count, 1, 200);
+        var effectivePage = Math.Max(1, page);
+        var effectivePageSize = Math.Clamp(pageSize, 1, 200);
         var (entries, total) = _auditLog.GetPage(effectivePage, effectivePageSize, action);
 
         return Json(new

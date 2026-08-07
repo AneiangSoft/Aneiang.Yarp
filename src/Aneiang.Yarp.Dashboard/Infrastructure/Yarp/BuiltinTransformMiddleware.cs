@@ -2,6 +2,7 @@ using Aneiang.Yarp.Dashboard.Infrastructure.Middleware;
 using Aneiang.Yarp.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using Aneiang.Yarp.Infrastructure.Middleware;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Yarp;
 
@@ -14,7 +15,7 @@ internal sealed class BuiltinTransformMiddleware : GatewayMiddlewareBase
 {
     private readonly BuiltinTransformOptions _options;
 
-    public BuiltinTransformMiddleware(RequestDelegate next, IOptions<BuiltinTransformOptions> options, IOptions<DashboardOptions> dashboardOptions)
+    public BuiltinTransformMiddleware(RequestDelegate next, IOptions<BuiltinTransformOptions> options, IOptions<GatewayMiddlewareOptions> dashboardOptions)
         : base(next, dashboardOptions)
     {
         _options = options.Value;

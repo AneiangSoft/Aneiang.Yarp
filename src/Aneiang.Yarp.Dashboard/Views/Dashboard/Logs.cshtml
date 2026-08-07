@@ -1,4 +1,4 @@
-@using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
+@using Aneiang.Yarp.Plugin.ProxyLog.Models
 @{
     ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Logs" : "日志";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
@@ -74,6 +74,11 @@
 </style>
 
 <!-- Log panel -->
+<div class="page-help-bar" id="logs-help-bar">
+    <i class="bi bi-info-circle"></i>
+    <span class="help-text" data-i18n="page.help.logs">实时日志展示经过网关的请求记录。支持按级别、状态码、路由筛选。日志插件需启用后才会记录。</span>
+    <button class="help-close" onclick="document.getElementById('logs-help-bar').classList.add('collapsed')">&times;</button>
+</div>
 <div id="log-panel" class="card-panel mb-4">
     <div class="card-header">
         <span><i class="bi bi-journal-text me-2" style="color:#8b5cf6;"></i><span data-i18n="index.log.title">YARP 实时日志</span></span>
@@ -104,7 +109,7 @@
                 <div class="empty-state">
                     <div class="empty-state-icon"><i class="bi bi-journal-text"></i></div>
                     <div class="empty-state-title" data-i18n="index.log.empty">暂无日志</div>
-                    <div class="empty-state-desc">等待请求流量进入网关后，日志将实时显示此处</div>
+                    <div class="empty-state-desc" data-i18n="index.log.emptyDesc">等待请求流量进入网关后，日志将实时显示此处</div>
                 </div>
             </div>
         </div>
@@ -191,9 +196,30 @@
     </div>
 </div>
 
+<!-- Configuration panel -->
+<div class="card-panel mb-4">
+    <div class="card-header">
+        <span><i class="bi bi-gear me-2 text-secondary"></i><span data-i18n="logs.config.title">日志插件配置</span></span>
+        <div class="card-header-actions">
+            <span id="pl-config-refresh-time" class="refresh-badge"></span>
+            <button class="btn btn-sm btn-outline-primary btn-icon-only" onclick="ProxyLogConfigModule.load()" data-i18n-title="index.btn.refresh" data-i18n-aria="index.btn.refresh" title="刷新" aria-label="刷新">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+    </div>
+    <div id="pl-config-content" class="card-body">
+        <div class="loading-state">
+            <div class="loading-spinner"></div>
+            <div class="loading-text" data-i18n="common.loading">加载中...</div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 @{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-logs.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/plugin-binding-manager.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-proxy-log-config.js"></script>
 
 @await Html.PartialAsync("_DashboardPageInit")
 
@@ -208,6 +234,7 @@
 
         if (window.DashboardApp?.modules?.logs?.init) await DashboardApp.modules.logs.init();
         if (window.DashboardApp?.modules?.logs?.loadLogs) await DashboardApp.modules.logs.loadLogs();
+        await ProxyLogConfigModule.load();
 
         document.dispatchEvent(new CustomEvent('dashboard:ready'));
     })();

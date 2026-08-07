@@ -1,6 +1,7 @@
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
 using Aneiang.Yarp.Storage.Entities;
+using Aneiang.Yarp.Plugins;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 

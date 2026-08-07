@@ -3,6 +3,7 @@ using System.Text.Json;
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Extensions;
+using Aneiang.Yarp.Plugins;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage.Entities;
 using Aneiang.Yarp.Storage.Sqlite;

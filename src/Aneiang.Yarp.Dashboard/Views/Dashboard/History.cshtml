@@ -1,4 +1,4 @@
-@using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
+@using Aneiang.Yarp.Plugin.ProxyLog.Models
 @{
     ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Configuration History" : "配置变更历史";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
@@ -55,6 +55,12 @@
             <div class="text-muted" data-i18n="history.description">集中查看快照、变更来源、路由/集群规模，并快速执行差异对比或回滚。</div>
         </div>
         <div class="history-action-bar">
+            <button class="btn btn-success" id="history-export-btn">
+                <i class="bi bi-download me-1"></i><span data-i18n="history.export">导出配置</span>
+            </button>
+            <button class="btn btn-outline-success" id="history-import-btn">
+                <i class="bi bi-upload me-1"></i><span data-i18n="history.import">导入配置</span>
+            </button>
             <button class="btn btn-primary" id="history-create-snapshot">
                 <i class="bi bi-plus-circle me-1"></i><span data-i18n="history.createSnapshot">创建快照</span>
             </button>
@@ -124,6 +130,32 @@
     </aside>
 </div>
 
+<!-- Hidden file input for import -->
+<input type="file" id="history-import-file" accept=".json" style="display:none" />
+
+<!-- Import preview modal -->
+<div class="modal fade" id="import-preview-modal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-upload me-2"></i><span data-i18n="history.importPreview">导入配置预览</span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="import-summary" class="mb-3"></div>
+        <div class="alert alert-warning">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          <span data-i18n="history.importWarning">导入将替换当前所有路由和集群配置，请确认后再操作。</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="common.cancel">取消</button>
+        <button type="button" class="btn btn-success" id="import-confirm-btn"><i class="bi bi-check-lg me-1"></i><span data-i18n="history.importConfirm">确认导入</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
 @section Scripts {
 @{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
 <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-diff-panel.js?v=@v"></script>
@@ -145,6 +177,101 @@
         if (window.HistoryModule?.loadHistory) await HistoryModule.loadHistory();
 
         document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+
+    // Export config
+    (function() {
+        var btn = document.getElementById('history-export-btn');
+        if (!btn) return;
+        btn.addEventListener('click', async function() {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' + (window.__ ? __('history.exporting') : 'Exporting...');
+            try {
+                var resp = await fetch('/api/config/export');
+                var json = await resp.json();
+                var blob = new Blob([JSON.stringify(json.data, null, 2)], { type: 'application/json' });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = 'yarp-config-' + new Date().toISOString().slice(0, 10) + '.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                if (window.DashboardModals) DashboardModals.showSuccess(window.__ ? __('history.exportSuccess') : 'Export completed');
+            } catch (e) {
+                if (window.DashboardModals) DashboardModals.showError((window.__ ? __('history.exportFailed') : 'Export failed') + ': ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-download me-1"></i>' + (window.__ ? __('history.export') : '导出配置');
+            }
+        });
+    })();
+
+    // Import config
+    (function() {
+        var importBtn = document.getElementById('history-import-btn');
+        var fileInput = document.getElementById('history-import-file');
+        var previewModal = document.getElementById('import-preview-modal');
+        var summaryDiv = document.getElementById('import-summary');
+        var confirmBtn = document.getElementById('import-confirm-btn');
+        var pendingData = null;
+        if (!importBtn || !fileInput) return;
+
+        importBtn.addEventListener('click', function() { fileInput.click(); });
+
+        fileInput.addEventListener('change', function(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function(ev) {
+                try {
+                    var data = JSON.parse(ev.target.result);
+                    var d = data.data || data;
+                    var routes = (d.routes || []).length;
+                    var clusters = (d.clusters || []).length;
+                    var bindings = (d.pluginBindings || []).length;
+                    var isEn = (window.__ && document.cookie.indexOf('dashboard_locale=en-US') >= 0);
+                    summaryDiv.innerHTML =
+                        '<div class="d-flex justify-content-around text-center">' +
+                        '<div><div class="h3 mb-0 text-primary">' + routes + '</div><div class="small text-muted">' + (isEn ? 'Routes' : '路由') + '</div></div>' +
+                        '<div><div class="h3 mb-0 text-success">' + clusters + '</div><div class="small text-muted">' + (isEn ? 'Clusters' : '集群') + '</div></div>' +
+                        '<div><div class="h3 mb-0 text-info">' + bindings + '</div><div class="small text-muted">' + (isEn ? 'Bindings' : '绑定') + '</div></div>' +
+                        '</div>';
+                    pendingData = data;
+                    new bootstrap.Modal(previewModal).show();
+                } catch (err) {
+                    if (window.DashboardModals) DashboardModals.showError((window.__ ? __('history.importParseFailed') : 'Invalid JSON file') + ': ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+            fileInput.value = '';
+        });
+
+        confirmBtn.addEventListener('click', async function() {
+            if (!pendingData) return;
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' + (window.__ ? __('common.importing') : 'Importing...');
+            try {
+                var resp = await fetch('/api/config/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(pendingData)
+                });
+                var result = await resp.json();
+                if (result.code === 200) {
+                    bootstrap.Modal.getInstance(previewModal).hide();
+                    if (window.DashboardModals) DashboardModals.showSuccess((window.__ ? __('history.importSuccess') : 'Import completed') + ': ' + (result.imported.routes || 0) + ' routes, ' + (result.imported.clusters || 0) + ' clusters');
+                    if (window.HistoryModule && HistoryModule.loadHistory) HistoryModule.loadHistory();
+                } else {
+                    if (window.DashboardModals) DashboardModals.showError(result.message || 'Import failed');
+                }
+            } catch (e) {
+                if (window.DashboardModals) DashboardModals.showError((window.__ ? __('history.importFailed') : 'Import failed') + ': ' + e.message);
+            } finally {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>' + (window.__ ? __('history.importConfirm') : '确认导入');
+                pendingData = null;
+            }
+        });
     })();
 </script>
 }

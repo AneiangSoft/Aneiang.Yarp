@@ -1,4 +1,4 @@
-using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
+using Aneiang.Yarp.Plugin.ProxyLog.Models;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Models;
 using System.Text.Json;
 using System.Text.Json.Serialization;

@@ -1,0 +1,54 @@
+@{
+    ViewData["Title"] = "500";
+    Layout = null;
+    var isEn = (ViewBag.Locale as string) == "en-US";
+    var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
+}
+<!DOCTYPE html>
+<html lang="@(isEn ? "en" : "zh-CN")">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>500 - @(isEn ? "Server Error" : "服务器错误")</title>
+    <link rel="stylesheet" href="/_content/Aneiang.Yarp.Dashboard/css/bootstrap-icons.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a; color: #e2e8f0;
+            min-height: 100vh; display: flex; align-items: center; justify-content: center;
+        }
+        .error-container { text-align: center; padding: 24px; }
+        .error-code {
+            font-size: 8rem; font-weight: 800;
+            background: linear-gradient(135deg, #ef4444, #f59e0b);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            line-height: 1; margin-bottom: 16px;
+        }
+        .error-title { font-size: 1.5rem; font-weight: 600; margin-bottom: 8px; color: #f1f5f9; }
+        .error-desc { font-size: 0.95rem; color: #94a3b8; margin-bottom: 32px; max-width: 400px; }
+        .error-actions { display: flex; gap: 12px; justify-content: center; }
+        .error-actions a {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 10px 20px; border-radius: 10px;
+            font-size: 14px; font-weight: 500; text-decoration: none;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: #6366f1; color: #fff; }
+        .btn-primary:hover { background: #4f46e5; }
+        .btn-secondary { background: transparent; color: #94a3b8; border: 1px solid #334155; }
+        .btn-secondary:hover { border-color: #475569; color: #e2e8f0; }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="error-code">500</div>
+        <div class="error-title">@(isEn ? "Server Error" : "服务器错误")</div>
+        <div class="error-desc">@(isEn ? "Something went wrong on our end. Please try again later or contact your administrator." : "服务器内部发生错误，请稍后重试或联系管理员。")</div>
+        <div class="error-actions">
+            <a href="/@prefix/" class="btn-primary"><i class="bi bi-house-door"></i> @(isEn ? "Back to Dashboard" : "返回首页")</a>
+            <a href="javascript:history.back()" class="btn-secondary"><i class="bi bi-arrow-left"></i> @(isEn ? "Go Back" : "返回上一页")</a>
+        </div>
+    </div>
+</body>
+</html>

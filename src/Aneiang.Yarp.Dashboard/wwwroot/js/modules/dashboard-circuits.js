@@ -174,26 +174,18 @@
             return '-';
         },
 
-        resetAll: async function() {
+        resetAll: function() {
+            var self = this;
             window.DashboardModals.showConfirm(__('circuit.resetConfirm'), async function() {
                 try {
                     await window.DashboardApi.resetCircuitBreakers();
                     window.DashboardModals.showSuccess(__('circuit.resetSuccess'));
                     await self.load();
-                } catch (e) { window.DashboardModals.showError(__('circuit.resetFailed')); }
-            }, null, { danger: true });
-            try {
-                await window.DashboardApi.resetCircuitBreakers();
-                if (window.DashboardModals) {
-                    window.DashboardModals.showToast(__('circuit.resetSuccess'), 'success');
-                }
-                await this.load();
-            } catch (error) {
-                console.error('[Circuit] Reset failed:', error);
-                if (window.DashboardModals) {
+                } catch (error) {
+                    console.error('[Circuit] Reset failed:', error);
                     window.DashboardModals.showError(__('circuit.resetFailed'));
                 }
-            }
+            }, null, { danger: true });
         },
 
         updateRefreshTime: function() {

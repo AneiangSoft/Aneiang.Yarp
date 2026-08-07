@@ -40,13 +40,13 @@ public class DashboardAuthController : Controller
 
         var opt = dashboardOptions.Value;
         _defaultLocale = opt.Locale;
-        _authMode = opt.AuthMode;
-        _jwtSecret = opt.JwtSecret;
-        _jwtPassword = opt.JwtPassword;
-        _jwtUsername = opt.JwtUsername;
-        _enableTwoFactor = opt.EnableTwoFactor;
-        _twoFactorSecret = opt.TwoFactorSecret;
-        _minPasswordLength = opt.MinPasswordLength;
+        _authMode = opt.Auth.AuthMode;
+        _jwtSecret = opt.Auth.JwtSecret;
+        _jwtPassword = opt.Auth.JwtPassword;
+        _jwtUsername = opt.Auth.JwtUsername;
+        _enableTwoFactor = opt.Auth.EnableTwoFactor;
+        _twoFactorSecret = opt.Auth.TwoFactorSecret;
+        _minPasswordLength = opt.Auth.MinPasswordLength;
     }
 
     #region Login Page

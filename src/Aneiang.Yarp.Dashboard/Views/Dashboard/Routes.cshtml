@@ -1,10 +1,15 @@
-@using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
+@using Aneiang.Yarp.Plugin.ProxyLog.Models
 @{
     ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Routes" : "路由配置";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
 <!-- Route panel -->
+<div class="page-help-bar" id="routes-help-bar">
+    <i class="bi bi-info-circle"></i>
+    <span class="help-text" data-i18n="page.help.routes">路由规则定义了请求如何匹配并转发到后端集群。匹配路径支持通配符，如 /api/** 匹配所有子路径。点击行可展开查看转发配置和绑定的插件能力。</span>
+    <button class="help-close" onclick="document.getElementById('routes-help-bar').classList.add('collapsed')">&times;</button>
+</div>
 <div id="route-panel" class="card-panel mb-4">
     <div class="card-header">
         <span><i class="bi bi-signpost-split me-2" style="color:#f59e0b;"></i><span data-i18n="index.route.title">路由规则列表</span></span>

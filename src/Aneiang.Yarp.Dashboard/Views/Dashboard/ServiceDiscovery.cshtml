@@ -1,0 +1,48 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Service Discovery" : "服务发现";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<div id="service-discovery-app">
+    <div class="page-help-bar" id="service-discovery-help-bar">
+        <i class="bi bi-info-circle"></i>
+        <span class="help-text" data-i18n="page.help.serviceDiscovery">服务发现配置，自动发现后端服务节点并更新集群目标。</span>
+        <button class="help-close" onclick="document.getElementById('service-discovery-help-bar').classList.add('collapsed')">&times;</button>
+    </div>
+    <div class="card-panel mb-4">
+        <div class="card-header">
+            <span><i class="bi bi-broadcast me-2 text-info"></i><span data-i18n="serviceDiscovery.title">服务发现</span></span>
+            <div class="card-header-actions">
+                <span id="sd-refresh-time" class="refresh-badge"></span>
+                <button class="btn btn-sm btn-outline-primary btn-icon-only" onclick="ServiceDiscoveryModule.load()" data-i18n-title="index.btn.refresh" title="刷新" aria-label="刷新">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+        <div id="sd-content" class="card-body">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <div class="loading-text" data-i18n="pluginPage.loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/plugin-binding-manager.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-service-discovery.js"></script>
+@await Html.PartialAsync("_DashboardPageInit")
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+        await ServiceDiscoveryModule.load();
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

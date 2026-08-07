@@ -1,6 +1,6 @@
 using Aneiang.Yarp.Dashboard.Infrastructure;
-using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models;
-using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
+using Aneiang.Yarp.Plugin.ProxyLog.Models;
+using Aneiang.Yarp.Plugin.ProxyLog.Services;
 using Aneiang.Yarp.Storage;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -48,7 +48,7 @@ public class DashboardLogController : Controller
     [HttpGet("api/logs/history")]
     public async Task<IActionResult> GetLogHistory([FromQuery] ProxyLogSearchRequest request, CancellationToken ct)
     {
-        if (!_options.LogPersistenceEnabled)
+        if (!_options.ProxyLog.LogPersistenceEnabled)
             return Json(new { code = 200, data = new ProxyLogSearchResult { Items = new List<ProxyLogMetaItem>(), TotalCount = 0 } });
 
         request.PageSize = Math.Clamp(request.PageSize, 1, 200);
@@ -61,7 +61,7 @@ public class DashboardLogController : Controller
     [HttpGet("api/logs/detail/{id}")]
     public async Task<IActionResult> GetLogDetail(long id, CancellationToken ct)
     {
-        if (!_options.LogPersistenceEnabled)
+        if (!_options.ProxyLog.LogPersistenceEnabled)
             return Json(new { code = 404, message = "Log persistence is not enabled" });
 
         var detail = await _logQuery.GetLogDetailAsync(id, ct);
@@ -82,8 +82,8 @@ public class DashboardLogController : Controller
             {
                 droppedCount = _persistenceService.DroppedCount,
                 writtenCount = _persistenceService.WrittenCount,
-                persistenceEnabled = _options.LogPersistenceEnabled,
-                bufferCapacity = _options.LogBufferCapacity
+                persistenceEnabled = _options.ProxyLog.LogPersistenceEnabled,
+                bufferCapacity = _options.ProxyLog.LogBufferCapacity
             }
         });
     }

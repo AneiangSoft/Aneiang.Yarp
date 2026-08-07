@@ -5,21 +5,9 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Aneiang.Yarp.Plugins;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
-
-/// <summary>Registration state of an external plugin discovered from plugin.json.</summary>
-public enum ExternalPluginRegistrationStatus
-{
-    Discovered,
-    Disabled,
-    Loaded,
-    InvalidManifest,
-    DependencyUnsatisfied,
-    LoadFailed,
-    UnloadPending,
-    Unloaded
-}
 
 /// <summary>External plugin discovery and load result. Discovery never loads the entry assembly.</summary>
 public sealed record ExternalPluginRegistration(
@@ -180,11 +168,13 @@ public sealed class ExternalGatewayPluginHost : IDisposable
         }
     }
 
+    public bool HasManifest(string pluginId) =>
+        _registrations.ContainsKey(pluginId);
+
     public ExternalPluginRuntimeLoad LoadRuntime(string pluginId)
     {
         if (!_registrations.TryGetValue(pluginId, out var registration))
             throw new KeyNotFoundException($"External plugin manifest '{pluginId}' was not discovered.");
-
         CollectiblePluginLoadContext? context = null;
         try
         {
@@ -285,6 +275,170 @@ public sealed class ExternalGatewayPluginHost : IDisposable
 
             UpdateStatus(pluginId, ExternalPluginRegistrationStatus.Unloaded, isCollectible: true, isLoadContextAlive: false);
             _unloadingContexts.Remove(pluginId);
+        }
+    }
+
+    /// <summary>Install a plugin from a source directory by copying it into the plugin root and re-discovering.</summary>
+    public bool TryInstall(string sourceDirectory, out string? error)
+    {
+        error = null;
+        try
+        {
+            if (!Directory.Exists(sourceDirectory))
+            {
+                error = $"Source directory '{sourceDirectory}' does not exist.";
+                return false;
+            }
+
+            var manifestPath = Path.Combine(sourceDirectory, "plugin.json");
+            if (!File.Exists(manifestPath))
+            {
+                error = "Source directory does not contain a plugin.json manifest.";
+                return false;
+            }
+
+            PluginManifest manifest;
+            using (var stream = File.OpenRead(manifestPath))
+            {
+                manifest = JsonSerializer.Deserialize<PluginManifest>(stream, JsonOptions)
+                    ?? throw new InvalidDataException("Manifest is empty.");
+                ValidateManifest(manifest, manifestPath);
+            }
+
+            if (_registrations.ContainsKey(manifest.Id))
+            {
+                error = $"Plugin '{manifest.Id}' is already registered. Use upgrade instead.";
+                return false;
+            }
+
+            var targetDir = Path.Combine(_pluginRoot, manifest.Id);
+            if (Directory.Exists(targetDir))
+                Directory.Delete(targetDir, recursive: true);
+            CopyDirectory(sourceDirectory, targetDir);
+
+            var newManifestPath = Path.Combine(targetDir, "plugin.json");
+            _registrations[manifest.Id] = new ExternalPluginRegistration(
+                manifest, newManifestPath, ExternalPluginRegistrationStatus.Discovered);
+
+            _logger.LogInformation("External plugin {PluginId} v{Version} installed from {Source}", manifest.Id, manifest.Version, sourceDirectory);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            _logger.LogError(ex, "Failed to install plugin from {Source}", sourceDirectory);
+            return false;
+        }
+    }
+
+    /// <summary>Uninstall an external plugin: deactivate, delete directory, remove registration.</summary>
+    public bool TryUninstall(string pluginId, out string? error)
+    {
+        error = null;
+        if (!_registrations.TryGetValue(pluginId, out var registration))
+        {
+            error = $"External plugin '{pluginId}' was not found.";
+            return false;
+        }
+
+        if (registration.Status == ExternalPluginRegistrationStatus.InvalidManifest)
+        {
+            error = "Cannot uninstall a plugin with an invalid manifest.";
+            return false;
+        }
+
+        if (_loaded.ContainsKey(pluginId))
+        {
+            error = "Plugin must be disabled before uninstalling.";
+            return false;
+        }
+
+        try
+        {
+            var pluginDir = Path.GetDirectoryName(registration.ManifestPath);
+            if (!string.IsNullOrEmpty(pluginDir) && Directory.Exists(pluginDir))
+                Directory.Delete(pluginDir, recursive: true);
+
+            _registrations.Remove(pluginId);
+            _unloadingContexts.Remove(pluginId);
+            _logger.LogInformation("External plugin {PluginId} uninstalled", pluginId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            _logger.LogError(ex, "Failed to uninstall plugin {PluginId}", pluginId);
+            return false;
+        }
+    }
+
+    /// <summary>Upgrade an external plugin: deactivate, replace files, re-discover.</summary>
+    public bool TryUpgrade(string pluginId, string sourceDirectory, out string? error)
+    {
+        error = null;
+        if (!_registrations.TryGetValue(pluginId, out var registration))
+        {
+            error = $"External plugin '{pluginId}' was not found.";
+            return false;
+        }
+
+        if (_loaded.ContainsKey(pluginId))
+        {
+            error = "Plugin must be disabled before upgrading.";
+            return false;
+        }
+
+        try
+        {
+            var sourceManifestPath = Path.Combine(sourceDirectory, "plugin.json");
+            if (!File.Exists(sourceManifestPath))
+            {
+                error = "Source directory does not contain a plugin.json manifest.";
+                return false;
+            }
+
+            PluginManifest newManifest;
+            using (var stream = File.OpenRead(sourceManifestPath))
+            {
+                newManifest = JsonSerializer.Deserialize<PluginManifest>(stream, JsonOptions)
+                    ?? throw new InvalidDataException("Manifest is empty.");
+                ValidateManifest(newManifest, sourceManifestPath);
+            }
+
+            if (!string.Equals(newManifest.Id, pluginId, StringComparison.OrdinalIgnoreCase))
+            {
+                error = $"Manifest id '{newManifest.Id}' does not match expected '{pluginId}'.";
+                return false;
+            }
+
+            var pluginDir = Path.GetDirectoryName(registration.ManifestPath)!;
+            Directory.Delete(pluginDir, recursive: true);
+            CopyDirectory(sourceDirectory, pluginDir);
+
+            var upgradedManifestPath = Path.Combine(pluginDir, "plugin.json");
+            _registrations[pluginId] = new ExternalPluginRegistration(
+                newManifest, upgradedManifestPath, ExternalPluginRegistrationStatus.Discovered);
+
+            _logger.LogInformation("External plugin {PluginId} upgraded to v{Version}", pluginId, newManifest.Version);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            _logger.LogError(ex, "Failed to upgrade plugin {PluginId}", pluginId);
+            return false;
+        }
+    }
+
+    private static void CopyDirectory(string source, string target)
+    {
+        Directory.CreateDirectory(target);
+        foreach (var file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(source, file);
+            var dest = Path.Combine(target, relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+            File.Copy(file, dest, overwrite: true);
         }
     }
 

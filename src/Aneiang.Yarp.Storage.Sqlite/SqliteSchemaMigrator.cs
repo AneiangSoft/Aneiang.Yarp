@@ -34,6 +34,7 @@ public sealed class SqliteSchemaMigrator : IHostedService
         new Migration011_DestinationHealthAddress(),
         new Migration012_GatewayPlugins(),
         new Migration013_PluginRuntimeStates(),
+        new Migration014_PluginConfigPresets(),
     ];
 
     /// <summary>

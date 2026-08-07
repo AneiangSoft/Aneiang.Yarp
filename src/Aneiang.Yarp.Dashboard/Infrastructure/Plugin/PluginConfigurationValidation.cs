@@ -319,20 +319,7 @@ public sealed class PluginConfigurationSchemaValidator : IPluginConfigurationSch
     }
 }
 
-/// <summary>Transforms persisted plugin configuration between two adjacent schema versions.</summary>
-public interface IPluginConfigurationMigrator
-{
-    string PluginId { get; }
-    int FromVersion { get; }
-    int ToVersion { get; }
-    bool TryMigrate(string configJson, out string migratedConfigJson, out string error);
-}
-
-public interface IPluginConfigurationMigrationService
-{
-    bool TryMigrate(string pluginId, int fromVersion, int toVersion, string configJson, out string migratedConfigJson, out string error);
-}
-
+/// <summary>Service that coordinates plugin configuration migrations.</summary>
 public sealed class PluginConfigurationMigrationService : IPluginConfigurationMigrationService
 {
     private readonly IReadOnlyDictionary<(string PluginId, int FromVersion, int ToVersion), IPluginConfigurationMigrator> _migrators;

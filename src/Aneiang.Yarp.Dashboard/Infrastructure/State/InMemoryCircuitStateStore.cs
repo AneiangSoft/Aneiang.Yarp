@@ -1,8 +1,9 @@
 using System.Collections.Concurrent;
 using Aneiang.Yarp.Dashboard.Infrastructure;
-using Aneiang.Yarp.Dashboard.Modules.CircuitBreaker.Middleware;
+using Aneiang.Yarp.Plugin.CircuitBreaker;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Storage;
+using Aneiang.Yarp.Infrastructure.State;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.State;
 

@@ -73,19 +73,27 @@
 
         var html = '<div class="detail-section">' +
             '<div class="detail-section-title d-flex justify-content-between align-items-center">' +
-            '<span><i class="bi bi-puzzle"></i>绑定能力</span>' +
+            '<span><i class="bi bi-puzzle"></i>' + __('capability.title') + '</span>' +
             '<button type="button" class="btn btn-sm btn-outline-primary capability-add"' + (availablePlugins.length ? '' : ' disabled') + '>' +
-            '<i class="bi bi-plus-lg"></i> 添加能力</button></div>';
+            '<i class="bi bi-plus-lg"></i> ' + __('capability.add') + '</button></div>';
+
+        html += '<div class="small text-muted mb-2"><i class="bi bi-info-circle me-1"></i>' + __('capability.help') + '</div>';
 
         if (!bindings || !bindings.length) {
-            html += '<div class="text-muted small py-2">尚未绑定插件能力。</div>';
+            html += '<div class="text-center py-4 border rounded-3 bg-light">' +
+                '<i class="bi bi-inbox display-6 d-block mb-2 opacity-25"></i>' +
+                '<p class="text-muted mb-1">' + __('capability.empty') + '</p>' +
+                (availablePlugins.length ? '<p class="small text-muted mb-2">' + __('capability.emptyHint') + '</p>' +
+                '<button type="button" class="btn btn-sm btn-outline-primary capability-add-empty">' +
+                '<i class="bi bi-plus-lg me-1"></i>' + __('capability.add') + '</button>' : '') +
+                '</div>';
         } else {
             html += '<div class="d-flex flex-column gap-2">';
             bindings.forEach(function(binding) {
                 var plugin = pluginsById[binding.pluginId];
                 var globallyEnabled = !plugin || plugin.enabled !== false;
                 var effectiveEnabled = binding.enabled && globallyEnabled;
-                var statusText = !globallyEnabled ? '全局禁用' : (binding.enabled ? '已启用' : '已停用');
+                var statusText = !globallyEnabled ? __('capability.status.globallyDisabled') : (binding.enabled ? __('capability.status.enabled') : __('capability.status.disabled'));
                 var statusClass = effectiveEnabled ? 'bg-success' : (!globallyEnabled ? 'bg-danger' : 'bg-secondary');
                 html += '<div class="border rounded-3 p-2 d-flex align-items-center gap-3" data-binding-id="' + escapeHtml(binding.id) + '">' +
                     '<div class="flex-grow-1 min-w-0"><div class="d-flex align-items-center gap-2">' +
@@ -93,9 +101,9 @@
                     '<span class="badge ' + statusClass + '">' + statusText + '</span></div>' +
                     '<div class="small text-muted text-truncate" title="' + escapeHtml(summarizeConfig(binding)) + '">' + escapeHtml(summarizeConfig(binding)) + '</div></div>' +
                     '<div class="btn-group btn-group-sm">' +
-                    '<button type="button" class="btn btn-outline-primary capability-edit" title="编辑 JSON 配置"><i class="bi bi-braces"></i></button>' +
-                    '<button type="button" class="btn btn-outline-secondary capability-toggle" title="' + (binding.enabled ? '停用' : '启用') + '"' + (!globallyEnabled ? ' disabled' : '') + '><i class="bi ' + (binding.enabled ? 'bi-toggle-on' : 'bi-toggle-off') + '"></i></button>' +
-                    '<button type="button" class="btn btn-outline-danger capability-delete" title="删除"><i class="bi bi-trash"></i></button>' +
+                    '<button type="button" class="btn btn-outline-primary capability-edit" title="' + __('capability.action.editJson') + '"><i class="bi bi-braces"></i></button>' +
+                    '<button type="button" class="btn btn-outline-secondary capability-toggle" title="' + (binding.enabled ? __('capability.action.disable') : __('capability.action.enable')) + '"' + (!globallyEnabled ? ' disabled' : '') + '><i class="bi ' + (binding.enabled ? 'bi-toggle-on' : 'bi-toggle-off') + '"></i></button>' +
+                    '<button type="button" class="btn btn-outline-danger capability-delete" title="' + __('capability.action.delete') + '"><i class="bi bi-trash"></i></button>' +
                     '</div></div>';
             });
             html += '</div>';
@@ -104,6 +112,9 @@
         container.innerHTML = html;
 
         container.querySelector('.capability-add')?.addEventListener('click', function() {
+            showAddModal(container, scope, scopeId, bindings, plugins, availablePlugins);
+        });
+        container.querySelector('.capability-add-empty')?.addEventListener('click', function() {
             showAddModal(container, scope, scopeId, bindings, plugins, availablePlugins);
         });
         container.querySelectorAll('[data-binding-id]').forEach(function(row) {
@@ -115,11 +126,11 @@
     }
 
     function refresh(container, scope, scopeId) {
-        container.innerHTML = '<div class="detail-section"><div class="text-muted small"><span class="spinner-border spinner-border-sm me-2"></span>正在加载绑定能力...</div></div>';
+        container.innerHTML = '<div class="detail-section"><div class="text-muted small"><span class="spinner-border spinner-border-sm me-2"></span>' + __('capability.loading') + '</div></div>';
         return Promise.all([bindingApi(scope, scopeId), loadPlugins()])
             .then(function(results) { render(container, scope, scopeId, results[0] || [], results[1] || []); })
             .catch(function(error) {
-                container.innerHTML = '<div class="detail-section"><div class="text-danger small">绑定能力加载失败：' + escapeHtml(error.message) + '</div></div>';
+                container.innerHTML = '<div class="detail-section"><div class="text-danger small">' + __('capability.loadFailed') + escapeHtml(error.message) + '</div></div>';
             });
     }
 
@@ -133,7 +144,7 @@
             var schema = JSON.parse(source || '{}');
             return schema && schema.type === 'object' ? schema : null;
         } catch (error) {
-            console.warn('[DashboardCapabilities] 无法解析插件配置 Schema', plugin && plugin.pluginId, error);
+            console.warn('[DashboardCapabilities] ' + __('capability.schemaParseFailed'), plugin && plugin.pluginId, error);
             return null;
         }
     }
@@ -198,7 +209,7 @@
             choiceLabel.textContent = propertyLabel(name, property) + (required ? ' *' : '');
             var choiceSelect = document.createElement('select');
             choiceSelect.className = 'form-select form-select-sm mb-3';
-            choices.forEach(function(choice, index) { choiceSelect.appendChild(new Option(choice.title || ('选项 ' + (index + 1)), String(index))); });
+            choices.forEach(function(choice, index) { choiceSelect.appendChild(new Option(choice.title || __('capability.choice.option', { n: index + 1 }), String(index))); });
             var selected = choices.findIndex(function(choice) { return choiceMatches(value, choice); });
             choiceSelect.value = String(selected < 0 ? 0 : selected);
             var choiceHost = document.createElement('div');
@@ -255,16 +266,16 @@
             var add = document.createElement('button');
             add.type = 'button';
             add.className = 'btn btn-sm btn-outline-primary';
-            add.textContent = '添加项目';
+            add.textContent = __('capability.array.addItem');
             var rows = [];
             function addRow(item) {
                 var row = document.createElement('div');
                 row.className = 'border rounded p-2 mb-2 position-relative';
-                var field = schemaField('项目 ' + (rows.length + 1), property.items, applyDefaults(property.items, item), true);
+                var field = schemaField(__('capability.array.item', { n: rows.length + 1 }), property.items, applyDefaults(property.items, item), true);
                 var remove = document.createElement('button');
                 remove.type = 'button';
                 remove.className = 'btn btn-sm btn-outline-danger mb-2';
-                remove.textContent = '删除';
+                remove.textContent = __('capability.array.remove');
                 var entry = { row: row, field: field };
                 remove.addEventListener('click', function() { rows.splice(rows.indexOf(entry), 1); row.remove(); });
                 row.append(remove, field);
@@ -301,7 +312,7 @@
                 property.enum.forEach(function(optionValue) { input.appendChild(new Option(String(optionValue), String(optionValue), false, JSON.stringify(optionValue) === JSON.stringify(value))); });
             } else if (property.type === 'array') {
                 input = document.createElement('textarea'); input.className = 'form-control'; input.rows = 4;
-                input.value = Array.isArray(value) ? value.join('\n') : ''; input.placeholder = '每行一个值';
+                input.value = Array.isArray(value) ? value.join('\n') : ''; input.placeholder = __('capability.placeholder.onePerLine');
             } else {
                 input = document.createElement('input'); input.className = 'form-control';
                 input.type = property.type === 'number' || property.type === 'integer' ? 'number' : 'text'; input.value = value == null ? '' : value;
@@ -319,8 +330,8 @@
         wrapper.__read = function() {
             var raw = input.type === 'checkbox' ? input.checked : input.value.trim();
             input.setCustomValidity('');
-            if (input.dataset.duration === 'true' && raw && !/^(?:\d+\.)?\d{1,2}:\d{2}:\d{2}(?:\.\d{1,7})?$/.test(raw)) input.setCustomValidity('请输入如 00:01:00 的时长');
-            if (property.type === 'integer' && raw !== '' && !Number.isInteger(Number(raw))) input.setCustomValidity('请输入整数');
+            if (input.dataset.duration === 'true' && raw && !/^(?:\d+\.)?\d{1,2}:\d{2}:\d{2}(?:\.\d{1,7})?$/.test(raw)) input.setCustomValidity(__('capability.validation.durationFormat'));
+            if (property.type === 'integer' && raw !== '' && !Number.isInteger(Number(raw))) input.setCustomValidity(__('capability.validation.integer'));
             if (!input.checkValidity()) { input.classList.add('is-invalid'); return { valid: false }; }
             input.classList.remove('is-invalid');
             if (property.type === 'boolean') return { valid: true, present: true, value: raw };
@@ -361,24 +372,45 @@
             modal.tabIndex = -1;
             modal.dataset.bsBackdrop = 'static';
             modal.innerHTML = '<div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">' +
-                '<div class="modal-header"><h5 class="modal-title"><i class="bi bi-puzzle me-2"></i>' + (binding ? '编辑能力配置' : '添加绑定能力') + '</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
-                '<div class="modal-body"><div class="mb-3"><label class="form-label">插件</label><select class="form-select" data-role="plugin"></select></div>' +
-                '<div class="form-check mb-3"><input class="form-check-input" type="checkbox" data-role="enabled" id="' + modalId + '-enabled"><label class="form-check-label" for="' + modalId + '-enabled">启用此绑定</label></div>' +
-                '<div data-role="schema-form"></div><div class="d-none" data-role="json-panel"><label class="form-label">高级 JSON 配置</label><textarea class="form-control font-monospace" rows="14" data-role="json"></textarea></div></div>' +
-                '<div class="modal-footer justify-content-between"><button type="button" class="btn btn-outline-secondary btn-sm" data-role="mode"><i class="bi bi-braces me-1"></i>JSON</button>' +
-                '<div><button type="button" class="btn btn-secondary btn-sm me-2" data-bs-dismiss="modal">取消</button><button type="button" class="btn btn-primary btn-sm" data-role="save"><i class="bi bi-check-lg me-1"></i>保存</button></div></div></div></div>';
+                '<div class="modal-header"><h5 class="modal-title"><i class="bi bi-puzzle me-2"></i>' + (binding ? __('capability.modal.editTitle') : __('capability.modal.addTitle')) + '</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+                '<div class="modal-body"><div class="mb-3"><label class="form-label">' + __('capability.modal.plugin') + '</label><select class="form-select" data-role="plugin"></select><div class="small mt-2" data-role="plugin-info"></div></div>' +
+                '<div class="mb-3 d-flex align-items-end gap-2"><div class="flex-grow-1"><label class="form-label">' + __('capability.modal.preset') + '</label><select class="form-select form-select-sm" data-role="preset"><option value="">' + __('capability.modal.noPreset') + '</option></select></div>' +
+                '<button type="button" class="btn btn-outline-secondary btn-sm" data-role="save-preset" title="' + __('capability.modal.savePresetTitle') + '"><i class="bi bi-bookmark-plus me-1"></i>' + __('capability.modal.savePreset') + '</button></div>' +
+                '<div class="form-check mb-3"><input class="form-check-input" type="checkbox" data-role="enabled" id="' + modalId + '-enabled"><label class="form-check-label" for="' + modalId + '-enabled">' + __('capability.modal.enableBinding') + '</label></div>' +
+                '<div data-role="schema-form"></div><div class="d-none" data-role="json-panel"><label class="form-label">' + __('capability.modal.jsonConfig') + '</label><textarea class="form-control font-monospace" rows="14" data-role="json"></textarea></div></div>' +
+                '<div class="modal-footer justify-content-between"><button type="button" class="btn btn-outline-secondary btn-sm" data-role="mode"><i class="bi bi-braces me-1"></i>' + __('capability.modal.jsonMode') + '</button>' +
+                '<div><button type="button" class="btn btn-secondary btn-sm me-2" data-bs-dismiss="modal">' + __('common.cancel') + '</button><button type="button" class="btn btn-primary btn-sm" data-role="save"><i class="bi bi-check-lg me-1"></i>' + __('common.save') + '</button></div></div></div></div>';
             document.body.appendChild(modal);
 
             var pluginSelect = modal.querySelector('[data-role="plugin"]');
+            var pluginInfo = modal.querySelector('[data-role="plugin-info"]');
             var enabledInput = modal.querySelector('[data-role="enabled"]');
             var schemaForm = modal.querySelector('[data-role="schema-form"]');
             var jsonPanel = modal.querySelector('[data-role="json-panel"]');
             var jsonInput = modal.querySelector('[data-role="json"]');
             var modeButton = modal.querySelector('[data-role="mode"]');
             var saveButton = modal.querySelector('[data-role="save"]');
+            var presetSelect = modal.querySelector('[data-role="preset"]');
+            var savePresetButton = modal.querySelector('[data-role="save-preset"]');
             var advanced = false;
             var config = binding ? parseConfig(binding) : {};
             var schema = null;
+            var currentPresets = [];
+
+            function renderPluginInfo() {
+                var plugin = plugins.find(function(item) { return item.pluginId === pluginSelect.value; });
+                if (!plugin) { pluginInfo.innerHTML = ''; return; }
+                var scopes = Array.isArray(plugin.scopes) ? plugin.scopes : [plugin.scope || 'Route'];
+                var badges = scopes.map(function(scope) {
+                    var scopeKey = 'capability.modal.pluginScope.' + scope;
+                    var scopeLabel = window.__(scopeKey) || scope;
+                    return '<span class="badge bg-info me-2">' + escapeHtml(scopeLabel) + '</span>';
+                }).join('');
+                if (plugin.enabled === false) badges += '<span class="badge bg-danger me-2">' + __('capability.status.globallyDisabled') + '</span>';
+                var description = plugin.description || '';
+                var warning = plugin.enabled === false ? '<div class="text-danger mt-1"><i class="bi bi-exclamation-triangle-fill me-1"></i>' + __('capability.modal.pluginDisabledWarning') + '</div>' : '';
+                pluginInfo.innerHTML = '<div class="mb-1">' + badges + '</div><div class="text-secondary small">' + escapeHtml(description) + '</div>' + warning;
+            }
 
             selectable.forEach(function(plugin) { pluginSelect.appendChild(new Option(plugin.displayName || plugin.pluginId, plugin.pluginId, false, plugin.pluginId === (binding && binding.pluginId))); });
             pluginSelect.disabled = !!binding;
@@ -392,7 +424,7 @@
                 if (!schema || !Object.keys(schema.properties || {}).length) {
                     var notice = document.createElement('div');
                     notice.className = 'alert alert-secondary py-2';
-                    notice.textContent = '此插件未提供可视化配置 Schema，可使用 JSON 模式配置。';
+                    notice.textContent = __('capability.modal.noSchema');
                     schemaForm.appendChild(notice);
                 } else {
                     var required = schema.required || [];
@@ -403,9 +435,62 @@
                     });
                 }
                 jsonInput.value = JSON.stringify(config, null, 2);
+                renderPluginInfo();
             }
 
-            pluginSelect.addEventListener('change', function() { renderForm(true); });
+            pluginSelect.addEventListener('change', function() { renderForm(true); loadPresetsForPlugin(); });
+
+            async function loadPresetsForPlugin() {
+                var pluginId = pluginSelect.value;
+                if (!pluginId) { presetSelect.innerHTML = '<option value="">' + __('capability.modal.noPreset') + '</option>'; return; }
+                try {
+                    var presets = await window.DashboardApi.getPresets(pluginId);
+                    currentPresets = Array.isArray(presets) ? presets : (presets && presets.data) || [];
+                    presetSelect.innerHTML = '<option value="">' + __('capability.modal.noPreset') + '</option>' +
+                        currentPresets.map(function(p) {
+                            return '<option value="' + escapeHtml(p.id) + '">' + escapeHtml(p.name) + '</option>';
+                        }).join('');
+                } catch (_) { currentPresets = []; }
+            }
+
+            presetSelect.addEventListener('change', function() {
+                var presetId = presetSelect.value;
+                if (!presetId) return;
+                var preset = currentPresets.find(function(p) { return p.id === presetId; });
+                if (!preset) return;
+                try {
+                    config = JSON.parse(preset.configJson || '{}');
+                } catch (_) { window.DashboardModals.showWarning(__('capability.modal.presetParseFailed')); return; }
+                renderForm(false);
+                window.DashboardModals.showSuccess(__('capability.presetLoaded', { name: preset.name }));
+            });
+
+            savePresetButton.addEventListener('click', function() {
+                var pluginId = pluginSelect.value;
+                if (!pluginId) { window.DashboardModals.showWarning(__('capability.modal.selectPluginFirst')); return; }
+                var currentConfig = config;
+                if (!advanced && schema) {
+                    var formConfig = readSchemaForm(schemaForm, schema, config);
+                    if (formConfig === null) return;
+                    currentConfig = formConfig;
+                } else if (advanced) {
+                    try { currentConfig = JSON.parse(jsonInput.value || '{}'); }
+                    catch (_) { window.DashboardModals.showWarning(__('capability.modal.invalidJson')); return; }
+                }
+                var defaultName = (binding && binding.pluginId) + ' ' + __('capability.presetSuffix');
+                var name = window.prompt(__('capability.modal.presetNamePrompt'), defaultName);
+                if (!name) return;
+                window.DashboardApi.savePreset({
+                    name: name,
+                    pluginId: pluginId,
+                    configJson: JSON.stringify(currentConfig),
+                    schemaVersion: Number((schema && schema.version) || (binding && binding.schemaVersion) || 1)
+                }).then(function() {
+                    window.DashboardModals.showSuccess(__('capability.presetSaveSuccess'));
+                    loadPresetsForPlugin();
+                }).catch(function(error) { showError(error); });
+            });
+
             modeButton.addEventListener('click', function() {
                 if (!advanced && schema) {
                     var formConfig = readSchemaForm(schemaForm, schema, config);
@@ -414,18 +499,18 @@
                     jsonInput.value = JSON.stringify(config, null, 2);
                 } else if (advanced) {
                     try { config = JSON.parse(jsonInput.value || '{}'); }
-                    catch (_) { window.DashboardModals.showWarning('JSON 配置格式无效'); return; }
+                    catch (_) { window.DashboardModals.showWarning(__('capability.modal.invalidJson')); return; }
                     renderForm(false);
                 }
                 advanced = !advanced;
                 schemaForm.classList.toggle('d-none', advanced);
                 jsonPanel.classList.toggle('d-none', !advanced);
-                modeButton.innerHTML = advanced ? '<i class="bi bi-ui-checks-grid me-1"></i>表单' : '<i class="bi bi-braces me-1"></i>JSON';
+                modeButton.innerHTML = advanced ? '<i class="bi bi-ui-checks-grid me-1"></i>' + __('capability.modal.formMode') : '<i class="bi bi-braces me-1"></i>' + __('capability.modal.jsonMode');
             });
             saveButton.addEventListener('click', async function() {
                 if (advanced) {
                     try { config = JSON.parse(jsonInput.value || '{}'); }
-                    catch (_) { window.DashboardModals.showWarning('JSON 配置格式无效'); return; }
+                    catch (_) { window.DashboardModals.showWarning(__('capability.modal.invalidJson')); return; }
                 } else if (schema) {
                     var formConfig = readSchemaForm(schemaForm, schema, config);
                     if (formConfig === null) return;
@@ -441,13 +526,14 @@
                 payload.configVersion = binding ? (binding.configVersion || 0) + 1 : 1;
                 try {
                     if (binding) await updateBinding(payload); else await createBinding(payload);
-                    window.DashboardModals.showSuccess(binding ? '能力配置已保存' : '能力绑定已添加');
+                    window.DashboardModals.showSuccess(binding ? __('capability.saveSuccess') : __('capability.addSuccess'));
                     await refresh(container, scope, scopeId);
                     bootstrap.Modal.getInstance(modal).hide();
                 } catch (error) { showError(error); }
             });
             modal.addEventListener('hidden.bs.modal', function() { modal.remove(); });
             renderForm(!binding);
+            loadPresetsForPlugin();
             new bootstrap.Modal(modal).show();
         };
         if (allPlugins) open(allPlugins); else loadPlugins().then(open).catch(showError);
@@ -456,7 +542,7 @@
     async function toggleBinding(container, scope, scopeId, binding) {
         try {
             await updateBinding(Object.assign({}, binding, { enabled: !binding.enabled }));
-            window.DashboardModals.showSuccess(binding.enabled ? '能力绑定已停用' : '能力绑定已启用');
+            window.DashboardModals.showSuccess(binding.enabled ? __('capability.disableSuccess') : __('capability.enableSuccess'));
             await refresh(container, scope, scopeId);
         } catch (error) {
             showError(error);
@@ -464,20 +550,31 @@
     }
 
     function deleteBinding(container, scope, scopeId, binding) {
-        window.DashboardModals.showConfirm('确定删除能力绑定“' + binding.pluginId + '”吗？', async function() {
+        window.DashboardModals.showConfirm(__('capability.deleteConfirm', { pluginId: binding.pluginId }), async function() {
             try {
                 await window.DashboardApi.delete('/api/plugin-bindings/' + encodeURIComponent(binding.id));
-                window.DashboardModals.showSuccess('能力绑定已删除');
+                window.DashboardModals.showSuccess(__('capability.deleteSuccess'));
                 await refresh(container, scope, scopeId);
             } catch (error) {
                 showError(error);
             }
-        }, null, { title: '删除能力绑定', danger: true });
+        }, null, { title: __('capability.deleteTitle'), danger: true });
     }
 
     window.DashboardCapabilities = {
         mount: function(container, scope, scopeId) {
             if (container) refresh(container, scope, scopeId);
-        }
+        },
+        // Expose for plugin pages
+        getPluginSchema: getPluginSchema,
+        schemaField: schemaField,
+        applyDefaults: applyDefaults,
+        readSchemaForm: readSchemaForm,
+        expandSchema: expandSchema,
+        mergeSchema: mergeSchema,
+        propertyLabel: propertyLabel,
+        parseConfig: parseConfig,
+        summarizeConfig: summarizeConfig,
+        loadPlugins: loadPlugins
     };
 })();

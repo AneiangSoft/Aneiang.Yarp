@@ -1,4 +1,4 @@
-@using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Models
+@using Aneiang.Yarp.Plugin.ProxyLog.Models
 <!DOCTYPE html>
 <html lang="@ViewBag.Locale">
 <head>
@@ -18,7 +18,6 @@
     <link href="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet" />
     <link href="/_content/Aneiang.Yarp.Dashboard/styles/dashboard-editor.css" rel="stylesheet" />
     <link href="/_content/Aneiang.Yarp.Dashboard/styles/inter-font.css" rel="stylesheet">
-    <link href="/_content/Aneiang.Yarp.Dashboard/styles/ai-chat.css" rel="stylesheet">
     <style>
         :root {
             --sidebar-width: 256px;
@@ -432,6 +431,27 @@
             color: #fff;
             box-shadow: 0 2px 6px rgba(16, 185, 129, 0.35);
         }
+
+        /* Nav badge counts (sidebar) */
+        .nav-badge-count {
+            font-size: 10px;
+            font-weight: 600;
+            color: rgba(148, 163, 184, 0.6);
+            margin-left: auto;
+            flex-shrink: 0;
+            padding: 1px 6px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.06);
+            min-width: 16px;
+            text-align: center;
+        }
+        .nav-badge-count:empty { display: none; }
+        .nav-badge-count.alert { color: #fca5a5; background: rgba(239,68,68,0.12); }
+        .nav-badge-count.ratio { color: #6ee7b7; background: rgba(16,185,129,0.1); }
+        .nav-badge-count.health-dot { width: 8px; height: 8px; border-radius: 50%; padding: 0; min-width: 0; }
+        .nav-badge-count.health-dot.healthy { background: #10b981; }
+        .nav-badge-count.health-dot.unhealthy { background: #ef4444; }
+        .nav-badge-count.metric { font-size: 9.5px; letter-spacing: 0.3px; }
         
         .sidebar-footer {
             padding: 10px 12px 12px;
@@ -567,6 +587,9 @@
         .main-content {
             margin-left: var(--sidebar-width); 
             padding: 0;
+            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .main-content.main-collapsed { margin-left: 64px; }
             min-height: 100vh;
             background: var(--bg-color);
             display: flex;
@@ -647,6 +670,25 @@
             gap: 8px;
             flex-shrink: 0;
             padding-top: 18px;
+        }
+
+        /* Header Search Trigger */
+        .header-search-trigger {
+            display: flex; align-items: center; gap: 6px;
+            padding: 5px 10px; border-radius: 8px;
+            background: rgba(99, 102, 241, 0.06);
+            border: 1px solid rgba(99, 102, 241, 0.12);
+            cursor: pointer; transition: all 0.2s;
+        }
+        .header-search-trigger:hover {
+            background: rgba(99, 102, 241, 0.12);
+            border-color: rgba(99, 102, 241, 0.25);
+        }
+        .header-search-trigger i { color: var(--text-secondary); font-size: 13px; }
+        .header-search-trigger kbd {
+            font-size: 10px; font-weight: 600; padding: 1px 5px;
+            border-radius: 4px; background: rgba(148,163,184,0.15);
+            color: var(--text-secondary); font-family: var(--font-mono);
         }
         
         /* Stat Cards */
@@ -2595,6 +2637,194 @@
         }
         .sidebar-overlay.active { display: block; opacity: 1; }
 
+        /* Sidebar Collapsed State */
+        .sidebar.collapsed { width: 64px; }
+        .sidebar.collapsed .brand-text { display: none; }
+        .sidebar.collapsed .brand-logo { justify-content: center; }
+        .sidebar.collapsed .sidebar-collapse-btn { margin: 0 auto; }
+        .sidebar.collapsed .section-title { display: none; }
+        .sidebar.collapsed .section-chevron { display: none; }
+        .sidebar.collapsed .section-header { justify-content: center; padding: 10px 0; cursor: default; }
+        .sidebar.collapsed .nav-collapse { display: none; }
+        .sidebar.collapsed .nav-link { justify-content: center; padding: 10px 0; }
+        .sidebar.collapsed .nav-content { display: none; }
+        .sidebar.collapsed .nav-badge-count { display: none; }
+
+        /* Collapsed sidebar hover popup */
+        .sidebar.collapsed .nav-section { position: relative; }
+        .sidebar.collapsed .nav-section:hover .nav-collapse {
+            display: block !important;
+            position: absolute;
+            left: 100%; top: 0;
+            min-width: 200px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            box-shadow: var(--shadow-lg);
+            padding: 6px;
+            z-index: 1001;
+        }
+        .sidebar.collapsed .nav-section:hover .nav-title { display: inline; }
+        .sidebar.collapsed .nav-section:hover .nav-content { display: flex; }
+        .sidebar.collapsed .nav-section:hover .section-title { display: block; padding: 4px 10px; font-size: 11px; }
+
+        /* Command Palette */
+        .cmd-palette-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 9999;
+            display: none;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 100px;
+            backdrop-filter: blur(4px);
+        }
+        .cmd-palette-overlay.show { display: flex; }
+        .cmd-palette {
+            width: 90%; max-width: 560px;
+            background: var(--card-bg, #fff);
+            border-radius: 14px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+            overflow: hidden;
+            border: 1px solid var(--border-color, #e2e8f0);
+        }
+        .cmd-input-wrap {
+            display: flex; align-items: center; gap: 10px;
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border-color, #e2e8f0);
+        }
+        .cmd-search-icon { color: var(--text-secondary, #94a3b8); font-size: 16px; }
+        .cmd-input {
+            flex: 1; border: none; outline: none; background: transparent;
+            font-size: 15px; color: var(--text-primary, #1e293b);
+        }
+        .cmd-input::placeholder { color: var(--text-secondary, #94a3b8); }
+        .cmd-esc {
+            font-size: 10px; font-weight: 600; padding: 2px 6px;
+            border-radius: 4px; background: rgba(148,163,184,0.15);
+            color: var(--text-secondary, #94a3b8);
+        }
+        .cmd-results {
+            max-height: 400px; overflow-y: auto; padding: 6px;
+        }
+        .cmd-header {
+            padding: 8px 14px 4px;
+            font-size: 11px; font-weight: 600;
+            color: var(--text-secondary, #94a3b8);
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .cmd-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 14px; border-radius: 8px; cursor: pointer;
+            transition: background 0.15s;
+        }
+        .cmd-item:hover, .cmd-item.selected {
+            background: rgba(99,102,241,0.1);
+        }
+        .cmd-item-icon { color: var(--primary-light, #818cf8); font-size: 15px; width: 20px; }
+        .cmd-item-title { font-size: 14px; color: var(--text-primary, #1e293b); }
+        .cmd-empty {
+            padding: 24px; text-align: center;
+            color: var(--text-secondary, #94a3b8); font-size: 14px;
+        }
+
+        /* Page Help Bar */
+        .page-help-bar {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 16px; margin-bottom: 16px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.04), rgba(139, 92, 246, 0.03));
+            border: 1px solid rgba(99, 102, 241, 0.1);
+            font-size: 13px; color: var(--text-secondary);
+            line-height: 1.5;
+        }
+        .page-help-bar i.bi { color: var(--primary-light); flex-shrink: 0; font-size: 15px; }
+        .page-help-bar .help-text { flex: 1; }
+        .page-help-bar .help-close {
+            border: none; background: transparent; cursor: pointer;
+            color: var(--text-muted); padding: 2px 6px; border-radius: 6px;
+            font-size: 18px; line-height: 1; transition: all 0.15s;
+        }
+        .page-help-bar .help-close:hover { background: rgba(148,163,184,0.12); color: var(--text-primary); }
+        .page-help-bar.collapsed { display: none; }
+
+        /* Unified Empty State */
+        .empty-state-container {
+            text-align: center; padding: 48px 24px;
+            border: 1px dashed var(--border-color);
+            border-radius: 12px;
+            background: rgba(248, 250, 252, 0.5);
+        }
+        .empty-state-container .empty-icon {
+            font-size: 3.5rem; opacity: 0.2; display: block;
+            margin-bottom: 12px;
+        }
+        .empty-state-container .empty-title {
+            font-size: 15px; font-weight: 500; color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        .empty-state-container .empty-desc {
+            font-size: 13px; color: var(--text-secondary);
+            margin-bottom: 16px; max-width: 360px; margin-left: auto; margin-right: auto;
+        }
+        .empty-state-container .empty-action {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 16px; border-radius: 8px;
+            font-size: 13px; font-weight: 500;
+            border: 1px solid var(--primary-light);
+            color: var(--primary-light); background: transparent;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .empty-state-container .empty-action:hover {
+            background: var(--primary-light); color: #fff;
+        }
+
+        /* Onboarding Wizard */
+        .onboarding-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 10000;
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .onboarding-modal {
+            width: 90%; max-width: 480px;
+            background: var(--card-bg, #fff);
+            border-radius: 16px; overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color, #e2e8f0);
+        }
+        .onboarding-header {
+            text-align: center; padding: 32px 24px 20px;
+            background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08));
+        }
+        .onboarding-icon {
+            width: 56px; height: 56px; margin: 0 auto 12px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: #fff; font-size: 26px;
+        }
+        .onboarding-title { font-size: 20px; font-weight: 700; margin: 0 0 4px; color: var(--text-primary, #1e293b); }
+        .onboarding-subtitle { font-size: 14px; color: var(--text-secondary, #94a3b8); margin: 0; }
+        .onboarding-steps { padding: 20px 24px; }
+        .onboarding-step {
+            display: flex; gap: 14px; padding: 12px 0;
+            border-bottom: 1px solid var(--border-color, #f1f5f9);
+        }
+        .onboarding-step:last-child { border-bottom: none; }
+        .step-number {
+            width: 32px; height: 32px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: 700; flex-shrink: 0;
+            background: rgba(148,163,184,0.15); color: var(--text-secondary, #94a3b8);
+        }
+        .step-number.active { background: var(--primary-color, #6366f1); color: #fff; }
+        .step-number.done { background: #10b981; color: #fff; }
+        .step-info { flex: 1; }
+        .step-title { font-size: 14px; font-weight: 600; color: var(--text-primary, #1e293b); margin-bottom: 2px; }
+        .step-desc { font-size: 12px; color: var(--text-secondary, #94a3b8); margin-bottom: 8px; }
+        .step-btn { font-size: 12px; }
+        .onboarding-footer { text-align: center; padding: 8px 24px 20px; }
+
         /* Mobile Top Bar */
         .mobile-topbar {
             display: none;
@@ -2938,7 +3168,7 @@
                 </div>
                 <div class="brand-text">
                     <div class="brand-title" data-i18n="layout.brand">网关维护仪表盘</div>
-                    <div class="brand-subtitle">Gateway Console</div>
+                    <div class="brand-subtitle" data-i18n="layout.console">网关控制台</div>
                 </div>
             </div>
             <div class="brand-divider"></div>
@@ -2949,117 +3179,156 @@
             var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
             var isEn = (ViewBag.Locale as string) == "en-US";
 
-            // Grouped menu with 2-level submenus
-            var menuGroups = new[]
+            // Menu helper types
+            // Grouped menu - 5 groups: Overview / Gateway Config / Plugin Center / Operations / System
+            var menuGroups = new (string Title, string I18nKey, (string Key, string Title, string I18nKey, string Icon, string Path, string BadgeType, object[] Children)[] Items)[]
             {
-                new {
-                    Title = isEn ? "Dashboard" : "仪表盘",
-                    Items = new[] {
-                        new { Key = "overview", Title = isEn ? "Overview" : "总览", Icon = "bi-speedometer2", Path = $"/{prefix}/", Badge = "", Conditional = false }
+                (
+                    isEn ? "Overview" : "总览",
+                    "menu.group.overview",
+                    new[]
+                    {
+                        ("overview", isEn ? "Dashboard" : "仪表盘", "menu.overview", "bi-speedometer2", $"/{prefix}/", "health", Array.Empty<object>())
                     }
-                },
-                new {
-                    Title = isEn ? "Gateway" : "网关管理",
-                    Items = new[] {
-                        new { Key = "clusters", Title = isEn ? "Clusters" : "服务集群", Icon = "bi-diagram-3", Path = $"/{prefix}/clusters", Badge = "", Conditional = false },
-                        new { Key = "routes", Title = isEn ? "Routes" : "路由配置", Icon = "bi-signpost-split", Path = $"/{prefix}/routes", Badge = "", Conditional = false }
+                ),
+                (
+                    isEn ? "Gateway Config" : "网关配置",
+                    "menu.group.gateway",
+                    new[]
+                    {
+                        ("clusters", isEn ? "Clusters" : "服务集群", "menu.clusters", "bi-diagram-3", $"/{prefix}/clusters", "count", Array.Empty<object>()),
+                        ("routes", isEn ? "Routes" : "路由配置", "menu.routes", "bi-signpost-split", $"/{prefix}/routes", "count", Array.Empty<object>())
                     }
-                },
-                new {
-                    Title = isEn ? "Monitoring" : "监控运维",
-                    Items = new[] {
-                        new { Key = "stats", Title = isEn ? "Statistics" : "访问统计", Icon = "bi-bar-chart-line", Path = $"/{prefix}/stats", Badge = "", Conditional = false },
-                        new { Key = "logs", Title = isEn ? "Logs" : "日志", Icon = "bi-journal-text", Path = $"/{prefix}/logs", Badge = "", Conditional = true },
-                        new { Key = "circuits", Title = isEn ? "Circuits" : "熔断状态", Icon = "bi-lightning-charge", Path = $"/{prefix}/circuits", Badge = "", Conditional = false },
-                        new { Key = "notifications", Title = isEn ? "Notifications" : "通知中心", Icon = "bi-bell", Path = $"/{prefix}/notifications", Badge = "NEW", Conditional = false },
-                        new { Key = "healthcheck", Title = isEn ? "Health Check" : "健康检查", Icon = "bi-heart-pulse", Path = $"/{prefix}/healthcheck", Badge = "", Conditional = false }
+                ),
+                (
+                    isEn ? "Plugin Center" : "插件中心",
+                    "menu.group.plugins",
+                    new[]
+                    {
+                        ("plugins", isEn ? "Plugin Manager" : "插件管理", "menu.plugins", "bi-puzzle", $"/{prefix}/plugins", "ratio", Array.Empty<object>()),
+                        ("plugin-resources", isEn ? "Plugin Resources" : "插件资源", "menu.pluginResources", "bi-cpu", $"/{prefix}/plugin-resources", "", Array.Empty<object>()),
+                        ("strategy-config", isEn ? "Strategy Config" : "策略配置", "menu.strategyConfig", "bi-sliders", "", "", new object[]
+                        {
+                            new { Key = "rate-limit", Title = isEn ? "Rate Limiting" : "限流策略", I18nKey = "menu.rateLimit", Icon = "bi-speed-limit", Path = $"/{prefix}/rate-limit" },
+                            new { Key = "waf", Title = isEn ? "WAF Firewall" : "WAF 防火墙", I18nKey = "menu.waf", Icon = "bi-shield-lock", Path = $"/{prefix}/waf" },
+                            new { Key = "retry", Title = isEn ? "Request Retry" : "请求重试", I18nKey = "menu.retry", Icon = "bi-arrow-repeat", Path = $"/{prefix}/retry" },
+                            new { Key = "response-cache", Title = isEn ? "Response Cache" : "响应缓存", I18nKey = "menu.responseCache", Icon = "bi-hdd-network", Path = $"/{prefix}/response-cache" },
+                            new { Key = "service-discovery", Title = isEn ? "Service Discovery" : "服务发现", I18nKey = "menu.serviceDiscovery", Icon = "bi-broadcast", Path = $"/{prefix}/service-discovery" }
+                        })
                     }
-                },
-                new {
-                    Title = isEn ? "Security" : "安全策略",
-                    Items = new[] {
-                        new { Key = "plugins", Title = isEn ? "Plugins" : "插件管理", Icon = "bi-puzzle", Path = $"/{prefix}/plugins", Badge = "", Conditional = false }
+                ),
+                (
+                    isEn ? "Operations" : "运维监控",
+                    "menu.group.monitoring",
+                    new[]
+                    {
+                        ("logs", isEn ? "Real-time Logs" : "实时日志", "menu.logs", "bi-journal-text", $"/{prefix}/logs", "status", Array.Empty<object>()),
+                        ("circuits", isEn ? "Circuit Breaker" : "熔断状态", "menu.circuits", "bi-lightning-charge", $"/{prefix}/circuits", "alert", Array.Empty<object>()),
+                        ("traffic", isEn ? "Traffic Monitor" : "流量监控", "menu.traffic", "bi-graph-up-arrow", $"/{prefix}/traffic", "metric", Array.Empty<object>()),
+                        ("cluster-metrics", isEn ? "Cluster Metrics" : "集群指标", "menu.clusterMetrics", "bi-diagram-3", $"/{prefix}/cluster-metrics", "", Array.Empty<object>())
                     }
-                },
-                new {
-                    Title = isEn ? "System" : "系统管理",
-                    Items = new[] {
-                        new { Key = "history", Title = isEn ? "History" : "配置历史", Icon = "bi-clock-history", Path = $"/{prefix}/history", Badge = "", Conditional = false },
-                        new { Key = "audit", Title = isEn ? "Audit Log" : "审计日志", Icon = "bi-shield-check", Path = $"/{prefix}/audit", Badge = "", Conditional = false },
-                        new { Key = "ai", Title = isEn ? "AI Assistant" : "AI 助手", Icon = "bi-robot", Path = $"/{prefix}/ai-settings", Badge = "NEW", Conditional = false },
-                        new { Key = "deployment", Title = isEn ? "Deployment" : "运行模式", Icon = "bi-rocket-takeoff", Path = $"/{prefix}/deployment", Badge = "", Conditional = false },
-                        new { Key = "settings", Title = isEn ? "Settings" : "设置", Icon = "bi-gear", Path = $"/{prefix}/settings", Badge = "", Conditional = false }
+                ),
+                (
+                    isEn ? "System" : "系统管理",
+                    "menu.group.system",
+                    new[]
+                    {
+                        ("settings", isEn ? "Settings" : "系统设置", "menu.settings", "bi-gear", $"/{prefix}/settings", "", Array.Empty<object>()),
+                        ("history", isEn ? "Config History" : "配置历史", "menu.history", "bi-clock-history", $"/{prefix}/history", "", Array.Empty<object>()),
+                        ("audit", isEn ? "Audit Log" : "审计日志", "menu.audit", "bi-shield-check", $"/{prefix}/audit", "", Array.Empty<object>())
                     }
-                }
+                )
             };
         }
 
         <div class="sidebar-nav">
             @foreach (var group in menuGroups)
             {
-                var visibleItems = new System.Collections.Generic.List<dynamic>();
+                var visibleItems = new System.Collections.Generic.List<(string Key, string Title, string I18nKey, string Icon, string Path, string BadgeType, object[] Children)>();
                 var isActiveGroup = false;
                 foreach (var item in group.Items)
                 {
                     visibleItems.Add(item);
                     if (currentPage == item.Key) { isActiveGroup = true; }
+                    if (item.Children != null)
+                    {
+                        foreach (var child in item.Children)
+                        {
+                            if (currentPage == ((dynamic)child).Key) { isActiveGroup = true; }
+                        }
+                    }
                 }
                 if (visibleItems.Count == 0) continue;
 
                 <div class="nav-section">
-                    <div class="section-header @(isActiveGroup ? "expanded" : "")" data-toggle="collapse" data-target="nav-group-@group.Title.GetHashCode()">
-                        <span class="section-title">@group.Title</span>
+                    <div class="section-header @(isActiveGroup ? "expanded" : "")" data-toggle="collapse" data-target="nav-group-@group.I18nKey.GetHashCode()">
+                        <span class="section-title" data-i18n="@group.I18nKey">@group.Title</span>
                         <i class="bi bi-chevron-down section-chevron"></i>
                     </div>
                     <div class="nav-collapse @(isActiveGroup ? "expanded" : "")">
                         @foreach (var item in visibleItems)
                         {
-                            <a class="nav-link @(currentPage == item.Key ? "active" : "")"
-                               href="@item.Path"
-                               data-page="@item.Key"
-                               data-title="@item.Title"
-                               data-icon="@item.Icon"
-                               @if (item.Key == "logs") { <text>data-plugin-requires="proxy-log"</text> }
-                               @if (item.Key == "circuits") { <text>data-plugin-requires="circuit-breaker"</text> }
-                               @if (item.Key == "ai") { <text>data-plugin-requires="ai-assistant"</text> }>
-                                <i class="bi @item.Icon"></i>
-                                <span class="nav-content">
-                                    <span class="nav-title">@item.Title</span>
-                                </span>
-                                @if (!string.IsNullOrEmpty(item.Badge))
-                                {
-                                    <span class="nav-badge nav-badge-new">@item.Badge</span>
-                                }
-                            </a>
+                            var hasSubmenu = item.Children != null && item.Children.Length > 0;
+                            var isItemActive = currentPage == item.Key;
+                            if (hasSubmenu)
+                            {
+                                var isSubActive = false;
+                                foreach (var child in item.Children) { if (currentPage == ((dynamic)child).Key) isSubActive = true; }
+                                <a class="nav-link has-submenu @(isSubActive ? "expanded" : "")"
+                                   href="javascript:void(0)"
+                                   data-page="@item.Key"
+                                   data-title="@item.Title"
+                                   data-icon="@item.Icon"
+                                   onclick="this.classList.toggle('expanded');var sm=this.nextElementSibling;if(sm)sm.classList.toggle('expanded')">
+                                    <i class="bi @item.Icon"></i>
+                                    <span class="nav-content">
+                                        <span class="nav-title" data-i18n="@item.I18nKey">@item.Title</span>
+                                    </span>
+                                </a>
+                                <div class="nav-submenu @(isSubActive ? "expanded" : "")">
+                                    @foreach (var child in item.Children)
+                                    {
+                                        var ch = (dynamic)child;
+                                        <a class="nav-link @(currentPage == ch.Key ? "active" : "")"
+                                           href="@ch.Path"
+                                           data-page="@ch.Key"
+                                           data-title="@ch.Title"
+                                           data-icon="@ch.Icon">
+                                            <span class="nav-dot"></span>
+                                            <span class="nav-content">
+                                                <span class="nav-title" data-i18n="@ch.I18nKey">@ch.Title</span>
+                                            </span>
+                                        </a>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <a class="nav-link @(isItemActive ? "active" : "")"
+                                   href="@item.Path"
+                                   data-page="@item.Key"
+                                   data-title="@item.Title"
+                                   data-icon="@item.Icon"
+                                   @if (!string.IsNullOrEmpty(item.BadgeType)) { <text>data-badge-type="@item.BadgeType" data-badge-source="@item.Key"</text> }>
+                                    <i class="bi @item.Icon"></i>
+                                    <span class="nav-content">
+                                        <span class="nav-title" data-i18n="@item.I18nKey">@item.Title</span>
+                                    </span>
+                                    @if (!string.IsNullOrEmpty(item.BadgeType))
+                                    {
+                                        <span class="nav-badge-count" data-badge-for="@item.Key"></span>
+                                    }
+                                </a>
+                            }
                         }
                     </div>
                 </div>
             }
 
-            @{
-                var pluginNavItems = ViewBag.PluginNavItems as IReadOnlyList<Aneiang.Yarp.Dashboard.Infrastructure.Plugin.PluginNavItem>;
-            }
-            @if (pluginNavItems is { Count: > 0 })
-            {
-                <div class="nav-group">
-                    <div class="nav-group-title" data-i18n="layout.nav.plugins">插件</div>
-                    <div class="nav-items">
-                        @foreach (var navItem in pluginNavItems.OrderBy(i => i.SortOrder))
-                        {
-                            <a href="@ViewBag.DashboardRoutePrefix@(navItem.Url)" class="nav-item" data-page="@navItem.Id">
-                                @if (!string.IsNullOrEmpty(navItem.Icon))
-                                {
-                                    <i class="@navItem.Icon"></i>
-                                }
-                                <span data-i18n="@navItem.LabelKey">@navItem.LabelKey</span>
-                            </a>
-                        }
-                    </div>
-                </div>
-            }
         </div>
 
         <div class="sidebar-footer">
+            <!-- User Card -->
             <div class="user-card">
                 <div class="user-avatar">
                     <i class="bi bi-person-circle"></i>
@@ -3073,10 +3342,10 @@
                 </div>
             </div>
             <div class="footer-actions">
-                <a class="footer-action" href="#" onclick="switchLocale();return false;" title="@(((ViewBag.Locale as string) == "en-US") ? "切换到中文" : "Switch to English")">
+                <a class="footer-action" href="#" onclick="switchLocale();return false;" title="@(((ViewBag.Locale as string) == "en-US") ? "切换到中文" : "Switch to English")" data-i18n-title="layout.lang.switch" aria-label="@(((ViewBag.Locale as string) == "en-US") ? "切换到中文" : "Switch to English")">
                     <i class="bi bi-translate"></i>
                 </a>
-                <a class="footer-action" href="#" onclick="dashboardLogout();return false;" title="@(isEn ? "Logout" : "退出登录")">
+                <a class="footer-action" href="#" onclick="dashboardLogout();return false;" title="@(isEn ? "Logout" : "退出登录")" data-i18n-title="layout.logout" aria-label="@(isEn ? "Logout" : "退出登录")">
                     <i class="bi bi-box-arrow-right"></i>
                 </a>
             </div>
@@ -3094,53 +3363,59 @@
                 {"overview", pgIsEn ? "Overview" : "总览"},
                 {"clusters", pgIsEn ? "Clusters" : "服务集群"},
                 {"routes", pgIsEn ? "Routes" : "路由配置"},
-                {"stats", pgIsEn ? "Statistics" : "访问统计"},
-                {"logs", pgIsEn ? "Logs" : "日志"},
+                {"logs", pgIsEn ? "Real-time Logs" : "实时日志"},
                 {"circuits", pgIsEn ? "Circuit Breaker" : "熔断状态"},
-                {"notifications", pgIsEn ? "Notification Center" : "通知中心"},
-                {"healthcheck", pgIsEn ? "Health Check" : "健康检查"},
-                {"plugins", pgIsEn ? "Plugin Management" : "插件管理"},
+                {"waf", pgIsEn ? "WAF Firewall" : "WAF 防火墙"},
+                {"retry", pgIsEn ? "Request Retry" : "请求重试"},
+                {"rate-limit", pgIsEn ? "Rate Limiting" : "限流策略"},
+                {"response-cache", pgIsEn ? "Response Cache" : "响应缓存"},
+                {"service-discovery", pgIsEn ? "Service Discovery" : "服务发现"},
+                {"cluster-metrics", pgIsEn ? "Cluster Metrics" : "集群指标"},
+                {"settings", pgIsEn ? "Settings" : "系统设置"},
+                {"plugins", pgIsEn ? "Plugin Manager" : "插件管理"},
                 {"history", pgIsEn ? "Configuration History" : "配置历史"},
                 {"audit", pgIsEn ? "Audit Log" : "审计日志"},
-                {"deployment", pgIsEn ? "Deployment" : "运行模式"},
-                {"settings", pgIsEn ? "Settings" : "设置"},
-                {"ai", pgIsEn ? "AI Assistant" : "AI 助手"}
+                {"traffic", pgIsEn ? "Traffic Monitor" : "流量监控"}
             };
             var pageIcons = new System.Collections.Generic.Dictionary<string, string>
             {
                 {"overview", "bi-speedometer2"},
                 {"clusters", "bi-diagram-3"},
                 {"routes", "bi-signpost-split"},
-                {"stats", "bi-bar-chart-line"},
                 {"logs", "bi-journal-text"},
                 {"circuits", "bi-lightning-charge"},
-                {"notifications", "bi-bell"},
-                {"healthcheck", "bi-heart-pulse"},
+                {"waf", "bi-shield-lock"},
+                {"retry", "bi-arrow-repeat"},
+                {"rate-limit", "bi-speed-limit"},
+                {"response-cache", "bi-hdd-network"},
+                {"service-discovery", "bi-broadcast"},
+                {"traffic-metrics", "bi-graph-up"},
+                {"cluster-metrics", "bi-diagram-3"},
+                {"settings", "bi-gear"},
                 {"plugins", "bi-puzzle"},
                 {"history", "bi-clock-history"},
                 {"audit", "bi-shield-check"},
-                {"deployment", "bi-rocket-takeoff"},
-                {"settings", "bi-gear"},
-                {"ai", "bi-robot"}
+                {"traffic", "bi-graph-up-arrow"}
             };
             var pageTitle = pageTitles.ContainsKey(pgName) ? pageTitles[pgName] : pgName;
             var pageIcon = pageIcons.ContainsKey(pgName) ? pageIcons[pgName] : "bi-app-indicator";
             var parentGroup = "";
-            if (new[] { "clusters", "routes" }.Contains(pgName)) parentGroup = pgIsEn ? "Gateway" : "网关管理";
+            var parentGroupI18n = "";
+            if (new[] { "clusters", "routes" }.Contains(pgName)) { parentGroup = pgIsEn ? "Gateway Config" : "网关配置"; parentGroupI18n = "menu.group.gateway"; }
             if (pgName == "overview") parentGroup = "";
-            if (new[] { "stats", "logs", "circuits", "notifications", "healthcheck" }.Contains(pgName)) parentGroup = pgIsEn ? "Monitoring" : "监控运维";
-            if (pgName == "plugins") parentGroup = pgIsEn ? "Security" : "安全策略";
-            if (new[] { "history", "audit", "settings" }.Contains(pgName)) parentGroup = pgIsEn ? "System" : "系统管理";
+            if (new[] { "logs", "circuits", "traffic", "cluster-metrics" }.Contains(pgName)) { parentGroup = pgIsEn ? "Operations" : "运维监控"; parentGroupI18n = "menu.group.monitoring"; }
+            if (new[] { "plugins", "plugin-resources", "rate-limit", "waf", "retry", "response-cache", "service-discovery" }.Contains(pgName)) { parentGroup = pgIsEn ? "Plugin Center" : "插件中心"; parentGroupI18n = "menu.group.plugins"; }
+            if (new[] { "settings", "history", "audit" }.Contains(pgName)) { parentGroup = pgIsEn ? "System" : "系统管理"; parentGroupI18n = "menu.group.system"; }
 
             <div class="page-header">
                 <div class="page-header-row">
                     <div class="page-header-left">
                         <div class="page-breadcrumb">
-                            <a href="/@pgPrefix/">@((ViewBag.Locale as string) == "en-US" ? "Dashboard" : "仪表盘")</a>
+                            <a href="/@pgPrefix/" data-i18n="menu.overview">@((ViewBag.Locale as string) == "en-US" ? "Dashboard" : "仪表盘")</a>
                             @if (!string.IsNullOrEmpty(parentGroup))
                             {
                                 <span class="separator"><i class="bi bi-chevron-right"></i></span>
-                                <span>@parentGroup</span>
+                                <span data-i18n="@parentGroupI18n">@parentGroup</span>
                             }
                             <span class="separator"><i class="bi bi-chevron-right"></i></span>
                             <span class="current">@pageTitle</span>
@@ -3151,8 +3426,12 @@
                         </h1>
                     </div>
                     <div class="page-header-right">
-                        <span class="pulse-dot" title="@((ViewBag.Locale as string) == "en-US" ? "Live" : "在线")"></span>
-                        <span class="refresh-badge" style="font-size:12px;">@((ViewBag.Locale as string) == "en-US" ? "Live" : "实时")</span>
+                        <div class="header-search-trigger" onclick="document.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true}))" title="Ctrl+K">
+                            <i class="bi bi-search"></i>
+                            <kbd>Ctrl K</kbd>
+                        </div>
+                        <span class="pulse-dot" data-i18n-title="layout.live" title="@((ViewBag.Locale as string) == "en-US" ? "Live" : "在线")"></span>
+                        <span class="refresh-badge" style="font-size:12px;" data-i18n="layout.live">@((ViewBag.Locale as string) == "en-US" ? "Live" : "实时")</span>
                     </div>
                 </div>
             </div>
@@ -3171,38 +3450,6 @@
             </div>
         }
     </div>
-
-    <!-- AI Chat Widget (floating) -->
-    @if (ViewBag.CurrentPage as string != "login")
-    {
-        <button id="ai-chat-fab" class="ai-chat-fab" onclick="AIChat.toggle()" title="AI Assistant (Ctrl+/)">
-            <i class="bi bi-robot"></i>
-        </button>
-        <div id="ai-chat-window" class="ai-chat-window">
-            <div class="ai-chat-header">
-                <div class="ai-chat-header-left">
-                    <div class="ai-chat-header-avatar"><i class="bi bi-robot"></i></div>
-                    <div class="ai-chat-header-info">
-                        <div class="ai-chat-header-title" data-i18n="ai.chatTitle">AI 助手</div>
-                        <div class="ai-chat-header-status"><span class="dot"></span><span data-i18n="ai.status.online">在线</span></div>
-                    </div>
-                </div>
-                <div class="ai-chat-header-actions">
-                    <button onclick="AIChat.clearSession()" title="New conversation" data-i18n-title="ai.btn.newChat"><i class="bi bi-plus-lg"></i></button>
-                    <button onclick="AIChat.showHistory()" title="History" data-i18n-title="ai.btn.history"><i class="bi bi-clock-history"></i></button>
-                    <button onclick="AIChat.close()" title="Close"><i class="bi bi-x-lg"></i></button>
-                </div>
-            </div>
-            <div id="ai-chat-messages" class="ai-chat-messages"></div>
-            <div class="ai-chat-input-area">
-                <div class="ai-chat-input-wrap">
-                    <textarea id="ai-chat-input" class="ai-chat-input" rows="1" data-i18n-placeholder="ai.input.placeholder" placeholder="输入问题…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();AIChat.send();}" oninput="AIChat._autoResize(this)"></textarea>
-                    <button id="ai-chat-send" class="ai-chat-send" onclick="AIChat.send()"><i class="bi bi-send-fill"></i></button>
-                </div>
-                <div class="ai-input-hint" data-i18n="ai.input.hint">Enter 发送 · Shift+Enter 换行</div>
-            </div>
-        </div>
-    }
 
     <script>
         var I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
@@ -3275,6 +3522,28 @@
                 btn && btn.classList.remove('active');
             }
         }
+
+        function toggleSidebarCollapse() {
+            var sidebar = document.getElementById('sidebar');
+            if (!sidebar) return;
+            sidebar.classList.toggle('collapsed');
+            var collapsed = sidebar.classList.contains('collapsed');
+            try { localStorage.setItem('sidebar_collapsed', collapsed ? '1' : '0'); } catch (_) {}
+            var main = document.querySelector('.main-content');
+            if (main) main.classList.toggle('main-collapsed', collapsed);
+        }
+
+        // Restore sidebar state on load
+        (function() {
+            try {
+                if (localStorage.getItem('sidebar_collapsed') === '1') {
+                    var sidebar = document.getElementById('sidebar');
+                    var main = document.querySelector('.main-content');
+                    if (sidebar) sidebar.classList.add('collapsed');
+                    if (main) main.classList.add('main-collapsed');
+                }
+            } catch (_) {}
+        })();
 
         window.showToast = function(message, type, duration) {
             type = type || 'info';
@@ -3396,6 +3665,8 @@
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-utils.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-api.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-loading.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-command-palette.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-onboarding.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-state.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-dom.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-i18n.js?v=@v"></script>
@@ -3409,8 +3680,7 @@
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-worker.js?v=@v"></script>
     <!-- 3. Events -->
     <script src="/_content/Aneiang.Yarp.Dashboard/js/app/dashboard-events.js?v=@v"></script>
-    <!-- 4. AI Chat Widget -->
-    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-ai-chat.js?v=@v"></script>
+    <!-- 4. Page-specific modules & editors - loaded per page via Scripts section -->
     <!-- 5. Page-specific modules & editors — loaded per page via Scripts section -->
 
     @await RenderSectionAsync("Scripts", required: false)
@@ -3445,10 +3715,6 @@
         // Initialize global loading helpers once scripts are ready.
         if (window.DashboardLoading && window.DashboardLoading.initNetworkStatus) {
             window.DashboardLoading.initNetworkStatus();
-        }
-        // Initialize AI Chat widget
-        if (window.AIChat && window.AIChat.init) {
-            window.AIChat.init();
         }
     </script>
 </body>

@@ -4,6 +4,9 @@ using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
 using Aneiang.Yarp.Storage.Entities;
 using Microsoft.AspNetCore.Mvc;
+using Aneiang.Yarp.Plugins;
+
+using Aneiang.Yarp.Dashboard.Infrastructure.I18n;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Controllers;
 
@@ -49,6 +52,15 @@ public sealed class PluginBindingsController : ControllerBase
         _runtimeDomains = runtimeDomains;
     }
 
+    private string ResolveLocale() =>
+        Request.Cookies["dashboard_locale"] == "en-US" ? "en-US" : "zh-CN";
+
+    private string Localize(string i18nKey, string fallback)
+    {
+        var dict = DashboardI18n.GetDict(ResolveLocale());
+        return dict.TryGetValue(i18nKey, out var localized) ? localized : fallback;
+    }
+
     /// <summary>Returns installed plugins and their current enabled state.</summary>
     [HttpGet("plugins")]
     public IActionResult GetInstalledPlugins()
@@ -56,7 +68,8 @@ public sealed class PluginBindingsController : ControllerBase
         var plugins = _pluginManager.GetAllManifests()
             .Select(manifest => new InstalledPluginModel(
                 manifest.Id,
-                manifest.Name,
+                Localize($"plugin.name.{manifest.Id}", manifest.Name),
+                Localize($"plugin.desc.{manifest.Id}", manifest.Description),
                 manifest.Version,
                 true,
                 _pluginManager.IsPluginEnabled(manifest.Id) || NativePluginAdapters.IsNative(manifest.Id),
@@ -339,10 +352,16 @@ public sealed class PluginBindingsController : ControllerBase
         }
     }
 
-    private string[] GetEnabledPluginIds(IReadOnlyCollection<PluginBindingEntity> bindings) =>
-        bindings.Where(x => x.Enabled).Select(x => x.PluginId)
+    private string[] GetEnabledPluginIds(IReadOnlyCollection<PluginBindingEntity> bindings)
+    {
+        var knownIds = _pluginManager.GetAllManifests().Select(m => m.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return bindings
+            .Where(x => x.Enabled && knownIds.Contains(x.PluginId))
+            .Select(x => x.PluginId)
             .Concat(_pluginManager.GetAllManifests().Where(x => _pluginManager.IsPluginEnabled(x.Id)).Select(x => x.Id))
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
 
     private static PluginBindingEntity CloneBinding(PluginBindingEntity source) => new()
     {
@@ -394,6 +413,7 @@ public sealed class SavePluginBindingRequest
 public sealed record InstalledPluginModel(
     string PluginId,
     string DisplayName,
+    string Description,
     string Version,
     bool Installed,
     bool Enabled,

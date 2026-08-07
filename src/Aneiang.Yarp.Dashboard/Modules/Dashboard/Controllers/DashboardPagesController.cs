@@ -1,9 +1,8 @@
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.I18n;
-using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
-using Aneiang.Yarp.Dashboard.Modules.ProxyLog.Services;
+using Aneiang.Yarp.Plugin.ProxyLog.Services;
 using Aneiang.Yarp.Storage;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -11,7 +10,7 @@ using Microsoft.Extensions.Options;
 namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Controllers;
 
 /// <summary>
-/// MVC view pages for the dashboard UI (17 pages + DB download).
+/// MVC view pages for the dashboard UI (10 pages + DB download).
 /// </summary>
 public class DashboardPagesController : Controller
 {
@@ -22,7 +21,6 @@ public class DashboardPagesController : Controller
     private readonly IDashboardClusterQueryService _clusterQuery;
     private readonly IDashboardRouteQueryService _routeQuery;
     private readonly IDashboardLogQueryService _logQuery;
-    private readonly IPluginRuntimeDomainManager _runtimeDomains;
     private readonly StorageOptions _storageOptions;
 
     // Cached option values
@@ -36,7 +34,6 @@ public class DashboardPagesController : Controller
         IDashboardClusterQueryService clusterQuery,
         IDashboardRouteQueryService routeQuery,
         IDashboardLogQueryService logQuery,
-        IPluginRuntimeDomainManager runtimeDomains,
         IOptions<DashboardOptions> dashboardOptions,
         IOptions<StorageOptions> storageOptions)
     {
@@ -44,7 +41,6 @@ public class DashboardPagesController : Controller
         _clusterQuery = clusterQuery;
         _routeQuery = routeQuery;
         _logQuery = logQuery;
-        _runtimeDomains = runtimeDomains;
         _storageOptions = storageOptions.Value;
 
         _defaultLocale = dashboardOptions.Value.Locale;
@@ -59,7 +55,6 @@ public class DashboardPagesController : Controller
         ViewBag.Locale = ResolveLocale();
         ViewBag.AllI18nJson = DashboardI18n.AllAsJson(ViewBag.Locale);
         ViewBag.CurrentPage = currentPage ?? "overview";
-        ViewBag.PluginNavItems = _runtimeDomains.Current.DashboardBuilder.NavItems;
     }
 
     /// <summary>
@@ -73,7 +68,7 @@ public class DashboardPagesController : Controller
         return _defaultLocale == "en-US" ? "en-US" : "zh-CN";
     }
 
-    #region 17 View pages
+    #region View pages
 
     /// <summary>Overview page.</summary>
     [HttpGet("")]
@@ -85,20 +80,11 @@ public class DashboardPagesController : Controller
     [HttpGet("routes")]
     public IActionResult Routes() { SetCommonViewBag("routes"); return View(); }
 
-    [HttpGet("stats")]
-    public IActionResult Stats() { SetCommonViewBag("stats"); return View(); }
-
     [HttpGet("logs")]
     public IActionResult Logs() { SetCommonViewBag("logs"); return View(); }
 
     [HttpGet("circuits")]
     public IActionResult Circuits() { SetCommonViewBag("circuits"); return View(); }
-
-    [HttpGet("notifications")]
-    public IActionResult Notifications() { SetCommonViewBag("notifications"); return View(); }
-
-    [HttpGet("healthcheck")]
-    public IActionResult HealthCheck() { SetCommonViewBag("healthcheck"); return View(); }
 
     [HttpGet("history")]
     public IActionResult History() { SetCommonViewBag("history"); return View(); }
@@ -109,14 +95,35 @@ public class DashboardPagesController : Controller
     [HttpGet("audit")]
     public IActionResult Audit() { SetCommonViewBag("audit"); return View(); }
 
+    [HttpGet("traffic")]
+    public IActionResult Traffic() { SetCommonViewBag("traffic"); return View(); }
+
+    [HttpGet("waf")]
+    public IActionResult Waf() { SetCommonViewBag("waf"); return View(); }
+
+    [HttpGet("retry")]
+    public IActionResult Retry() { SetCommonViewBag("retry"); return View(); }
+
+    [HttpGet("rate-limit")]
+    public IActionResult RateLimit() { SetCommonViewBag("rate-limit"); return View(); }
+
+    [HttpGet("response-cache")]
+    public IActionResult ResponseCache() { SetCommonViewBag("response-cache"); return View(); }
+
+    [HttpGet("service-discovery")]
+    public IActionResult ServiceDiscovery() { SetCommonViewBag("service-discovery"); return View(); }
+
+    [HttpGet("traffic-metrics")]
+    public IActionResult TrafficMetrics() { SetCommonViewBag("traffic-metrics"); return View(); }
+
+    [HttpGet("cluster-metrics")]
+    public IActionResult ClusterMetrics() { SetCommonViewBag("cluster-metrics"); return View(); }
+
+    [HttpGet("plugin-resources")]
+    public IActionResult PluginResources() { SetCommonViewBag("plugin-resources"); return View(); }
+
     [HttpGet("settings")]
     public IActionResult Settings() { SetCommonViewBag("settings"); return View(); }
-
-    [HttpGet("deployment")]
-    public IActionResult Deployment() { SetCommonViewBag("deployment"); return View(); }
-
-    [HttpGet("ai-settings")]
-    public IActionResult AISettings() { SetCommonViewBag("ai"); return View("AISettings"); }
 
     #endregion
 

@@ -2059,8 +2059,8 @@
                 '</div>' +
                 '</div>' +
                 '<div class="route-card-actions">' +
-                '<button class="btn-edit btn btn-sm" title="' + (window.__ ? __("index.route.edit") : "编辑") + '" data-action="edit"><i class="bi bi-pencil"></i></button>' +
-                '<button class="btn-delete btn btn-sm" title="' + (window.__ ? __("index.route.delete") : "删除") + '" data-action="delete"><i class="bi bi-trash"></i></button>' +
+                '<button class="btn-edit btn btn-sm" title="' + __("index.route.edit") + '" data-action="edit"><i class="bi bi-pencil"></i></button>' +
+                '<button class="btn-delete btn btn-sm" title="' + __("index.route.delete") + '" data-action="delete"><i class="bi bi-trash"></i></button>' +
                 '</div>' +
                 '</div>' +
                 '<div class="route-card-body">' +
