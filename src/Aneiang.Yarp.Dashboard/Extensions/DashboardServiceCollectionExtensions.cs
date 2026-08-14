@@ -261,6 +261,8 @@ public static class DashboardServiceCollectionExtensions
         });
 
         services.TryAddSingleton<ProxyLogRuntimeSettings>();
+        services.AddSingleton<LogSettingsService>();
+        services.AddHostedService(sp => sp.GetRequiredService<LogSettingsService>());
         services.AddSingleton<IProxyLogStore>(sp =>
         {
             var opts = sp.GetRequiredService<IOptions<DashboardOptions>>().Value;

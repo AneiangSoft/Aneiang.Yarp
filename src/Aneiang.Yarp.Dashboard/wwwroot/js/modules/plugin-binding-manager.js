@@ -125,7 +125,7 @@
                 if (bindingCount > 0) {
                     bindings.forEach(function(b) {
                         var bindingConfig = parseConfigSafe(b);
-                        var summary = summarizeConfigSafe(bindingConfig);
+                        var summary = summarizeConfigSafe(bindingConfig, pluginId);
                         var isOn = b.enabled;
                         html += '<tr>';
                         html += '<td><code class="text-primary">' + esc(b.scopeId || '-') + '</code></td>';
@@ -216,13 +216,15 @@
             }
         }
 
-        function summarizeConfigSafe(config) {
+        function summarizeConfigSafe(config, pluginId) {
             var keys = Object.keys(config);
             if (!keys.length) return '{}';
+            var Cap = window.DashboardCapabilities;
             return keys.slice(0, 4).map(function(key) {
                 var value = config[key];
                 if (value && typeof value === 'object') value = Array.isArray(value) ? '[' + value.length + ']' : '{...}';
-                return key + ': ' + String(value);
+                var label = (Cap && Cap.propertyLabel) ? Cap.propertyLabel(key, null, pluginId) : key;
+                return label + ': ' + String(value);
             }).join(', ') + (keys.length > 4 ? ' ...' : '');
         }
 
@@ -291,7 +293,7 @@
                 }
                 var required = schema.required || [];
                 schemaForm.__schemaFields = Object.keys(schema.properties).map(function(name) {
-                    var field = Cap.schemaField(name, schema.properties[name], bindingConfig[name], required.indexOf(name) >= 0);
+                    var field = Cap.schemaField(name, schema.properties[name], bindingConfig[name], required.indexOf(name) >= 0, pluginId);
                     schemaForm.appendChild(field);
                     return { name: name, field: field };
                 });

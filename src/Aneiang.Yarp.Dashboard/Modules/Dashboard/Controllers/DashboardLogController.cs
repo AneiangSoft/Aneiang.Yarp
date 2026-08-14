@@ -1,4 +1,6 @@
 using Aneiang.Yarp.Dashboard.Infrastructure;
+using Aneiang.Yarp.Dashboard.Modules.Dashboard.Models;
+using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Aneiang.Yarp.Plugin.ProxyLog.Models;
 using Aneiang.Yarp.Plugin.ProxyLog.Services;
 using Aneiang.Yarp.Storage;
@@ -14,15 +16,18 @@ public class DashboardLogController : Controller
 {
     private readonly IDashboardLogQueryService _logQuery;
     private readonly IProxyLogPersistenceService _persistenceService;
+    private readonly LogSettingsService _logSettings;
     private readonly DashboardOptions _options;
 
     public DashboardLogController(
         IDashboardLogQueryService logQuery,
         IProxyLogPersistenceService persistenceService,
+        LogSettingsService logSettings,
         IOptions<DashboardOptions> dashboardOptions)
     {
         _logQuery = logQuery;
         _persistenceService = persistenceService;
+        _logSettings = logSettings;
         _options = dashboardOptions.Value;
     }
 
@@ -86,6 +91,46 @@ public class DashboardLogController : Controller
                 bufferCapacity = _options.ProxyLog.LogBufferCapacity
             }
         });
+    }
+
+    /// <summary>Current hot-reloadable proxy-log settings.</summary>
+    [HttpGet("api/logs/settings")]
+    public async Task<IActionResult> GetLogSettings(CancellationToken ct)
+    {
+        var data = await _logSettings.GetSettingsAsync(ct);
+        return Json(new { code = 200, data });
+    }
+
+    /// <summary>Read-only proxy-log options that require a restart to take effect.</summary>
+    [HttpGet("api/logs/settings/restart-required")]
+    public IActionResult GetRestartRequiredSettings()
+    {
+        var p = _options.ProxyLog;
+        var data = new LogRestartRequiredOptions
+        {
+            BufferCapacity = p.LogBufferCapacity,
+            EnableAsyncLogging = p.EnableAsyncLogging,
+            HeaderBlacklist = p.LogHeaderBlacklist,
+            QueryBlacklist = p.LogQueryBlacklist,
+            JsonFieldSanitizeList = p.LogJsonFieldSanitizeList
+        };
+        return Json(new { code = 200, data });
+    }
+
+    /// <summary>Update proxy-log settings (hot-reloads and persists).</summary>
+    [HttpPut("api/logs/settings")]
+    public async Task<IActionResult> UpdateLogSettings([FromBody] LogSettingsUpdateRequest request, CancellationToken ct)
+    {
+        var data = await _logSettings.UpdateSettingsAsync(request, ct);
+        return Json(new { code = 200, data });
+    }
+
+    /// <summary>Reset proxy-log settings to appsettings defaults.</summary>
+    [HttpPut("api/logs/settings/reset")]
+    public async Task<IActionResult> ResetLogSettings(CancellationToken ct)
+    {
+        var data = await _logSettings.ResetSettingsAsync(ct);
+        return Json(new { code = 200, data });
     }
 
 }

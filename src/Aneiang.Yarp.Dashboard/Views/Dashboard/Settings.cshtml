@@ -1,0 +1,175 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Settings" : "系统设置";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<div id="settings-app">
+    <div class="page-help-bar" id="settings-help-bar">
+        <i class="bi bi-info-circle"></i>
+        <span class="help-text" data-i18n="page.help.settings">系统设置包含界面偏好、日志采集与数据持久化策略，以及系统运行信息。</span>
+        <button class="help-close" onclick="document.getElementById('settings-help-bar').classList.add('collapsed')">&times;</button>
+    </div>
+
+    <!-- A: 外观与偏好 -->
+    <div class="card-panel mb-4">
+        <div class="card-header">
+            <span><i class="bi bi-palette me-2 text-primary"></i><span data-i18n="settings.appearance">外观与偏好</span></span>
+        </div>
+        <div class="card-body">
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <label class="form-label" for="settings-locale" data-i18n="settings.locale">界面语言</label>
+                    <select id="settings-locale" class="form-select">
+                        <option value="zh-CN" data-i18n="settings.locale.zhCN">简体中文</option>
+                        <option value="en-US" data-i18n="settings.locale.enUS">English</option>
+                    </select>
+                    <div class="form-text" data-i18n="settings.locale.desc">切换后自动刷新页面并应用。</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" data-i18n="settings.sidebarDefault">侧栏默认状态</label>
+                    <div class="form-check form-switch mt-1">
+                        <input class="form-check-input" type="checkbox" id="settings-sidebar-collapsed">
+                        <label class="form-check-label" for="settings-sidebar-collapsed" data-i18n="settings.sidebarCollapsed">默认收起侧栏</label>
+                    </div>
+                    <div class="form-text" data-i18n="settings.sidebarCollapsed.desc">收起后仅显示图标，悬停查看项目名。</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- B: 日志与数据持久化 -->
+    <div class="card-panel mb-4">
+        <div class="card-header">
+            <span><i class="bi bi-journal-text me-2 text-success"></i><span data-i18n="settings.logging">日志与数据持久化</span></span>
+            <div class="card-header-actions">
+                <span id="settings-customized-badge" class="badge rounded-pill bg-warning-subtle text-warning-emphasis d-none" data-i18n="settings.logging.customizedBadge">已自定义</span>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row g-4">
+                <div class="col-md-6 col-lg-4">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="ls-persistence">
+                        <label class="form-check-label fw-semibold" for="ls-persistence" data-i18n="settings.logging.persistenceEnabled">日志持久化</label>
+                    </div>
+                    <div class="form-text" data-i18n="settings.logging.persistenceEnabled.desc">关闭后日志仅在内存中保留，不写入数据库。</div>
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <label class="form-label" for="ls-meta-retention" data-i18n="settings.logging.metaRetentionDays">元数据保留天数</label>
+                    <input type="number" class="form-control" id="ls-meta-retention" min="1" max="365">
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <label class="form-label" for="ls-body-retention" data-i18n="settings.logging.bodyRetentionDays">大字段保留天数</label>
+                    <input type="number" class="form-control" id="ls-body-retention" min="1" max="365">
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="ls-req-body">
+                        <label class="form-check-label" for="ls-req-body" data-i18n="settings.logging.requestBodyCapture">请求体捕获</label>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="ls-resp-body">
+                        <label class="form-check-label" for="ls-resp-body" data-i18n="settings.logging.responseBodyCapture">响应体捕获</label>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <label class="form-label" for="ls-max-body" data-i18n="settings.logging.maxBodyLength">Body 最大长度（字节）</label>
+                    <input type="number" class="form-control" id="ls-max-body" min="1024" step="1024">
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <label class="form-label" for="ls-buffer" data-i18n="settings.logging.maxBodyBufferBytes">Body 缓冲区（字节）</label>
+                    <input type="number" class="form-control" id="ls-buffer" min="1024" step="1024">
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="ls-sampling">
+                        <label class="form-check-label" for="ls-sampling" data-i18n="settings.logging.samplingEnabled">启用采样</label>
+                    </div>
+                    <div class="form-text" data-i18n="settings.logging.samplingEnabled.desc">仅按比例记录日志，降低存储压力。</div>
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <label class="form-label" for="ls-sampling-rate" data-i18n="settings.logging.samplingRate">采样率（0.01 - 1.0）</label>
+                    <input type="number" class="form-control" id="ls-sampling-rate" min="0.01" max="1" step="0.01">
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="ls-errors-only">
+                        <label class="form-check-label" for="ls-errors-only" data-i18n="settings.logging.errorsOnly">仅记录错误</label>
+                    </div>
+                    <div class="form-text" data-i18n="settings.logging.errorsOnly.desc">仅记录状态码 ≥ 400 的请求。</div>
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <label class="form-label" for="ls-min-level" data-i18n="settings.logging.minLogLevel">最小日志级别</label>
+                    <select class="form-select" id="ls-min-level">
+                        <option value="Trace" data-i18n="settings.logging.level.trace">Trace</option>
+                        <option value="Information" data-i18n="settings.logging.level.information">Information</option>
+                        <option value="Warning" data-i18n="settings.logging.level.warning">Warning</option>
+                        <option value="Error" data-i18n="settings.logging.level.error">Error</option>
+                        <option value="Critical" data-i18n="settings.logging.level.critical">Critical</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mt-4 pt-3 border-top">
+                <button class="btn btn-primary" id="settings-save-btn" onclick="SettingsModule.save()">
+                    <i class="bi bi-check-lg me-1"></i><span data-i18n="settings.logging.save">保存日志设置</span>
+                </button>
+                <button class="btn btn-outline-warning" id="settings-reset-btn" onclick="SettingsModule.reset()">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i><span data-i18n="settings.logging.reset">重置为默认</span>
+                </button>
+            </div>
+
+            <div class="mt-4 pt-3 border-top">
+                <div class="fw-semibold mb-2" data-i18n="settings.logging.dataManagement">数据管理</div>
+                <button class="btn btn-outline-secondary" onclick="SettingsModule.downloadDatabase()">
+                    <i class="bi bi-download me-1"></i><span data-i18n="settings.logging.downloadDb">下载 SQLite 数据库</span>
+                </button>
+            </div>
+
+            <div class="mt-4 pt-3 border-top">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="bi bi-arrow-repeat text-muted"></i>
+                    <span class="fw-semibold" data-i18n="settings.logging.restartRequired">需重启生效的配置</span>
+                    <span class="badge rounded-pill bg-light text-muted border" data-i18n="settings.logging.restartRequired.badge">只读 · appsettings.json</span>
+                </div>
+                <div class="form-text mb-2" data-i18n="settings.logging.restartRequired.desc">以下配置来自 appsettings.json，修改后需重启服务才能生效。</div>
+                <div id="settings-restart-required" class="restart-required-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- E: 系统信息 -->
+    <div class="card-panel mb-4">
+        <div class="card-header">
+            <span><i class="bi bi-info-circle me-2 text-info"></i><span data-i18n="settings.system">系统信息</span></span>
+        </div>
+        <div class="card-body">
+            <div id="settings-system-content">
+                <div class="loading-state">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text" data-i18n="pluginPage.loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-settings.js"></script>
+@await Html.PartialAsync("_DashboardPageInit")
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+        await SettingsModule.load();
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}
