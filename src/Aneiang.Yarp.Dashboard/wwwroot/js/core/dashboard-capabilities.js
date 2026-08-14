@@ -2,6 +2,7 @@
     'use strict';
 
     var pluginCache = null;
+    var activePluginId = null;
 
     function escapeHtml(value) {
         return window.DashboardUtils.escapeHtml(value == null ? '' : String(value));
@@ -33,10 +34,12 @@
         var config = parseConfig(binding);
         var keys = Object.keys(config);
         if (!keys.length) return '{}';
+        var pid = binding && binding.pluginId;
         return keys.slice(0, 3).map(function(key) {
             var value = config[key];
             if (value && typeof value === 'object') value = Array.isArray(value) ? '[' + value.length + ']' : '{...}';
-            return key + ': ' + String(value);
+            var label = propertyLabel(key, null, pid);
+            return label + ': ' + String(value);
         }).join(', ') + (keys.length > 3 ? ' …' : '');
     }
 
@@ -182,8 +185,52 @@
         return value;
     }
 
-    function propertyLabel(name, property) {
-        return property.title || name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/^./, function(value) { return value.toUpperCase(); });
+    function i18nDict() {
+        var dashboard = window.__dashboard;
+        return (dashboard && dashboard.I18N) || {};
+    }
+
+    function localize(key) {
+        var value = i18nDict()[key];
+        return (value === undefined || value === null || value === '') ? null : value;
+    }
+
+    function resolvePluginId(pluginId) {
+        return pluginId || activePluginId;
+    }
+
+    function localizeFieldLabel(pluginId, name) {
+        var pid = resolvePluginId(pluginId);
+        if (pid) {
+            var specific = localize('schema.' + pid + '.' + name);
+            if (specific) return specific;
+        }
+        return localize('schema.common.' + name);
+    }
+
+    function localizeFieldDesc(pluginId, name) {
+        var pid = resolvePluginId(pluginId);
+        if (pid) {
+            var specific = localize('schema.' + pid + '.' + name + '.desc');
+            if (specific) return specific;
+        }
+        return localize('schema.common.' + name + '.desc');
+    }
+
+    function localizeEnum(pluginId, name, enumValue) {
+        var pid = resolvePluginId(pluginId);
+        if (pid) {
+            var specific = localize('schema.' + pid + '.' + name + '.' + enumValue);
+            if (specific) return specific;
+        }
+        return localize('schema.common.' + name + '.' + enumValue);
+    }
+
+    function propertyLabel(name, property, pluginId) {
+        var localized = localizeFieldLabel(pluginId, name);
+        if (localized) return localized;
+        if (property && property.title) return property.title;
+        return name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/^./, function(value) { return value.toUpperCase(); });
     }
 
     function choiceMatches(value, schema) {
@@ -198,7 +245,7 @@
         return true;
     }
 
-    function schemaField(name, rawProperty, value, required) {
+    function schemaField(name, rawProperty, value, required, pluginId) {
         var property = expandSchema(rawProperty);
         var choices = property.oneOf || property.anyOf;
         if (Array.isArray(choices) && choices.length) {
@@ -206,7 +253,7 @@
             choiceWrapper.className = 'border rounded-3 p-3 mb-3';
             var choiceLabel = document.createElement('label');
             choiceLabel.className = 'form-label fw-semibold';
-            choiceLabel.textContent = propertyLabel(name, property) + (required ? ' *' : '');
+            choiceLabel.textContent = propertyLabel(name, property, pluginId) + (required ? ' *' : '');
             var choiceSelect = document.createElement('select');
             choiceSelect.className = 'form-select form-select-sm mb-3';
             choices.forEach(function(choice, index) { choiceSelect.appendChild(new Option(choice.title || __('capability.choice.option', { n: index + 1 }), String(index))); });
@@ -218,7 +265,7 @@
                 var selectedSchema = mergeSchema(property, expandSchema(choices[Number(choiceSelect.value)]));
                 delete selectedSchema.oneOf;
                 delete selectedSchema.anyOf;
-                child = schemaField(name, selectedSchema, value, required);
+                child = schemaField(name, selectedSchema, value, required, pluginId);
                 choiceHost.replaceChildren(child);
             }
             choiceSelect.addEventListener('change', renderChoice);
@@ -233,12 +280,12 @@
             objectWrapper.className = 'border rounded-3 p-3 mb-3';
             var legend = document.createElement('legend');
             legend.className = 'float-none w-auto px-2 fs-6 fw-semibold';
-            legend.textContent = propertyLabel(name, property) + (required ? ' *' : '');
+            legend.textContent = propertyLabel(name, property, pluginId) + (required ? ' *' : '');
             objectWrapper.appendChild(legend);
             var objectValue = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
             var children = [];
             Object.keys(property.properties || {}).forEach(function(childName) {
-                var child = schemaField(childName, property.properties[childName], objectValue[childName], (property.required || []).indexOf(childName) >= 0);
+                var child = schemaField(childName, property.properties[childName], objectValue[childName], (property.required || []).indexOf(childName) >= 0, pluginId);
                 children.push({ name: childName, field: child });
                 objectWrapper.appendChild(child);
             });
@@ -261,7 +308,7 @@
             arrayWrapper.className = 'border rounded-3 p-3 mb-3';
             var arrayLegend = document.createElement('legend');
             arrayLegend.className = 'float-none w-auto px-2 fs-6 fw-semibold';
-            arrayLegend.textContent = propertyLabel(name, property) + (required ? ' *' : '');
+            arrayLegend.textContent = propertyLabel(name, property, pluginId) + (required ? ' *' : '');
             var list = document.createElement('div');
             var add = document.createElement('button');
             add.type = 'button';
@@ -271,7 +318,7 @@
             function addRow(item) {
                 var row = document.createElement('div');
                 row.className = 'border rounded p-2 mb-2 position-relative';
-                var field = schemaField(__('capability.array.item', { n: rows.length + 1 }), property.items, applyDefaults(property.items, item), true);
+                var field = schemaField(__('capability.array.item', { n: rows.length + 1 }), property.items, applyDefaults(property.items, item), true, pluginId);
                 var remove = document.createElement('button');
                 remove.type = 'button';
                 remove.className = 'btn btn-sm btn-outline-danger mb-2';
@@ -301,15 +348,18 @@
             input = document.createElement('input');
             input.type = 'checkbox'; input.className = 'form-check-input'; input.checked = value === true;
             var booleanLabel = document.createElement('label');
-            booleanLabel.className = 'form-check-label'; booleanLabel.htmlFor = id; booleanLabel.textContent = propertyLabel(name, property);
+            booleanLabel.className = 'form-check-label'; booleanLabel.htmlFor = id; booleanLabel.textContent = propertyLabel(name, property, pluginId);
             wrapper.append(input, booleanLabel);
         } else {
             var label = document.createElement('label');
-            label.className = 'form-label'; label.htmlFor = id; label.textContent = propertyLabel(name, property) + (required ? ' *' : '');
+            label.className = 'form-label'; label.htmlFor = id; label.textContent = propertyLabel(name, property, pluginId) + (required ? ' *' : '');
             if (Array.isArray(property.enum)) {
                 input = document.createElement('select'); input.className = 'form-select';
                 if (!required) input.appendChild(new Option('', ''));
-                property.enum.forEach(function(optionValue) { input.appendChild(new Option(String(optionValue), String(optionValue), false, JSON.stringify(optionValue) === JSON.stringify(value))); });
+                property.enum.forEach(function(optionValue) {
+                    var optionLabel = localizeEnum(pluginId, name, optionValue) || String(optionValue);
+                    input.appendChild(new Option(optionLabel, String(optionValue), false, JSON.stringify(optionValue) === JSON.stringify(value)));
+                });
             } else if (property.type === 'array') {
                 input = document.createElement('textarea'); input.className = 'form-control'; input.rows = 4;
                 input.value = Array.isArray(value) ? value.join('\n') : ''; input.placeholder = __('capability.placeholder.onePerLine');
@@ -326,7 +376,8 @@
             wrapper.append(label, input);
         }
         input.id = id;
-        if (property.description) { var help = document.createElement('div'); help.className = 'form-text'; help.textContent = property.description; wrapper.appendChild(help); }
+        var fieldDescription = localizeFieldDesc(pluginId, name) || property.description;
+        if (fieldDescription) { var help = document.createElement('div'); help.className = 'form-text'; help.textContent = fieldDescription; wrapper.appendChild(help); }
         wrapper.__read = function() {
             var raw = input.type === 'checkbox' ? input.checked : input.value.trim();
             input.setCustomValidity('');
@@ -429,7 +480,7 @@
                 } else {
                     var required = schema.required || [];
                     schemaForm.__schemaFields = Object.keys(schema.properties).map(function(name) {
-                        var field = schemaField(name, schema.properties[name], config[name], required.indexOf(name) >= 0);
+                        var field = schemaField(name, schema.properties[name], config[name], required.indexOf(name) >= 0, pluginSelect.value);
                         schemaForm.appendChild(field);
                         return { name: name, field: field };
                     });

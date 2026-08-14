@@ -25,6 +25,7 @@ public class DashboardPagesController : Controller
 
     // Cached option values
     private readonly string _defaultLocale;
+    private readonly string _authMode;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DashboardPagesController"/> class.
@@ -44,6 +45,7 @@ public class DashboardPagesController : Controller
         _storageOptions = storageOptions.Value;
 
         _defaultLocale = dashboardOptions.Value.Locale;
+        _authMode = dashboardOptions.Value.Auth.AuthMode.ToString();
     }
 
     /// <summary>
@@ -95,6 +97,9 @@ public class DashboardPagesController : Controller
     [HttpGet("audit")]
     public IActionResult Audit() { SetCommonViewBag("audit"); return View(); }
 
+    [HttpGet("settings")]
+    public IActionResult Settings() { SetCommonViewBag("settings"); return View(); }
+
     [HttpGet("traffic")]
     public IActionResult Traffic() { SetCommonViewBag("traffic"); return View(); }
 
@@ -131,6 +136,33 @@ public class DashboardPagesController : Controller
     #endregion
 
     #region DB Download
+
+    /// <summary>System information shown on the settings page.</summary>
+    [HttpGet("api/settings/system")]
+    public IActionResult GetSystemInfo()
+    {
+        var dbPath = ResolveDatabasePath(_storageOptions);
+        long dbSize = 0;
+        if (!string.IsNullOrEmpty(dbPath) && System.IO.File.Exists(dbPath))
+        {
+            try { dbSize = new FileInfo(dbPath).Length; }
+            catch { /* ignore */ }
+        }
+
+        return Json(new
+        {
+            code = 200,
+            data = new
+            {
+                version = _infoQuery.GetInfo().Version,
+                routePrefix = RoutePrefix,
+                authMode = _authMode,
+                locale = _defaultLocale,
+                databaseFile = dbPath,
+                databaseSizeBytes = dbSize
+            }
+        });
+    }
 
     /// <summary>Download the SQLite database file for local inspection.</summary>
     [HttpGet("api/settings/database")]

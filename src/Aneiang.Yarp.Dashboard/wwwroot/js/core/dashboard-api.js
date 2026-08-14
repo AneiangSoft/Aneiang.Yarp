@@ -237,6 +237,7 @@
         getLogSettings: () => DashboardApi.get('/api/logs/settings'),
         updateLogSettings: (data) => DashboardApi.put('/api/logs/settings', data),
         resetLogSettings: () => DashboardApi.put('/api/logs/settings/reset', {}),
+        getLogRestartRequired: () => DashboardApi.get('/api/logs/settings/restart-required'),
 
         // Statistics (aggregated from proxy log store)
         getStats: () => DashboardApi.get('/api/traffic/stats'),
