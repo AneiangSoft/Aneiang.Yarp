@@ -24,4 +24,7 @@ public class WafPlugin : IGatewayPlugin
     public void ConfigureMiddleware(IApplicationBuilder app) => app.UseMiddleware<WafMiddleware>();
     public void ConfigureProxyPipeline(IReverseProxyApplicationBuilder proxyPipeline) { }
 
+    public void ConfigureDashboard(IPluginDashboardBuilder builder) =>
+        builder.AddNavItem(new PluginNavItem(PluginId, "menu.waf", "/waf", "bi-shield-lock", 210));
+
 }

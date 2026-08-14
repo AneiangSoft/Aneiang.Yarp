@@ -1,4 +1,7 @@
 @using Aneiang.Yarp.Plugin.ProxyLog.Models
+@using Aneiang.Yarp.Plugins
+@using Aneiang.Yarp.Dashboard.Infrastructure.Plugin
+@inject PluginDashboardInitializer PluginDashboard
 <!DOCTYPE html>
 <html lang="@ViewBag.Locale">
 <head>
@@ -3194,6 +3197,21 @@
             var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
             var isEn = (ViewBag.Locale as string) == "en-US";
 
+            // Server-side fallback titles for plugin-contributed nav items (shown before JS i18n applies).
+            var pluginNavFallbackTitles = new System.Collections.Generic.Dictionary<string, string>
+            {
+                ["menu.rateLimit"] = isEn ? "Rate Limiting" : "限流策略",
+                ["menu.waf"] = isEn ? "WAF Firewall" : "WAF 防火墙",
+                ["menu.retry"] = isEn ? "Request Retry" : "请求重试",
+                ["menu.responseCache"] = isEn ? "Response Cache" : "响应缓存",
+                ["menu.serviceDiscovery"] = isEn ? "Service Discovery" : "服务发现",
+                ["menu.compression"] = isEn ? "Response Compression" : "响应压缩",
+                ["menu.circuits"] = isEn ? "Circuit Breaker" : "熔断状态",
+                ["menu.logs"] = isEn ? "Real-time Logs" : "实时日志",
+                ["menu.traffic"] = isEn ? "Traffic Monitor" : "流量监控",
+                ["menu.clusterMetrics"] = isEn ? "Cluster Metrics" : "集群指标"
+            };
+
             // Menu helper types
             // Grouped menu - 5 groups: Overview / Gateway Config / Plugin Center / Operations / System
             var menuGroups = new (string Title, string I18nKey, (string Key, string Title, string I18nKey, string Icon, string Path, string BadgeType, object[] Children)[] Items)[]
@@ -3221,26 +3239,7 @@
                     new[]
                     {
                         ("plugins", isEn ? "Plugin Manager" : "插件管理", "menu.plugins", "bi-puzzle", $"/{prefix}/plugins", "ratio", Array.Empty<object>()),
-                        ("plugin-resources", isEn ? "Plugin Resources" : "插件资源", "menu.pluginResources", "bi-cpu", $"/{prefix}/plugin-resources", "", Array.Empty<object>()),
-                        ("strategy-config", isEn ? "Strategy Config" : "策略配置", "menu.strategyConfig", "bi-sliders", "", "", new object[]
-                        {
-                            new { Key = "rate-limit", Title = isEn ? "Rate Limiting" : "限流策略", I18nKey = "menu.rateLimit", Icon = "bi-speed-limit", Path = $"/{prefix}/rate-limit" },
-                            new { Key = "waf", Title = isEn ? "WAF Firewall" : "WAF 防火墙", I18nKey = "menu.waf", Icon = "bi-shield-lock", Path = $"/{prefix}/waf" },
-                            new { Key = "retry", Title = isEn ? "Request Retry" : "请求重试", I18nKey = "menu.retry", Icon = "bi-arrow-repeat", Path = $"/{prefix}/retry" },
-                            new { Key = "response-cache", Title = isEn ? "Response Cache" : "响应缓存", I18nKey = "menu.responseCache", Icon = "bi-hdd-network", Path = $"/{prefix}/response-cache" },
-                            new { Key = "service-discovery", Title = isEn ? "Service Discovery" : "服务发现", I18nKey = "menu.serviceDiscovery", Icon = "bi-broadcast", Path = $"/{prefix}/service-discovery" }
-                        })
-                    }
-                ),
-                (
-                    isEn ? "Operations" : "运维监控",
-                    "menu.group.monitoring",
-                    new[]
-                    {
-                        ("logs", isEn ? "Real-time Logs" : "实时日志", "menu.logs", "bi-journal-text", $"/{prefix}/logs", "status", Array.Empty<object>()),
-                        ("circuits", isEn ? "Circuit Breaker" : "熔断状态", "menu.circuits", "bi-lightning-charge", $"/{prefix}/circuits", "alert", Array.Empty<object>()),
-                        ("traffic", isEn ? "Traffic Monitor" : "流量监控", "menu.traffic", "bi-graph-up-arrow", $"/{prefix}/traffic", "metric", Array.Empty<object>()),
-                        ("cluster-metrics", isEn ? "Cluster Metrics" : "集群指标", "menu.clusterMetrics", "bi-diagram-3", $"/{prefix}/cluster-metrics", "", Array.Empty<object>())
+                        ("plugin-resources", isEn ? "Plugin Resources" : "插件资源", "menu.pluginResources", "bi-cpu", $"/{prefix}/plugin-resources", "", Array.Empty<object>())
                     }
                 ),
                 (
@@ -3248,8 +3247,6 @@
                     "menu.group.system",
                     new[]
                     {
-                        ("settings", isEn ? "Settings" : "系统设置", "menu.settings", "bi-gear", $"/{prefix}/settings", "", Array.Empty<object>()),
-                        ("history", isEn ? "Config History" : "配置历史", "menu.history", "bi-clock-history", $"/{prefix}/history", "", Array.Empty<object>()),
                         ("audit", isEn ? "Audit Log" : "审计日志", "menu.audit", "bi-shield-check", $"/{prefix}/audit", "", Array.Empty<object>())
                     }
                 )
@@ -3273,7 +3270,16 @@
                         }
                     }
                 }
-                if (visibleItems.Count == 0) continue;
+
+                // Plugin-contributed navigation items render inside the Plugin Center group.
+                IReadOnlyList<PluginNavItem> pluginNavItems = group.I18nKey == "menu.group.plugins"
+                    ? PluginDashboard.NavItems
+                    : Array.Empty<PluginNavItem>();
+                foreach (var navItem in pluginNavItems)
+                {
+                    if (currentPage == navItem.Url.Trim('/', ' ')) { isActiveGroup = true; }
+                }
+                if (visibleItems.Count == 0 && pluginNavItems.Count == 0) continue;
 
                 <div class="nav-section">
                     <div class="section-header @(isActiveGroup ? "expanded" : "")" data-toggle="collapse" data-target="nav-group-@group.I18nKey.GetHashCode()">
@@ -3288,7 +3294,7 @@
                             if (hasSubmenu)
                             {
                                 var isSubActive = false;
-                                foreach (var child in item.Children) { if (currentPage == ((dynamic)child).Key) isSubActive = true; }
+                                foreach (var child in item.Children!) { if (currentPage == ((dynamic)child).Key) isSubActive = true; }
                                 <a class="nav-link has-submenu @(isSubActive ? "expanded" : "")"
                                    href="javascript:void(0)"
                                    data-page="@item.Key"
@@ -3301,7 +3307,7 @@
                                     </span>
                                 </a>
                                 <div class="nav-submenu @(isSubActive ? "expanded" : "")">
-                                    @foreach (var child in item.Children)
+                                    @foreach (var child in item.Children!)
                                     {
                                         var ch = (dynamic)child;
                                         string? pluginRequires = null;
@@ -3349,6 +3355,26 @@
                                     }
                                 </a>
                             }
+                        }
+
+                        @foreach (var navItem in pluginNavItems)
+                        {
+                            var navPageKey = navItem.Url.Trim('/', ' ');
+                            var navActive = currentPage == navPageKey;
+                            var navIcon = string.IsNullOrWhiteSpace(navItem.Icon) ? "bi-puzzle" : navItem.Icon!;
+                            var navHref = navItem.Url.StartsWith('/') ? $"/{prefix}{navItem.Url}" : navItem.Url;
+                            var navTitle = pluginNavFallbackTitles.TryGetValue(navItem.LabelKey, out var fallbackTitle) ? fallbackTitle : navItem.LabelKey;
+                            <a class="nav-link @(navActive ? "active" : "")"
+                               href="@navHref"
+                               data-page="@navPageKey"
+                               data-title="@navTitle"
+                               data-icon="@navIcon"
+                               data-plugin-requires="@navItem.Id">
+                                <i class="bi @navIcon"></i>
+                                <span class="nav-content">
+                                    <span class="nav-title" data-i18n="@navItem.LabelKey">@navTitle</span>
+                                </span>
+                            </a>
                         }
                     </div>
                 </div>
@@ -3404,7 +3430,8 @@
                 {"plugins", pgIsEn ? "Plugin Manager" : "插件管理"},
                 {"history", pgIsEn ? "Configuration History" : "配置历史"},
                 {"audit", pgIsEn ? "Audit Log" : "审计日志"},
-                {"traffic", pgIsEn ? "Traffic Monitor" : "流量监控"}
+                {"traffic", pgIsEn ? "Traffic Monitor" : "流量监控"},
+                {"compression", pgIsEn ? "Response Compression" : "响应压缩"}
             };
             var pageIcons = new System.Collections.Generic.Dictionary<string, string>
             {
@@ -3424,7 +3451,8 @@
                 {"plugins", "bi-puzzle"},
                 {"history", "bi-clock-history"},
                 {"audit", "bi-shield-check"},
-                {"traffic", "bi-graph-up-arrow"}
+                {"traffic", "bi-graph-up-arrow"},
+                {"compression", "bi-file-zip"}
             };
             var pageTitle = pageTitles.ContainsKey(pgName) ? pageTitles[pgName] : pgName;
             var pageIcon = pageIcons.ContainsKey(pgName) ? pageIcons[pgName] : "bi-app-indicator";
@@ -3432,9 +3460,8 @@
             var parentGroupI18n = "";
             if (new[] { "clusters", "routes" }.Contains(pgName)) { parentGroup = pgIsEn ? "Gateway Config" : "网关配置"; parentGroupI18n = "menu.group.gateway"; }
             if (pgName == "overview") parentGroup = "";
-            if (new[] { "logs", "circuits", "traffic", "cluster-metrics" }.Contains(pgName)) { parentGroup = pgIsEn ? "Operations" : "运维监控"; parentGroupI18n = "menu.group.monitoring"; }
-            if (new[] { "plugins", "plugin-resources", "rate-limit", "waf", "retry", "response-cache", "service-discovery" }.Contains(pgName)) { parentGroup = pgIsEn ? "Plugin Center" : "插件中心"; parentGroupI18n = "menu.group.plugins"; }
-            if (new[] { "settings", "history", "audit" }.Contains(pgName)) { parentGroup = pgIsEn ? "System" : "系统管理"; parentGroupI18n = "menu.group.system"; }
+            if (new[] { "plugins", "plugin-resources", "rate-limit", "waf", "retry", "response-cache", "service-discovery", "compression", "logs", "circuits", "traffic", "cluster-metrics" }.Contains(pgName)) { parentGroup = pgIsEn ? "Plugin Center" : "插件中心"; parentGroupI18n = "menu.group.plugins"; }
+            if (new[] { "audit" }.Contains(pgName)) { parentGroup = pgIsEn ? "System" : "系统管理"; parentGroupI18n = "menu.group.system"; }
 
             <div class="page-header">
                 <div class="page-header-row">

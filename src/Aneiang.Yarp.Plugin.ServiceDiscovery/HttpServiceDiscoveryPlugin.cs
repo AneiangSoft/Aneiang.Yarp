@@ -18,4 +18,6 @@ public sealed class HttpServiceDiscoveryPlugin : IGatewayPlugin
     public void ConfigureMiddleware(IApplicationBuilder app) { }
     public void ConfigureProxyPipeline(IReverseProxyApplicationBuilder proxyPipeline) { }
 
+    public void ConfigureDashboard(IPluginDashboardBuilder builder) =>
+        builder.AddNavItem(new PluginNavItem(PluginId, "menu.serviceDiscovery", "/service-discovery", "bi-broadcast", 240));
 }

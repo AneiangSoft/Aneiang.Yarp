@@ -17,7 +17,6 @@ builder.Logging.ClearProviders();
 builder.WebHost.UseUrls("http://127.0.0.1:5302");
 
 var mode = args.FirstOrDefault(x => x.StartsWith("--mode=", StringComparison.OrdinalIgnoreCase))?[7..] ?? "full";
-var wafEnabled = mode is "waf" or "waf-attack";
 var retryEnabled = mode.StartsWith("retry", StringComparison.OrdinalIgnoreCase);
 var circuitEnabled = mode.StartsWith("circuit", StringComparison.OrdinalIgnoreCase);
 
@@ -84,7 +83,6 @@ else
         AutoUseMiddleware = useFullPipeline,
         UseDeploymentMiddleware = false,
         UseProxyRequestCapture = useFullPipeline,
-        UseWaf = wafEnabled,
         UseBuiltInProxyPipeline = useFullPipeline,
         AutoUseCors = false,
         AutoUseAuthorization = false

@@ -1,5 +1,26 @@
 # 更新日志
 
+## [2.3.0.30] - 2026-08-14
+
+> 插件化架构方案完全落地：插件驱动导航 + Compression 插件 + Redis 分布式限流 + Native Adapter 模块化
+
+### 🚀 新功能
+
+- **插件驱动导航**：所有第一方插件（11 个）实现 `ConfigureDashboard()` 贡献导航项；新增 `PluginDashboardInitializer` 在启动时收集插件贡献的菜单和小组件；`_DashboardLayout.cshtml` 在"插件中心"组动态渲染插件导航（含 `data-plugin-requires` 显隐控制、i18n、服务端 fallback 标题），移除全部硬编码插件菜单项
+- **响应压缩插件**（`Aneiang.Yarp.Plugin.Compression`）：Route 作用域代理管道插件，按 MIME 白名单 + 最小响应尺寸自动启用 Gzip/Brotli 压缩；可配置压缩级别（Optimal/Fastest/NoCompression）；正确设置 Content-Encoding/Vary 头并移除 Content-Length；配套管理页面（`/compression`）与绑定管理
+- **分布式限流插件**（`Aneiang.Yarp.Plugin.RateLimit.Redis`）：基于 Redis Lua 原子脚本实现 FixedWindow/SlidingWindow/TokenBucket 三种算法；多实例网关全局精确限流；429 响应携带 Retry-After 和 X-RateLimit-* 头；通过反射可选加载 StackExchange.Redis（宿主未引用 Redis 时自动降级直通）；配套管理页面（`/rate-limit-redis`）与绑定管理
+- **多 Provider 服务发现确认**：`ServiceDiscoveryRefreshService` 已完整支持 Consul（健康实例过滤）、Nacos（healthyOnly + hosts 解析）、Eureka（JSON + port.$ 格式 + UP 状态过滤）、Kubernetes（ServiceAccount Bearer token + endpoints 解析）、HttpJson、Static 六种模式
+
+### 🔧 架构改进
+
+- **Native Adapter 模块化**：`NativePluginAdapters.cs` 从单文件拆分为 `Services/NativeAdapters/` 目录下 11 个独立适配器文件（Timeout/Authorization/Transforms/Cors/Compression/LoadBalancing/HealthCheck/SessionAffinity/HttpClient/HttpRequest + 共享 Helper/Descriptor），原类保留为纯聚合器（Catalog + 验证/编译 API），所有外部引用不受影响
+- **方案文档执行状态标注**：`docs/plans/route-cluster-plugin-architecture.md` 头部添加全部里程碑执行状态表
+
+### 📝 补充说明
+
+- **平滑重载设计决策**：进程级蓝绿切换（新进程健康检查后切流量）不适用于库形态（NuGet 嵌入宿主进程），采用进程内热重载（`PluginRuntimeDomainManager` DI 重注册 + 中间件原子重建）；零停机由宿主部署策略（K8s 滚动更新等）承担
+- 新增 i18n key：compression/rateLimitRedis 相关（zh-CN + en-US，core.json + plugins.json）
+
 ## [2.3.0.25] - 2026-07-14
 
 > AI 智能运维 + WAF 防火墙重构 + 日志系统重构 + 核心架构拆解 + SignalR 实时推送 + 国际化重构

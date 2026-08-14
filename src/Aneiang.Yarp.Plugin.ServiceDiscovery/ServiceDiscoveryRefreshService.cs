@@ -164,6 +164,8 @@ public sealed class ServiceDiscoveryRefreshService : IPluginRuntimeResource
             var tokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token";
             if (File.Exists(tokenPath)) request.Headers.Authorization = new("Bearer", await File.ReadAllTextAsync(tokenPath, timeout.Token));
         }
+        if (string.Equals(config.Mode, "Eureka", StringComparison.OrdinalIgnoreCase))
+            request.Headers.TryAddWithoutValidation("Accept", "application/json");
         using var response = await _httpClientFactory.CreateClient("service-discovery")
             .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
@@ -201,9 +203,9 @@ public sealed class ServiceDiscoveryRefreshService : IPluginRuntimeResource
         else if (string.Equals(config.Mode, "Eureka", StringComparison.OrdinalIgnoreCase) && TryPath(root, out var instances, "application", "instance"))
         {
             if (instances.ValueKind == JsonValueKind.Array)
-                foreach (var instance in instances.EnumerateArray()) AddHostPort(results, scheme, GetString(instance, "ipAddr") ?? GetString(instance, "hostName"), GetInt(instance, "port", "$"));
+                foreach (var instance in instances.EnumerateArray()) AddEurekaInstance(results, scheme, instance);
             else
-                AddHostPort(results, scheme, GetString(instances, "ipAddr") ?? GetString(instances, "hostName"), GetInt(instances, "port", "$"));
+                AddEurekaInstance(results, scheme, instances);
         }
         else if (string.Equals(config.Mode, "Kubernetes", StringComparison.OrdinalIgnoreCase) && root.TryGetProperty("subsets", out var subsets) && subsets.ValueKind == JsonValueKind.Array)
             foreach (var subset in subsets.EnumerateArray()) if (subset.TryGetProperty("addresses", out var addresses) && subset.TryGetProperty("ports", out var ports)) foreach (var address in addresses.EnumerateArray()) foreach (var port in ports.EnumerateArray()) AddHostPort(results, scheme, GetString(address, "ip"), GetInt(port, "port"));
@@ -212,6 +214,32 @@ public sealed class ServiceDiscoveryRefreshService : IPluginRuntimeResource
 
     private static void AddHostPort(List<string> results, string scheme, string? host, int? port)
     { if (!string.IsNullOrWhiteSpace(host) && port is > 0 and <= 65535) results.Add($"{scheme}://{host}:{port}"); }
+
+    private static void AddEurekaInstance(List<string> results, string scheme, JsonElement instance)
+    {
+        if (instance.ValueKind != JsonValueKind.Object) return;
+
+        // Only expose healthy instances; a missing status is treated as UP for compatibility.
+        if (TryPath(instance, out var status, "status") && status.ValueKind == JsonValueKind.String &&
+            !string.Equals(status.GetString(), "UP", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var host = GetString(instance, "ipAddr") ?? GetString(instance, "hostName");
+        var port = GetEurekaPort(instance, "port", secure: false)
+            ?? GetEurekaPort(instance, "securePort", secure: true);
+        if (port == null) return;
+        AddHostPort(results, port.Value.Secure ? "https" : scheme, host, port.Value.Port);
+    }
+
+    private static (int Port, bool Secure)? GetEurekaPort(JsonElement instance, string propertyName, bool secure)
+    {
+        // Eureka wraps ports as {"$": 8080, "@enabled": "true"}; honor the flag, defaulting to enabled when absent.
+        var enabled = GetString(instance, propertyName, "@enabled");
+        if (enabled != null && (!bool.TryParse(enabled, out var isEnabled) || !isEnabled)) return null;
+        var port = GetInt(instance, propertyName, "$");
+        return port is > 0 and <= 65535 ? (port.Value, secure) : null;
+    }
+
     private static string? GetString(JsonElement element, params string[] path) => TryPath(element, out var value, path) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     private static int? GetInt(JsonElement element, params string[] path) => TryPath(element, out var value, path) && (value.ValueKind == JsonValueKind.Number ? value.TryGetInt32(out var number) : int.TryParse(value.GetString(), out number)) ? number : null;
     private static bool TryPath(JsonElement element, out JsonElement value, params string[] path)

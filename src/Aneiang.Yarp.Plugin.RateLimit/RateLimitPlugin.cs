@@ -24,4 +24,7 @@ public class RateLimitPlugin : IGatewayPlugin
     public void ConfigureMiddleware(IApplicationBuilder app) { }
     public void ConfigureProxyPipeline(IReverseProxyApplicationBuilder proxyPipeline) => proxyPipeline.UseMiddleware<RateLimitMiddleware>();
 
+    public void ConfigureDashboard(IPluginDashboardBuilder builder) =>
+        builder.AddNavItem(new PluginNavItem(PluginId, "menu.rateLimit", "/rate-limit", "bi-speed-limit", 200));
+
 }

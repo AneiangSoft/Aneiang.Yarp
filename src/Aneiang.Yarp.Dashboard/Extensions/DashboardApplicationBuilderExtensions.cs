@@ -32,9 +32,6 @@ public static class DashboardApplicationBuilderExtensions
         /// <summary>Mount proxy request/response capture middleware when auto-use is enabled.</summary>
         public bool UseProxyRequestCapture { get; set; } = true;
 
-        /// <summary>Mount WAF middleware when auto-use is enabled.</summary>
-        public bool UseWaf { get; set; } = true;
-
         /// <summary>Mount built-in proxy branch middleware when auto-use is enabled.</summary>
         public bool UseBuiltInProxyPipeline { get; set; } = true;
 

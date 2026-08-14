@@ -57,9 +57,11 @@ public sealed class GatewayPluginExecutionPlanProvider
         var waf = new Dictionary<string, WafBindingOptions>(StringComparer.OrdinalIgnoreCase);
         var retry = new Dictionary<string, RequestRetryBindingOptions>(StringComparer.OrdinalIgnoreCase);
         var rateLimit = new Dictionary<string, RateLimitExecutionConfig>(StringComparer.OrdinalIgnoreCase);
+        var redisRateLimit = new Dictionary<string, RedisRateLimitExecutionConfig>(StringComparer.OrdinalIgnoreCase);
         var proxyLog = new Dictionary<string, ProxyLogBindingExecutionConfig>(StringComparer.OrdinalIgnoreCase);
         var circuitBreaker = new Dictionary<string, CircuitBreakerConfig>(StringComparer.OrdinalIgnoreCase);
         var responseCache = new Dictionary<string, ResponseCacheExecutionConfig>(StringComparer.OrdinalIgnoreCase);
+        var compression = new Dictionary<string, CompressionExecutionConfig>(StringComparer.OrdinalIgnoreCase);
         var trafficMetrics = new Dictionary<string, MetricsExecutionConfig>(StringComparer.OrdinalIgnoreCase);
         var clusterMetrics = new Dictionary<string, MetricsExecutionConfig>(StringComparer.OrdinalIgnoreCase);
         var serviceDiscovery = new Dictionary<string, ServiceDiscoveryExecutionConfig>(StringComparer.OrdinalIgnoreCase);
@@ -71,8 +73,10 @@ public sealed class GatewayPluginExecutionPlanProvider
             CompileBinding(bindings, "request-retry", route.RouteId, WebJson, retry);
             CompileBinding(bindings, "rate-limit", route.RouteId, EnumJson, rateLimit,
                 config => config with { RouteUid = StableUid.FromKey("route", route.RouteId) });
+            CompileBinding(bindings, "rate-limit-redis", route.RouteId, WebJson, redisRateLimit);
             CompileBinding(bindings, "proxy-log", route.RouteId, WebJson, proxyLog);
             CompileBinding(bindings, "response-cache", route.RouteId, WebJson, responseCache);
+            CompileBinding(bindings, "compression", route.RouteId, WebJson, compression);
             CompileBinding(bindings, "traffic-metrics", route.RouteId, WebJson, trafficMetrics);
         }
 
@@ -89,12 +93,14 @@ public sealed class GatewayPluginExecutionPlanProvider
             waf.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase),
             retry.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase),
             rateLimit.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase),
+            redisRateLimit.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase),
             circuitBreaker.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase),
             proxyLog.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase),
             responseCache.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase),
             trafficMetrics.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase),
             clusterMetrics.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase),
-            serviceDiscovery.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase));
+            serviceDiscovery.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase),
+            compression.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase));
     }
 
     private void CompileBinding<T>(
@@ -126,22 +132,26 @@ public sealed record GatewayPluginExecutionPlan(
     FrozenDictionary<string, WafBindingOptions> WafByRoute,
     FrozenDictionary<string, RequestRetryBindingOptions> RetryByRoute,
     FrozenDictionary<string, RateLimitExecutionConfig> RateLimitByRoute,
+    FrozenDictionary<string, RedisRateLimitExecutionConfig> RedisRateLimitByRoute,
     FrozenDictionary<string, CircuitBreakerConfig> CircuitBreakerByCluster,
     FrozenDictionary<string, ProxyLogBindingExecutionConfig> ProxyLogByRoute,
     FrozenDictionary<string, ResponseCacheExecutionConfig> ResponseCacheByRoute,
     FrozenDictionary<string, MetricsExecutionConfig> TrafficMetricsByRoute,
     FrozenDictionary<string, MetricsExecutionConfig> ClusterMetricsByCluster,
-    FrozenDictionary<string, ServiceDiscoveryExecutionConfig> ServiceDiscoveryByCluster)
+    FrozenDictionary<string, ServiceDiscoveryExecutionConfig> ServiceDiscoveryByCluster,
+    FrozenDictionary<string, CompressionExecutionConfig> CompressionByRoute)
 {
     public static GatewayPluginExecutionPlan Empty { get; } = new(
         0,
         FrozenDictionary<string, WafBindingOptions>.Empty,
         FrozenDictionary<string, RequestRetryBindingOptions>.Empty,
         FrozenDictionary<string, RateLimitExecutionConfig>.Empty,
+        FrozenDictionary<string, RedisRateLimitExecutionConfig>.Empty,
         FrozenDictionary<string, CircuitBreakerConfig>.Empty,
         FrozenDictionary<string, ProxyLogBindingExecutionConfig>.Empty,
         FrozenDictionary<string, ResponseCacheExecutionConfig>.Empty,
         FrozenDictionary<string, MetricsExecutionConfig>.Empty,
         FrozenDictionary<string, MetricsExecutionConfig>.Empty,
-        FrozenDictionary<string, ServiceDiscoveryExecutionConfig>.Empty);
+        FrozenDictionary<string, ServiceDiscoveryExecutionConfig>.Empty,
+        FrozenDictionary<string, CompressionExecutionConfig>.Empty);
 }
