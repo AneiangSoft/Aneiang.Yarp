@@ -50,5 +50,6 @@
   "capability.modal.selectPluginFirst": "请先选择插件",
   "capability.modal.invalidJson": "JSON 配置格式无效",
   "capability.validation.durationFormat": "请输入如 00:01:00 的时长",
-  "capability.validation.integer": "请输入整数"
+  "capability.validation.integer": "请输入整数",
+  "capability.presetSuffix": "配置"
 }

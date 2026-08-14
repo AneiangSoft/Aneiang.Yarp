@@ -19,6 +19,7 @@
   "cluster.renameTitle": "Rename Cluster ID",
   "cluster.weight": "Weight",
   "cluster.weightHelp": "Higher weight = more traffic (PowerOfTwoChoices policy), default is 1",
+  "cluster.noDestinations": "No destinations in this cluster",
   "cluster.weightPlaceholder": "1",
   "index.cluster.add": "Add",
   "index.cluster.clusterId": "Cluster ID",
@@ -91,5 +92,8 @@
   "index.cluster.toggleFailed": "Failed to toggle cluster state",
   "index.cluster.total": "clusters",
   "index.cluster.unavailable": "Temporarily unavailable",
-  "index.cluster.updated": "Updated at "
+  "index.cluster.updated": "Updated at ",
+  "index.cluster.appliedPolicy": "Applied Policy",
+  "index.cluster.noPolicy": "No Policy Applied",
+  "index.noDataExport": "No data to export"
 }

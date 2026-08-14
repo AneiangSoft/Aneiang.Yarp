@@ -80,6 +80,6 @@
   "index.log.hasRequestBody": "Has request body",
   "index.log.hasResponseBody": "Has response body",
   "index.log.loadingDetail": "Loading detail...",
-  "index.noDataExport": "No data to export",
-  "index.selected": "selected"
+  "index.selected": "selected",
+  "index.log.noDataExport": "No data to export"
 }

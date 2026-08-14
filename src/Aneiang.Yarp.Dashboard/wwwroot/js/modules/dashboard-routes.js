@@ -1030,6 +1030,19 @@
             detailHtml.push('</div>');
             detailHtml.push('</div>');
 
+            // Tab navigation
+            var tabId = 'route-tabs-' + route.routeId.replace(/[^a-zA-Z0-9]/g, '_');
+            detailHtml.push('<div class="detail-tabs">');
+            detailHtml.push('<ul class="nav nav-tabs nav-tabs-sm" role="tablist">');
+            detailHtml.push('<li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#' + tabId + '-basic" type="button" role="tab"><i class="bi bi-info-circle me-1"></i>' + __('index.route.basicInfo') + '</button></li>');
+            detailHtml.push('<li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#' + tabId + '-fwd" type="button" role="tab"><i class="bi bi-arrow-repeat me-1"></i>' + __('index.route.forwarding') + '</button></li>');
+            detailHtml.push('<li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#' + tabId + '-cap" type="button" role="tab"><i class="bi bi-puzzle me-1"></i>' + __('capability.title') + '</button></li>');
+            detailHtml.push('</ul>');
+            detailHtml.push('<div class="tab-content detail-tab-content">');
+
+            // Tab 1: Basic Info
+            detailHtml.push('<div class="tab-pane fade show active" id="' + tabId + '-basic" role="tabpanel">');
+
             // Overview (compact key-value)
             const sourceBadge = this.createSourceBadge(route.source);
             detailHtml.push('<div class="detail-section">');
@@ -1057,7 +1070,6 @@
             detailHtml.push('<div class="detail-section">');
             detailHtml.push(`<div class="detail-section-title"><i class="bi bi-filter"></i>${__('index.route.match')}</div>`);
             detailHtml.push('<div class="detail-structured-config">');
-                                
             const match = route.match || {};
             if (match.path) {
                 detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Path</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(match.path)}</code></span></div>`);
@@ -1071,7 +1083,7 @@
                 detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Methods</span><span class="detail-kv-value">${methodBadges}</span></div>`);
             }
             detailHtml.push('</div>');
-                        
+
             // Headers & Query Parameters in table format
             if ((match.headers && match.headers.length > 0) || (match.queryParameters && match.queryParameters.length > 0)) {
                 detailHtml.push('<div class="table-responsive mt-2">');
@@ -1094,6 +1106,22 @@
             }
             detailHtml.push('</div>');
 
+            // Metadata
+            const nonRetryMetadata = route.metadata ? Object.fromEntries(
+                Object.entries(route.metadata).filter(([key]) => !key.startsWith('Retry:') && !key.startsWith('RateLimit:') && !key.startsWith('Waf:') && !key.startsWith('Policy:') && !key.startsWith('CircuitBreaker:'))
+            ) : {};
+            if (Object.keys(nonRetryMetadata).length > 0) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-tags"></i>${__('index.route.metadata')}</div>`);
+                detailHtml.push(this.renderStructuredConfig(nonRetryMetadata, 'metadata'));
+                detailHtml.push('</div>');
+            }
+
+            detailHtml.push('</div>'); // end tab-pane basic
+
+            // Tab 2: Forwarding
+            detailHtml.push('<div class="tab-pane fade" id="' + tabId + '-fwd" role="tabpanel">');
+
             // Destinations
             if (route.destinations && route.destinations.length > 0) {
                 detailHtml.push('<div class="detail-section">');
@@ -1109,7 +1137,7 @@
                 detailHtml.push('</div>');
             }
 
-            // Transforms - structured display
+            // Transforms
             if (route.transforms && route.transforms.length > 0) {
                 detailHtml.push('<div class="detail-section">');
                 detailHtml.push(`<div class="detail-section-title"><i class="bi bi-arrow-repeat"></i>${__('index.route.transforms')}</div>`);
@@ -1117,7 +1145,7 @@
                 detailHtml.push('</div>');
             }
 
-            // Policies (merged: Authorization + CORS + OutputCache + Timeout + RateLimiter + MaxRequestBodySize)
+            // Policies
             const hasPolicies = route.authorizationPolicy || route.corsPolicy || route.outputCachePolicy || route.timeout || route.timeoutPolicy || route.rateLimiterPolicy || (route.maxRequestBodySize !== null && route.maxRequestBodySize !== undefined);
             if (hasPolicies) {
                 detailHtml.push('<div class="detail-section">');
@@ -1130,7 +1158,7 @@
                     detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield"></i> ${__('index.route.policy.cors')}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.corsPolicy)}</code></span></div>`);
                 }
                 if (route.outputCachePolicy) {
-                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-hdd-stack"></i> OutputCachePolicy</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.outputCachePolicy)}</code></span></div>`);
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-hdd-stack"></i> ${__('index.route.policy.outputCache')}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.outputCachePolicy)}</code></span></div>`);
                 }
                 if (route.timeout || route.timeoutPolicy) {
                     const timeoutVal = route.timeout ? `<code>${route.timeout}</code>` : '<span class="text-muted">-</span>';
@@ -1141,13 +1169,13 @@
                     detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-speedometer2"></i> ${__('index.route.policy.rateLimiter')}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.rateLimiterPolicy)}</code></span></div>`);
                 }
                 if (route.maxRequestBodySize !== null && route.maxRequestBodySize !== undefined) {
-                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-file-earmark-binary"></i> MaxRequestBodySize</span><span class="detail-kv-value"><code>${route.maxRequestBodySize}</code></span></div>`);
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-file-earmark-binary"></i> ${__('index.route.policy.maxBodySize')}</span><span class="detail-kv-value"><code>${route.maxRequestBodySize}</code></span></div>`);
                 }
                 detailHtml.push('</div>');
                 detailHtml.push('</div>');
             }
 
-            // Retry Configuration - dedicated section for better visibility
+            // Retry Configuration
             const retryConfig = this.extractRetryConfig(route.metadata);
             if (retryConfig && retryConfig.enabled) {
                 detailHtml.push('<div class="detail-section">');
@@ -1168,15 +1196,15 @@
                 detailHtml.push('</div>');
             }
 
-            // Rate Limit Configuration - dedicated section
+            // Rate Limit Configuration
             const rateLimitConfig = this.extractRateLimitConfig(route.metadata);
             if (rateLimitConfig && rateLimitConfig.enabled) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-speedometer2"></i>${__('index.route.rateLimitConfig') || 'Rate Limit'}</div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-speedometer2"></i>${__('index.route.rateLimitConfig')}</div>`);
                 detailHtml.push('<div class="detail-structured-config">');
-                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-toggle-on"></i> ${__('policy.enabled') || 'Enabled'}</span><span class="detail-kv-value"><span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span></span></div>`);
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-toggle-on"></i> ${__('policy.enabled')}</span><span class="detail-kv-value"><span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span></span></div>`);
                 if (rateLimitConfig.permitLimit !== undefined) {
-                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-123"></i> ${__('index.route.rateLimit.permitLimit') || 'Permit Limit'}</span><span class="detail-kv-value"><code>${rateLimitConfig.permitLimit}</code></span></div>`);
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-123"></i> ${__('index.route.rateLimit.permitLimit')}</span><span class="detail-kv-value"><code>${rateLimitConfig.permitLimit}</code></span></div>`);
                 }
                 if (rateLimitConfig.window) {
                     var windowDisplay = rateLimitConfig.window;
@@ -1188,45 +1216,42 @@
                         else if (wUnit === 'h') windowDisplay = Math.round(wNum * 3600) + 's';
                         else if (wUnit === 'ms') windowDisplay = (wNum / 1000) + 's';
                     }
-                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-clock"></i> ${__('index.route.rateLimit.window') || 'Window'}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(windowDisplay)}</code></span></div>`);
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-clock"></i> ${__('index.route.rateLimit.window')}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(windowDisplay)}</code></span></div>`);
                 }
                 if (rateLimitConfig.algorithm) {
                     var algoDisplay = __('policy.algo.' + rateLimitConfig.algorithm) || rateLimitConfig.algorithm;
-                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-gear"></i> ${__('index.route.rateLimit.algorithm') || 'Algorithm'}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(algoDisplay)}</code></span></div>`);
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-gear"></i> ${__('index.route.rateLimit.algorithm')}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(algoDisplay)}</code></span></div>`);
                 }
                 if (rateLimitConfig.queueLimit !== undefined) {
-                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-list-ol"></i> ${__('index.route.rateLimit.queueLimit') || 'Queue Limit'}</span><span class="detail-kv-value"><code>${rateLimitConfig.queueLimit}</code></span></div>`);
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-list-ol"></i> ${__('index.route.rateLimit.queueLimit')}</span><span class="detail-kv-value"><code>${rateLimitConfig.queueLimit}</code></span></div>`);
                 }
                 detailHtml.push('</div>');
                 detailHtml.push('</div>');
             }
 
-            // WAF Configuration - dedicated section
+            // WAF Configuration
             const wafConfig = this.extractWafConfig(route.metadata);
             if (wafConfig && wafConfig.hasConfig) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield-lock"></i>${__('index.route.wafConfig') || 'WAF'}</div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield-lock"></i>${__('index.route.wafConfig')}</div>`);
                 detailHtml.push('<div class="detail-structured-config">');
                 var wafStatus = wafConfig.enabled === true ? __('index.route.waf.forceOn') : wafConfig.enabled === false ? __('index.route.waf.forceOff') : __('index.route.waf.followGlobal');
                 var wafBadge = wafConfig.enabled === true ? 'bg-success' : wafConfig.enabled === false ? 'bg-danger' : 'bg-secondary';
-                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield-check"></i> ${__('index.route.waf.status') || 'Status'}</span><span class="detail-kv-value"><span class="badge ${wafBadge}">${window.DashboardUtils.escapeHtml(wafStatus)}</span></span></div>`);
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield-check"></i> ${__('index.route.waf.status')}</span><span class="detail-kv-value"><span class="badge ${wafBadge}">${window.DashboardUtils.escapeHtml(wafStatus)}</span></span></div>`);
                 detailHtml.push('</div>');
                 detailHtml.push('</div>');
             }
 
-            // Metadata - structured key-value display (excluding retry/rate-limit/WAF/policy/circuit-breaker configs which are shown above)
-            const nonRetryMetadata = route.metadata ? Object.fromEntries(
-                Object.entries(route.metadata).filter(([key]) => !key.startsWith('Retry:') && !key.startsWith('RateLimit:') && !key.startsWith('Waf:') && !key.startsWith('Policy:') && !key.startsWith('CircuitBreaker:'))
-            ) : {};
-            if (Object.keys(nonRetryMetadata).length > 0) {
-                detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-tags"></i>${__('index.route.metadata')}</div>`);
-                detailHtml.push(this.renderStructuredConfig(nonRetryMetadata, 'metadata'));
-                detailHtml.push('</div>');
-            }
-                
+            detailHtml.push('</div>'); // end tab-pane fwd
+
+            // Tab 3: Capabilities
+            detailHtml.push('<div class="tab-pane fade" id="' + tabId + '-cap" role="tabpanel">');
             detailHtml.push('<div class="dashboard-capabilities" data-scope="Route" data-scope-id="' + window.DashboardUtils.escapeHtml(route.routeId) + '"></div>');
-            detailHtml.push('</div>');
+            detailHtml.push('</div>'); // end tab-pane cap
+
+            detailHtml.push('</div>'); // end tab-content
+            detailHtml.push('</div>'); // end detail-tabs
+            detailHtml.push('</div>'); // end detail-panel
             td.innerHTML = detailHtml.join('');
             tr.appendChild(td);
 

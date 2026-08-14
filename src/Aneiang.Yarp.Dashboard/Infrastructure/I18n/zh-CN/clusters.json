@@ -19,6 +19,7 @@
   "cluster.renameTitle": "重命名 Cluster ID",
   "cluster.weight": "权重",
   "cluster.weightHelp": "PowerOfTwoChoices 策略下权重越大流量越多，默认为 1",
+  "cluster.noDestinations": "该集群暂无目标节点",
   "cluster.weightPlaceholder": "1",
   "index.cluster.add": "新增",
   "index.cluster.clusterId": "集群ID",
@@ -91,5 +92,8 @@
   "index.cluster.toggleFailed": "切换集群状态失败",
   "index.cluster.total": "个集群",
   "index.cluster.unavailable": "暂未开放",
-  "index.cluster.updated": "更新于 "
+  "index.cluster.updated": "更新于 ",
+  "index.cluster.appliedPolicy": "已应用策略",
+  "index.cluster.noPolicy": "未配置策略",
+  "index.noDataExport": "没有数据可导出"
 }

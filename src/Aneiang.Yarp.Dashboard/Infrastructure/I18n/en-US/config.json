@@ -61,7 +61,7 @@
   "config.passwordPolicyDesc": "Current password security policy configuration",
   "config.passwordRequired": "Username and password required",
   "config.rollback": "Rollback",
-  "config.rollbackConfirm": "Confirm rollback?",
+  "config.rollbackConfirm": "Confirm rollback to version {versionId}?",
   "config.rollbackFailed": "Rollback failed",
   "config.rollbacked": "Rolled back",
   "config.rollbacking": "Rolling back...",

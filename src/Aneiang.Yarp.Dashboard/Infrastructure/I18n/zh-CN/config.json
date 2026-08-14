@@ -61,7 +61,7 @@
   "config.passwordPolicyDesc": "当前密码安全策略配置",
   "config.passwordRequired": "用户名和密码必填",
   "config.rollback": "回滚",
-  "config.rollbackConfirm": "确认回滚?",
+  "config.rollbackConfirm": "确认回滚到版本 {versionId}？",
   "config.rollbackFailed": "回滚失败",
   "config.rollbacked": "已回滚",
   "config.rollbacking": "正在回滚...",

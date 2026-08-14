@@ -50,5 +50,6 @@
   "capability.modal.selectPluginFirst": "Please select a plugin first",
   "capability.modal.invalidJson": "Invalid JSON configuration",
   "capability.validation.durationFormat": "Enter a duration such as 00:01:00",
-  "capability.validation.integer": "Please enter an integer"
+  "capability.validation.integer": "Please enter an integer",
+  "capability.presetSuffix": "config"
 }

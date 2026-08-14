@@ -654,6 +654,19 @@
             detailHtml.push('</div>');
             detailHtml.push('</div>');
 
+            // Tab navigation
+            var tabId = 'cluster-tabs-' + cluster.clusterId.replace(/[^a-zA-Z0-9]/g, '_');
+            detailHtml.push('<div class="detail-tabs">');
+            detailHtml.push('<ul class="nav nav-tabs nav-tabs-sm" role="tablist">');
+            detailHtml.push('<li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#' + tabId + '-basic" type="button" role="tab"><i class="bi bi-info-circle me-1"></i>' + __('index.route.basicInfo') + '</button></li>');
+            detailHtml.push('<li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#' + tabId + '-dest" type="button" role="tab"><i class="bi bi-server me-1"></i>' + __('index.cluster.destinations') + (cluster.destinations ? ' <span class="badge bg-light text-dark">' + cluster.destinations.length + '</span>' : '') + '</button></li>');
+            detailHtml.push('<li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#' + tabId + '-cap" type="button" role="tab"><i class="bi bi-puzzle me-1"></i>' + __('capability.title') + '</button></li>');
+            detailHtml.push('</ul>');
+            detailHtml.push('<div class="tab-content detail-tab-content">');
+
+            // Tab 1: Basic Info
+            detailHtml.push('<div class="tab-pane fade show active" id="' + tabId + '-basic" role="tabpanel">');
+
             // Overview (compact key-value)
             const sourceBadge = this.createSourceBadge(cluster.source);
             detailHtml.push('<div class="detail-section">');
@@ -671,46 +684,6 @@
             }
             detailHtml.push('</div>');
             detailHtml.push('</div>');
-
-            // Destinations detail (with health info + weight)
-            if (cluster.destinations && cluster.destinations.length > 0) {
-                detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations')} <span class="badge bg-light text-dark ms-2">${cluster.destinations.length}</span></div>`);
-
-                // Check if cluster has PowerOfTwoChoices policy (weight-aware)
-                const hasWeights = (cluster.loadBalancingPolicy || '').toLowerCase().includes('poweroftwo');
-
-                detailHtml.push('<div class="table-responsive">');
-                detailHtml.push('<table class="table table-sm detail-table">');
-                if (hasWeights) {
-                    detailHtml.push(`<thead><tr><th>${__('index.detail.name')}</th><th>${__('index.detail.address')}</th><th>${__('cluster.weight')}</th><th>${__('index.detail.active')}</th><th>${__('index.detail.passive')}</th></tr></thead>`);
-                } else {
-                    detailHtml.push(`<thead><tr><th>${__('index.detail.name')}</th><th>${__('index.detail.address')}</th><th>${__('index.detail.active')}</th><th>${__('index.detail.passive')}</th></tr></thead>`);
-                }
-                detailHtml.push('<tbody>');
-                (cluster.destinations || []).forEach(dest => {
-                    const activeBadge = this.createHealthBadgeInline(dest.activeHealth || 'Unknown');
-                    const passiveBadge = this.createHealthBadgeInline(dest.passiveHealth || 'Unknown');
-                    const weight = (dest.metadata && dest.metadata.Weight) || '1';
-                    detailHtml.push('<tr>');
-                    detailHtml.push(`<td><code>${dest.name || '-'}</code></td>`);
-                    detailHtml.push(`<td><a href="${dest.address || '#'}" target="_blank" style="text-decoration:none;color:#0ea5e9;">${dest.address || '-'}</a></td>`);
-                    if (hasWeights) {
-                        detailHtml.push(`<td><span class="badge bg-light text-dark">${weight}</span></td>`);
-                    }
-                    detailHtml.push(`<td>${activeBadge}</td>`);
-                    detailHtml.push(`<td>${passiveBadge}</td>`);
-                    detailHtml.push('</tr>');
-                });
-                detailHtml.push('</tbody></table></div>');
-
-                // Weight help text
-                if (hasWeights) {
-                    detailHtml.push(`<div class="text-muted mt-1" style="font-size:11px"><i class="bi bi-info-circle me-1"></i>${__('cluster.weightHelp')}</div>`);
-                }
-
-                detailHtml.push('</div>');
-            }
 
             // Health Check - structured display
             if (cluster.healthCheck) {
@@ -739,12 +712,12 @@
             // HTTP Request - structured display
             if (cluster.httpRequest) {
                 detailHtml.push('<div class="detail-section">');
-                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-arrow-up-right-circle"></i>HttpRequest</div>`);
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-arrow-up-right-circle"></i>${__('index.cluster.httpClient')}</div>`);
                 detailHtml.push(this.renderStructuredConfig(cluster.httpRequest, 'httpRequest'));
                 detailHtml.push('</div>');
             }
 
-            // Metadata - structured key-value display (excluding policy configs which are managed via "Manage Policy")
+            // Metadata
             const nonPolicyClusterMeta = cluster.metadata ? Object.fromEntries(
                 Object.entries(cluster.metadata).filter(([key]) =>
                     !key.startsWith('CircuitBreaker:') && !key.startsWith('Policy:') && !key.startsWith('RateLimit:') && !key.startsWith('Waf:') && !key.startsWith('Retry:')
@@ -757,8 +730,60 @@
                 detailHtml.push('</div>');
             }
 
+            detailHtml.push('</div>'); // end tab-pane basic
+
+            // Tab 2: Destinations
+            detailHtml.push('<div class="tab-pane fade" id="' + tabId + '-dest" role="tabpanel">');
+
+            if (cluster.destinations && cluster.destinations.length > 0) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations')} <span class="badge bg-light text-dark ms-2">${cluster.destinations.length}</span></div>`);
+
+                const hasWeights = (cluster.loadBalancingPolicy || '').toLowerCase().includes('poweroftwo');
+
+                detailHtml.push('<div class="table-responsive">');
+                detailHtml.push('<table class="table table-sm detail-table">');
+                if (hasWeights) {
+                    detailHtml.push(`<thead><tr><th>${__('index.detail.name')}</th><th>${__('index.detail.address')}</th><th>${__('cluster.weight')}</th><th>${__('index.detail.active')}</th><th>${__('index.detail.passive')}</th></tr></thead>`);
+                } else {
+                    detailHtml.push(`<thead><tr><th>${__('index.detail.name')}</th><th>${__('index.detail.address')}</th><th>${__('index.detail.active')}</th><th>${__('index.detail.passive')}</th></tr></thead>`);
+                }
+                detailHtml.push('<tbody>');
+                (cluster.destinations || []).forEach(dest => {
+                    const activeBadge = this.createHealthBadgeInline(dest.activeHealth || 'Unknown');
+                    const passiveBadge = this.createHealthBadgeInline(dest.passiveHealth || 'Unknown');
+                    const weight = (dest.metadata && dest.metadata.Weight) || '1';
+                    detailHtml.push('<tr>');
+                    detailHtml.push(`<td><code>${dest.name || '-'}</code></td>`);
+                    detailHtml.push(`<td><a href="${dest.address || '#'}" target="_blank" style="text-decoration:none;color:#0ea5e9;">${dest.address || '-'}</a></td>`);
+                    if (hasWeights) {
+                        detailHtml.push(`<td><span class="badge bg-light text-dark">${weight}</span></td>`);
+                    }
+                    detailHtml.push(`<td>${activeBadge}</td>`);
+                    detailHtml.push(`<td>${passiveBadge}</td>`);
+                    detailHtml.push('</tr>');
+                });
+                detailHtml.push('</tbody></table></div>');
+
+                if (hasWeights) {
+                    detailHtml.push(`<div class="text-muted mt-1" style="font-size:11px"><i class="bi bi-info-circle me-1"></i>${__('cluster.weightHelp')}</div>`);
+                }
+
+                detailHtml.push('</div>');
+            } else {
+                detailHtml.push('<div class="text-center text-muted py-4"><i class="bi bi-inbox display-6 d-block mb-2 opacity-25"></i>' + __('cluster.noDestinations') + '</div>');
+            }
+
+            detailHtml.push('</div>'); // end tab-pane dest
+
+            // Tab 3: Capabilities
+            detailHtml.push('<div class="tab-pane fade" id="' + tabId + '-cap" role="tabpanel">');
             detailHtml.push('<div class="dashboard-capabilities" data-scope="Cluster" data-scope-id="' + window.DashboardUtils.escapeHtml(cluster.clusterId) + '"></div>');
-            detailHtml.push('</div>');
+            detailHtml.push('</div>'); // end tab-pane cap
+
+            detailHtml.push('</div>'); // end tab-content
+            detailHtml.push('</div>'); // end detail-tabs
+            detailHtml.push('</div>'); // end detail-panel
             td.innerHTML = detailHtml.join('');
             tr.appendChild(td);
 

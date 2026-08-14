@@ -381,9 +381,6 @@
   "logs.config.title": "日志插件配置",
   "index.log.emptyDesc": "等待请求流量进入网关后，日志将实时显示此处",
   "index.btn.refresh": "刷新",
-  "index.health.healthy": "健康",
-  "index.health.unknown": "未知",
-  "index.health.unhealthy": "异常",
   "overview.signalr.disconnected": "SignalR 断开",
   "plugin.resetAll": "全部启用",
   "pluginPage.bindings": "绑定列表",
@@ -417,10 +414,9 @@
   "pluginPage.cluster": "集群",
   "pluginPage.route": "路由",
   "webhook.events.title": "通知事件",
-  "webhook.events.help": "选择需要推送通知的事件类型",
   "webhook.events.routeGroup": "路由变更",
   "webhook.events.clusterGroup": "集群变更",
   "webhook.events.configGroup": "配置管理",
   "webhook.events.deselectAll": "全不选",
-  "config.rollbackConfirm": "确认回滚到版本 {versionId}？"
+  "common.importing": "正在导入..."
 }

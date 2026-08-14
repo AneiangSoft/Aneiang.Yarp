@@ -2748,6 +2748,21 @@
         .page-help-bar .help-close:hover { background: rgba(148,163,184,0.12); color: var(--text-primary); }
         .page-help-bar.collapsed { display: none; }
 
+        /* Detail Tabs */
+        .detail-tabs { margin-top: 4px; }
+        .detail-tabs .nav-tabs-sm .nav-link {
+            font-size: 13px; padding: 6px 14px; border: none;
+            color: var(--text-secondary); border-bottom: 2px solid transparent;
+            transition: all 0.2s; border-radius: 6px 6px 0 0;
+        }
+        .detail-tabs .nav-tabs-sm .nav-link:hover { color: var(--primary-color); background: rgba(99,102,241,0.04); }
+        .detail-tabs .nav-tabs-sm .nav-link.active {
+            color: var(--primary-color); border-bottom-color: var(--primary-color);
+            background: transparent; font-weight: 600;
+        }
+        .detail-tabs .nav-tabs { border-bottom: 2px solid var(--border-color); margin-bottom: 12px; gap: 2px; }
+        .detail-tab-content { padding: 4px 0; }
+
         /* Unified Empty State */
         .empty-state-container {
             text-align: center; padding: 48px 24px;
@@ -3289,11 +3304,19 @@
                                     @foreach (var child in item.Children)
                                     {
                                         var ch = (dynamic)child;
+                                        string? pluginRequires = null;
+                                        var childKey = ch.Key;
+                                        if (childKey == "waf") pluginRequires = "waf";
+                                        else if (childKey == "rate-limit") pluginRequires = "rate-limit";
+                                        else if (childKey == "retry") pluginRequires = "request-retry";
+                                        else if (childKey == "response-cache") pluginRequires = "response-cache";
+                                        else if (childKey == "service-discovery") pluginRequires = "service-discovery";
                                         <a class="nav-link @(currentPage == ch.Key ? "active" : "")"
                                            href="@ch.Path"
                                            data-page="@ch.Key"
                                            data-title="@ch.Title"
-                                           data-icon="@ch.Icon">
+                                           data-icon="@ch.Icon"
+                                           @if (pluginRequires != null) { <text>data-plugin-requires="@pluginRequires"</text> }>
                                             <span class="nav-dot"></span>
                                             <span class="nav-content">
                                                 <span class="nav-title" data-i18n="@ch.I18nKey">@ch.Title</span>
@@ -3304,12 +3327,18 @@
                             }
                             else
                             {
+                                string? itemPluginRequires = null;
+                                var itemKey = item.Key;
+                                if (itemKey == "logs") itemPluginRequires = "proxy-log";
+                                else if (itemKey == "circuits") itemPluginRequires = "circuit-breaker";
+                                else if (itemKey == "cluster-metrics") itemPluginRequires = "cluster-metrics";
                                 <a class="nav-link @(isItemActive ? "active" : "")"
                                    href="@item.Path"
                                    data-page="@item.Key"
                                    data-title="@item.Title"
                                    data-icon="@item.Icon"
-                                   @if (!string.IsNullOrEmpty(item.BadgeType)) { <text>data-badge-type="@item.BadgeType" data-badge-source="@item.Key"</text> }>
+                                   @if (!string.IsNullOrEmpty(item.BadgeType)) { <text>data-badge-type="@item.BadgeType" data-badge-source="@item.Key"</text> }
+                                   @if (itemPluginRequires != null) { <text>data-plugin-requires="@itemPluginRequires"</text> }>
                                     <i class="bi @item.Icon"></i>
                                     <span class="nav-content">
                                         <span class="nav-title" data-i18n="@item.I18nKey">@item.Title</span>
@@ -3697,7 +3726,7 @@
                 .then(function (plugins) {
                     var enabled = new Set((Array.isArray(plugins) ? plugins : [])
                         .filter(function (plugin) { return plugin && plugin.enabled; })
-                        .map(function (plugin) { return String(plugin.id || '').toLowerCase(); }));
+                        .map(function (plugin) { return String(plugin.pluginId || plugin.id || '').toLowerCase(); }));
 
                     contributions.forEach(function (element) {
                         var required = String(element.dataset.pluginRequires || '').toLowerCase();
