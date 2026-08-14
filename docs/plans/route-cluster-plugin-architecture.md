@@ -1,5 +1,22 @@
 # Aneiang.Yarp Route/Cluster 插件化架构设计方案
 
+> **执行状态（2026-08-14）：全部完成 ✅**
+>
+> | 里程碑 | 状态 | 说明 |
+> |--------|------|------|
+> | Phase 1 收敛配置入口 | ✅ | 插件绑定页 + Route/Cluster 内嵌能力区（`DashboardCapabilities.mount`） |
+> | Phase 2 新插件绑定模型 | ✅ | `plugin_schemas` + `plugin_bindings`（scope 区分 Route/Cluster）+ `GatewaySnapshot` + Route/Cluster ExecutionPlan |
+> | Phase 3 迁移原生能力 | ✅ | `Services/NativeAdapters/` 12 个文件（10 个能力适配器 + 2 个辅助文件）+ `NativePluginAdapters` 聚合器 |
+> | Phase 4 重写增强插件 | ✅ | 11 个独立插件项目（含 Compression、RateLimit.Redis） |
+> | Phase 5 真正按需加载 | ✅* | 进程内热重载（`PluginRuntimeDomainManager`）；进程级零停机切换由部署层（K8s 滚动更新等）承担 |
+> | Phase 6 删除兼容层 | ✅ | 综合策略/全局模块配置/旧 Options 全部清除 |
+> | 导航插件驱动 | ✅ | 11 个插件实现 `ConfigureDashboard()` + `PluginDashboardInitializer` 动态渲染 |
+> | 策略预设 | ✅ | `PresetsController` + 能力配置弹窗"保存为预设/应用预设" |
+> | Compression 插件 | ✅ | `Aneiang.Yarp.Plugin.Compression`（Gzip/Brotli，MIME 白名单 + 最小尺寸） |
+> | 分布式限流 | ✅ | `Aneiang.Yarp.Plugin.RateLimit.Redis`（Lua 原子脚本：FixedWindow/SlidingWindow/TokenBucket） |
+> | 多 Provider 服务发现 | ✅ | Consul/Nacos/Eureka/Kubernetes/HttpJson/Static 六种模式 |
+> | 平滑重载 | ✅* | 采用进程内重载 + 重载门控设计；完整进程级蓝绿切换不适用于库形态（NuGet 嵌入宿主），由宿主部署策略承担 |
+
 ## 1. 设计目标
 
 Aneiang.Yarp 重构为一个极小的 YARP Core，以及一组围绕 Route 和 Cluster 按需装配的能力插件。
@@ -233,6 +250,23 @@ Route/Cluster 插件参数和绑定关系支持动态更新，无需重启。
 - 无 Timer、Channel 和缓存。
 - 请求管线无插件判断开销。
 
+> **实现说明（进程内平滑重载方案）**
+>
+> 实际实现未采用上述"新网关工作进程 + 流量切换"的进程级方案，而是在单进程内由 `PluginRuntimeDomainManager` 完成等价的平滑重载，链路如下：
+>
+> 1. **先建新**：`PrepareAsync` 为目标插件集合构建全新的候选运行域（独立 DI 容器、Middleware 管线、代理管线、外部程序集加载，且 `ValidateOnBuild` 构建期校验），构建期间当前域继续服务，互不影响。
+> 2. **再验证**：`PluginRuntimeDomainPreparation.CheckHealthAsync` 对候选域内实现 `IPluginHealthProbe` 的插件逐一探测；不健康则中止切换并丢弃候选域，旧域保持激活（等效于"未通过健康检查不切流量"）。
+> 3. **原子切换**：`CommitAsync` 通过 `Interlocked.Exchange` 原子替换当前域引用。任一时刻请求都能取到可用域，重载期间请求零等待、零失败（`InvokeCurrentPipelineAsync` 的无锁重试兜底读取与获取 lease 之间的瞬态竞态）。
+> 4. **排空退出**：旧域以引用计数 lease（`TryAcquire`/`Release` + `_drained`）跟踪进行中请求，排空完成后才释放 DI 容器与外部程序集，对应"旧进程排空连接后退出"的域级等价物。
+> 5. **重载后监控**：切换提交后启动 30 秒观察窗口，基于 `IPluginResourceMonitor` 的累计请求/错误计数计算增量错误率；错误率 ≥ 5% 且样本 ≥ 10 时输出告警日志（含出错最多的插件），不自动回滚。
+> 6. **并发门控**：管理端点以 `TransitionGate`（`SemaphoreSlim(1,1)`）串行化启停操作；启用前校验依赖已启用，停用前校验无反向依赖且无绑定；持久化失败或提交后步骤异常时回滚插件状态并重新过渡。
+>
+> **不采用进程级重启的理由**：
+>
+> - 本项目为仪表盘与网关同进程的单进程部署形态，进程级方案需要引入反向代理前置层、进程监督器和跨进程健康协调，复杂度与部署成本远超收益。
+> - 域级隔离（独立 DI 容器 + 独立管线 + 外部程序集可卸载加载）已完整达成上列目标：禁用插件的程序集不加载、DI 无注册、无 Middleware、无 Hosted Service、请求管线无插件判断开销。
+> - "单机环境退化为自动重启"的场景由域级原子切换进一步退化为无重启，消除停机窗口。
+
 ---
 
 ## 5. 插件目录和清单
@@ -418,45 +452,35 @@ gateway_plugins
 - UpdatedAt
 ```
 
-### 9.2 Route 插件绑定
+### 9.2 插件绑定（单表 + scope）
 
 ```text
-route_plugin_bindings
-- RouteUid
-- PluginId
-- ConfigJson
-- SchemaVersion
-- Enabled
-- UpdatedAt
+plugin_bindings
+- id
+- plugin_id
+- scope          -- 1 = Route, 2 = Cluster
+- scope_id       -- 兼容旧 RouteId/ClusterId
+- route_uid      -- Route 稳定标识（scope = 1）
+- cluster_uid    -- Cluster 稳定标识（scope = 2）
+- enabled
+- config_json
+- schema_version
+- config_version
+- sort_order
+- plugin_version
+- created_at
+- updated_at
 ```
 
 唯一索引：
 
 ```text
-RouteUid + PluginId
+plugin_id + scope + scope_id
 ```
 
-同一路由对同一种插件只允许一个绑定。
+同一路由/集群对同一种插件只允许一个绑定。Route 与 Cluster 绑定共用 `plugin_bindings` 单表，以 `scope` 列区分（1=Route / 2=Cluster）。
 
-### 9.3 Cluster 插件绑定
-
-```text
-cluster_plugin_bindings
-- ClusterUid
-- PluginId
-- ConfigJson
-- SchemaVersion
-- Enabled
-- UpdatedAt
-```
-
-唯一索引：
-
-```text
-ClusterUid + PluginId
-```
-
-### 9.4 插件运行状态
+### 9.3 插件运行状态
 
 ```text
 plugin_runtime_states
@@ -1149,8 +1173,7 @@ Aneiang.Yarp.Plugin.RateLimit.Redis
 
 ### 第二阶段：建立新插件绑定模型
 
-- 新增 `route_plugin_bindings`。
-- 新增 `cluster_plugin_bindings`。
+- 新增 `plugin_bindings`（以 `scope` 列区分 Route/Cluster，替代 `route_plugin_bindings`/`cluster_plugin_bindings` 两张表）。
 - 新增插件 Schema 和配置校验。
 - 建立 `GatewaySnapshot`。
 - 建立 Route/Cluster 执行计划。

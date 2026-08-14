@@ -99,7 +99,6 @@
             <a href="/@prefix/logs" class="btn btn-outline-info btn-sm"><i class="bi bi-journal-text me-1"></i><span data-i18n="overview.action.viewLogs">查看日志</span></a>
             <a href="/@prefix/traffic" class="btn btn-outline-success btn-sm"><i class="bi bi-graph-up-arrow me-1"></i><span data-i18n="overview.action.viewTraffic">流量监控</span></a>
             <a href="/@prefix/plugins" class="btn btn-outline-secondary btn-sm"><i class="bi bi-puzzle me-1"></i><span data-i18n="overview.action.managePlugins">插件管理</span></a>
-            <a href="/@prefix/settings" class="btn btn-outline-secondary btn-sm"><i class="bi bi-gear me-1"></i><span data-i18n="overview.action.settings">系统设置</span></a>
         </div>
     </div>
 </div>
@@ -299,6 +298,22 @@
     </div>
 </div>
 
+<!-- Account Security (2FA) -->
+<div class="card-panel mb-4">
+    <div class="card-header">
+        <span><i class="bi bi-shield-lock me-2" style="color:#f59e0b;"></i><span data-i18n="twofa.title">双因素认证 (2FA)</span></span>
+        <div class="card-header-actions">
+            <span id="twofa-status-badge" class="badge bg-secondary" data-i18n="common.loading">加载中</span>
+        </div>
+    </div>
+    <div id="twofa-content" class="card-body">
+        <div class="loading-state">
+            <div class="loading-spinner"></div>
+            <div class="loading-text" data-i18n="common.loading">加载中...</div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <!-- Page config (shared scripts now in _DashboardLayout.cshtml) -->
 @await Html.PartialAsync("_DashboardPageInit")
@@ -307,9 +322,13 @@
 <script src="/_content/Aneiang.Yarp.Dashboard/js/vendor/chart.umd.min.js"></script>
 <!-- SignalR client for real-time overview push -->
 <script src="/_content/Aneiang.Yarp.Dashboard/js/vendor/signalr.min.js"></script>
+<!-- QRCode for 2FA setup (CDN fallback) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <!-- Home module (for stat bar — version, clusters, routes, QPS) -->
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js"></script>
+<!-- Two-factor authentication module (account security card) -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-twofactor.js"></script>
 
 <script>
     var _signalrConnected = false;
@@ -372,6 +391,11 @@
             if (window.DashboardApp?.modules?.stats?.loadStats) await DashboardApp.modules.stats.loadStats();
 
             document.dispatchEvent(new CustomEvent('dashboard:ready'));
+
+            // Load 2FA account security card (non-blocking)
+            if (window.TwoFactorModule) {
+                TwoFactorModule.load().catch(function() {});
+            }
 
             // --- SignalR real-time push ---
             initSignalR();

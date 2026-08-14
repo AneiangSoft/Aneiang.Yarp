@@ -1,0 +1,48 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Distributed Rate Limit" : "分布式限流";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<div id="rate-limit-redis-app">
+    <div class="page-help-bar" id="rate-limit-redis-help-bar">
+        <i class="bi bi-info-circle"></i>
+        <span class="help-text" data-i18n="page.help.rateLimitRedis">基于 Redis 的分布式限流，适用于多实例网关部署场景，保证全局限流精确性。</span>
+        <button class="help-close" onclick="document.getElementById('rate-limit-redis-help-bar').classList.add('collapsed')">&times;</button>
+    </div>
+    <div class="card-panel mb-4">
+        <div class="card-header">
+            <span><i class="bi bi-hdd-rack me-2 text-success"></i><span data-i18n="rateLimitRedis.title">分布式限流</span></span>
+            <div class="card-header-actions">
+                <span id="rate-limit-redis-refresh-time" class="refresh-badge"></span>
+                <button class="btn btn-sm btn-outline-primary btn-icon-only" onclick="RateLimitRedisModule.load()" data-i18n-title="index.btn.refresh" title="刷新" aria-label="刷新">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+        <div id="rate-limit-redis-content" class="card-body">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <div class="loading-text" data-i18n="pluginPage.loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/plugin-binding-manager.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-rate-limit-redis.js"></script>
+@await Html.PartialAsync("_DashboardPageInit")
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+        await RateLimitRedisModule.load();
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

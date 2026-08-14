@@ -219,6 +219,11 @@ public sealed class PluginRuntimeDomainManager : IPluginRuntimeDomainManager, IA
     private readonly ILogger<PluginRuntimeDomainManager> _logger;
     private PluginRuntimeDomain _current = PluginRuntimeDomain.Empty;
 
+    private const int PostTransitionWatchMinimumRequests = 10;
+    private const double PostTransitionWatchErrorRateThreshold = 0.05;
+    private static readonly TimeSpan PostTransitionWatchWindow = TimeSpan.FromSeconds(30);
+    private int _postTransitionWatchRunning;
+
     public PluginRuntimeDomainManager(
         IServiceProvider rootServices,
         ExternalGatewayPluginHost externalHost,
@@ -281,6 +286,11 @@ public sealed class PluginRuntimeDomainManager : IPluginRuntimeDomainManager, IA
             var services = new ServiceCollection();
             services.AddSingleton(_rootServices.GetRequiredService<IConfiguration>());
             services.AddSingleton(_rootServices.GetRequiredService<IHostEnvironment>());
+            // Forward the root logging factory so plugins can inject ILogger<T> and their log
+            // entries flow through the host's Serilog pipeline. ValidateOnBuild below fails
+            // otherwise, since plugins like RedisLuaRateLimitStore take ILogger<T> in their ctor.
+            services.AddSingleton(_rootServices.GetRequiredService<ILoggerFactory>());
+            services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
             foreach (var plugin in plugins.Values)
             {
                 services.AddSingleton(typeof(IGatewayPlugin), plugin);
@@ -336,6 +346,7 @@ public sealed class PluginRuntimeDomainManager : IPluginRuntimeDomainManager, IA
     {
         var previous = Interlocked.Exchange(ref _current, candidate);
         _ = RetirePreviousAsync(previous);
+        StartPostTransitionWatch();
         return Task.CompletedTask;
     }
 
@@ -352,6 +363,105 @@ public sealed class PluginRuntimeDomainManager : IPluginRuntimeDomainManager, IA
             _logger.LogError(ex, "Failed to dispose a retired plugin runtime domain.");
         }
     }
+
+    /// <summary>
+    /// Watches the proxy pipeline error rate for a short window after a runtime domain transition.
+    /// The watch only logs an alert when the error rate spikes; it never rolls back automatically.
+    /// </summary>
+    private void StartPostTransitionWatch()
+    {
+        var monitor = _rootServices.GetService<IPluginResourceMonitor>();
+        if (monitor == null)
+            return;
+
+        if (Interlocked.CompareExchange(ref _postTransitionWatchRunning, 1, 0) != 0)
+            return;
+
+        var before = TrySnapshot(monitor);
+        if (before == null)
+        {
+            Volatile.Write(ref _postTransitionWatchRunning, 0);
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(PostTransitionWatchWindow).ConfigureAwait(false);
+                var after = TrySnapshot(monitor);
+                if (after == null)
+                    return;
+
+                var requestDelta = after.TotalRequests - before.TotalRequests;
+                var errorDelta = after.TotalErrors - before.TotalErrors;
+                if (requestDelta < PostTransitionWatchMinimumRequests || errorDelta <= 0)
+                    return;
+
+                var errorRate = (double)errorDelta / requestDelta;
+                if (errorRate < PostTransitionWatchErrorRateThreshold)
+                    return;
+
+                var offenders = after.PerPlugin
+                    .Select(current =>
+                    {
+                        var priorErrors = before.PerPlugin
+                            .Where(p => string.Equals(p.PluginId, current.PluginId, StringComparison.OrdinalIgnoreCase))
+                            .Select(p => (long?)p.Errors)
+                            .FirstOrDefault();
+                        return (current.PluginId, ErrorDelta: current.Errors - (priorErrors ?? 0));
+                    })
+                    .Where(p => p.ErrorDelta > 0)
+                    .OrderByDescending(p => p.ErrorDelta)
+                    .Take(3)
+                    .Select(p => $"{p.PluginId} (+{p.ErrorDelta})")
+                    .ToArray();
+
+                _logger.LogWarning(
+                    "Plugin runtime domain transitioned {WindowSeconds}s ago and the proxy pipeline error rate spiked to {ErrorRate:P1} ({ErrorCount} of {RequestCount} requests). Top error sources: {Offenders}. No automatic rollback is performed; verify the recently toggled plugins.",
+                    PostTransitionWatchWindow.TotalSeconds, errorRate, errorDelta, requestDelta,
+                    offenders.Length > 0 ? string.Join(", ", offenders) : "unknown");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Post-transition plugin pipeline watch aborted.");
+            }
+            finally
+            {
+                Volatile.Write(ref _postTransitionWatchRunning, 0);
+            }
+        });
+    }
+
+    private PluginPipelineSnapshot? TrySnapshot(IPluginResourceMonitor monitor)
+    {
+        try
+        {
+            var usage = monitor.GetAllUsage();
+            long totalRequests = 0;
+            long totalErrors = 0;
+            var perPlugin = new List<PluginPipelinePluginStats>(usage.Count);
+            foreach (var entry in usage)
+            {
+                totalRequests += entry.RequestCount;
+                totalErrors += entry.ErrorCount;
+                perPlugin.Add(new(entry.PluginId, entry.RequestCount, entry.ErrorCount));
+            }
+            return new PluginPipelineSnapshot(totalRequests, totalErrors, perPlugin);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to snapshot plugin request statistics for the post-transition watch.");
+            return null;
+        }
+    }
+
+    private sealed record PluginPipelinePluginStats(string PluginId, long Requests, long Errors);
+
+    private sealed record PluginPipelineSnapshot(
+        long TotalRequests,
+        long TotalErrors,
+        IReadOnlyList<PluginPipelinePluginStats> PerPlugin);
 
     private async Task InvokeCurrentPipelineAsync(
         HttpContext context,

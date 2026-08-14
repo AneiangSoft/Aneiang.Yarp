@@ -24,4 +24,7 @@ public sealed class ProxyLogPlugin : IGatewayPlugin
     public void ConfigureMiddleware(IApplicationBuilder app) { }
     public void ConfigureProxyPipeline(IReverseProxyApplicationBuilder proxyPipeline) => proxyPipeline.UseMiddleware<YarpRequestCaptureMiddleware>();
 
+    public void ConfigureDashboard(IPluginDashboardBuilder builder) =>
+        builder.AddNavItem(new PluginNavItem(PluginId, "menu.logs", "/logs", "bi-journal-text", 310));
+
 }

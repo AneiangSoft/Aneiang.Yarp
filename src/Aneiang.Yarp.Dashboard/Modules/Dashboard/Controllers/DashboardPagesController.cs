@@ -119,11 +119,14 @@ public class DashboardPagesController : Controller
     [HttpGet("cluster-metrics")]
     public IActionResult ClusterMetrics() { SetCommonViewBag("cluster-metrics"); return View(); }
 
+    [HttpGet("compression")]
+    public IActionResult Compression() { SetCommonViewBag("compression"); return View(); }
+
+    [HttpGet("rate-limit-redis")]
+    public IActionResult RateLimitRedis() { SetCommonViewBag("rate-limit-redis"); return View(); }
+
     [HttpGet("plugin-resources")]
     public IActionResult PluginResources() { SetCommonViewBag("plugin-resources"); return View(); }
-
-    [HttpGet("settings")]
-    public IActionResult Settings() { SetCommonViewBag("settings"); return View(); }
 
     #endregion
 

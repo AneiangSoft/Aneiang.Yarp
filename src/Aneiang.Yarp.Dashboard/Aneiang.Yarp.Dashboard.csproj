@@ -31,8 +31,10 @@
     <ProjectReference Include="..\Aneiang.Yarp.Plugin.Retry\Aneiang.Yarp.Plugin.Retry.csproj" />
     <ProjectReference Include="..\Aneiang.Yarp.Plugin.CircuitBreaker\Aneiang.Yarp.Plugin.CircuitBreaker.csproj" />
     <ProjectReference Include="..\Aneiang.Yarp.Plugin.RateLimit\Aneiang.Yarp.Plugin.RateLimit.csproj" />
+    <ProjectReference Include="..\Aneiang.Yarp.Plugin.RateLimit.Redis\Aneiang.Yarp.Plugin.RateLimit.Redis.csproj" />
     <ProjectReference Include="..\Aneiang.Yarp.Plugin.ProxyLog\Aneiang.Yarp.Plugin.ProxyLog.csproj" />
     <ProjectReference Include="..\Aneiang.Yarp.Plugin.Cache\Aneiang.Yarp.Plugin.Cache.csproj" />
+    <ProjectReference Include="..\Aneiang.Yarp.Plugin.Compression\Aneiang.Yarp.Plugin.Compression.csproj" />
     <ProjectReference Include="..\Aneiang.Yarp.Plugin.ServiceDiscovery\Aneiang.Yarp.Plugin.ServiceDiscovery.csproj" />
 
     <ProjectReference Include="..\Aneiang.Yarp.Plugin.Metrics\Aneiang.Yarp.Plugin.Metrics.csproj" />

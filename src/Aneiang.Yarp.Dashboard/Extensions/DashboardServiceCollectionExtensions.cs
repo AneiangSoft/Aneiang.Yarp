@@ -14,10 +14,12 @@ using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Aneiang.Yarp.Plugin.Cache;
 using Aneiang.Yarp.Plugin.CircuitBreaker;
+using Aneiang.Yarp.Plugin.Compression;
 using Aneiang.Yarp.Plugin.Metrics;
 using Aneiang.Yarp.Plugin.ProxyLog;
 using Aneiang.Yarp.Plugin.ProxyLog.Services;
 using Aneiang.Yarp.Plugin.RateLimit;
+using Aneiang.Yarp.Plugin.RateLimit.Redis;
 using Aneiang.Yarp.Plugin.Retry;
 using Aneiang.Yarp.Plugin.ServiceDiscovery;
 using Aneiang.Yarp.Plugin.Waf;
@@ -312,16 +314,23 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<IGatewayPlugin, CircuitBreakerPlugin>();
         services.AddSingleton<IGatewayPlugin, RequestRetryPlugin>();
         services.AddSingleton<IGatewayPlugin, RateLimitPlugin>();
+        // Optional Redis-backed distributed rate limiting: active only when a route binding
+        // supplies a redisConnectionString (StackExchange.Redis is loaded via reflection when present).
+        services.AddSingleton<IGatewayPlugin, RedisRateLimitPlugin>();
+        services.AddSingleton<IDistributedRateLimitStore, RedisLuaRateLimitStore>();
         services.AddSingleton<IGatewayPlugin, WafPlugin>();
         services.AddSingleton<IGatewayPlugin, ProxyLogPlugin>();
         services.AddSingleton<IGatewayPlugin, ResponseCachePlugin>();
         services.AddSingleton<IGatewayPlugin, TrafficMetricsPlugin>();
         services.AddSingleton<IGatewayPlugin, ClusterMetricsPlugin>();
         services.AddSingleton<IGatewayPlugin, HttpServiceDiscoveryPlugin>();
+        services.AddSingleton<IGatewayPlugin, CompressionPlugin>();
         services.AddSingleton<PluginMetricStore>();
         services.AddSingleton<ExternalGatewayPluginHost>();
         services.AddSingleton<GatewayPluginManager>();
         services.AddSingleton<IGatewayPluginManager>(provider => provider.GetRequiredService<GatewayPluginManager>());
+        services.AddSingleton<IPluginDashboardBuilder, PluginDashboardBuilder>();
+        services.AddSingleton<PluginDashboardInitializer>();
         services.AddSingleton<IPluginRuntimeDomainManager, PluginRuntimeDomainManager>();
         services.AddSingleton<IPluginBindingMutationService, PluginBindingMutationService>();
         services.AddSingleton(provider => (PluginRuntimeDomainManager)provider.GetRequiredService<IPluginRuntimeDomainManager>());

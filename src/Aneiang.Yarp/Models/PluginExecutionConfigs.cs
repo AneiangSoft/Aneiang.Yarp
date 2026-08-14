@@ -53,6 +53,18 @@ public sealed record RateLimitExecutionConfig
     public string RouteUid { get; init; } = string.Empty;
 }
 
+/// <summary>Compiled route-scoped configuration for the Redis distributed rate-limit plugin.</summary>
+public sealed record RedisRateLimitExecutionConfig
+{
+    public bool Enabled { get; init; } = true;
+    public string? RedisConnectionString { get; init; }
+    public string Algorithm { get; init; } = "FixedWindow";
+    public int Limit { get; init; } = 100;
+    public int WindowSeconds { get; init; } = 60;
+    public string KeyPrefix { get; init; } = "aneiang:rl";
+    public int BurstBalance { get; init; }
+}
+
 public sealed record ProxyLogBindingExecutionConfig
 {
     public bool? CaptureRequestHeaders { get; init; }
@@ -92,6 +104,25 @@ public sealed record MetricsExecutionConfig
     public bool IncludeRequestBytes { get; init; } = true;
     public bool IncludeResponseBytes { get; init; } = true;
     public bool IncludeDestination { get; init; } = true;
+}
+
+/// <summary>Route-scoped response compression configuration stored in a plugin binding.</summary>
+public sealed record CompressionExecutionConfig
+{
+    public bool Enabled { get; init; } = true;
+    public int MinResponseSize { get; init; } = 1024;
+    public string CompressionLevel { get; init; } = "Optimal";
+    public string[] MimeTypes { get; init; } =
+    [
+        "text/plain",
+        "text/css",
+        "text/javascript",
+        "application/json",
+        "application/xml",
+        "text/xml",
+        "application/javascript",
+        "image/svg+xml"
+    ];
 }
 
 public sealed record ServiceDiscoveryExecutionConfig
