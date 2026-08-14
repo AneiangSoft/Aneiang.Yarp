@@ -229,31 +229,45 @@ public class ConfigPersistenceService : IConfigPersistenceService
 
             var config = snapshot.Config;
             bool hasReverseProxy = config.TryGetProperty("reverseProxy", out var rpC) || config.TryGetProperty("ReverseProxy", out rpC);
+            if (!hasReverseProxy)
+            {
+                _logger.LogWarning(
+                    "Rollback aborted: snapshot {VersionId} has no ReverseProxy section, refusing to wipe current config.",
+                    versionId);
+                return false;
+            }
+
             var yarpRoutes = new List<RouteConfig>();
             var yarpClusters = new List<ClusterConfig>();
-
-            if (hasReverseProxy)
+            var reverseProxy = rpC;
+            if (reverseProxy.TryGetProperty("routes", out var rC) || reverseProxy.TryGetProperty("Routes", out rC))
             {
-                var reverseProxy = rpC;
-                if (reverseProxy.TryGetProperty("routes", out var rC) || reverseProxy.TryGetProperty("Routes", out rC))
+                foreach (var route in rC.EnumerateObject())
                 {
-                    foreach (var route in rC.EnumerateObject())
-                    {
-                        var routeConfig = Aneiang.Yarp.Serialization.YarpJsonConfig.DeserializeRoute(route.Value);
-                        if (routeConfig == null) continue;
-                        yarpRoutes.Add(routeConfig with { RouteId = route.Name });
-                    }
+                    var routeConfig = Aneiang.Yarp.Serialization.YarpJsonConfig.DeserializeRoute(route.Value);
+                    if (routeConfig == null) continue;
+                    yarpRoutes.Add(routeConfig with { RouteId = route.Name });
                 }
+            }
 
-                if (reverseProxy.TryGetProperty("clusters", out var clC) || reverseProxy.TryGetProperty("Clusters", out clC))
+            if (reverseProxy.TryGetProperty("clusters", out var clC) || reverseProxy.TryGetProperty("Clusters", out clC))
+            {
+                foreach (var cluster in clC.EnumerateObject())
                 {
-                    foreach (var cluster in clC.EnumerateObject())
-                    {
-                        var clusterConfig = Aneiang.Yarp.Serialization.YarpJsonConfig.DeserializeCluster(cluster.Value);
-                        if (clusterConfig == null) continue;
-                        yarpClusters.Add(clusterConfig with { ClusterId = cluster.Name });
-                    }
+                    var clusterConfig = Aneiang.Yarp.Serialization.YarpJsonConfig.DeserializeCluster(cluster.Value);
+                    if (clusterConfig == null) continue;
+                    yarpClusters.Add(clusterConfig with { ClusterId = cluster.Name });
                 }
+            }
+
+            // Refuse to apply an empty snapshot: ReplaceAllConfig with empty lists would
+            // silently wipe every route/cluster currently in effect.
+            if (yarpRoutes.Count == 0 && yarpClusters.Count == 0)
+            {
+                _logger.LogWarning(
+                    "Rollback aborted: snapshot {VersionId} contains no routes or clusters, refusing to wipe current config.",
+                    versionId);
+                return false;
             }
 
             if (_dynamicConfig != null)

@@ -214,7 +214,10 @@ public sealed class LogSanitizer : ILogSanitizer
             JsonValueKind.Object => SanitizeJsonObject(element),
             JsonValueKind.Array => SanitizeJsonArray(element),
             JsonValueKind.String => element.GetString(),
-            JsonValueKind.Number => element.GetDecimal(),
+            // Keep the original literal so large integers (64-bit ids, epoch-millis
+            // timestamps) never lose precision when re-serialized through decimal.
+            // Cloning preserves the original value kind and raw token.
+            JsonValueKind.Number => element.Clone(),
             JsonValueKind.True => true,
             JsonValueKind.False => false,
             _ => element.GetRawText()

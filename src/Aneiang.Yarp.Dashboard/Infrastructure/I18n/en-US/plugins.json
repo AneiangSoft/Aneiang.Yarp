@@ -381,9 +381,6 @@
   "logs.config.title": "Proxy Log Configuration",
   "index.log.emptyDesc": "Logs will appear here when requests flow through the gateway",
   "index.btn.refresh": "Refresh",
-  "index.health.healthy": "Healthy",
-  "index.health.unknown": "Unknown",
-  "index.health.unhealthy": "Unhealthy",
   "overview.signalr.disconnected": "SignalR Disconnected",
   "plugin.resetAll": "Enable All",
   "pluginPage.bindings": "Bindings",
@@ -417,10 +414,9 @@
   "pluginPage.cluster": "Cluster",
   "pluginPage.route": "Route",
   "webhook.events.title": "Notification Events",
-  "webhook.events.help": "Select event types to push notifications for",
   "webhook.events.routeGroup": "Route Changes",
   "webhook.events.clusterGroup": "Cluster Changes",
   "webhook.events.configGroup": "Config Management",
   "webhook.events.deselectAll": "Deselect All",
-  "config.rollbackConfirm": "Confirm rollback to version {versionId}?"
+  "common.importing": "Importing..."
 }

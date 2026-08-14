@@ -260,5 +260,17 @@
   "modal.validJson": "JSON is valid",
   "modal.validate": "Validate",
   "modal.validationError": "Please fill all required fields",
-  "modal.closeBtn": "Close"
+  "modal.closeBtn": "Close",
+  "layout.logout": "Logout",
+  "waf.title": "WAF Firewall",
+  "retry.title": "Request Retry",
+  "rateLimit.title": "Rate Limiting",
+  "responseCache.title": "Response Cache",
+  "serviceDiscovery.title": "Service Discovery",
+  "trafficMetrics.title": "Traffic Metrics",
+  "clusterMetrics.title": "Cluster Metrics",
+  "pluginResources.title": "Plugin Resources",
+  "policy.routePolicy": "Route Policy",
+  "policy.circuitBreaker": "Circuit Breaker",
+  "policy.enabled": "Enabled"
 }

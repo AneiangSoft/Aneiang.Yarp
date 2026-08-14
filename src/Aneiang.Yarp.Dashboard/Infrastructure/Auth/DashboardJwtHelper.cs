@@ -50,22 +50,42 @@ public static class DashboardJwtHelper
         var signingInput = $"{parts[0]}.{parts[1]}";
         var expectedSig = ComputeSignature(signingInput, secret);
 
-        if (!ConstantTimeEquals(Base64UrlDecode(parts[2]), expectedSig))
-            return (false, null);
-
-        var payloadBytes = Base64UrlDecode(parts[1]);
-        using var doc = JsonDocument.Parse(payloadBytes);
-        var root = doc.RootElement;
-
-        // Check expiry
-        if (root.TryGetProperty("exp", out var expEl))
+        byte[] actualSig;
+        byte[] payloadBytes;
+        try
         {
-            var expTime = DateTimeOffset.FromUnixTimeSeconds(expEl.GetInt64());
-            if (expTime < DateTimeOffset.UtcNow) return (false, null);
+            actualSig = Base64UrlDecode(parts[2]);
+            payloadBytes = Base64UrlDecode(parts[1]);
+        }
+        catch (FormatException)
+        {
+            // Malformed base64url payload/signature — treat as invalid, never throw.
+            return (false, null);
         }
 
-        var username = root.TryGetProperty("sub", out var subEl) ? subEl.GetString() : null;
-        return (true, username);
+        if (!ConstantTimeEquals(actualSig, expectedSig))
+            return (false, null);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(payloadBytes);
+            var root = doc.RootElement;
+
+            // Check expiry
+            if (root.TryGetProperty("exp", out var expEl))
+            {
+                var expTime = DateTimeOffset.FromUnixTimeSeconds(expEl.GetInt64());
+                if (expTime < DateTimeOffset.UtcNow) return (false, null);
+            }
+
+            var username = root.TryGetProperty("sub", out var subEl) ? subEl.GetString() : null;
+            return (true, username);
+        }
+        catch (Exception ex) when (ex is JsonException or FormatException or OverflowException or KeyNotFoundException)
+        {
+            // Invalid or unexpected payload structure — treat as invalid, never throw.
+            return (false, null);
+        }
     }
 
     private static byte[] ComputeSignature(string input, string secret)
