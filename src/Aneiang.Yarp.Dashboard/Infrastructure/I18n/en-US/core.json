@@ -114,6 +114,7 @@
   "menu.overview": "Dashboard",
   "menu.clusters": "Clusters",
   "menu.routes": "Routes",
+  "menu.history": "Config History",
   "menu.plugins": "Plugin Manager",
   "menu.pluginResources": "Plugin Resources",
   "menu.strategyConfig": "Strategy Config",

@@ -291,12 +291,16 @@
                     schemaForm.appendChild(notice);
                     return;
                 }
-                var required = schema.required || [];
-                schemaForm.__schemaFields = Object.keys(schema.properties).map(function(name) {
-                    var field = Cap.schemaField(name, schema.properties[name], bindingConfig[name], required.indexOf(name) >= 0, pluginId);
-                    schemaForm.appendChild(field);
-                    return { name: name, field: field };
-                });
+                if (Cap && Cap.renderGroupedFields) {
+                    Cap.renderGroupedFields(schemaForm, schema, bindingConfig, pluginId);
+                } else {
+                    var required = schema.required || [];
+                    schemaForm.__schemaFields = Object.keys(schema.properties).filter(function(name) { return name !== 'enabled'; }).map(function(name) {
+                        var field = Cap.schemaField(name, schema.properties[name], bindingConfig[name], required.indexOf(name) >= 0, pluginId);
+                        schemaForm.appendChild(field);
+                        return { name: name, field: field };
+                    });
+                }
             }
 
             function syncToJson() {

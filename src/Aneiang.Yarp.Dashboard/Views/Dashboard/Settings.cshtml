@@ -37,6 +37,22 @@
         </div>
     </div>
 
+    <!-- 账号安全 (2FA) -->
+    <div class="card-panel mb-4">
+        <div class="card-header">
+            <span><i class="bi bi-shield-lock me-2" style="color:#f59e0b;"></i><span data-i18n="twofa.title">双因素认证 (2FA)</span></span>
+            <div class="card-header-actions">
+                <span id="twofa-status-badge" class="badge bg-secondary" data-i18n="common.loading">加载中</span>
+            </div>
+        </div>
+        <div id="twofa-content" class="card-body">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <div class="loading-text" data-i18n="common.loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+
     <!-- B: 日志与数据持久化 -->
     <div class="card-panel mb-4">
         <div class="card-header">
@@ -158,6 +174,10 @@
 
 @section Scripts {
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-settings.js"></script>
+<!-- QRCode for 2FA setup (vendored locally - no CDN dependency for intranet) -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/vendor/qrcode.min.js" onerror="console.warn('[2FA] local qrcode lib failed to load, will fall back to manual secret entry')"></script>
+<!-- Two-factor authentication module (account security card) -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-twofactor.js"></script>
 @await Html.PartialAsync("_DashboardPageInit")
 <script>
     (async function() {
@@ -169,6 +189,9 @@
         if (window.DashboardModals) DashboardModals.init();
         if (window.DashboardEvents) DashboardEvents.setup();
         await SettingsModule.load();
+        if (window.TwoFactorModule) {
+            TwoFactorModule.load().catch(function() {});
+        }
         document.dispatchEvent(new CustomEvent('dashboard:ready'));
     })();
 </script>

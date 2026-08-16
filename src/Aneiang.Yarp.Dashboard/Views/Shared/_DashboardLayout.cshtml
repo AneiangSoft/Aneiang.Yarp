@@ -3298,7 +3298,8 @@
                     new[]
                     {
                         ("clusters", isEn ? "Clusters" : "服务集群", "menu.clusters", "bi-diagram-3", $"/{prefix}/clusters", "count", Array.Empty<object>()),
-                        ("routes", isEn ? "Routes" : "路由配置", "menu.routes", "bi-signpost-split", $"/{prefix}/routes", "count", Array.Empty<object>())
+                        ("routes", isEn ? "Routes" : "路由配置", "menu.routes", "bi-signpost-split", $"/{prefix}/routes", "count", Array.Empty<object>()),
+                        ("history", isEn ? "Config History" : "配置历史", "menu.history", "bi-clock-history", $"/{prefix}/history", "", Array.Empty<object>())
                     }
                 ),
                 (
@@ -3514,7 +3515,6 @@
                 {"rate-limit", "bi-speed-limit"},
                 {"response-cache", "bi-hdd-network"},
                 {"service-discovery", "bi-broadcast"},
-                {"traffic-metrics", "bi-graph-up"},
                 {"cluster-metrics", "bi-diagram-3"},
                 {"settings", "bi-gear"},
                 {"plugins", "bi-puzzle"},
@@ -3527,7 +3527,7 @@
             var pageIcon = pageIcons.ContainsKey(pgName) ? pageIcons[pgName] : "bi-app-indicator";
             var parentGroup = "";
             var parentGroupI18n = "";
-            if (new[] { "clusters", "routes" }.Contains(pgName)) { parentGroup = pgIsEn ? "Gateway Config" : "网关配置"; parentGroupI18n = "menu.group.gateway"; }
+            if (new[] { "clusters", "routes", "history" }.Contains(pgName)) { parentGroup = pgIsEn ? "Gateway Config" : "网关配置"; parentGroupI18n = "menu.group.gateway"; }
             if (pgName == "overview") parentGroup = "";
             if (new[] { "plugins", "plugin-resources", "rate-limit", "waf", "retry", "response-cache", "service-discovery", "compression", "logs", "circuits", "traffic", "cluster-metrics" }.Contains(pgName)) { parentGroup = pgIsEn ? "Plugin Center" : "插件中心"; parentGroupI18n = "menu.group.plugins"; }
             if (new[] { "audit", "settings" }.Contains(pgName)) { parentGroup = pgIsEn ? "System" : "系统管理"; parentGroupI18n = "menu.group.system"; }
@@ -3826,7 +3826,8 @@
                     if (!response.ok) throw new Error('Plugin status request failed');
                     return response.json();
                 })
-                .then(function (plugins) {
+                .then(function (payload) {
+                    var plugins = payload && payload.data !== undefined ? payload.data : payload;
                     var enabled = new Set((Array.isArray(plugins) ? plugins : [])
                         .filter(function (plugin) { return plugin && plugin.enabled; })
                         .map(function (plugin) { return String(plugin.pluginId || plugin.id || '').toLowerCase(); }));

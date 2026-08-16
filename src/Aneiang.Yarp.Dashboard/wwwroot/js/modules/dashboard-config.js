@@ -627,7 +627,7 @@
             for (var i = 0; i < platforms.length; i++) {
                 try {
                     var resp = await window.DashboardApi.endpoints.testWebhook({ platform: platforms[i] });
-                    results.push({ platform: platforms[i], success: resp && resp.success > 0 });
+                    results.push({ platform: platforms[i], success: !!(resp && resp.success) });
                 } catch (e) {
                     results.push({ platform: platforms[i], success: false, error: e.message });
                 }
@@ -846,8 +846,10 @@
 
             try {
                 var resp = await window.DashboardApi.endpoints.testWebhook({ platform: platform });
-                if (resp && resp.success > 0) {
-                    resultEl.innerHTML = '<i class="bi bi-check-circle-fill" style="color:#22c55e;"></i><span style="margin-left:6px;color:#166534;">' + (__('webhook.testSuccess') || 'Success') + ' (' + resp.success + '/' + resp.total + ')</span>';
+                if (resp && resp.success) {
+                    resultEl.innerHTML = '<i class="bi bi-check-circle-fill" style="color:#22c55e;"></i><span style="margin-left:6px;color:#166534;">' + (__('webhook.testSuccess') || 'Success') + ' (' + (resp.succeeded != null ? resp.succeeded : resp.total) + '/' + resp.total + ')</span>';
+                } else if (resp && resp.total > 0) {
+                    resultEl.innerHTML = '<i class="bi bi-x-circle-fill" style="color:#ef4444;"></i><span style="margin-left:6px;color:#dc2626;">' + (__('webhook.testFailed') || 'Failed') + ' (' + resp.succeeded + '/' + resp.total + ')</span>';
                 } else {
                     resultEl.innerHTML = '<i class="bi bi-x-circle-fill" style="color:#ef4444;"></i><span style="margin-left:6px;color:#dc2626;">' + (__('webhook.testFailed') || 'Failed') + '</span>';
                 }

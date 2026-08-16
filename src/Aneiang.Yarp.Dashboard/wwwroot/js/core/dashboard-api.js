@@ -271,10 +271,6 @@
         getCircuitBreakerStatus: () => DashboardApi.get('/api/circuit-breaker/status'),
         resetCircuitBreakers: () => DashboardApi.post('/api/circuit-breaker/reset', {}),
 
-        // Route/cluster capability policies
-        getRoutePoliciesForRoute: (routeId) => DashboardApi.get('/api/policies/routes/for-route/' + encodeURIComponent(routeId)),
-        getClusterPoliciesForCluster: (clusterId) => DashboardApi.get('/api/policies/clusters/for-cluster/' + encodeURIComponent(clusterId)),
-
         // Plugins
         getPlugins: () => DashboardApi.get('/api/plugins'),
         getPlugin: (id) => DashboardApi.get('/api/plugins/' + id),
@@ -307,8 +303,13 @@
         // Database Download
         downloadDatabase: () => DashboardApi.download('/api/settings/database', 'gateway-store.db'),
 
-        // Cluster Toggle (Stage 2)
-        toggleCluster: (clusterId) => DashboardApi.post('/api/config/clusters/' + clusterId + '/toggle'),
+        // Overview snapshot (HTTP fallback for the SignalR push)
+        getOverviewSnapshot: () => DashboardApi.get('/api/overview/snapshot'),
+
+        // Webhook notifications (config-change events)
+        getWebhookSettings: () => DashboardApi.get('/api/webhook/settings'),
+        saveWebhookSettings: (data) => DashboardApi.post('/api/webhook/settings', data),
+        testWebhook: (data) => DashboardApi.post('/api/webhook/test', data),
 
         // Plugin Resource Monitor
         getPluginResources: () => DashboardApi.get('/api/plugin-resources'),

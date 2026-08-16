@@ -406,3 +406,67 @@
         justify-content: space-between;
     }
 }
+
+/* ============ Capability plugin selector cards ============ */
+.capability-plugin-card {
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    height: 100%;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.capability-plugin-card:hover,
+.capability-plugin-card:focus-visible {
+    border-color: #0d6efd;
+    outline: none;
+}
+
+.capability-plugin-card.selected {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.15rem rgba(13, 110, 253, 0.15);
+}
+
+.capability-plugin-card.locked {
+    cursor: default;
+    opacity: 0.95;
+}
+
+.capability-plugin-icon {
+    font-size: 1.25rem;
+    line-height: 1.2;
+}
+
+.capability-plugin-desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+
+/* ============ Capability advanced fields collapse ============ */
+.capability-advanced {
+    margin: 0.25rem 0 0.75rem;
+}
+
+.capability-advanced-toggle {
+    font-size: 0.8rem;
+}
+
+.capability-advanced .collapse {
+    padding-top: 0.5rem;
+}
+
+[data-bs-theme="dark"] .capability-plugin-card {
+    background: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme="dark"] .capability-plugin-desc {
+    color: var(--bs-secondary-color);
+}
+

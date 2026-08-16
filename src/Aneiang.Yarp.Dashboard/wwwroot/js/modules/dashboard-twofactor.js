@@ -1,7 +1,7 @@
 /**
  * Two-Factor Authentication (2FA) Module
  * Self-service TOTP binding: enable / disable / QR setup.
- * Hosted on the Overview page ("Account Security" card).
+ * Hosted on the Settings page ("Account Security" card).
  */
 (function() {
     'use strict';

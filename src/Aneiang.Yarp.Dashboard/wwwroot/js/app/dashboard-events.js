@@ -66,10 +66,17 @@
                 return;
             }
 
-            // Ctrl/Cmd + F: Focus search (only when not in an input field)
+            // Ctrl/Cmd + F: Focus an on-page search box if one exists; otherwise
+            // let the browser handle it (do not break native find-in-page).
             if ((e.ctrlKey || e.metaKey) && e.key === 'f' && !isEditable) {
-                e.preventDefault();
-                document.dispatchEvent(new CustomEvent('dashboard:shortcut:search'));
+                const searchBox = document.querySelector(
+                    'input[type="search"], .search-input, #route-search, #cluster-search, #log-search');
+                if (searchBox && searchBox.offsetParent !== null) {
+                    e.preventDefault();
+                    searchBox.focus();
+                    if (typeof searchBox.select === 'function') searchBox.select();
+                    document.dispatchEvent(new CustomEvent('dashboard:shortcut:search'));
+                }
                 return;
             }
 

@@ -114,6 +114,7 @@
   "menu.overview": "仪表盘",
   "menu.clusters": "服务集群",
   "menu.routes": "路由配置",
+  "menu.history": "配置历史",
   "menu.plugins": "插件管理",
   "menu.pluginResources": "插件资源",
   "menu.strategyConfig": "策略配置",
