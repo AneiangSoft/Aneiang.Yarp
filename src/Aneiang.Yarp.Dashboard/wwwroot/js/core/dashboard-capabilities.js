@@ -226,6 +226,36 @@
         return localize('schema.common.' + name + '.' + enumValue);
     }
 
+    // Plugin metadata: icon, accent color and common (frequently used) fields for form grouping.
+    var PLUGIN_META = {
+        'rate-limit': { icon: 'bi-speedometer2', color: '#0dcaf0', common: ['algorithm', 'permitLimit', 'window'] },
+        'rate-limit-redis': { icon: 'bi-hdd-network', color: '#f4501e', common: ['redisConnectionString', 'algorithm', 'limit', 'windowSeconds'] },
+        'waf': { icon: 'bi-shield-lock', color: '#dc3545', common: ['enableSqlInjectionDetection', 'enableXssDetection', 'enablePathTraversalDetection', 'enableRequestSizeValidation', 'maxRequestBodySize'] },
+        'circuit-breaker': { icon: 'bi-electrical-socket', color: '#fd7e14', common: ['failureThreshold', 'recoveryTimeoutSeconds'] },
+        'request-retry': { icon: 'bi-arrow-repeat', color: '#20c997', common: ['maxRetries', 'backoffBaseMs'] },
+        'response-cache': { icon: 'bi-hdd-stack', color: '#0d6efd', common: ['ttlSeconds'] },
+        'compression': { icon: 'bi-file-zip', color: '#198754', common: ['compressionLevel', 'minResponseSize'] },
+        'service-discovery': { icon: 'bi-diagram-3', color: '#6f42c1', common: ['mode', 'endpoint', 'staticEndpoints'] },
+        'proxy-log': { icon: 'bi-journal-text', color: '#6c757d', common: ['errorsOnly', 'samplingEnabled', 'samplingRate'] },
+        'traffic-metrics': { icon: 'bi-graph-up-arrow', color: '#d63384', common: [] },
+        'cluster-metrics': { icon: 'bi-clipboard-data', color: '#3d8bfd', common: [] }
+    };
+
+    function pluginMeta(pluginId) {
+        return PLUGIN_META[resolvePluginId(pluginId)] || null;
+    }
+
+    // Localized card title/description derived from "Name - description" i18n text.
+    function pluginCardText(plugin) {
+        var id = plugin.pluginId;
+        var raw = localize('pluginPage.desc.' + id) || plugin.description || '';
+        var split = raw.indexOf(' - ');
+        return {
+            title: split > 0 ? raw.slice(0, split) : (plugin.displayName || id),
+            desc: split > 0 ? raw.slice(split + 3) : raw
+        };
+    }
+
     function propertyLabel(name, property, pluginId) {
         var localized = localizeFieldLabel(pluginId, name);
         if (localized) return localized;
@@ -395,6 +425,64 @@
         return wrapper;
     }
 
+    var advancedSectionSeq = 0;
+
+    // Renders a schema form with common fields first and the rest folded into an "Advanced" collapse.
+    // Shared by the capability modal and the plugin page binding editor.
+    function renderGroupedFields(formEl, schema, config, pluginId) {
+        var properties = (schema && schema.properties) || {};
+        // 'enabled' is owned by the binding-level toggle; hide it from the form (still editable in JSON mode).
+        var names = Object.keys(properties).filter(function(name) { return name !== 'enabled'; });
+        formEl.replaceChildren();
+        if (!names.length) {
+            var emptyNotice = document.createElement('div');
+            emptyNotice.className = 'alert alert-secondary py-2';
+            emptyNotice.textContent = __('capability.form.noEditableFields');
+            formEl.appendChild(emptyNotice);
+            formEl.__schemaFields = [];
+            return true;
+        }
+        var meta = pluginMeta(pluginId);
+        var commonList = (meta && meta.common) || [];
+        var commonNames = [];
+        commonList.forEach(function(fieldName) {
+            if (names.indexOf(fieldName) >= 0 && commonNames.indexOf(fieldName) < 0) commonNames.push(fieldName);
+        });
+        var restNames = names.filter(function(fieldName) { return commonNames.indexOf(fieldName) < 0; });
+        var required = (schema && schema.required) || [];
+        var entries = [];
+        function appendFields(host, list) {
+            list.forEach(function(fieldName) {
+                var field = schemaField(fieldName, properties[fieldName], config ? config[fieldName] : undefined, required.indexOf(fieldName) >= 0, pluginId);
+                host.appendChild(field);
+                entries.push({ name: fieldName, field: field });
+            });
+        }
+        if (commonNames.length && restNames.length >= 3) {
+            appendFields(formEl, commonNames);
+            var collapseId = 'capability-advanced-' + (++advancedSectionSeq);
+            var toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'btn btn-sm btn-outline-secondary w-100 capability-advanced-toggle';
+            toggle.setAttribute('data-bs-toggle', 'collapse');
+            toggle.setAttribute('data-bs-target', '#' + collapseId);
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.innerHTML = '<i class="bi bi-sliders2 me-1"></i>' + __('capability.form.advancedCount', { count: restNames.length });
+            var collapsible = document.createElement('div');
+            collapsible.id = collapseId;
+            collapsible.className = 'collapse';
+            appendFields(collapsible, restNames);
+            var section = document.createElement('div');
+            section.className = 'capability-advanced';
+            section.append(toggle, collapsible);
+            formEl.appendChild(section);
+        } else {
+            appendFields(formEl, commonNames.concat(restNames));
+        }
+        formEl.__schemaFields = entries;
+        return true;
+    }
+
     function readSchemaForm(form, schema, original) {
         var result = Object.assign({}, original || {});
         var valid = true;
@@ -404,7 +492,13 @@
             else if (next.present) result[entry.name] = next.value;
             else delete result[entry.name];
         });
-        if (!valid) form.querySelector(':invalid')?.reportValidity();
+        if (!valid) {
+            // Reveal folded sections so the invalid field becomes visible before reporting.
+            form.querySelectorAll('.collapse:not(.show)').forEach(function(section) {
+                if (window.bootstrap && bootstrap.Collapse) bootstrap.Collapse.getOrCreateInstance(section, { toggle: false }).show();
+            });
+            form.querySelector(':invalid')?.reportValidity();
+        }
         return valid ? result : null;
     }
 
@@ -424,7 +518,11 @@
             modal.dataset.bsBackdrop = 'static';
             modal.innerHTML = '<div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">' +
                 '<div class="modal-header"><h5 class="modal-title"><i class="bi bi-puzzle me-2"></i>' + (binding ? __('capability.modal.editTitle') : __('capability.modal.addTitle')) + '</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
-                '<div class="modal-body"><div class="mb-3"><label class="form-label">' + __('capability.modal.plugin') + '</label><select class="form-select" data-role="plugin"></select><div class="small mt-2" data-role="plugin-info"></div></div>' +
+                '<div class="modal-body"><div class="mb-3"><label class="form-label">' + __('capability.modal.plugin') + '</label>' +
+                (!binding ? '<div class="form-text mt-0 mb-1"><i class="bi bi-hand-index-thumb me-1"></i>' + __('capability.modal.selectPluginHint') + '</div>' : '') +
+                '<select class="form-select d-none" data-role="plugin"></select>' +
+                '<div class="row g-2" data-role="plugin-cards"></div>' +
+                '<div class="small mt-2" data-role="plugin-info"></div></div>' +
                 '<div class="mb-3 d-flex align-items-end gap-2"><div class="flex-grow-1"><label class="form-label">' + __('capability.modal.preset') + '</label><select class="form-select form-select-sm" data-role="preset"><option value="">' + __('capability.modal.noPreset') + '</option></select></div>' +
                 '<button type="button" class="btn btn-outline-secondary btn-sm" data-role="save-preset" title="' + __('capability.modal.savePresetTitle') + '"><i class="bi bi-bookmark-plus me-1"></i>' + __('capability.modal.savePreset') + '</button></div>' +
                 '<div class="form-check mb-3"><input class="form-check-input" type="checkbox" data-role="enabled" id="' + modalId + '-enabled"><label class="form-check-label" for="' + modalId + '-enabled">' + __('capability.modal.enableBinding') + '</label></div>' +
@@ -434,6 +532,7 @@
             document.body.appendChild(modal);
 
             var pluginSelect = modal.querySelector('[data-role="plugin"]');
+            var pluginCards = modal.querySelector('[data-role="plugin-cards"]');
             var pluginInfo = modal.querySelector('[data-role="plugin-info"]');
             var enabledInput = modal.querySelector('[data-role="enabled"]');
             var schemaForm = modal.querySelector('[data-role="schema-form"]');
@@ -450,21 +549,49 @@
 
             function renderPluginInfo() {
                 var plugin = plugins.find(function(item) { return item.pluginId === pluginSelect.value; });
-                if (!plugin) { pluginInfo.innerHTML = ''; return; }
-                var scopes = Array.isArray(plugin.scopes) ? plugin.scopes : [plugin.scope || 'Route'];
-                var badges = scopes.map(function(scope) {
-                    var scopeKey = 'capability.modal.pluginScope.' + scope;
-                    var scopeLabel = window.__(scopeKey) || scope;
-                    return '<span class="badge bg-info me-2">' + escapeHtml(scopeLabel) + '</span>';
-                }).join('');
-                if (plugin.enabled === false) badges += '<span class="badge bg-danger me-2">' + __('capability.status.globallyDisabled') + '</span>';
-                var description = plugin.description || '';
-                var warning = plugin.enabled === false ? '<div class="text-danger mt-1"><i class="bi bi-exclamation-triangle-fill me-1"></i>' + __('capability.modal.pluginDisabledWarning') + '</div>' : '';
-                pluginInfo.innerHTML = '<div class="mb-1">' + badges + '</div><div class="text-secondary small">' + escapeHtml(description) + '</div>' + warning;
+                if (!plugin || plugin.enabled !== false) { pluginInfo.innerHTML = ''; return; }
+                pluginInfo.innerHTML = '<div class="text-danger mt-1"><i class="bi bi-exclamation-triangle-fill me-1"></i>' + __('capability.modal.pluginDisabledWarning') + '</div>';
+            }
+
+            // Card-based plugin selector; the hidden select remains the state holder.
+            function renderPluginCards() {
+                pluginCards.replaceChildren();
+                selectable.forEach(function(plugin) {
+                    var meta = pluginMeta(plugin.pluginId);
+                    var texts = pluginCardText(plugin);
+                    var scopes = Array.isArray(plugin.scopes) ? plugin.scopes : [plugin.scope || 'Route'];
+                    var badges = scopes.map(function(scope) {
+                        var scopeLabel = localize('capability.modal.pluginScope.' + scope) || scope;
+                        return '<span class="badge text-bg-light border">' + escapeHtml(scopeLabel) + '</span>';
+                    }).join(' ');
+                    if (plugin.enabled === false) badges += '<span class="badge text-bg-danger">' + __('capability.status.globallyDisabled') + '</span>';
+                    var col = document.createElement('div');
+                    col.className = 'col-12 col-md-6';
+                    col.innerHTML = '<div class="capability-plugin-card' + (plugin.pluginId === pluginSelect.value ? ' selected' : '') + (pluginSelect.disabled ? ' locked' : '') + '" role="button" tabindex="' + (pluginSelect.disabled ? '-1' : '0') + '">' +
+                        '<div class="d-flex align-items-start gap-2">' +
+                        '<span class="capability-plugin-icon"' + (meta && meta.color ? ' style="color:' + meta.color + '"' : '') + '><i class="bi ' + ((meta && meta.icon) || 'bi-puzzle') + '"></i></span>' +
+                        '<span class="flex-grow-1 min-w-0">' +
+                        '<span class="d-block fw-semibold small">' + escapeHtml(texts.title) + '</span>' +
+                        '<span class="capability-plugin-desc">' + escapeHtml(texts.desc) + '</span>' +
+                        '</span></div>' +
+                        '<div class="d-flex gap-1 mt-2 flex-wrap">' + badges + '</div></div>';
+                    var card = col.firstElementChild;
+                    function pick() {
+                        if (pluginSelect.disabled || pluginSelect.value === plugin.pluginId) return;
+                        pluginSelect.value = plugin.pluginId;
+                        pluginSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    card.addEventListener('click', pick);
+                    card.addEventListener('keydown', function(event) {
+                        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); pick(); }
+                    });
+                    pluginCards.appendChild(col);
+                });
             }
 
             selectable.forEach(function(plugin) { pluginSelect.appendChild(new Option(plugin.displayName || plugin.pluginId, plugin.pluginId, false, plugin.pluginId === (binding && binding.pluginId))); });
             pluginSelect.disabled = !!binding;
+            renderPluginCards();
             enabledInput.checked = binding ? binding.enabled : true;
 
             function renderForm(reset) {
@@ -478,18 +605,13 @@
                     notice.textContent = __('capability.modal.noSchema');
                     schemaForm.appendChild(notice);
                 } else {
-                    var required = schema.required || [];
-                    schemaForm.__schemaFields = Object.keys(schema.properties).map(function(name) {
-                        var field = schemaField(name, schema.properties[name], config[name], required.indexOf(name) >= 0, pluginSelect.value);
-                        schemaForm.appendChild(field);
-                        return { name: name, field: field };
-                    });
+                    renderGroupedFields(schemaForm, schema, config, pluginSelect.value);
                 }
                 jsonInput.value = JSON.stringify(config, null, 2);
                 renderPluginInfo();
             }
 
-            pluginSelect.addEventListener('change', function() { renderForm(true); loadPresetsForPlugin(); });
+            pluginSelect.addEventListener('change', function() { renderPluginCards(); renderForm(true); loadPresetsForPlugin(); });
 
             async function loadPresetsForPlugin() {
                 var pluginId = pluginSelect.value;
@@ -621,6 +743,8 @@
         schemaField: schemaField,
         applyDefaults: applyDefaults,
         readSchemaForm: readSchemaForm,
+        renderGroupedFields: renderGroupedFields,
+        pluginMeta: pluginMeta,
         expandSchema: expandSchema,
         mergeSchema: mergeSchema,
         propertyLabel: propertyLabel,

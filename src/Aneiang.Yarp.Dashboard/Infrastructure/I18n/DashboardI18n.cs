@@ -82,5 +82,6 @@ public static class DashboardI18n
         "stats.json",
         "ai.json",
         "capabilities.json",
+        "webhook.json",
     ];
 }

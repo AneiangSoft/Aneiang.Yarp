@@ -32,6 +32,7 @@ public static class StorageServiceCollectionExtensions
         services.AddSingleton<IGatewayPluginRepository, SqliteGatewayPluginRepository>();
         services.AddSingleton<IPluginRuntimeStateRepository, SqlitePluginRuntimeStateRepository>();
         services.AddSingleton<ILogSettingsRepository, SqliteLogSettingsRepository>();
+        services.AddSingleton<IWebhookSettingsRepository, SqliteWebhookSettingsRepository>();
 
         // AI repositories (always registered; tables created by migration)
         services.AddSingleton<IAIConversationRepository, SqliteAIConversationRepository>();

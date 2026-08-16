@@ -371,6 +371,11 @@ public static class DashboardServiceCollectionExtensions
 
         services.AddSingleton<OverviewBroadcastService>();
         services.AddHostedService<OverviewBroadcastService>();
+        services.AddSingleton<Infrastructure.Realtime.IOverviewSnapshotProvider, Infrastructure.Realtime.OverviewSnapshotProvider>();
+
+        // Webhook notifications (DingTalk / generic endpoints for config-change events)
+        services.AddHttpClient("webhook");
+        services.AddSingleton<Infrastructure.Notifications.WebhookNotificationService>();
 
         services.AddSingleton<RecyclableMemoryStreamManager>();
         services.AddSingleton<LockFreeStatistics>();

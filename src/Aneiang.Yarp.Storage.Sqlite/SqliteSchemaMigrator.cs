@@ -35,6 +35,7 @@ public sealed class SqliteSchemaMigrator : IHostedService
         new Migration012_GatewayPlugins(),
         new Migration013_PluginRuntimeStates(),
         new Migration014_PluginConfigPresets(),
+        new Migration015_WebhookSettingsTable(),
     ];
 
     /// <summary>

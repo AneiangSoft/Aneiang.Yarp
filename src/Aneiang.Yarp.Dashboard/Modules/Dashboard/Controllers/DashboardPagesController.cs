@@ -118,9 +118,6 @@ public class DashboardPagesController : Controller
     [HttpGet("service-discovery")]
     public IActionResult ServiceDiscovery() { SetCommonViewBag("service-discovery"); return View(); }
 
-    [HttpGet("traffic-metrics")]
-    public IActionResult TrafficMetrics() { SetCommonViewBag("traffic-metrics"); return View(); }
-
     [HttpGet("cluster-metrics")]
     public IActionResult ClusterMetrics() { SetCommonViewBag("cluster-metrics"); return View(); }
 

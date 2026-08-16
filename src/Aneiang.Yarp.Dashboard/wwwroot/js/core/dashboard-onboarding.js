@@ -11,7 +11,7 @@
     }
 
     function getPrefix() {
-        return (window.dashboardConfig && window.dashboardConfig.prefix) || 'apigateway';
+        return (window.__dashboard && window.__dashboard.routePrefix) || 'apigateway';
     }
 
     async function checkNeedsOnboarding() {

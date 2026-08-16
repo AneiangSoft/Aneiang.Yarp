@@ -11,6 +11,14 @@
     <button class="help-close" onclick="document.getElementById('overview-help-bar').classList.add('collapsed')">&times;</button>
 </div>
 
+<!-- Live data error bar (shown when snapshot fetch fails) -->
+<div class="alert alert-warning alert-dismissible fade show mb-3 py-2" id="overview-error-bar" role="alert" style="display:none;">
+    <i class="bi bi-exclamation-triangle me-1"></i>
+    <strong id="overview-error-title"></strong>
+    <span class="small" id="overview-error-desc"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" onclick="hideOverviewError()"></button>
+</div>
+
 <!-- Stat cards -->
 <div id="stat-bar" class="row g-3 mb-3">
     <div class="col-12">
@@ -298,22 +306,6 @@
     </div>
 </div>
 
-<!-- Account Security (2FA) -->
-<div class="card-panel mb-4">
-    <div class="card-header">
-        <span><i class="bi bi-shield-lock me-2" style="color:#f59e0b;"></i><span data-i18n="twofa.title">双因素认证 (2FA)</span></span>
-        <div class="card-header-actions">
-            <span id="twofa-status-badge" class="badge bg-secondary" data-i18n="common.loading">加载中</span>
-        </div>
-    </div>
-    <div id="twofa-content" class="card-body">
-        <div class="loading-state">
-            <div class="loading-spinner"></div>
-            <div class="loading-text" data-i18n="common.loading">加载中...</div>
-        </div>
-    </div>
-</div>
-
 @section Scripts {
 <!-- Page config (shared scripts now in _DashboardLayout.cshtml) -->
 @await Html.PartialAsync("_DashboardPageInit")
@@ -322,13 +314,11 @@
 <script src="/_content/Aneiang.Yarp.Dashboard/js/vendor/chart.umd.min.js"></script>
 <!-- SignalR client for real-time overview push -->
 <script src="/_content/Aneiang.Yarp.Dashboard/js/vendor/signalr.min.js"></script>
-<!-- QRCode for 2FA setup (CDN fallback) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <!-- Home module (for stat bar — version, clusters, routes, QPS) -->
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js"></script>
-<!-- Two-factor authentication module (account security card) -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-twofactor.js"></script>
+<!-- Overview stats module (traffic chart + HTTP snapshot fallback) -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-overview.js"></script>
 
 <script>
     var _signalrConnected = false;
@@ -384,6 +374,7 @@
                 }
             } catch (e) {
                 console.error('[Overview] Direct API failed:', e);
+                showOverviewError();
             }
 
             // Load additional overview charts
@@ -391,11 +382,6 @@
             if (window.DashboardApp?.modules?.stats?.loadStats) await DashboardApp.modules.stats.loadStats();
 
             document.dispatchEvent(new CustomEvent('dashboard:ready'));
-
-            // Load 2FA account security card (non-blocking)
-            if (window.TwoFactorModule) {
-                TwoFactorModule.load().catch(function() {});
-            }
 
             // --- SignalR real-time push ---
             initSignalR();
@@ -548,6 +534,38 @@
                 slowTbody.innerHTML = slowHtml;
             }
         }
+
+        // Feed the real-time traffic chart (Chart.js module)
+        if (window.DashboardApp?.modules?.stats?.pushTrafficPoint) {
+            DashboardApp.modules.stats.pushTrafficPoint(s.currentQps || 0);
+        }
+    }
+
+    // Expose the renderer so the stats module can apply HTTP-fetched snapshots
+    // (used when SignalR is unavailable and the page falls back to polling).
+    window.__overviewApplySnapshot = updateOverviewFromSnapshot;
+    // Error-bar hooks for the stats module (loadStats failure/success feedback)
+    window.__overviewShowError = showOverviewError;
+    window.__overviewHideError = hideOverviewError;
+
+    /** Show the live-data error bar (i18n-aware, safe before i18n loads). */
+    function showOverviewError() {
+        var bar = document.getElementById('overview-error-bar');
+        if (!bar) return;
+        var title = document.getElementById('overview-error-title');
+        var desc = document.getElementById('overview-error-desc');
+        if (title) title.textContent = window.__ ? __('overview.loadFailed') : '实时数据加载失败';
+        if (desc) desc.textContent = window.__ ? __('overview.loadFailedDesc') : '无法获取网关实时快照，页面可能在降级轮询模式下运行，请检查网络连接。';
+        bar.style.display = '';
+    }
+
+    /** Hide the live-data error bar. */
+    function hideOverviewError(showToast) {
+        var bar = document.getElementById('overview-error-bar');
+        if (bar) bar.style.display = 'none';
+        if (showToast && window.DashboardModals?.showSuccess && window.__) {
+            DashboardModals.showSuccess(__('overview.loadRecovered'));
+        }
     }
 
     function escapeHtml(text) {
@@ -558,7 +576,7 @@
     }
 
     /**
-     * Polling fallback: re-fetch stat cards + system health via HTTP every 10s.
+     * Polling fallback: re-fetch stat cards + full overview snapshot via HTTP every 10s.
      * Only active when SignalR is not connected.
      */
     function startPollingFallback() {
@@ -567,7 +585,11 @@
             if (_signalrConnected) { stopPollingFallback(); return; }
             try {
                 if (window.DashboardApp?.modules?.home?.loadInfo) await DashboardApp.modules.home.loadInfo();
-            } catch (_) { /* ignore */ }
+                if (window.DashboardApp?.modules?.stats?.loadStats) await DashboardApp.modules.stats.loadStats();
+            } catch (e) {
+                console.warn('[Overview] polling refresh failed:', e);
+                showOverviewError();
+            }
         }, 10000);
     }
 

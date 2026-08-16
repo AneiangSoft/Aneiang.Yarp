@@ -32,7 +32,7 @@
     }
 
     function getQuickActions() {
-        var prefix = (window.dashboardConfig && window.dashboardConfig.prefix) || 'apigateway';
+        var prefix = (window.__dashboard && window.__dashboard.routePrefix) || 'apigateway';
         return [
             { type: 'action', title: t('cmd.newCluster', 'New Cluster'), icon: 'bi-diagram-3', href: '/' + prefix + '/clusters' },
             { type: 'action', title: t('cmd.newRoute', 'New Route'), icon: 'bi-signpost-split', href: '/' + prefix + '/routes' },
