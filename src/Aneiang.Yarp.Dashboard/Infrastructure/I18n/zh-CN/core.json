@@ -109,6 +109,7 @@
   "menu.group.overview": "总览",
   "menu.group.gateway": "网关配置",
   "menu.group.plugins": "插件中心",
+  "menu.group.operations": "运维监控",
   "menu.group.monitoring": "运维监控",
   "menu.group.system": "系统管理",
   "menu.overview": "仪表盘",
@@ -343,6 +344,10 @@
   "pc.monitor": "运维监控",
   "pc.config": "配置",
   "pc.pluginConfig": "插件配置",
+  "logs.config.hint": "绑定路由后才会记录日志",
+  "logs.config.bindingTitle": "路由绑定",
   "common.loading": "加载中...",
-  "common.loadFailed": "加载失败"
+  "common.loadFailed": "加载失败",
+  "common.pluginNotConfigured": "未配置插件，数据可能为空",
+  "common.goPluginConfig": "前往配置"
 }

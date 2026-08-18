@@ -52,17 +52,8 @@
           config: { pluginId: 'service-discovery', scope: 'Cluster', scopeLabel: t('pluginPage.cluster', 'Cluster'), containerId: 'pc-sd-content', refreshTimeId: 'pc-sd-refresh-time', moduleName: 'ServiceDiscoveryModule', icon: 'bi-binoculars', color: 'text-primary', titleKey: 'plugin.name.service-discovery', descKey: 'pluginPage.desc.service-discovery', helpKey: 'pluginPage.help.service-discovery' } },
         { id: 'compression', labelKey: 'menu.compression', label: '响应压缩', icon: 'bi-file-zip', color: 'text-success', order: 260, type: 'config', group: 'strategy',
           config: { pluginId: 'compression', scope: 'Route', containerId: 'pc-compression-content', refreshTimeId: 'pc-compression-refresh-time', moduleName: 'CompressionModule', icon: 'bi-file-zip', color: 'text-success' } },
-
-        /* ── Monitor / Feature plugins ── */
-        { id: 'traffic', labelKey: 'menu.traffic', label: '流量监控', icon: 'bi-graph-up-arrow', color: 'text-primary', order: 300, type: 'feature', group: 'monitor',
-          scripts: [VENDOR_BASE + 'chart.umd.min.js', MODULE_BASE + 'dashboard-traffic.js'],
-          init: async function() { if (window.TrafficModule) TrafficModule.init(); } },
-        { id: 'cluster-metrics', labelKey: 'menu.clusterMetrics', label: '集群指标', icon: 'bi-diagram-3-fill', color: 'text-primary', order: 310, type: 'feature', group: 'monitor',
-          scripts: [MODULE_BASE + 'dashboard-cluster-metrics.js'],
-          init: async function() { if (window.ClusterMetricsModule) await ClusterMetricsModule.load(); } },
-        { id: 'circuits', labelKey: 'menu.circuits', label: '熔断状态', icon: 'bi-lightning-charge', color: 'text-warning', order: 320, type: 'feature', group: 'monitor',
-          scripts: [MODULE_BASE + 'dashboard-circuits.js'],
-          init: async function() { if (window.DashboardApp && DashboardApp.modules && DashboardApp.modules.circuit) { await DashboardApp.modules.circuit.init(); } if (window.CircuitModule) await CircuitModule.load(); } }
+        { id: 'proxy-log', labelKey: 'menu.logs', label: '日志插件', icon: 'bi-journal-text', color: 'text-info', order: 270, type: 'config', group: 'strategy',
+          config: { pluginId: 'proxy-log', scope: 'Route', containerId: 'pc-proxy-log-content', refreshTimeId: 'pc-proxy-log-refresh-time', moduleName: 'ProxyLogConfigModule', icon: 'bi-journal-text', color: 'text-info', titleKey: 'plugin.name.proxy-log', descKey: 'pluginPage.desc.proxy-log', helpKey: 'pluginPage.help.proxy-log' } }
     ];
 
     var loaded = {};      /* track which feature tabs have been initialized */
@@ -101,17 +92,6 @@
         /* Strategy group */
         html += '<span class="pc-tab-group-label">' + t('pc.strategy', '策略配置') + '</span>';
         REGISTRY.filter(function(e) { return e.group === 'strategy'; }).forEach(function(e) {
-            html += '<button class="pc-tab-btn' + (activeTab === e.id ? ' active' : '') + '" data-plugin="' + e.id + '" onclick="PluginCenter.activate(\'' + e.id + '\')">';
-            html += '<i class="bi ' + e.icon + ' ' + e.color + ' me-1"></i><span>' + t(e.labelKey, e.label) + '</span>';
-            html += '</button>';
-        });
-
-        /* Divider */
-        html += '<span class="pc-tab-divider"></span>';
-
-        /* Monitor group */
-        html += '<span class="pc-tab-group-label">' + t('pc.monitor', '运维监控') + '</span>';
-        REGISTRY.filter(function(e) { return e.group === 'monitor'; }).forEach(function(e) {
             html += '<button class="pc-tab-btn' + (activeTab === e.id ? ' active' : '') + '" data-plugin="' + e.id + '" onclick="PluginCenter.activate(\'' + e.id + '\')">';
             html += '<i class="bi ' + e.icon + ' ' + e.color + ' me-1"></i><span>' + t(e.labelKey, e.label) + '</span>';
             html += '</button>';
@@ -164,8 +144,6 @@
 
         if (entry.type === 'config') {
             await initConfigTab(entry);
-        } else if (entry.type === 'feature') {
-            await initFeatureTab(entry);
         }
     }
 
@@ -183,84 +161,12 @@
         }
     }
 
-    /* ── Initialize a feature-type tab (lazy load scripts + init) ── */
-    async function initFeatureTab(entry) {
-        if (!loaded[entry.id]) {
-            /* Ensure the config sub-panel (if any) for feature plugins is rendered */
-            renderFeatureConfigPanel(entry);
-            /* Load scripts */
-            if (entry.scripts && entry.scripts.length) {
-                try {
-                    await loadScriptsSequentially(entry.scripts);
-                } catch (e) {
-                    var errPanel = document.querySelector('.pc-tab-panel[data-plugin="' + entry.id + '"]');
-                    if (errPanel) errPanel.querySelector('.pc-feature-body').innerHTML = '<div class="alert alert-danger">' + t('common.loadFailed', '加载失败') + ': ' + esc(e.message || '') + '</div>';
-                    return;
-                }
-            }
-            loaded[entry.id] = true;
-        }
-        /* Call feature init */
-        if (entry.init) {
-            try { await entry.init(); } catch (e) { console.error('[PluginCenter] init failed for ' + entry.id + ':', e); }
-        }
-        /* Load the config sub-panel (binding manager) for feature plugins */
-        loadFeatureConfigPanel(entry);
-    }
-
-    /* ── Render feature config panel (binding manager) below the feature UI ── */
-    function renderFeatureConfigPanel(entry) {
-        var cfg = FEATURE_CONFIG[entry.id];
-        if (!cfg) return;
-        var holder = document.querySelector('.pc-feature-config[data-plugin="' + entry.id + '"]');
-        if (!holder) return;
-        var html = '';
-        html += '<div class="card-panel mb-0">';
-        html += '  <div class="card-header">';
-        html += '    <span><i class="bi bi-gear me-2 text-secondary"></i><span>' + t(cfg.titleKey || 'pc.pluginConfig', entry.label + ' ' + t('pc.config', '配置')) + '</span></span>';
-        html += '    <div class="card-header-actions">';
-        html += '      <span id="' + cfg.refreshTimeId + '" class="refresh-badge"></span>';
-        html += '      <button class="btn btn-sm btn-outline-primary btn-icon-only" onclick="PluginCenter.reloadConfig(\'' + entry.id + '\')" title="' + t('index.btn.refresh', '刷新') + '"><i class="bi bi-arrow-clockwise"></i></button>';
-        html += '    </div>';
-        html += '  </div>';
-        html += '  <div id="' + cfg.containerId + '" class="card-body"><div class="loading-state"><div class="loading-spinner"></div><div class="loading-text">' + t('common.loading', '加载中...') + '</div></div></div>';
-        html += '</div>';
-        holder.innerHTML = html;
-    }
-
-    async function loadFeatureConfigPanel(entry) {
-        var cfg = FEATURE_CONFIG[entry.id];
-        if (!cfg) return;
-        if (!configModules[entry.id + '-config']) {
-            if (window.PluginBindingManager) {
-                configModules[entry.id + '-config'] = window.PluginBindingManager.create(Object.assign({}, cfg));
-            }
-        }
-        if (configModules[entry.id + '-config']) {
-            await configModules[entry.id + '-config'].load();
-        }
-    }
-
-    /* Feature plugins that also have a binding-manager config panel */
-    var FEATURE_CONFIG = {
-        'circuits': { pluginId: 'circuit-breaker', scope: 'Cluster', scopeLabel: t('pluginPage.cluster', 'Cluster'), containerId: 'pc-cb-config-content', refreshTimeId: 'pc-cb-config-refresh-time', moduleName: 'CircuitBreakerConfigModule', icon: 'bi-lightning-charge', color: 'text-warning', titleKey: 'circuit.config.title' },
-        'traffic': { pluginId: 'traffic-metrics', scope: 'Route', containerId: 'pc-tm-config-content', refreshTimeId: 'pc-tm-config-refresh-time', moduleName: 'TrafficMetricsConfigModule', icon: 'bi-graph-up-arrow', color: 'text-primary', titleKey: 'trafficMetrics.config.title' },
-        'cluster-metrics': { pluginId: 'cluster-metrics', scope: 'Cluster', scopeLabel: t('pluginPage.cluster', 'Cluster'), containerId: 'pc-cm-config-content', refreshTimeId: 'pc-cm-config-refresh-time', moduleName: 'ClusterMetricsConfigModule', icon: 'bi-diagram-3-fill', color: 'text-primary', titleKey: 'clusterMetrics.config.title' }
-    };
-
     /* ── Reload a config tab ── */
     async function reload(id) {
         var entry = findEntry(id);
         if (!entry) return;
         if (entry.type === 'config' && configModules[id]) {
             await configModules[id].load();
-        }
-    }
-
-    /* ── Reload a feature plugin's config sub-panel ── */
-    async function reloadConfig(id) {
-        if (configModules[id + '-config']) {
-            await configModules[id + '-config'].load();
         }
     }
 
@@ -282,7 +188,6 @@
         init: init,
         activate: activate,
         reload: reload,
-        reloadConfig: reloadConfig,
         REGISTRY: REGISTRY
     };
 })();

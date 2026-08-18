@@ -45,7 +45,7 @@
   "index.log.status.error": "错误",
   "index.log.status.success": "成功",
   "index.log.stopListen": "监听中",
-  "index.log.title": "YARP 实时日志",
+  "index.log.title": "实时日志",
   "index.log.truncated": "已截断",
   "index.log.type.all": "全部日志",
   "index.log.updated": "更新于 ",

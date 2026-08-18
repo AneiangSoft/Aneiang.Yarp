@@ -1,0 +1,57 @@
+@{
+    var isEn = (ViewBag.Locale as string) == "en-US";
+    ViewData["Title"] = isEn ? "Circuit Breaker" : "熔断状态";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+@await Html.PartialAsync("~/Views/Dashboard/Partials/_CircuitsPanel.cshtml")
+
+@section Scripts {
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-circuits.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/plugin-binding-manager.js"></script>
+
+@await Html.PartialAsync("_DashboardPageInit")
+
+<script>
+    (async function() {
+        var basePath = '/' + '@(ViewBag.DashboardRoutePrefix ?? "apigateway")';
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+
+        try {
+            if (window.DashboardApi) {
+                var plugin = await DashboardApi.getPlugin('circuit-breaker');
+                if (plugin && plugin.enabled) {
+                    if (window.DashboardApp && DashboardApp.modules && DashboardApp.modules.circuit) {
+                        await DashboardApp.modules.circuit.init();
+                    }
+                    if (window.CircuitModule) await CircuitModule.load();
+                    hidePluginHint('circuit-plugin-hint');
+                }
+            }
+        } catch(e) { console.error('Circuit load error:', e); }
+
+        if (window.PluginBindingManager) {
+            window.CircuitBreakerConfigModule = PluginBindingManager.create({
+                pluginId: 'circuit-breaker',
+                scope: 'Cluster',
+                scopeLabel: (window.__ ? __('pluginPage.cluster', 'Cluster') : 'Cluster'),
+                containerId: 'pc-cb-config-content',
+                refreshTimeId: 'pc-cb-config-refresh-time',
+                moduleName: 'CircuitBreakerConfigModule',
+                icon: 'bi-lightning-charge',
+                color: 'text-warning',
+                titleKey: 'circuit.config.title'
+            });
+            if (window.CircuitBreakerConfigModule) await CircuitBreakerConfigModule.load();
+        }
+
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

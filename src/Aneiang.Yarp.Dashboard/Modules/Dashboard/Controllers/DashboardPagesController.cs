@@ -103,6 +103,15 @@ public class DashboardPagesController : Controller
     [HttpGet("logs")]
     public IActionResult Logs() { SetCommonViewBag("logs"); return View(); }
 
+    [HttpGet("traffic")]
+    public IActionResult Traffic() { SetCommonViewBag("traffic"); return View(); }
+
+    [HttpGet("cluster-metrics")]
+    public IActionResult ClusterMetrics() { SetCommonViewBag("cluster-metrics"); return View(); }
+
+    [HttpGet("circuits")]
+    public IActionResult Circuits() { SetCommonViewBag("circuits"); return View(); }
+
     #endregion
 
     #region DB Download

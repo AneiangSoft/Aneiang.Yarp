@@ -36,13 +36,13 @@
             --danger-color: #dc2626;
             --bg-color: #f8fafc;
             --card-bg: #ffffff;
-            --sidebar-bg: #0f172a;
-            --sidebar-hover: #1e293b;
-            --sidebar-text: rgba(203, 213, 225, 0.82);
-            --sidebar-text-muted: rgba(148, 163, 184, 0.65);
-            --sidebar-active-bg: rgba(79, 70, 229, 0.16);
-            --sidebar-active-accent: #818cf8;
-            --sidebar-border: rgba(255, 255, 255, 0.06);
+            --sidebar-bg: #ffffff;
+            --sidebar-hover: #f1f5f9;
+            --sidebar-text: #475569;
+            --sidebar-text-muted: #94a3b8;
+            --sidebar-active-bg: #eef2ff;
+            --sidebar-active-accent: #4f46e5;
+            --sidebar-border: #e2e8f0;
             --text-primary: #0f172a;
             --text-secondary: #475569;
             --text-muted: #64748b;
@@ -95,10 +95,10 @@
             bottom: 0;
             width: var(--sidebar-width);
             background: var(--sidebar-bg);
-            color: #fff;
+            color: var(--sidebar-text);
             z-index: 1000;
             padding: 0;
-            box-shadow: 2px 0 12px rgba(0,0,0,0.08);
+            box-shadow: 1px 0 3px rgba(0,0,0,0.04);
             display: flex;
             flex-direction: column;
             border-right: 1px solid var(--sidebar-border);
@@ -131,18 +131,17 @@
         }
 
         .brand-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            background: var(--primary-color);
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+            background: linear-gradient(135deg, #4f46e5, #6366f1);
             display: flex;
             align-items: center;
             justify-content: center;
             color: #fff;
-            font-size: 17px;
+            font-size: 16px;
             flex-shrink: 0;
-            position: relative;
-            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
         }
 
         .brand-text {
@@ -153,14 +152,14 @@
         .brand-title {
             font-size: 14.5px;
             font-weight: 700;
-            color: #fff;
+            color: #1e293b;
             letter-spacing: -0.1px;
             line-height: 1.2;
         }
 
         .brand-subtitle {
             font-size: 10.5px;
-            color: var(--sidebar-text-muted);
+            color: #94a3b8;
             font-weight: 500;
             letter-spacing: 0.8px;
             margin-top: 2px;
@@ -168,27 +167,27 @@
         }
 
         .sidebar-collapse-btn {
-            width: 30px;
-            height: 30px;
+            width: 28px;
+            height: 28px;
             flex-shrink: 0;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 0;
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            border-radius: 7px;
             background: transparent;
-            color: var(--sidebar-text-muted);
+            color: #94a3b8;
             cursor: pointer;
-            transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+            transition: all 0.18s ease;
         }
         .sidebar-collapse-btn:hover {
-            background: rgba(255,255,255,0.08);
-            color: #fff;
-            border-color: rgba(255,255,255,0.16);
+            background: #f1f5f9;
+            color: #475569;
+            border-color: #cbd5e1;
         }
         .sidebar-collapse-btn i {
-            font-size: 15px;
+            font-size: 14px;
             transition: transform 0.25s ease;
         }
 
@@ -209,12 +208,12 @@
         }
 
         .sidebar-nav::-webkit-scrollbar-thumb {
-            background: rgba(255,255,255,0.08);
+            background: #e2e8f0;
             border-radius: 4px;
         }
 
         .sidebar-nav::-webkit-scrollbar-thumb:hover {
-            background: rgba(255,255,255,0.16);
+            background: #cbd5e1;
         }
 
         .sidebar .nav-section {
@@ -235,31 +234,31 @@
         }
 
         .section-header:hover {
-            background: rgba(255,255,255,0.03);
+            background: #f1f5f9;
         }
 
         .section-title {
             font-size: 11px;
             font-weight: 700;
-            color: rgba(148, 163, 184, 0.7);
+            color: #94a3b8;
             text-transform: uppercase;
             letter-spacing: 0.8px;
             transition: color 0.15s ease;
         }
 
         .section-header:hover .section-title {
-            color: rgba(203, 213, 225, 0.8);
+            color: #64748b;
         }
 
         .section-chevron {
             font-size: 10px;
-            color: rgba(148, 163, 184, 0.4);
+            color: #cbd5e1;
             transition: transform 0.3s ease, color 0.2s ease;
         }
 
         .section-header.expanded .section-chevron {
             transform: rotate(180deg);
-            color: rgba(165, 180, 252, 0.7);
+            color: #6366f1;
         }
 
         /* Collapsible container */
@@ -321,9 +320,9 @@
         }
 
         .sidebar .nav-link:hover {
-            color: #fff;
-            background: rgba(255,255,255,0.06);
-            border-left-color: rgba(129, 140, 248, 0.35);
+            color: #1e293b;
+            background: #f1f5f9;
+            border-left-color: #c7d2fe;
         }
 
         .js [data-plugin-requires]:not([data-plugin-resolved]) {
@@ -337,24 +336,24 @@
 
         /* Active link — left accent bar + subtle bg */
         .sidebar .nav-link.active {
-            color: #fff;
+            color: #4f46e5;
             background: var(--sidebar-active-bg);
             border-left-color: var(--sidebar-active-accent);
             font-weight: 600;
         }
 
         .sidebar .nav-link.active > i {
-            color: var(--primary-lighter);
+            color: #4f46e5;
         }
 
         /* Group header expanded state */
         .nav-link.has-submenu.expanded {
-            color: #fff;
-            background: rgba(79, 70, 229, 0.08);
+            color: #4f46e5;
+            background: rgba(79, 70, 229, 0.06);
         }
 
         .nav-link.has-submenu.expanded > i {
-            color: var(--primary-lighter);
+            color: #4f46e5;
         }
 
         /* Toggle arrow indicator */
@@ -366,13 +365,13 @@
             transition: transform 0.3s ease;
             opacity: 0.4;
             flex-shrink: 0;
-            color: rgba(148, 163, 184, 0.7);
+            color: #94a3b8;
         }
 
         .nav-link.has-submenu.expanded::after {
             transform: rotate(90deg);
             opacity: 0.8;
-            color: var(--primary-lighter);
+            color: #6366f1;
         }
 
         /* Submenu Styles */
@@ -392,7 +391,7 @@
             border-left: none;
             border-radius: 6px;
             margin: 1px 4px 1px 8px;
-            color: rgba(203, 213, 225, 0.6);
+            color: #94a3b8;
         }
 
         .nav-submenu .nav-link::before {
@@ -411,28 +410,28 @@
             width: 4px;
             height: 4px;
             border-radius: 50%;
-            background: rgba(148, 163, 184, 0.3);
+            background: #cbd5e1;
             transition: all 0.2s ease;
         }
 
         .nav-submenu .nav-link:hover .nav-dot {
-            background: rgba(199, 210, 254, 0.8);
+            background: #6366f1;
         }
 
         .nav-submenu .nav-link:hover {
-            background: rgba(255,255,255,0.03);
-            color: #fff;
+            background: #f1f5f9;
+            color: #1e293b;
         }
 
         .nav-submenu .nav-link.active {
             background: var(--sidebar-active-bg);
             border-left: 2px solid var(--sidebar-active-accent);
-            color: #fff;
+            color: #4f46e5;
             font-weight: 600;
         }
 
         .nav-submenu .nav-link.active .nav-dot {
-            background: var(--primary-lighter);
+            background: #6366f1;
             transform: translateY(-50%) scale(1.5);
         }
 
@@ -459,147 +458,204 @@
         .nav-badge-count {
             font-size: 10px;
             font-weight: 600;
-            color: rgba(148, 163, 184, 0.6);
+            color: #64748b;
             margin-left: auto;
             flex-shrink: 0;
             padding: 1px 6px;
             border-radius: 8px;
-            background: rgba(255,255,255,0.06);
+            background: #f1f5f9;
             min-width: 16px;
             text-align: center;
         }
         .nav-badge-count:empty { display: none; }
-        .nav-badge-count.alert { color: #fca5a5; background: rgba(239,68,68,0.12); }
-        .nav-badge-count.ratio { color: #6ee7b7; background: rgba(16,185,129,0.1); }
+        .nav-badge-count.alert { color: #dc2626; background: rgba(239,68,68,0.08); }
+        .nav-badge-count.ratio { color: #059669; background: rgba(16,185,129,0.08); }
         .nav-badge-count.health-dot { width: 8px; height: 8px; border-radius: 50%; padding: 0; min-width: 0; }
         .nav-badge-count.health-dot.healthy { background: #10b981; }
         .nav-badge-count.health-dot.unhealthy { background: #ef4444; }
         .nav-badge-count.metric { font-size: 9.5px; letter-spacing: 0.3px; }
         
-        .sidebar-footer {
-            padding: 10px 12px 12px;
-            border-top: 1px solid var(--sidebar-border);
-            background: transparent;
+        /* ── Topbar Action Buttons ── */
+        .topbar-action {
+            width: 34px; height: 34px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 8px; border: 1px solid transparent;
+            background: transparent; color: #64748b; cursor: pointer;
+            transition: all 0.18s ease; flex-shrink: 0; text-decoration: none;
+        }
+        .topbar-action:hover {
+            background: #f1f5f9; border-color: #e2e8f0; color: #4f46e5;
+        }
+        .topbar-action i { font-size: 16px; }
+
+        /* ── Topbar User Dropdown ── */
+        .topbar-user {
+            position: relative;
             flex-shrink: 0;
         }
 
-        /* User Card */
-        .user-card {
+        .topbar-user-trigger {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 8px 10px;
-            background: rgba(255,255,255,0.02);
-            border: 1px solid rgba(255,255,255,0.05);
+            gap: 8px;
+            padding: 4px 8px 4px 4px;
             border-radius: 8px;
-            margin-bottom: 6px;
-            transition: all 0.2s ease;
+            border: 1px solid transparent;
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.18s ease;
         }
 
-        .user-card:hover {
-            background: rgba(255,255,255,0.04);
-            border-color: rgba(79, 70, 229, 0.2);
+        .topbar-user-trigger:hover {
+            background: #f1f5f9;
+            border-color: #e2e8f0;
         }
 
-        .user-avatar {
-            width: 34px;
-            height: 34px;
+        .topbar-user-avatar {
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
-            background: var(--primary-color);
+            background: linear-gradient(135deg, #4f46e5, #6366f1);
             display: flex;
             align-items: center;
             justify-content: center;
             color: #fff;
-            font-size: 16px;
+            font-size: 14px;
+            font-weight: 600;
             flex-shrink: 0;
             position: relative;
         }
 
-        .user-avatar::after {
+        .topbar-user-avatar::after {
             content: '';
             position: absolute;
-            bottom: 0;
-            right: 0;
-            width: 9px;
-            height: 9px;
+            bottom: -1px;
+            right: -1px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
             background: #10b981;
-            border: 2px solid #0f172a;
+            border: 2px solid #fff;
         }
 
-        .user-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .user-name {
-            font-size: 12.5px;
+        .topbar-user-name {
+            font-size: 13px;
             font-weight: 600;
-            color: #fff;
+            color: #334155;
             white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
             line-height: 1.2;
         }
 
-        .user-role {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 9.5px;
-            color: rgba(148, 163, 184, 0.7);
-            margin-top: 3px;
-            letter-spacing: 0.4px;
-            text-transform: uppercase;
-            font-weight: 500;
+        .topbar-user-role {
+            font-size: 10px;
+            color: #94a3b8;
+            margin-top: 1px;
+            letter-spacing: 0.3px;
         }
 
-        .user-status-dot {
-            display: none; /* Now using user-avatar::after indicator */
+        .topbar-user-chevron {
+            font-size: 12px;
+            color: #94a3b8;
+            transition: transform 0.25s ease;
         }
 
-        @@keyframes pulse-dot {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.6; transform: scale(0.85); }
+        .topbar-user-trigger.open .topbar-user-chevron {
+            transform: rotate(180deg);
         }
 
-        .user-avatar::after {
-            animation: pulse-dot 2.5s ease-in-out infinite;
+        .topbar-user-dropdown {
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            min-width: 200px;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            padding: 6px;
+            z-index: 1200;
+            display: none;
+            animation: dropdownFadeIn 0.15s ease;
         }
 
-        /* Footer action buttons */
-        .footer-actions {
-            display: flex;
-            gap: 4px;
+        .topbar-user-dropdown.show {
+            display: block;
+        }
+
+        @@keyframes dropdownFadeIn {
+            from { opacity: 0; transform: translateY(-6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .topbar-user-dropdown-header {
+            padding: 10px 12px 8px;
+            border-bottom: 1px solid #f1f5f9;
+            margin-bottom: 4px;
+        }
+
+        .topbar-user-dropdown-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .topbar-user-dropdown-email {
+            font-size: 11px;
+            color: #94a3b8;
             margin-top: 2px;
         }
 
-        .footer-action {
-            flex: 1;
+        .topbar-user-dropdown-item {
             display: flex;
             align-items: center;
-            justify-content: center;
-            height: 30px;
-            border-radius: 6px;
-            background: transparent;
-            border: 1px solid rgba(255,255,255,0.05);
-            color: rgba(148, 163, 184, 0.65);
-            font-size: 14px;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 7px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #475569;
             text-decoration: none;
-            transition: all 0.18s ease;
             cursor: pointer;
+            transition: all 0.15s ease;
         }
 
-        .footer-action:hover {
-            background: rgba(79, 70, 229, 0.12);
-            border-color: rgba(79, 70, 229, 0.25);
-            color: var(--primary-lighter);
+        .topbar-user-dropdown-item:hover {
+            background: #f1f5f9;
+            color: #1e293b;
         }
 
-        .footer-action:last-child:hover {
-            background: rgba(239, 68, 68, 0.1);
-            border-color: rgba(239, 68, 68, 0.25);
+        .topbar-user-dropdown-item i {
+            font-size: 15px;
+            color: #94a3b8;
+            width: 18px;
+            text-align: center;
+        }
+
+        .topbar-user-dropdown-item:hover i {
+            color: #6366f1;
+        }
+
+        .topbar-user-dropdown-divider {
+            height: 1px;
+            background: #f1f5f9;
+            margin: 4px 6px;
+        }
+
+        .topbar-user-dropdown-item.danger {
+            color: #ef4444;
+        }
+
+        .topbar-user-dropdown-item.danger:hover {
+            background: rgba(239,68,68,0.06);
+            color: #dc2626;
+        }
+
+        .topbar-user-dropdown-item.danger i {
             color: #fca5a5;
+        }
+
+        .topbar-user-dropdown-item.danger:hover i {
+            color: #dc2626;
         }
         
         /* Main Content */
@@ -800,6 +856,28 @@
         .empty-state-icon { font-size:36px; margin-bottom:10px; color:#cbd5e1; }
         .empty-state-title { font-size:14px; font-weight:600; color:#64748b; margin-bottom:4px; }
         .empty-state-desc { font-size:12px; color:#94a3b8; }
+        .empty-state-action {
+            display: inline-flex; align-items: center; gap: 4px;
+            margin-top: 10px; padding: 6px 14px;
+            border-radius: 8px; font-size: 12.5px; font-weight: 600;
+            background: var(--primary-bg, #eef2ff); color: var(--primary-color, #4f46e5);
+            text-decoration: none; border: 1px solid var(--primary-border, #c7d2fe);
+            transition: all 0.18s ease;
+        }
+        .empty-state-action:hover { background: var(--primary-color, #4f46e5); color: #fff; }
+        .plugin-hint-banner {
+            display: flex !important; align-items: center; gap: 8px; flex-wrap: wrap;
+            padding: 8px 14px; margin-bottom: 10px;
+            background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+            font-size: 12.5px; color: #92400e;
+        }
+        .plugin-hint-banner i.bi-info-circle { color: #f59e0b; font-size: 14px; }
+        .plugin-hint-link {
+            margin-left: auto; font-weight: 600; color: #4f46e5;
+            text-decoration: none; display: inline-flex; align-items: center; gap: 2px;
+            border-bottom: 1px dashed currentColor; padding-bottom: 1px;
+        }
+        .plugin-hint-link:hover { color: #4338ca; }
         .empty-state > i { font-size:36px; margin-bottom:10px; color:#cbd5e1; display:block; }
         .empty-state > p { margin:0; font-size:14px; }
 
@@ -2708,8 +2786,8 @@
             top: 50%;
             transform: translateY(-50%);
             padding: 6px 11px;
-            background: var(--sidebar-hover);
-            border: 1px solid rgba(255,255,255,0.12);
+            background: #1e293b;
+            border: 1px solid #334155;
             border-radius: 7px;
             color: #fff;
             font-size: 12px;
@@ -2720,20 +2798,6 @@
             z-index: 1100;
             pointer-events: none;
         }
-
-        /* 底部区折叠适配：头像居中、按钮竖排 */
-        .sidebar.collapsed .sidebar-footer { padding: 8px 6px 10px; }
-        .sidebar.collapsed .user-card {
-            justify-content: center;
-            padding: 8px 0;
-            background: transparent;
-            border-color: transparent;
-            margin-bottom: 8px;
-        }
-        .sidebar.collapsed .user-card:hover { background: rgba(255,255,255,0.04); }
-        .sidebar.collapsed .user-info { display: none; }
-        .sidebar.collapsed .footer-actions { flex-direction: column; gap: 6px; }
-        .sidebar.collapsed .footer-action { flex: none; width: 100%; }
 
         /* Command Palette */
         .cmd-palette-overlay {
@@ -3309,8 +3373,18 @@
                     {
                         ("plugins", isEn ? "Plugin Manager" : "插件管理", "menu.plugins", "bi-puzzle", $"/{prefix}/plugins", "ratio", Array.Empty<object>()),
                         ("plugin-center", isEn ? "Plugin Center" : "插件中心", "menu.pluginCenter", "bi-grid-3x3-gap", $"/{prefix}/plugin-center", "", Array.Empty<object>()),
-                        ("logs", isEn ? "Real-time Logs" : "实时日志", "menu.logs", "bi-journal-text", $"/{prefix}/logs", "", Array.Empty<object>()),
                         ("plugin-resources", isEn ? "Plugin Resources" : "插件资源", "menu.pluginResources", "bi-cpu", $"/{prefix}/plugin-resources", "", Array.Empty<object>())
+                    }
+                ),
+                (
+                    isEn ? "Operations" : "运维监控",
+                    "menu.group.operations",
+                    new[]
+                    {
+                        ("traffic", isEn ? "Traffic Monitor" : "流量监控", "menu.traffic", "bi-graph-up-arrow", $"/{prefix}/traffic", "", Array.Empty<object>()),
+                        ("cluster-metrics", isEn ? "Cluster Metrics" : "集群指标", "menu.clusterMetrics", "bi-diagram-3-fill", $"/{prefix}/cluster-metrics", "", Array.Empty<object>()),
+                        ("circuits", isEn ? "Circuit Breaker" : "熔断状态", "menu.circuits", "bi-lightning-charge", $"/{prefix}/circuits", "", Array.Empty<object>()),
+                        ("logs", isEn ? "Real-time Logs" : "实时日志", "menu.logs", "bi-journal-text", $"/{prefix}/logs", "", Array.Empty<object>())
                     }
                 ),
                 (
@@ -3454,29 +3528,6 @@
 
         </div>
 
-        <div class="sidebar-footer">
-            <!-- User Card -->
-            <div class="user-card">
-                <div class="user-avatar">
-                    <i class="bi bi-person-circle"></i>
-                </div>
-                <div class="user-info">
-                    <div class="user-name" id="sidebar-username" data-i18n="layout.user.loggedIn">已登录</div>
-                    <div class="user-role">
-                        <span class="user-status-dot"></span>
-                        <span data-i18n="layout.user.online">在线</span>
-                    </div>
-                </div>
-            </div>
-            <div class="footer-actions">
-                <a class="footer-action" href="#" onclick="switchLocale();return false;" title="@(((ViewBag.Locale as string) == "en-US") ? "切换到中文" : "Switch to English")" data-i18n-title="layout.lang.switch" aria-label="@(((ViewBag.Locale as string) == "en-US") ? "切换到中文" : "Switch to English")">
-                    <i class="bi bi-translate"></i>
-                </a>
-                <a class="footer-action" href="#" onclick="dashboardLogout();return false;" title="@(isEn ? "Logout" : "退出登录")" data-i18n-title="layout.logout" aria-label="@(isEn ? "Logout" : "退出登录")">
-                    <i class="bi bi-box-arrow-right"></i>
-                </a>
-            </div>
-        </div>
     </nav>
 
     <div class="main-content">
@@ -3499,7 +3550,9 @@
                 {"history", pgIsEn ? "Configuration History" : "配置历史"},
                 {"audit", pgIsEn ? "Audit Log" : "审计日志"},
                 {"traffic", pgIsEn ? "Traffic Monitor" : "流量监控"},
-                {"compression", pgIsEn ? "Response Compression" : "响应压缩"}
+                {"cluster-metrics", pgIsEn ? "Cluster Metrics" : "集群指标"},
+                {"compression", pgIsEn ? "Response Compression" : "响应压缩"},
+                {"proxy-log", pgIsEn ? "Log Plugin" : "日志插件"}
             };
             var pageIcons = new System.Collections.Generic.Dictionary<string, string>
             {
@@ -3511,6 +3564,9 @@
                 {"plugin-center", "bi-grid-3x3-gap"},
                 {"plugin-resources", "bi-cpu"},
                 {"logs", "bi-journal-text"},
+                {"traffic", "bi-graph-up-arrow"},
+                {"cluster-metrics", "bi-diagram-3-fill"},
+                {"circuits", "bi-lightning-charge"},
                 {"history", "bi-clock-history"},
                 {"audit", "bi-shield-check"}
             };
@@ -3520,7 +3576,8 @@
             var parentGroupI18n = "";
             if (new[] { "clusters", "routes", "history" }.Contains(pgName)) { parentGroup = pgIsEn ? "Gateway Config" : "网关配置"; parentGroupI18n = "menu.group.gateway"; }
             if (pgName == "overview") parentGroup = "";
-            if (new[] { "plugins", "plugin-resources", "plugin-center", "logs" }.Contains(pgName)) { parentGroup = pgIsEn ? "Plugin Center" : "插件中心"; parentGroupI18n = "menu.group.plugins"; }
+            if (new[] { "plugins", "plugin-resources", "plugin-center" }.Contains(pgName)) { parentGroup = pgIsEn ? "Plugin Center" : "插件中心"; parentGroupI18n = "menu.group.plugins"; }
+            if (new[] { "traffic", "cluster-metrics", "circuits", "logs" }.Contains(pgName)) { parentGroup = pgIsEn ? "Operations" : "运维监控"; parentGroupI18n = "menu.group.operations"; }
             if (new[] { "audit", "settings" }.Contains(pgName)) { parentGroup = pgIsEn ? "System" : "系统管理"; parentGroupI18n = "menu.group.system"; }
 
             <div class="page-header">
@@ -3548,6 +3605,35 @@
                         </div>
                         <span class="pulse-dot" data-i18n-title="layout.live" title="@((ViewBag.Locale as string) == "en-US" ? "Live" : "在线")"></span>
                         <span class="refresh-badge" style="font-size:12px;" data-i18n="layout.live">@((ViewBag.Locale as string) == "en-US" ? "Live" : "实时")</span>
+                        <a class="topbar-action" href="/@pgPrefix/settings" data-i18n-title="menu.settings" title="@(isEn ? "Settings" : "系统设置")" aria-label="@(isEn ? "Settings" : "系统设置")">
+                            <i class="bi bi-gear"></i>
+                        </a>
+                        <a class="topbar-action" href="#" onclick="switchLocale();return false;" title="@(((ViewBag.Locale as string) == "en-US") ? "切换到中文" : "Switch to English")" data-i18n-title="layout.lang.switch" aria-label="@(((ViewBag.Locale as string) == "en-US") ? "切换到中文" : "Switch to English")">
+                            <i class="bi bi-translate"></i>
+                        </a>
+                        <div class="topbar-user">
+                            <button class="topbar-user-trigger" id="topbar-user-trigger" onclick="toggleUserDropdown(event)">
+                                <div class="topbar-user-avatar">
+                                    <i class="bi bi-person-circle"></i>
+                                </div>
+                                <div class="d-none d-md-block text-start">
+                                    <div class="topbar-user-name" id="topbar-username" data-i18n="layout.user.loggedIn">已登录</div>
+                                    <div class="topbar-user-role" data-i18n="layout.user.online">在线</div>
+                                </div>
+                                <i class="bi bi-chevron-down topbar-user-chevron"></i>
+                            </button>
+                            <div class="topbar-user-dropdown" id="topbar-user-dropdown">
+                                <div class="topbar-user-dropdown-header">
+                                    <div class="topbar-user-dropdown-name" id="topbar-dropdown-username" data-i18n="layout.user.loggedIn">已登录</div>
+                                    <div class="topbar-user-dropdown-email">YARP Administrator</div>
+                                </div>
+                                <div class="topbar-user-dropdown-divider"></div>
+                                <a class="topbar-user-dropdown-item danger" href="#" onclick="dashboardLogout();return false;">
+                                    <i class="bi bi-box-arrow-right"></i>
+                                    <span data-i18n="layout.logout">@(isEn ? "Logout" : "退出登录")</span>
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3591,6 +3677,40 @@
             localStorage.setItem('dashboard_locale', next);
             location.reload();
         }
+
+        /* Show plugin config hint banner when data is empty */
+        function showPluginHint(hintId) {
+            var el = document.getElementById(hintId);
+            if (el) el.style.display = 'flex';
+        }
+        function hidePluginHint(hintId) {
+            var el = document.getElementById(hintId);
+            if (el) el.style.display = 'none';
+        }
+
+        function toggleUserDropdown(e) {
+            e.stopPropagation();
+            var trigger = document.getElementById('topbar-user-trigger');
+            var dropdown = document.getElementById('topbar-user-dropdown');
+            if (!dropdown) return;
+            var isOpen = dropdown.classList.contains('show');
+            if (isOpen) {
+                dropdown.classList.remove('show');
+                trigger.classList.remove('open');
+            } else {
+                dropdown.classList.add('show');
+                trigger.classList.add('open');
+            }
+        }
+
+        document.addEventListener('click', function(e) {
+            var dropdown = document.getElementById('topbar-user-dropdown');
+            var trigger = document.getElementById('topbar-user-trigger');
+            if (dropdown && trigger && !dropdown.contains(e.target) && !trigger.contains(e.target)) {
+                dropdown.classList.remove('show');
+                trigger.classList.remove('open');
+            }
+        });
         function dashboardLogout() {
             DashboardModals.showConfirm(__('layout.user.logoutConfirm'), function() {
                 fetch('/' + '@ViewBag.DashboardRoutePrefix' + '/logout', {
@@ -3722,9 +3842,13 @@
             });
             // Show username in sidebar
             var username = getJwtUsername();
-            var usernameEl = document.getElementById('sidebar-username');
+            var usernameEl = document.getElementById('topbar-username');
+            var dropdownUsernameEl = document.getElementById('topbar-dropdown-username');
             if (usernameEl && username) {
                 usernameEl.textContent = username;
+            }
+            if (dropdownUsernameEl && username) {
+                dropdownUsernameEl.textContent = username;
             }
 
             // Initialize submenu toggles

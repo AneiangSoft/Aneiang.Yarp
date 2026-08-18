@@ -109,6 +109,7 @@
   "menu.group.overview": "Overview",
   "menu.group.gateway": "Gateway Config",
   "menu.group.plugins": "Plugin Center",
+  "menu.group.operations": "Operations",
   "menu.group.monitoring": "Operations",
   "menu.group.system": "System",
   "menu.overview": "Dashboard",
@@ -343,6 +344,10 @@
   "pc.monitor": "Operations Monitor",
   "pc.config": "Config",
   "pc.pluginConfig": "Plugin Config",
+  "logs.config.hint": "Logs are only recorded for bound routes",
+  "logs.config.bindingTitle": "Route Bindings",
   "common.loading": "Loading...",
-  "common.loadFailed": "Load failed"
+  "common.loadFailed": "Load failed",
+  "common.pluginNotConfigured": "Plugin not configured, data may be empty",
+  "common.goPluginConfig": "Configure"
 }

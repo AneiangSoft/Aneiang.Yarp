@@ -1,0 +1,54 @@
+@{
+    var isEn = (ViewBag.Locale as string) == "en-US";
+    ViewData["Title"] = isEn ? "Traffic Monitor" : "流量监控";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+@await Html.PartialAsync("~/Views/Dashboard/Partials/_TrafficPanel.cshtml")
+
+@section Scripts {
+<script src="/_content/Aneiang.Yarp.Dashboard/js/vendor/chart.umd.min.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-traffic.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/plugin-binding-manager.js"></script>
+
+@await Html.PartialAsync("_DashboardPageInit")
+
+<script>
+    (async function() {
+        var basePath = '/' + '@(ViewBag.DashboardRoutePrefix ?? "apigateway")';
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+
+        try {
+            if (window.DashboardApi) {
+                var plugin = await DashboardApi.getPlugin('traffic-metrics');
+                if (plugin && plugin.enabled) {
+                    if (window.TrafficModule) TrafficModule.init();
+                    hidePluginHint('traffic-plugin-hint');
+                }
+            }
+        } catch(e) { console.error('Traffic init error:', e); }
+
+        if (window.PluginBindingManager) {
+            window.TrafficMetricsConfigModule = PluginBindingManager.create({
+                pluginId: 'traffic-metrics',
+                scope: 'Route',
+                containerId: 'pc-tm-config-content',
+                refreshTimeId: 'pc-tm-config-refresh-time',
+                moduleName: 'TrafficMetricsConfigModule',
+                icon: 'bi-graph-up-arrow',
+                color: 'text-primary',
+                titleKey: 'trafficMetrics.config.title'
+            });
+            if (window.TrafficMetricsConfigModule) await TrafficMetricsConfigModule.load();
+        }
+
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}
