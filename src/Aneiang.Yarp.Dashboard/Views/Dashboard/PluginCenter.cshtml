@@ -58,17 +58,7 @@
 <div class="pc-tab-panel" data-plugin="response-cache" style="display:none"></div>
 <div class="pc-tab-panel" data-plugin="service-discovery" style="display:none"></div>
 <div class="pc-tab-panel" data-plugin="compression" style="display:none"></div>
-
-<!-- Tab panels: feature-type (inlined from partials) -->
-<div class="pc-tab-panel" data-plugin="traffic" style="display:none">
-    @await Html.PartialAsync("~/Views/Dashboard/Partials/_TrafficPanel.cshtml")
-</div>
-<div class="pc-tab-panel" data-plugin="cluster-metrics" style="display:none">
-    @await Html.PartialAsync("~/Views/Dashboard/Partials/_ClusterMetricsPanel.cshtml")
-</div>
-<div class="pc-tab-panel" data-plugin="circuits" style="display:none">
-    @await Html.PartialAsync("~/Views/Dashboard/Partials/_CircuitsPanel.cshtml")
-</div>
+<div class="pc-tab-panel" data-plugin="proxy-log" style="display:none"></div>
 
 @section Scripts {
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/plugin-binding-manager.js"></script>

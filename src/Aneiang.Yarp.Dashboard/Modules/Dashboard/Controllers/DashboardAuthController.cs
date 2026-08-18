@@ -57,7 +57,10 @@ public class DashboardAuthController : Controller
     {
         ViewBag.DashboardRoutePrefix = DashboardPagesController.RoutePrefix;
         ViewBag.AuthMode = _authMode;
-        ViewBag.Locale = _defaultLocale == "en-US" ? "en-US" : "zh-CN";
+        var cookieLocale = Request.Cookies["dashboard_locale"];
+        ViewBag.Locale = !string.IsNullOrEmpty(cookieLocale)
+            ? (cookieLocale == "en-US" ? "en-US" : "zh-CN")
+            : (_defaultLocale == "en-US" ? "en-US" : "zh-CN");
         ViewBag.AllI18nJson = DashboardI18n.AllAsJson(ViewBag.Locale);
         return View();
     }

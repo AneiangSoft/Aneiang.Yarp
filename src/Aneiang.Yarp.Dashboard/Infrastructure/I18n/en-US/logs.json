@@ -45,7 +45,7 @@
   "index.log.status.error": "Error",
   "index.log.status.success": "Success",
   "index.log.stopListen": "Listening",
-  "index.log.title": "YARP Live Logs",
+  "index.log.title": "Real-time Logs",
   "index.log.truncated": "truncated",
   "index.log.type.all": "All Logs",
   "index.log.updated": "Updated at ",

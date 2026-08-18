@@ -1,0 +1,54 @@
+@{
+    var isEn = (ViewBag.Locale as string) == "en-US";
+    ViewData["Title"] = isEn ? "Cluster Metrics" : "集群指标";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+@await Html.PartialAsync("~/Views/Dashboard/Partials/_ClusterMetricsPanel.cshtml")
+
+@section Scripts {
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-cluster-metrics.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/plugin-binding-manager.js"></script>
+
+@await Html.PartialAsync("_DashboardPageInit")
+
+<script>
+    (async function() {
+        var basePath = '/' + '@(ViewBag.DashboardRoutePrefix ?? "apigateway")';
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+
+        try {
+            if (window.DashboardApi) {
+                var plugin = await DashboardApi.getPlugin('cluster-metrics');
+                if (plugin && plugin.enabled) {
+                    if (window.ClusterMetricsModule) await ClusterMetricsModule.load();
+                    hidePluginHint('cm-plugin-hint');
+                }
+            }
+        } catch(e) { console.error('ClusterMetrics load error:', e); }
+
+        if (window.PluginBindingManager) {
+            window.ClusterMetricsConfigModule = PluginBindingManager.create({
+                pluginId: 'cluster-metrics',
+                scope: 'Cluster',
+                scopeLabel: (window.__ ? __('pluginPage.cluster', 'Cluster') : 'Cluster'),
+                containerId: 'pc-cm-config-content',
+                refreshTimeId: 'pc-cm-config-refresh-time',
+                moduleName: 'ClusterMetricsConfigModule',
+                icon: 'bi-diagram-3-fill',
+                color: 'text-primary',
+                titleKey: 'clusterMetrics.config.title'
+            });
+            if (window.ClusterMetricsConfigModule) await ClusterMetricsConfigModule.load();
+        }
+
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

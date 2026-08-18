@@ -8,7 +8,6 @@
 
 @section Scripts {
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-logs.js"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/plugin-binding-manager.js"></script>
 
 @await Html.PartialAsync("_DashboardPageInit")
 
@@ -22,32 +21,18 @@
         if (window.DashboardModals) DashboardModals.init();
         if (window.DashboardEvents) DashboardEvents.setup();
 
-        if (window.DashboardApp && DashboardApp.modules && DashboardApp.modules.logs) {
-            if (DashboardApp.modules.logs.init) await DashboardApp.modules.logs.init();
-            if (DashboardApp.modules.logs.loadLogs) await DashboardApp.modules.logs.loadLogs();
-        }
-
-        if (window.PluginBindingManager) {
-            window.ProxyLogConfigModule = PluginBindingManager.create({
-                pluginId: 'proxy-log',
-                scope: 'Route',
-                containerId: 'pl-config-content',
-                refreshTimeId: 'pl-config-refresh-time',
-                moduleName: 'ProxyLogConfigModule',
-                icon: 'bi-journal-text',
-                color: 'text-info',
-                titleKey: 'plugin.name.proxy-log',
-                descKey: 'pluginPage.desc.proxy-log',
-                helpKey: 'pluginPage.help.proxy-log'
-            });
-            var refreshBtn = document.getElementById('pl-config-refresh-btn');
-            if (refreshBtn) {
-                refreshBtn.addEventListener('click', function() {
-                    if (window.ProxyLogConfigModule) ProxyLogConfigModule.load();
-                });
+        try {
+            if (window.DashboardApi) {
+                var plugin = await DashboardApi.getPlugin('proxy-log');
+                if (plugin && plugin.enabled) {
+                    if (window.DashboardApp && DashboardApp.modules && DashboardApp.modules.logs) {
+                        if (DashboardApp.modules.logs.init) await DashboardApp.modules.logs.init();
+                        if (DashboardApp.modules.logs.loadLogs) await DashboardApp.modules.logs.loadLogs();
+                    }
+                    hidePluginHint('logs-plugin-hint');
+                }
             }
-            if (window.ProxyLogConfigModule) await ProxyLogConfigModule.load();
-        }
+        } catch(e) { console.error('Logs load error:', e); }
 
         document.dispatchEvent(new CustomEvent('dashboard:ready'));
     })();

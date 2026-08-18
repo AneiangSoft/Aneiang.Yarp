@@ -1,5 +1,10 @@
 @* Partial: ClusterMetrics monitor panel (no config sub-panel - managed by PluginCenter) *@
 <div id="cluster-metrics-app">
+    <div class="plugin-hint-banner" id="cm-plugin-hint">
+        <i class="bi bi-info-circle"></i>
+        <span data-i18n="common.pluginNotConfigured">未配置插件，数据可能为空</span>
+        <a href="/@ViewBag.DashboardRoutePrefix/plugin-center#cluster-metrics" class="plugin-hint-link" data-i18n="common.goPluginConfig">前往配置 <i class="bi bi-arrow-right ms-1"></i></a>
+    </div>
     <div class="card-panel mb-4">
         <div class="card-header">
             <span><i class="bi bi-diagram-3-fill me-2 text-primary"></i><span data-i18n="clusterMetrics.title">集群指标</span></span>
