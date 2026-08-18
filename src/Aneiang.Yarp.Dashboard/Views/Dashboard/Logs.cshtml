@@ -1,225 +1,14 @@
-@using Aneiang.Yarp.Plugin.ProxyLog.Models
 @{
-    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Logs" : "日志";
+    var isEn = (ViewBag.Locale as string) == "en-US";
+    ViewData["Title"] = isEn ? "Real-time Logs" : "实时日志";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
-<style>
-    /* ── Log filter toolbar ── */
-    #log-filter-container .card-body { padding: 10px 16px !important; }
-    #log-filter-container .row { gap: 6px 10px; }
-
-    /* ── History search panel ── */
-    #log-history-search .card-body { padding: 10px 16px !important; }
-    #log-history-search .row { gap: 6px 10px; }
-    #log-history-search input[type="datetime-local"] { font-size: 12px; }
-
-    /* ── Pagination ── */
-    .log-pagination { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 0; font-size: 13px; }
-    .log-pagination .btn { min-width: 80px; }
-    .log-pagination .page-info { color: #64748b; }
-
-    /* ── History item lightweight row ── */
-    .log-history-item { border-radius: 6px; border: 1px solid transparent; }
-    .log-history-item .log-row {
-        display: flex; align-items: center; gap: 10px;
-        padding: 8px 12px; cursor: pointer;
-        transition: background .15s;
-    }
-    .log-history-item .log-row:hover { background: rgba(148,163,184,.08); }
-    .log-history-meta { font-size: 11px; color: #94a3b8; }
-    .log-detail-loading { padding: 12px 16px; text-align: center; color: #64748b; font-size: 12px; }
-
-    /* ── Log scroll container ── */
-    .log-scroll-wrap {
-        height: calc(100vh - 280px); min-height: 300px; overflow-y: auto;
-        padding: 4px 8px;
-    }
-    @@media (max-width: 768px) {
-        .log-scroll-wrap { height: calc(100vh - 220px); }
-    }
-    #log-entries { display: flex; flex-direction: column; gap: 6px; }
-    #log-history-entries { display: flex; flex-direction: column; gap: 6px; }
-
-    /* ── Log item row (each entry) ── */
-    .log-item { border-radius: 6px; border: 1px solid transparent; }
-    .log-item .log-row {
-        display: flex; align-items: center; gap: 10px;
-        padding: 8px 12px; cursor: pointer;
-        transition: background .15s;
-    }
-    .log-item .log-row:hover { background: rgba(148,163,184,.08); }
-
-    /* ── Badges & small elements ── */
-    .log-row .badge { padding: 2px 7px; font-size: 11px; line-height: 1.4; }
-    .log-row code { font-size: 12px !important; padding: 2px 8px !important; }
-    .log-row .log-event-tag { font-size: 11px; white-space: nowrap; }
-
-    /* ── Paired request/response detail ── */
-    .log-detail { padding: 12px 16px; background: #f8fafc; border-top: 1px solid var(--border-color,#e2e8f0); }
-    .log-flow { display: flex; flex-direction: column; gap: 10px; }
-    .log-flow-section { padding: 8px 12px; border-radius: 6px; background: #fff; border: 1px solid #e2e8f0; }
-    .log-flow-title { font-weight: 600; font-size: 12px; margin-bottom: 6px; color: #475569; }
-    .log-flow-body { font-size: 12px; color: #334155; }
-    .log-flow-body > div { margin-bottom: 3px; }
-    .log-meta-row { display: flex; gap: 14px; flex-wrap: wrap; padding: 4px 0; font-size: 12px; }
-    .log-flow-arrow { text-align: center; font-size: 14px; color: #94a3b8; padding: 2px 0; }
-
-    /* ── Persistence off banner ── */
-    .log-persistence-off {
-        display: flex; align-items: center; gap: 8px; justify-content: center;
-        padding: 40px 20px; color: #64748b; font-size: 14px;
-    }
-    .log-persistence-off i { font-size: 24px; color: #94a3b8; }
-</style>
-
-<!-- Log panel -->
-<div class="page-help-bar" id="logs-help-bar">
-    <i class="bi bi-info-circle"></i>
-    <span class="help-text" data-i18n="page.help.logs">实时日志展示经过网关的请求记录。支持按级别、状态码、路由筛选。日志插件需启用后才会记录。</span>
-    <button class="help-close" onclick="document.getElementById('logs-help-bar').classList.add('collapsed')">&times;</button>
-</div>
-<div id="log-panel" class="card-panel mb-4">
-    <div class="card-header">
-        <span><i class="bi bi-journal-text me-2" style="color:#8b5cf6;"></i><span data-i18n="index.log.title">YARP 实时日志</span></span>
-        <div class="card-header-actions">
-            <span class="pulse-dot me-1"></span>
-            <span class="refresh-badge" id="log-refresh-time"></span>
-            <span class="refresh-badge"><span data-i18n="index.log.showing">显示 </span><strong id="log-display-count">0</strong><span data-i18n="index.log.of"> / </span><span id="log-total-count">0</span><span data-i18n="index.log.entries"> 条</span></span>
-        </div>
-    </div>
-    
-    <!-- Tab navigation -->
-    <div class="nav-tabs-bar">
-        <button class="nav-tab-btn active" id="log-tab-realtime" onclick="LogsModule.switchTab('realtime')">
-            <i class="bi bi-broadcast me-1"></i><span data-i18n="index.log.realtimeTab">实时日志</span>
-        </button>
-        <button class="nav-tab-btn" id="log-tab-history" onclick="LogsModule.switchTab('history')">
-            <i class="bi bi-clock-history me-1"></i><span data-i18n="index.log.historyTab">历史日志</span>
-        </button>
-    </div>
-
-    <!-- Realtime tab content -->
-    <div id="log-tab-content-realtime">
-        <!-- Filter toolbar container -->
-        <div id="log-filter-container"></div>
-        
-        <div class="log-scroll-wrap" id="log-scroll-container">
-            <div id="log-entries" class="log-entries-container">
-                <div class="empty-state">
-                    <div class="empty-state-icon"><i class="bi bi-journal-text"></i></div>
-                    <div class="empty-state-title" data-i18n="index.log.empty">暂无日志</div>
-                    <div class="empty-state-desc" data-i18n="index.log.emptyDesc">等待请求流量进入网关后，日志将实时显示此处</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- History tab content (hidden by default) -->
-    <div id="log-tab-content-history" style="display:none;">
-        <!-- History search panel -->
-        <div id="log-history-search">
-            <div class="card-body py-2 border-bottom">
-                <div class="row g-2 align-items-center">
-                    <div class="col-auto">
-                        <input type="datetime-local" class="form-control form-control-sm" id="history-start-time" style="width:170px;" placeholder="@(((ViewBag.Locale as string) == "en-US") ? "From" : "开始时间")">
-                    </div>
-                    <div class="col-auto">
-                        <input type="datetime-local" class="form-control form-control-sm" id="history-end-time" style="width:170px;" placeholder="@(((ViewBag.Locale as string) == "en-US") ? "To" : "结束时间")">
-                    </div>
-                    <div class="col-auto">
-                        <select class="form-select form-select-sm" id="history-level-select" style="width:110px;">
-                            <option value="">@(((ViewBag.Locale as string) == "en-US") ? "All Levels" : "所有级别")</option>
-                            <option value="Information">Information</option>
-                            <option value="Warning">Warning</option>
-                            <option value="Error">Error</option>
-                            <option value="Critical">Critical</option>
-                            <option value="Debug">Debug</option>
-                        </select>
-                    </div>
-                    <div class="col-auto">
-                        <select class="form-select form-select-sm" id="history-event-type-select" style="width:110px;">
-                            <option value="">@(((ViewBag.Locale as string) == "en-US") ? "All Types" : "全部类型")</option>
-                            <option value="ProxyRequest">@(((ViewBag.Locale as string) == "en-US") ? "Request" : "请求")</option>
-                            <option value="ProxyResponse">@(((ViewBag.Locale as string) == "en-US") ? "Response" : "响应")</option>
-                        </select>
-                    </div>
-                    <div class="col">
-                        <input type="text" class="form-control form-control-sm" id="history-keyword-input" placeholder="@(((ViewBag.Locale as string) == "en-US") ? "Keyword..." : "关键词...")">
-                    </div>
-                    <div class="col-auto">
-                        <button class="btn btn-sm btn-outline-primary" id="history-search-btn" onclick="LogsModule.searchHistory()">
-                            <i class="bi bi-search"></i>
-                        </button>
-                    </div>
-                </div>
-                <!-- Second row: RouteId, ClusterId, StatusCode range -->
-                <div class="row g-2 align-items-center mt-1">
-                    <div class="col-auto">
-                        <input type="text" class="form-control form-control-sm" id="history-route-id" style="width:140px;" placeholder="@(((ViewBag.Locale as string) == "en-US") ? "Route ID" : "路由ID")">
-                    </div>
-                    <div class="col-auto">
-                        <input type="text" class="form-control form-control-sm" id="history-cluster-id" style="width:140px;" placeholder="@(((ViewBag.Locale as string) == "en-US") ? "Cluster ID" : "集群ID")">
-                    </div>
-                    <div class="col-auto">
-                        <div class="input-group input-group-sm" style="width:180px;">
-                            <input type="number" class="form-control" id="history-status-min" placeholder="Min" min="100" max="600">
-                            <span class="input-group-text">-</span>
-                            <input type="number" class="form-control" id="history-status-max" placeholder="Max" min="100" max="600">
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- History entries list -->
-        <div class="log-scroll-wrap" id="log-history-scroll-container">
-            <div id="log-history-entries" class="log-entries-container">
-                <div class="empty-state">
-                    <div class="empty-state-icon"><i class="bi bi-clock-history"></i></div>
-                    <div class="empty-state-title" data-i18n="index.log.noHistory">暂无历史日志</div>
-                    <div class="empty-state-desc" data-i18n="index.log.noHistoryDesc">持久化未启用或尚未写入历史数据</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Pagination -->
-        <div id="log-history-pagination" class="log-pagination" style="display:none;">
-            <button class="btn btn-sm btn-outline-secondary" id="history-prev-btn" onclick="LogsModule.prevHistoryPage()">
-                <i class="bi bi-chevron-left"></i> <span data-i18n="index.log.pagination.prev">上一页</span>
-            </button>
-            <span class="page-info" id="history-page-info"></span>
-            <button class="btn btn-sm btn-outline-secondary" id="history-next-btn" onclick="LogsModule.nextHistoryPage()">
-                <span data-i18n="index.log.pagination.next">下一页</span> <i class="bi bi-chevron-right"></i>
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- Configuration panel -->
-<div class="card-panel mb-4">
-    <div class="card-header">
-        <span><i class="bi bi-gear me-2 text-secondary"></i><span data-i18n="logs.config.title">日志插件配置</span></span>
-        <div class="card-header-actions">
-            <span id="pl-config-refresh-time" class="refresh-badge"></span>
-            <button class="btn btn-sm btn-outline-primary btn-icon-only" onclick="ProxyLogConfigModule.load()" data-i18n-title="index.btn.refresh" data-i18n-aria="index.btn.refresh" title="刷新" aria-label="刷新">
-                <i class="bi bi-arrow-clockwise"></i>
-            </button>
-        </div>
-    </div>
-    <div id="pl-config-content" class="card-body">
-        <div class="loading-state">
-            <div class="loading-spinner"></div>
-            <div class="loading-text" data-i18n="common.loading">加载中...</div>
-        </div>
-    </div>
-</div>
+@await Html.PartialAsync("~/Views/Dashboard/Partials/_LogsPanel.cshtml")
 
 @section Scripts {
-@{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-logs.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-logs.js"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/plugin-binding-manager.js"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-proxy-log-config.js"></script>
 
 @await Html.PartialAsync("_DashboardPageInit")
 
@@ -228,13 +17,37 @@
         if (window.DashboardUtils) DashboardUtils.init();
         if (window.DashboardApi) DashboardApi.init();
         if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
         if (window.DashboardStorage) DashboardStorage.init();
         if (window.DashboardModals) DashboardModals.init();
         if (window.DashboardEvents) DashboardEvents.setup();
 
-        if (window.DashboardApp?.modules?.logs?.init) await DashboardApp.modules.logs.init();
-        if (window.DashboardApp?.modules?.logs?.loadLogs) await DashboardApp.modules.logs.loadLogs();
-        await ProxyLogConfigModule.load();
+        if (window.DashboardApp && DashboardApp.modules && DashboardApp.modules.logs) {
+            if (DashboardApp.modules.logs.init) await DashboardApp.modules.logs.init();
+            if (DashboardApp.modules.logs.loadLogs) await DashboardApp.modules.logs.loadLogs();
+        }
+
+        if (window.PluginBindingManager) {
+            window.ProxyLogConfigModule = PluginBindingManager.create({
+                pluginId: 'proxy-log',
+                scope: 'Route',
+                containerId: 'pl-config-content',
+                refreshTimeId: 'pl-config-refresh-time',
+                moduleName: 'ProxyLogConfigModule',
+                icon: 'bi-journal-text',
+                color: 'text-info',
+                titleKey: 'plugin.name.proxy-log',
+                descKey: 'pluginPage.desc.proxy-log',
+                helpKey: 'pluginPage.help.proxy-log'
+            });
+            var refreshBtn = document.getElementById('pl-config-refresh-btn');
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', function() {
+                    if (window.ProxyLogConfigModule) ProxyLogConfigModule.load();
+                });
+            }
+            if (window.ProxyLogConfigModule) await ProxyLogConfigModule.load();
+        }
 
         document.dispatchEvent(new CustomEvent('dashboard:ready'));
     })();

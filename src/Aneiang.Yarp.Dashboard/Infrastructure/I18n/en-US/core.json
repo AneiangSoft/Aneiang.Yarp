@@ -116,6 +116,7 @@
   "menu.routes": "Routes",
   "menu.history": "Config History",
   "menu.plugins": "Plugin Manager",
+  "menu.pluginCenter": "Plugin Center",
   "menu.pluginResources": "Plugin Resources",
   "menu.strategyConfig": "Strategy Config",
   "menu.rateLimit": "Rate Limiting",
@@ -337,5 +338,11 @@
   "pluginResources.title": "Plugin Resources",
   "policy.routePolicy": "Route Policy",
   "policy.circuitBreaker": "Circuit Breaker",
-  "policy.enabled": "Enabled"
+  "policy.enabled": "Enabled",
+  "pc.strategy": "Strategy Config",
+  "pc.monitor": "Operations Monitor",
+  "pc.config": "Config",
+  "pc.pluginConfig": "Plugin Config",
+  "common.loading": "Loading...",
+  "common.loadFailed": "Load failed"
 }

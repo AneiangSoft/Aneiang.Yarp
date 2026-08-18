@@ -24,7 +24,6 @@ public class CircuitBreakerPlugin : IGatewayPlugin
     public void ConfigureMiddleware(IApplicationBuilder app) { }
     public void ConfigureProxyPipeline(IReverseProxyApplicationBuilder proxyPipeline) => proxyPipeline.UseMiddleware<CircuitBreakerMiddleware>();
 
-    public void ConfigureDashboard(IPluginDashboardBuilder builder) =>
-        builder.AddNavItem(new PluginNavItem(PluginId, "menu.circuits", "/circuits", "bi-lightning-charge", 300));
+    public void ConfigureDashboard(IPluginDashboardBuilder builder) { }
 
 }

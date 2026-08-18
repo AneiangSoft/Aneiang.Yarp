@@ -3308,6 +3308,8 @@
                     new[]
                     {
                         ("plugins", isEn ? "Plugin Manager" : "插件管理", "menu.plugins", "bi-puzzle", $"/{prefix}/plugins", "ratio", Array.Empty<object>()),
+                        ("plugin-center", isEn ? "Plugin Center" : "插件中心", "menu.pluginCenter", "bi-grid-3x3-gap", $"/{prefix}/plugin-center", "", Array.Empty<object>()),
+                        ("logs", isEn ? "Real-time Logs" : "实时日志", "menu.logs", "bi-journal-text", $"/{prefix}/logs", "", Array.Empty<object>()),
                         ("plugin-resources", isEn ? "Plugin Resources" : "插件资源", "menu.pluginResources", "bi-cpu", $"/{prefix}/plugin-resources", "", Array.Empty<object>())
                     }
                 ),
@@ -3488,16 +3490,12 @@
                 {"overview", pgIsEn ? "Overview" : "总览"},
                 {"clusters", pgIsEn ? "Clusters" : "服务集群"},
                 {"routes", pgIsEn ? "Routes" : "路由配置"},
-                {"logs", pgIsEn ? "Real-time Logs" : "实时日志"},
                 {"circuits", pgIsEn ? "Circuit Breaker" : "熔断状态"},
-                {"waf", pgIsEn ? "WAF Firewall" : "WAF 防火墙"},
-                {"retry", pgIsEn ? "Request Retry" : "请求重试"},
-                {"rate-limit", pgIsEn ? "Rate Limiting" : "限流策略"},
-                {"response-cache", pgIsEn ? "Response Cache" : "响应缓存"},
-                {"service-discovery", pgIsEn ? "Service Discovery" : "服务发现"},
-                {"cluster-metrics", pgIsEn ? "Cluster Metrics" : "集群指标"},
                 {"settings", pgIsEn ? "Settings" : "系统设置"},
                 {"plugins", pgIsEn ? "Plugin Manager" : "插件管理"},
+                {"plugin-center", pgIsEn ? "Plugin Center" : "插件中心"},
+                {"plugin-resources", pgIsEn ? "Plugin Resources" : "插件资源"},
+                {"logs", pgIsEn ? "Real-time Logs" : "实时日志"},
                 {"history", pgIsEn ? "Configuration History" : "配置历史"},
                 {"audit", pgIsEn ? "Audit Log" : "审计日志"},
                 {"traffic", pgIsEn ? "Traffic Monitor" : "流量监控"},
@@ -3508,20 +3506,13 @@
                 {"overview", "bi-speedometer2"},
                 {"clusters", "bi-diagram-3"},
                 {"routes", "bi-signpost-split"},
-                {"logs", "bi-journal-text"},
-                {"circuits", "bi-lightning-charge"},
-                {"waf", "bi-shield-lock"},
-                {"retry", "bi-arrow-repeat"},
-                {"rate-limit", "bi-speed-limit"},
-                {"response-cache", "bi-hdd-network"},
-                {"service-discovery", "bi-broadcast"},
-                {"cluster-metrics", "bi-diagram-3"},
                 {"settings", "bi-gear"},
                 {"plugins", "bi-puzzle"},
+                {"plugin-center", "bi-grid-3x3-gap"},
+                {"plugin-resources", "bi-cpu"},
+                {"logs", "bi-journal-text"},
                 {"history", "bi-clock-history"},
-                {"audit", "bi-shield-check"},
-                {"traffic", "bi-graph-up-arrow"},
-                {"compression", "bi-file-zip"}
+                {"audit", "bi-shield-check"}
             };
             var pageTitle = pageTitles.ContainsKey(pgName) ? pageTitles[pgName] : pgName;
             var pageIcon = pageIcons.ContainsKey(pgName) ? pageIcons[pgName] : "bi-app-indicator";
@@ -3529,7 +3520,7 @@
             var parentGroupI18n = "";
             if (new[] { "clusters", "routes", "history" }.Contains(pgName)) { parentGroup = pgIsEn ? "Gateway Config" : "网关配置"; parentGroupI18n = "menu.group.gateway"; }
             if (pgName == "overview") parentGroup = "";
-            if (new[] { "plugins", "plugin-resources", "rate-limit", "waf", "retry", "response-cache", "service-discovery", "compression", "logs", "circuits", "traffic", "cluster-metrics" }.Contains(pgName)) { parentGroup = pgIsEn ? "Plugin Center" : "插件中心"; parentGroupI18n = "menu.group.plugins"; }
+            if (new[] { "plugins", "plugin-resources", "plugin-center", "logs" }.Contains(pgName)) { parentGroup = pgIsEn ? "Plugin Center" : "插件中心"; parentGroupI18n = "menu.group.plugins"; }
             if (new[] { "audit", "settings" }.Contains(pgName)) { parentGroup = pgIsEn ? "System" : "系统管理"; parentGroupI18n = "menu.group.system"; }
 
             <div class="page-header">

@@ -18,7 +18,6 @@ public sealed class ResponseCachePlugin : IGatewayPlugin
     public void ConfigureMiddleware(IApplicationBuilder app) { }
     public void ConfigureProxyPipeline(IReverseProxyApplicationBuilder proxyPipeline) => proxyPipeline.UseMiddleware<ResponseCacheMiddleware>();
 
-    public void ConfigureDashboard(IPluginDashboardBuilder builder) =>
-        builder.AddNavItem(new PluginNavItem(PluginId, "menu.responseCache", "/response-cache", "bi-hdd-network", 230));
+    public void ConfigureDashboard(IPluginDashboardBuilder builder) { }
 
 }

@@ -1,0 +1,21 @@
+@* Partial: ClusterMetrics monitor panel (no config sub-panel - managed by PluginCenter) *@
+<div id="cluster-metrics-app">
+    <div class="card-panel mb-4">
+        <div class="card-header">
+            <span><i class="bi bi-diagram-3-fill me-2 text-primary"></i><span data-i18n="clusterMetrics.title">集群指标</span></span>
+            <div class="card-header-actions">
+                <span id="cm-refresh-time" class="refresh-badge"></span>
+                <button class="btn btn-sm btn-outline-primary btn-icon-only" onclick="ClusterMetricsModule.load()" data-i18n-title="index.btn.refresh" title="刷新" aria-label="刷新">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+        <div id="cm-content" class="card-body">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <div class="loading-text" data-i18n="pluginPage.loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+    <div class="pc-feature-config" data-plugin="cluster-metrics"></div>
+</div>
