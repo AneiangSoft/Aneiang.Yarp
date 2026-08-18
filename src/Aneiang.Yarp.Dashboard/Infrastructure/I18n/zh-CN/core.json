@@ -116,6 +116,7 @@
   "menu.routes": "路由配置",
   "menu.history": "配置历史",
   "menu.plugins": "插件管理",
+  "menu.pluginCenter": "插件中心",
   "menu.pluginResources": "插件资源",
   "menu.strategyConfig": "策略配置",
   "menu.rateLimit": "限流策略",
@@ -337,5 +338,11 @@
   "pluginResources.title": "插件资源",
   "policy.routePolicy": "路由策略",
   "policy.circuitBreaker": "熔断器",
-  "policy.enabled": "启用"
+  "policy.enabled": "启用",
+  "pc.strategy": "策略配置",
+  "pc.monitor": "运维监控",
+  "pc.config": "配置",
+  "pc.pluginConfig": "插件配置",
+  "common.loading": "加载中...",
+  "common.loadFailed": "加载失败"
 }

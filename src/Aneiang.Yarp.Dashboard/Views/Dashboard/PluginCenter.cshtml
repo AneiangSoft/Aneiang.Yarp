@@ -1,0 +1,95 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Plugin Center" : "插件中心";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<style>
+    /* ── Plugin Center Tab Bar ── */
+    .pc-tabs-bar {
+        display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+        padding: 8px 12px; margin-bottom: 16px;
+        background: var(--card-bg, #fff);
+        border: 1px solid var(--border-color, #e2e8f0);
+        border-radius: 10px;
+        box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    }
+    .pc-tab-group-label {
+        font-size: 11px; font-weight: 600; color: #94a3b8;
+        text-transform: uppercase; letter-spacing: .05em;
+        padding: 4px 8px; white-space: nowrap;
+    }
+    .pc-tab-divider {
+        width: 1px; height: 24px; background: var(--border-color, #e2e8f0);
+        margin: 0 4px;
+    }
+    .pc-tab-btn {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 6px 12px; font-size: 13px; font-weight: 500;
+        border: 1px solid transparent; border-radius: 8px;
+        background: transparent; color: var(--text-secondary, #64748b);
+        cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .pc-tab-btn:hover {
+        background: var(--hover-bg, #f1f5f9);
+        color: var(--text-color, #1e293b);
+    }
+    .pc-tab-btn.active {
+        background: var(--primary-bg, #eef2ff);
+        color: var(--primary-color, #4f46e5);
+        border-color: var(--primary-border, #c7d2fe);
+    }
+    .pc-tab-btn i { font-size: 14px; }
+    .pc-tab-panel { min-height: 200px; }
+    .pc-feature-config { margin-top: 16px; }
+    @@media (max-width: 768px) {
+        .pc-tabs-bar { overflow-x: auto; flex-wrap: nowrap; }
+        .pc-tab-group-label { display: none; }
+    }
+</style>
+
+<!-- Tab bar (rendered by JS) -->
+<div id="pc-tab-bar"></div>
+
+<!-- Tab panels: config-type (empty, filled by JS) -->
+<div class="pc-tab-panel" data-plugin="rate-limit" style="display:none"></div>
+<div class="pc-tab-panel" data-plugin="rate-limit-redis" style="display:none"></div>
+<div class="pc-tab-panel" data-plugin="waf" style="display:none"></div>
+<div class="pc-tab-panel" data-plugin="retry" style="display:none"></div>
+<div class="pc-tab-panel" data-plugin="response-cache" style="display:none"></div>
+<div class="pc-tab-panel" data-plugin="service-discovery" style="display:none"></div>
+<div class="pc-tab-panel" data-plugin="compression" style="display:none"></div>
+
+<!-- Tab panels: feature-type (inlined from partials) -->
+<div class="pc-tab-panel" data-plugin="traffic" style="display:none">
+    @await Html.PartialAsync("~/Views/Dashboard/Partials/_TrafficPanel.cshtml")
+</div>
+<div class="pc-tab-panel" data-plugin="cluster-metrics" style="display:none">
+    @await Html.PartialAsync("~/Views/Dashboard/Partials/_ClusterMetricsPanel.cshtml")
+</div>
+<div class="pc-tab-panel" data-plugin="circuits" style="display:none">
+    @await Html.PartialAsync("~/Views/Dashboard/Partials/_CircuitsPanel.cshtml")
+</div>
+
+@section Scripts {
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/plugin-binding-manager.js"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-plugin-center.js"></script>
+
+@await Html.PartialAsync("_DashboardPageInit")
+
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+
+        if (window.PluginCenter) {
+            await PluginCenter.init();
+        }
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

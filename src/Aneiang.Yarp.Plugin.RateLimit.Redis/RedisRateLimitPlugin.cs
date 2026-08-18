@@ -36,6 +36,5 @@ public class RedisRateLimitPlugin : IGatewayPlugin
     public void ConfigureProxyPipeline(IReverseProxyApplicationBuilder proxyPipeline) =>
         proxyPipeline.UseMiddleware<RedisRateLimitMiddleware>();
 
-    public void ConfigureDashboard(IPluginDashboardBuilder builder) =>
-        builder.AddNavItem(new PluginNavItem(PluginId, "menu.rateLimitRedis", "/rate-limit-redis", "bi-hdd-network", 210));
+    public void ConfigureDashboard(IPluginDashboardBuilder builder) { }
 }

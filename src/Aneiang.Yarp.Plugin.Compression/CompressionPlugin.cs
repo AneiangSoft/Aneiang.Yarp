@@ -14,6 +14,5 @@ public sealed class CompressionPlugin : IGatewayPlugin
     public void ConfigureMiddleware(IApplicationBuilder app) { }
     public void ConfigureProxyPipeline(IReverseProxyApplicationBuilder proxyPipeline) => proxyPipeline.UseMiddleware<CompressionMiddleware>();
 
-    public void ConfigureDashboard(IPluginDashboardBuilder builder) =>
-        builder.AddNavItem(new PluginNavItem(PluginId, "menu.compression", "/compression", "bi-file-zip", 250));
+    public void ConfigureDashboard(IPluginDashboardBuilder builder) { }
 }

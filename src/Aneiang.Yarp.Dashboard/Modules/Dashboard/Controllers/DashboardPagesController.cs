@@ -82,12 +82,6 @@ public class DashboardPagesController : Controller
     [HttpGet("routes")]
     public IActionResult Routes() { SetCommonViewBag("routes"); return View(); }
 
-    [HttpGet("logs")]
-    public IActionResult Logs() { SetCommonViewBag("logs"); return View(); }
-
-    [HttpGet("circuits")]
-    public IActionResult Circuits() { SetCommonViewBag("circuits"); return View(); }
-
     [HttpGet("history")]
     public IActionResult History() { SetCommonViewBag("history"); return View(); }
 
@@ -100,35 +94,14 @@ public class DashboardPagesController : Controller
     [HttpGet("settings")]
     public IActionResult Settings() { SetCommonViewBag("settings"); return View(); }
 
-    [HttpGet("traffic")]
-    public IActionResult Traffic() { SetCommonViewBag("traffic"); return View(); }
-
-    [HttpGet("waf")]
-    public IActionResult Waf() { SetCommonViewBag("waf"); return View(); }
-
-    [HttpGet("retry")]
-    public IActionResult Retry() { SetCommonViewBag("retry"); return View(); }
-
-    [HttpGet("rate-limit")]
-    public IActionResult RateLimit() { SetCommonViewBag("rate-limit"); return View(); }
-
-    [HttpGet("response-cache")]
-    public IActionResult ResponseCache() { SetCommonViewBag("response-cache"); return View(); }
-
-    [HttpGet("service-discovery")]
-    public IActionResult ServiceDiscovery() { SetCommonViewBag("service-discovery"); return View(); }
-
-    [HttpGet("cluster-metrics")]
-    public IActionResult ClusterMetrics() { SetCommonViewBag("cluster-metrics"); return View(); }
-
-    [HttpGet("compression")]
-    public IActionResult Compression() { SetCommonViewBag("compression"); return View(); }
-
-    [HttpGet("rate-limit-redis")]
-    public IActionResult RateLimitRedis() { SetCommonViewBag("rate-limit-redis"); return View(); }
-
     [HttpGet("plugin-resources")]
     public IActionResult PluginResources() { SetCommonViewBag("plugin-resources"); return View(); }
+
+    [HttpGet("plugin-center")]
+    public IActionResult PluginCenter() { SetCommonViewBag("plugin-center"); return View(); }
+
+    [HttpGet("logs")]
+    public IActionResult Logs() { SetCommonViewBag("logs"); return View(); }
 
     #endregion
 

@@ -17,8 +17,7 @@ public sealed class TrafficMetricsPlugin : IGatewayPlugin
     public void ConfigureServices(IServiceCollection services, object? pluginOptions = null) { }
     public void ConfigureMiddleware(IApplicationBuilder app) { }
     public void ConfigureProxyPipeline(IReverseProxyApplicationBuilder proxyPipeline) => proxyPipeline.UseMiddleware<PluginMetricsMiddleware>();
-    public void ConfigureDashboard(IPluginDashboardBuilder builder) =>
-        builder.AddNavItem(new PluginNavItem(PluginId, "menu.traffic", "/traffic", "bi-graph-up-arrow", 320));
+    public void ConfigureDashboard(IPluginDashboardBuilder builder) { }
 }
 
 public sealed class ClusterMetricsPlugin : IGatewayPlugin
@@ -34,6 +33,5 @@ public sealed class ClusterMetricsPlugin : IGatewayPlugin
     public void ConfigureServices(IServiceCollection services, object? pluginOptions = null) { }
     public void ConfigureMiddleware(IApplicationBuilder app) { }
     public void ConfigureProxyPipeline(IReverseProxyApplicationBuilder proxyPipeline) { }
-    public void ConfigureDashboard(IPluginDashboardBuilder builder) =>
-        builder.AddNavItem(new PluginNavItem(PluginId, "menu.clusterMetrics", "/cluster-metrics", "bi-diagram-3", 330));
+    public void ConfigureDashboard(IPluginDashboardBuilder builder) { }
 }

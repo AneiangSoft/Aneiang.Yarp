@@ -1,9 +1,4 @@
-@{
-    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Traffic Monitor" : "流量监控";
-    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
-    var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
-    var v = "2.3.0.14";
-}
+@* Partial: Traffic monitor panel (no config sub-panel - managed by PluginCenter) *@
 
 <!-- Summary Stats Cards -->
 <div class="row g-3 mb-4">
@@ -159,48 +154,7 @@
     </div>
 </div>
 
-<!-- Traffic metrics plugin configuration (route bindings) -->
-<div class="card-panel mb-4">
-    <div class="card-header">
-        <span><i class="bi bi-gear me-2 text-secondary"></i><span data-i18n="trafficMetrics.config.title">流量指标插件配置</span></span>
-        <div class="card-header-actions">
-            <span id="tm-config-refresh-time" class="refresh-badge"></span>
-            <button class="btn btn-sm btn-outline-primary btn-icon-only" onclick="TrafficMetricsConfigModule.load()" title="刷新" aria-label="刷新">
-                <i class="bi bi-arrow-clockwise"></i>
-            </button>
-        </div>
-    </div>
-    <div id="tm-config-content" class="card-body">
-        <div class="loading-state">
-            <div class="loading-spinner"></div>
-            <div class="loading-text" data-i18n="common.loading">加载中...</div>
-        </div>
-    </div>
-</div>
-
-@section Scripts {
-<script src="/_content/Aneiang.Yarp.Dashboard/js/vendor/chart.umd.min.js"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-traffic.js?v=@v"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/plugin-binding-manager.js"></script>
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-traffic-metrics-config.js"></script>
-
-@await Html.PartialAsync("_DashboardPageInit")
-
-<script>
-    (async function() {
-        if (window.DashboardUtils) DashboardUtils.init();
-        if (window.DashboardApi) DashboardApi.init();
-        if (window.DashboardState) DashboardState.init();
-        if (window.DashboardI18n) DashboardI18n.init();
-        if (window.DashboardStorage) DashboardStorage.init();
-        if (window.DashboardModals) DashboardModals.init();
-        if (window.DashboardEvents) DashboardEvents.setup();
-        TrafficModule.init();
-        await TrafficMetricsConfigModule.load();
-        document.dispatchEvent(new CustomEvent('dashboard:ready'));
-    })();
-</script>
-}
+<div class="pc-feature-config" data-plugin="traffic"></div>
 
 <style>
 .stats-list { display: flex; flex-direction: column; gap: 6px; }

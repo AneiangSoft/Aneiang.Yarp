@@ -24,7 +24,6 @@ public class RequestRetryPlugin : IGatewayPlugin
     public void ConfigureMiddleware(IApplicationBuilder app) { }
     public void ConfigureProxyPipeline(IReverseProxyApplicationBuilder proxyPipeline) => proxyPipeline.UseMiddleware<RequestRetryMiddleware>();
 
-    public void ConfigureDashboard(IPluginDashboardBuilder builder) =>
-        builder.AddNavItem(new PluginNavItem(PluginId, "menu.retry", "/retry", "bi-arrow-repeat", 220));
+    public void ConfigureDashboard(IPluginDashboardBuilder builder) { }
 
 }
