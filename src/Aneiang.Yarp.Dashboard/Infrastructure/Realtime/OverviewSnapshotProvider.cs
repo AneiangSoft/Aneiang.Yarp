@@ -45,7 +45,7 @@ public sealed class OverviewSnapshotProvider : IOverviewSnapshotProvider
     {
         await Task.Yield();
 
-        // --- Cluster + health distribution ---
+        // --- Cluster + health distribution (cluster-level, not destination-level) ---
         int clusterCount = 0, healthyCount = 0, unknownCount = 0, unhealthyCount = 0;
         try
         {
@@ -53,9 +53,12 @@ public sealed class OverviewSnapshotProvider : IOverviewSnapshotProvider
             clusterCount = clusters.Count;
             foreach (var c in clusters)
             {
-                healthyCount += c.HealthyCount;
-                unknownCount += c.UnknownCount;
-                unhealthyCount += c.UnhealthyCount;
+                if (c.UnhealthyCount > 0)
+                    unhealthyCount++;
+                else if (c.HealthyCount > 0)
+                    healthyCount++;
+                else
+                    unknownCount++;
             }
         }
         catch (Exception ex)

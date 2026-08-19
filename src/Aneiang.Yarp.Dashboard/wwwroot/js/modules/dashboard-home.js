@@ -38,7 +38,7 @@
         renderInfo: function(info) {
             // Version
             const versionEl = window.DashboardDOM.safe('#info-version');
-            if (versionEl) versionEl.textContent = info.version || '-';
+            if (versionEl) versionEl.textContent = (info.version || '-').split('+')[0];
 
             // Environment
             const envEl = window.DashboardDOM.safe('#info-env');
@@ -84,17 +84,26 @@
                 const clusterCount = (clusters || []).length;
                 const routeCount = (routes || []).length;
 
-                // Use healthyCount/unknownCount/unhealthyCount from backend
-                const healthy = (clusters || []).reduce((sum, c) => sum + (c.healthyCount || 0), 0);
-                const unknown = (clusters || []).reduce((sum, c) => sum + (c.unknownCount || 0), 0);
-                const unhealthy = (clusters || []).reduce((sum, c) => sum + (c.unhealthyCount || 0), 0);
+                // Cluster-level health: count clusters, not destinations
+                let healthy = 0, unknown = 0, unhealthy = 0;
+                (clusters || []).forEach(c => {
+                    if ((c.unhealthyCount || 0) > 0) unhealthy++;
+                    else if ((c.healthyCount || 0) > 0) healthy++;
+                    else unknown++;
+                });
 
                 // Update DOM
                 const clustersEl = window.DashboardDOM.safe('#stat-clusters');
                 if (clustersEl) clustersEl.textContent = clusterCount;
 
-                const healthyEl = window.DashboardDOM.safe('#stat-healthy');
-                if (healthyEl) healthyEl.textContent = `${healthy} / ${unknown} / ${unhealthy}`;
+                // Health ring + legend counts (Overview page new layout)
+                const setCount = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+                setCount('stat-healthy-count', healthy);
+                setCount('stat-unknown-count', unknown);
+                setCount('stat-unhealthy-count', unhealthy);
+                if (typeof window.updateHealthRing === 'function') {
+                    window.updateHealthRing(healthy, unknown, unhealthy);
+                }
 
                 const routesEl = window.DashboardDOM.safe('#stat-routes');
                 if (routesEl) routesEl.textContent = routeCount;
