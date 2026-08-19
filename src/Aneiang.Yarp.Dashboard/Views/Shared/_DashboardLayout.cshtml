@@ -4,9 +4,10 @@
 @inject PluginDashboardInitializer PluginDashboard
 @{
     var _asmLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
-    var _appVersion = !string.IsNullOrEmpty(_asmLocation)
+    var _rawVersion = !string.IsNullOrEmpty(_asmLocation)
         ? (System.Diagnostics.FileVersionInfo.GetVersionInfo(_asmLocation).ProductVersion ?? "Unknown")
         : (System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown");
+    var _appVersion = _rawVersion.Split('+')[0];
 }
 <!DOCTYPE html>
 <html lang="@ViewBag.Locale">
