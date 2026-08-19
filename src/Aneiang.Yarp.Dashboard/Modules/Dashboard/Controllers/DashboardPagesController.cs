@@ -6,6 +6,7 @@ using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Aneiang.Yarp.Plugin.ProxyLog.Services;
 using Aneiang.Yarp.Storage;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Controllers;
@@ -181,6 +182,37 @@ public class DashboardPagesController : Controller
 
         var fileName = Path.GetFileName(dbPath);
         return PhysicalFile(dbPath, "application/octet-stream", fileName);
+    }
+
+    /// <summary>Create a consistent snapshot backup via VACUUM INTO and stream for download.</summary>
+    [HttpGet("api/settings/database/backup")]
+    public async Task<IActionResult> BackupDatabase()
+    {
+        var dbPath = ResolveDatabasePath(_storageOptions);
+        if (!System.IO.File.Exists(dbPath))
+            return Json(new { code = 404, message = "Database file not found" });
+
+        var timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        var tempPath = Path.Combine(Path.GetTempPath(), $"gw-backup-{timestamp}-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var connStr = _storageOptions.Sqlite.ConnectionString;
+            using var conn = new SqliteConnection(connStr);
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = $"VACUUM INTO '{tempPath.Replace("'", "''")}'";
+            await cmd.ExecuteNonQueryAsync();
+        }
+        catch
+        {
+            // Fallback: copy the file if VACUUM INTO is unavailable
+            System.IO.File.Copy(dbPath, tempPath, true);
+        }
+
+        var stream = new FileStream(tempPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.DeleteOnClose);
+        var fileName = $"gateway-store-backup-{timestamp}.db";
+        return File(stream, "application/octet-stream", fileName);
     }
 
     /// <summary>Resolves the SQLite database file path from the connection string.</summary>

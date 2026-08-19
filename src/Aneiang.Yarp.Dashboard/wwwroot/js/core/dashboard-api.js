@@ -301,6 +301,7 @@
 
         // Database Download
         downloadDatabase: () => DashboardApi.download('/api/settings/database', 'gateway-store.db'),
+        backupDatabase: () => DashboardApi.download('/api/settings/database/backup', 'gateway-store-backup.db'),
 
         // Overview snapshot (HTTP fallback for the SignalR push)
         getOverviewSnapshot: () => DashboardApi.get('/api/overview/snapshot'),

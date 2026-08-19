@@ -31,6 +31,11 @@
                 <i class="bi bi-file-earmark-arrow-up-down"></i><span data-i18n="settings.tab.config">配置导入导出</span>
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-database" data-bs-toggle="tab" data-bs-target="#pane-database" type="button" role="tab" aria-controls="pane-database" aria-selected="false">
+                <i class="bi bi-database"></i><span data-i18n="settings.tab.database">数据库</span>
+            </button>
+        </li>
     </ul>
 
     <div class="tab-content settings-tab-content" id="settings-tab-content">
@@ -176,21 +181,6 @@
                 </div>
             </div>
 
-            <!-- 数据管理 -->
-            <div class="settings-panel">
-                <div class="settings-panel-header">
-                    <div class="settings-panel-title">
-                        <span class="settings-panel-icon settings-panel-icon--cyan"><i class="bi bi-download"></i></span>
-                        <span data-i18n="settings.logging.dataManagement">数据管理</span>
-                    </div>
-                </div>
-                <div class="settings-panel-body">
-                    <button class="btn btn-outline-secondary btn-sm" onclick="SettingsModule.downloadDatabase()">
-                        <i class="bi bi-download me-1"></i><span data-i18n="settings.logging.downloadDb">下载 SQLite 数据库</span>
-                    </button>
-                </div>
-            </div>
-
             <!-- 需重启配置 -->
             <div class="settings-panel settings-panel--muted">
                 <div class="settings-panel-header">
@@ -297,6 +287,146 @@
                             </button>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: 数据库 -->
+        <div class="tab-pane fade" id="pane-database" role="tabpanel" aria-labelledby="tab-database">
+            <!-- 数据库信息 -->
+            <div class="settings-panel settings-panel--muted">
+                <div class="settings-panel-header">
+                    <div class="settings-panel-title">
+                        <span class="settings-panel-icon settings-panel-icon--gray"><i class="bi bi-info-circle"></i></span>
+                        <span data-i18n="settings.db.info">数据库信息</span>
+                    </div>
+                </div>
+                <div class="settings-panel-body">
+                    <div class="db-info-grid">
+                        <div class="db-info-item">
+                            <span class="db-info-label" data-i18n="settings.db.fileName">文件名</span>
+                            <span class="db-info-value" id="db-info-name">—</span>
+                        </div>
+                        <div class="db-info-item">
+                            <span class="db-info-label" data-i18n="settings.db.fileSize">文件大小</span>
+                            <span class="db-info-value" id="db-info-size">—</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 下载 vs 备份 并排 -->
+            <div class="db-actions-grid">
+                <!-- 数据库下载 -->
+                <div class="settings-panel">
+                    <div class="settings-panel-header">
+                        <div class="settings-panel-title">
+                            <span class="settings-panel-icon settings-panel-icon--cyan"><i class="bi bi-download"></i></span>
+                            <span data-i18n="settings.db.download">数据库下载</span>
+                        </div>
+                    </div>
+                    <div class="settings-panel-body">
+                        <div class="settings-field-desc mb-2" data-i18n="settings.db.downloadDesc">直接复制当前数据库文件到本地，速度快但可能不包含 WAL 未提交数据</div>
+                        <div class="db-feature-list">
+                            <div class="db-feature-item">
+                                <i class="bi bi-check2 text-success"></i>
+                                <span data-i18n="settings.db.feat.fast">速度快，直接文件拷贝</span>
+                            </div>
+                            <div class="db-feature-item">
+                                <i class="bi bi-x text-danger"></i>
+                                <span data-i18n="settings.db.feat.maybeInconsistent">可能不包含 WAL 日志数据</span>
+                            </div>
+                            <div class="db-feature-item">
+                                <i class="bi bi-x text-danger"></i>
+                                <span data-i18n="settings.db.feat.noTimestamp">文件名不含时间戳</span>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="SettingsModule.downloadDatabase()">
+                                <i class="bi bi-download me-1"></i><span data-i18n="settings.db.downloadBtn">下载数据库</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 数据库备份 -->
+                <div class="settings-panel">
+                    <div class="settings-panel-header">
+                        <div class="settings-panel-title">
+                            <span class="settings-panel-icon settings-panel-icon--green"><i class="bi bi-shield-check"></i></span>
+                            <span data-i18n="settings.db.backup">数据库备份</span>
+                        </div>
+                    </div>
+                    <div class="settings-panel-body">
+                        <div class="settings-field-desc mb-2" data-i18n="settings.db.backupDesc">使用 VACUUM INTO 创建事务一致性快照，WAL 日志已合并，适合长期存档</div>
+                        <div class="db-feature-list">
+                            <div class="db-feature-item">
+                                <i class="bi bi-check2 text-success"></i>
+                                <span data-i18n="settings.db.feat.consistent">事务一致性快照</span>
+                            </div>
+                            <div class="db-feature-item">
+                                <i class="bi bi-check2 text-success"></i>
+                                <span data-i18n="settings.db.feat.walMerged">WAL 日志已合并到单文件</span>
+                            </div>
+                            <div class="db-feature-item">
+                                <i class="bi bi-check2 text-success"></i>
+                                <span data-i18n="settings.db.feat.timestamp">文件名含时间戳，便于版本管理</span>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button class="btn btn-outline-primary btn-sm" id="config-backup-btn" onclick="SettingsModule.backupDatabase()">
+                                <i class="bi bi-shield-check me-1"></i><span data-i18n="settings.db.backupBtn">备份数据库</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 对比表 -->
+            <div class="settings-panel settings-panel--muted">
+                <div class="settings-panel-header">
+                    <div class="settings-panel-title">
+                        <span class="settings-panel-icon settings-panel-icon--gray"><i class="bi bi-table"></i></span>
+                        <span data-i18n="settings.db.comparison">下载 vs 备份对比</span>
+                    </div>
+                </div>
+                <div class="settings-panel-body p-0">
+                    <table class="table table-sm mb-0 db-comparison-table">
+                        <thead>
+                            <tr>
+                                <th data-i18n="settings.db.comp.feature">特性</th>
+                                <th data-i18n="settings.db.download">数据库下载</th>
+                                <th data-i18n="settings.db.backup">数据库备份</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td data-i18n="settings.db.comp.consistency">数据一致性</td>
+                                <td><i class="bi bi-dash text-warning"></i> <span data-i18n="settings.db.comp.maybe">取决于 WAL 状态</span></td>
+                                <td><i class="bi bi-check2 text-success"></i> <span data-i18n="settings.db.comp.guaranteed">事务保证</span></td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="settings.db.comp.wal">WAL 日志</td>
+                                <td><i class="bi bi-x text-danger"></i> <span data-i18n="settings.db.comp.notIncluded">不含</span></td>
+                                <td><i class="bi bi-check2 text-success"></i> <span data-i18n="settings.db.comp.merged">已合并</span></td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="settings.db.comp.speed">速度</td>
+                                <td><i class="bi bi-check2 text-success"></i> <span data-i18n="settings.db.comp.fast">快</span></td>
+                                <td><i class="bi bi-clock text-warning"></i> <span data-i18n="settings.db.comp.slower">稍慢</span></td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="settings.db.comp.filename">文件名</td>
+                                <td><code>gateway-store.db</code></td>
+                                <td><code>gateway-store-backup-{timestamp}.db</code></td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="settings.db.comp.scenario">适用场景</td>
+                                <td data-i18n="settings.db.comp.quickInspect">快速查看数据库内容</td>
+                                <td data-i18n="settings.db.comp.archiveRecovery">长期存档、灾难恢复</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
