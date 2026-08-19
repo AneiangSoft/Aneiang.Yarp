@@ -1,7 +1,7 @@
 /**
  * Dashboard Settings Module
- * Provides: appearance preferences (locale / sidebar), proxy-log settings (hot-reload),
- * and system information.
+ * Provides: proxy-log settings (hot-reload) and system information.
+ * Tabs: account security (2FA) · logging & persistence · system info.
  */
 (function() {
     'use strict';
@@ -22,17 +22,6 @@
 
     function $(id) { return document.getElementById(id); }
     function t(key, fallback) { return window.__ ? window.__(key) : (fallback || key); }
-
-    function getLocale() {
-        if (window.__dashboard && window.__dashboard.locale) return window.__dashboard.locale;
-        return (window.CURRENT_LOCALE) || 'zh-CN';
-    }
-
-    function setLocale(locale) {
-        document.cookie = 'dashboard_locale=' + locale + ';path=/;max-age=' + (365 * 86400);
-        try { localStorage.setItem('dashboard_locale', locale); } catch (_) {}
-        location.reload();
-    }
 
     function formatBytes(bytes) {
         if (bytes == null || isNaN(bytes)) return '-';
@@ -129,27 +118,7 @@
 
     const SettingsModule = {
         async load() {
-            // A: appearance
-            const localeSelect = $('settings-locale');
-            if (localeSelect) {
-                localeSelect.value = getLocale();
-                localeSelect.addEventListener('change', function() { setLocale(this.value); });
-            }
-            const sidebarToggle = $('settings-sidebar-collapsed');
-            if (sidebarToggle) {
-                sidebarToggle.checked = (localStorage.getItem('sidebar_collapsed') === '1');
-                sidebarToggle.addEventListener('change', function() {
-                    const sidebar = $('sidebar');
-                    const isCollapsed = sidebar && sidebar.classList.contains('collapsed');
-                    if (this.checked !== isCollapsed && typeof window.toggleSidebarCollapse === 'function') {
-                        window.toggleSidebarCollapse();
-                    } else {
-                        try { localStorage.setItem('sidebar_collapsed', this.checked ? '1' : '0'); } catch (_) {}
-                    }
-                });
-            }
-
-            // B: log settings
+            // Log settings (hot-reload)
             try {
                 const logData = await DashboardApi.endpoints.getLogSettings();
                 fillLogForm(logData);
@@ -157,7 +126,7 @@
                 DashboardModals.showError(t('settings.logging.loadFailed', 'Failed to load log settings') + ': ' + (e.message || e));
             }
 
-            // B2: restart-required (read-only) options
+            // Restart-required (read-only) options
             try {
                 const rrData = await DashboardApi.endpoints.getLogRestartRequired();
                 renderRestartRequired(rrData);
@@ -166,7 +135,7 @@
                 if (container) container.innerHTML = '<div class="text-danger">' + (e.message || e) + '</div>';
             }
 
-            // E: system info
+            // System info
             try {
                 const sysData = await DashboardApi.get('/api/settings/system');
                 renderSystemInfo(sysData);

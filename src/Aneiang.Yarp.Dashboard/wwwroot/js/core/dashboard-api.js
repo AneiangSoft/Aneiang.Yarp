@@ -232,7 +232,7 @@
         getLogs: (count = 100) => DashboardApi.get('/api/logs', { count }),
         clearLogs: () => DashboardApi.delete('/api/logs'),
         getLogHistory: (params) => DashboardApi.get('/api/logs/history', params),
-        getLogDetail: (id) => DashboardApi.get(`/api/logs/detail/${id}`),
+        getLogDetail: (id) => DashboardApi.get('/api/logs/detail/' + encodeURIComponent(id)),
         getLogStats: () => DashboardApi.get('/api/logs/stats'),
         getLogSettings: () => DashboardApi.get('/api/logs/settings'),
         updateLogSettings: (data) => DashboardApi.put('/api/logs/settings', data),
@@ -276,7 +276,6 @@
         getPlugin: (id) => DashboardApi.get('/api/plugins/' + id),
         togglePlugin: (id, enabled) => DashboardApi.post('/api/plugins/' + id + '/toggle', { enabled }),
         resetPlugins: () => DashboardApi.post('/api/plugins/reset'),
-        installPlugin: (sourceDirectory) => DashboardApi.post('/api/plugins/install', { sourceDirectory }),
         uninstallPlugin: (pluginId) => DashboardApi.delete('/api/plugins/' + pluginId),
         upgradePlugin: (pluginId, sourceDirectory) => DashboardApi.post('/api/plugins/' + pluginId + '/upgrade', { sourceDirectory }),
 
@@ -326,7 +325,6 @@
     window.DashboardApi.getPlugin = (id) => DashboardApi.endpoints.getPlugin(id);
     window.DashboardApi.togglePlugin = (id, enabled) => DashboardApi.endpoints.togglePlugin(id, enabled);
     window.DashboardApi.resetPlugins = () => DashboardApi.endpoints.resetPlugins();
-    window.DashboardApi.installPlugin = (sourceDirectory) => DashboardApi.endpoints.installPlugin(sourceDirectory);
     window.DashboardApi.uninstallPlugin = (pluginId) => DashboardApi.endpoints.uninstallPlugin(pluginId);
     window.DashboardApi.upgradePlugin = (pluginId, sourceDirectory) => DashboardApi.endpoints.upgradePlugin(pluginId, sourceDirectory);
     window.DashboardApi.getBindings = (scope, scopeId) => DashboardApi.endpoints.getBindings(scope, scopeId);
