@@ -33,7 +33,7 @@
   "config.importManifestClusters": "Cluster Manifest",
   "config.importManifestContinue": "Confirm Import",
   "config.importManifestCountSummary": "Total {0} routes, {1} clusters",
-  "config.importManifestDesc": "Review the configuration items below before proceeding",
+  "config.importManifestDesc": "Review the configuration items above before proceeding",
   "config.importManifestDestinations": "Destinations",
   "config.importManifestMatchPath": "Match Path",
   "config.importManifestNoClusters": "(No clusters)",

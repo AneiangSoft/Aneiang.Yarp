@@ -221,6 +221,7 @@
   "settings.tab.logging": "Logging & Persistence",
   "settings.tab.security": "Account Security",
   "settings.tab.system": "System Info",
+  "settings.tab.config": "Import / Export",
   "settings.system": "System Information",
   "settings.system.version": "Version",
   "settings.system.routePrefix": "Route Prefix",
