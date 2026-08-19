@@ -547,10 +547,10 @@
 
                 // Action buttons
                 var isEn2 = route.enabled !== false;
-                html += '<div style="display:flex;gap:4px;flex-shrink:0;" onclick="event.stopPropagation()">';
-                html += '<button class="btn-action btn-action-' + (isEn2 ? 'success' : 'secondary') + '" onclick="event.stopPropagation();window.DashboardApp.modules.routes.toggleRouteEnabled(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\',' + !isEn2 + ')" title="' + (isEn2 ? (window.__ && __("route.disable")) : (window.__ && __("route.enable"))) + '"><i class="bi bi-toggle-' + (isEn2 ? 'on' : 'off') + '"></i></button>';
-                html += '<button class="btn-action btn-action-edit" onclick="event.stopPropagation();window.DashboardApp.modules.routes.showEditModal(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.edit")) + '"><i class="bi bi-pencil"></i></button>';
-                html += '<button class="btn-action btn-action-danger" onclick="event.stopPropagation();window.DashboardApp.modules.routes.deleteRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.delete")) + '"><i class="bi bi-trash"></i></button>';
+                html += '<div class="btn-group" style="flex-shrink:0;" onclick="event.stopPropagation()">';
+                html += '<button class="btn btn-sm btn-outline-' + (isEn2 ? 'success' : 'secondary') + '" onclick="event.stopPropagation();window.DashboardApp.modules.routes.toggleRouteEnabled(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\',' + !isEn2 + ')" title="' + (isEn2 ? (window.__ && __("route.disable")) : (window.__ && __("route.enable"))) + '"><i class="bi bi-toggle-' + (isEn2 ? 'on' : 'off') + '"></i></button>';
+                html += '<button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation();window.DashboardApp.modules.routes.showEditModal(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.edit")) + '"><i class="bi bi-pencil"></i></button>';
+                html += '<button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();window.DashboardApp.modules.routes.deleteRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.delete")) + '"><i class="bi bi-trash"></i></button>';
                 html += '</div></div>';
 
                 // Card body
@@ -888,7 +888,7 @@
 
             // Actions
             var tdActions = window.DashboardDOM.create('td', {
-                style: { width: '80px', verticalAlign: 'middle', textAlign: 'center' }
+                style: { width: '160px', verticalAlign: 'middle', textAlign: 'center' }
             });
             tdActions.appendChild(this.createActionButtons(route));
             tr.appendChild(tdActions);
@@ -963,12 +963,12 @@
 
         createActionButtons: function(route) {
             const container = window.DashboardDOM.create('div', {
-                className: 'btn-group btn-group-sm'
+                className: 'btn-group'
             });
 
             // Edit button
             const editBtn = window.DashboardDOM.create('button', {
-                className: 'btn btn-outline-primary',
+                className: 'btn btn-sm btn-outline-primary',
                 attributes: { title: __('index.route.edit') },
                 events: {
                     click: (e) => {
@@ -984,7 +984,7 @@
             container.appendChild(editBtn);
 
             const renameBtn = window.DashboardDOM.create('button', {
-                className: 'btn btn-outline-secondary',
+                className: 'btn btn-sm btn-outline-warning',
                 attributes: { title: __('route.renameTitle') },
                 events: {
                     click: (e) => {
@@ -999,7 +999,7 @@
             // Enable/Disable toggle
             const isEnabled = route.enabled !== false;
             const toggleBtn = window.DashboardDOM.create('button', {
-                className: isEnabled ? 'btn btn-outline-success' : 'btn btn-outline-secondary',
+                className: isEnabled ? 'btn btn-sm btn-outline-success' : 'btn btn-sm btn-outline-secondary',
                 attributes: {
                     title: isEnabled ? __('route.disable') : __('route.enable'),
                     'data-route-id': route.routeId
@@ -1018,7 +1018,7 @@
 
             // Delete button
             const deleteBtn = window.DashboardDOM.create('button', {
-                className: 'btn btn-outline-danger',
+                className: 'btn btn-sm btn-outline-danger',
                 attributes: { title: __('index.route.delete') },
                 events: {
                     click: (e) => {
@@ -1052,8 +1052,8 @@
             detailHtml.push('<div class="detail-actions-bar">');
             detailHtml.push(`<div class="detail-actions-left"><span class="detail-actions-label"><i class="bi bi-signpost-split"></i> ${__('index.route.title')}</span></div>`);
             detailHtml.push('<div class="detail-actions-right">');
-            detailHtml.push(`<button class="btn btn-sm btn-outline-secondary detail-action-btn" onclick="RoutesModule.showEditModal('${window.DashboardUtils.escapeHtml(route.routeId)}')" title="${__('index.route.edit')}"><i class="bi bi-pencil"></i> ${__('index.route.edit')}</button>`);
-            detailHtml.push(`<button class="btn btn-sm btn-outline-primary detail-action-btn" onclick="RoutesModule.copyRouteJson('${window.DashboardUtils.escapeHtml(route.routeId)}')" title="${__('index.copyJson.title')}"><i class="bi bi-clipboard-data"></i> ${__('index.copyJson')}</button>`);
+            detailHtml.push(`<button class="btn btn-sm btn-outline-primary detail-action-btn" onclick="RoutesModule.showEditModal('${window.DashboardUtils.escapeHtml(route.routeId)}')" title="${__('index.route.edit')}"><i class="bi bi-pencil"></i> ${__('index.route.edit')}</button>`);
+            detailHtml.push(`<button class="btn btn-sm btn-outline-info detail-action-btn" onclick="RoutesModule.copyRouteJson('${window.DashboardUtils.escapeHtml(route.routeId)}')" title="${__('index.copyJson.title')}"><i class="bi bi-clipboard-data"></i> ${__('index.copyJson')}</button>`);
             detailHtml.push('</div>');
             detailHtml.push('</div>');
 
@@ -2175,10 +2175,10 @@
                 '</div>' +
                 '</div>' +
                 '</div>' +
-                '<div class="route-card-actions">' +
+                '<div class="route-card-actions btn-group">' +
                 '<button class="btn btn-sm ' + (route.enabled !== false ? 'btn-outline-success' : 'btn-outline-secondary') + '" title="' + (route.enabled !== false ? __("route.disable") : __("route.enable")) + '" data-action="toggle"><i class="bi bi-toggle-' + (route.enabled !== false ? 'on' : 'off') + '"></i></button>' +
-                '<button class="btn-edit btn btn-sm" title="' + __("index.route.edit") + '" data-action="edit"><i class="bi bi-pencil"></i></button>' +
-                '<button class="btn-delete btn btn-sm" title="' + __("index.route.delete") + '" data-action="delete"><i class="bi bi-trash"></i></button>' +
+                '<button class="btn btn-sm btn-outline-primary" title="' + __("index.route.edit") + '" data-action="edit"><i class="bi bi-pencil"></i></button>' +
+                '<button class="btn btn-sm btn-outline-danger" title="' + __("index.route.delete") + '" data-action="delete"><i class="bi bi-trash"></i></button>' +
                 '</div>' +
                 '</div>' +
                 '<div class="route-card-body">' +
