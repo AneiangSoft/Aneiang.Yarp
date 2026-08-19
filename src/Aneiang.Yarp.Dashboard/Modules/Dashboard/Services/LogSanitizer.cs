@@ -5,6 +5,7 @@ using Aneiang.Yarp.Plugin.ProxyLog.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
+using System.Text.Unicode;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 
@@ -26,9 +27,12 @@ public sealed class LogSanitizer : ILogSanitizer
     };
 
     // Reuse JsonSerializerOptions instance to avoid allocations
+    // Use JavaScriptEncoder.Create(UnicodeRanges.All) to preserve Chinese/Unicode characters
+    // (default encoder escapes them to \uXXXX sequences which looks like garbled text)
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
-        WriteIndented = false
+        WriteIndented = false,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(UnicodeRanges.All)
     };
 
     // Cached options values to avoid repeated property access

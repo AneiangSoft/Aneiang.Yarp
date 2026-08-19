@@ -117,9 +117,7 @@
             var enabledCount = plugins.filter(function(p) { return p.enabled; }).length;
             var externalCount = plugins.filter(function(p) { return p.registrationStatus; }).length;
 
-            var installBtn = externalCount >= 0 ?
-                '<button class="btn btn-primary btn-sm me-2" onclick="PluginModule.showInstallDialog()">' +
-                '<i class="bi bi-box-arrow-in-down me-1"></i>' + __('plugin.install') + '</button>' : '';
+            var installBtn = '';
 
             var summaryHtml =
                 '<div class="d-flex justify-content-between align-items-center mb-3">' +
@@ -290,40 +288,6 @@
                     window.DashboardModals.showError(__('plugin.resetFailed'));
                 }
             }, null, { danger: true });
-        },
-
-        showInstallDialog: function() {
-            var self = this;
-            var html =
-                '<div class="mb-3">' +
-                    '<label class="form-label">' + this._t('plugin.installPath', 'Plugin source directory path') + '</label>' +
-                    '<input type="text" class="form-control" id="install-source-dir" placeholder="/path/to/plugin/directory" />' +
-                    '<div class="form-text">' + this._t('plugin.installHelp', 'Directory must contain a plugin.json manifest file.') + '</div>' +
-                '</div>';
-            window.DashboardModals.showCustom({
-                title: '<i class="bi bi-box-arrow-in-down me-2"></i>' + this._t('plugin.install', 'Install Plugin'),
-                body: html,
-                confirmText: this._t('plugin.install', 'Install'),
-                confirmClass: 'btn-primary',
-                onConfirm: async function() {
-                    var sourceDir = document.getElementById('install-source-dir').value.trim();
-                    if (!sourceDir) {
-                        window.DashboardModals.showError(self._t('plugin.installPathRequired', 'Source directory path is required'));
-                        return false;
-                    }
-                    try {
-                        await window.DashboardApi.installPlugin(sourceDir);
-                        window.DashboardModals.showSuccess(self._t('plugin.installSuccess', 'Plugin installed successfully'));
-                        await self.load();
-                        return true;
-                    } catch (error) {
-                        console.error('[Plugin] Install failed:', error);
-                        var msg = (error && error.message) || self._t('plugin.installFailed', 'Install failed');
-                        window.DashboardModals.showError(msg);
-                        return false;
-                    }
-                }
-            });
         },
 
         showUpgradeDialog: function(pluginId) {

@@ -170,6 +170,77 @@
      * @param {object} config - {title, fields, data, onSave, onCancel, size}
      * fields: [{name, label, type, required, placeholder, options, value}]
      */
+    /**
+     * Show a custom modal with arbitrary HTML body and confirm/cancel actions.
+     * @param {Object} config - { title, body, confirmText, cancelText, confirmClass, onConfirm, onCancel, size }
+     *   onConfirm may return false to prevent close, true to close
+     */
+    window.DashboardModals.showCustom = function(config) {
+        const modalId = 'dashboard-custom-modal-' + Date.now();
+        const title = config.title || '';
+        const size = config.size || 'md';
+        const body = config.body || '';
+        const confirmText = config.confirmText || (window.__ ? window.__('modal.confirmBtn') : 'Confirm');
+        const cancelText = config.cancelText || (window.__ ? window.__('modal.cancelBtn') : 'Cancel');
+        const confirmClass = config.confirmClass || 'btn-primary';
+
+        // Remove any existing instance
+        const existing = document.getElementById(modalId);
+        if (existing) existing.remove();
+
+        const html = `
+<div class="modal fade" id="${modalId}" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-${size}">
+        <div class="modal-content" style="border-radius:12px;border:none;box-shadow:0 20px 60px rgba(0,0,0,0.15);">
+            <div class="modal-header" style="border-bottom:1px solid var(--border-color);padding:16px 20px;">
+                <h5 class="modal-title" style="font-size:15px;font-weight:600;">${title}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="padding:20px;">${body}</div>
+            <div class="modal-footer" style="border-top:1px solid var(--border-color);padding:12px 20px;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="${modalId}-cancel">${cancelText}</button>
+                <button type="button" class="btn ${confirmClass}" id="${modalId}-confirm">${confirmText}</button>
+            </div>
+        </div>
+    </div>
+</div>`;
+        document.body.insertAdjacentHTML('beforeend', html);
+        const modalEl = document.getElementById(modalId);
+        let bsModal;
+        try {
+            bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: true });
+        } catch (e) {
+            console.error('[showCustom] Failed to init modal:', e);
+            modalEl.remove();
+            if (config.onConfirm) config.onConfirm();
+            return;
+        }
+        const closeModal = () => { try { bsModal.hide(); } catch(_){} setTimeout(() => { const el = document.getElementById(modalId); if (el) el.remove(); }, 300); };
+        const confirmBtn = document.getElementById(modalId + '-confirm');
+        const cancelBtn = document.getElementById(modalId + '-cancel');
+
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', async function() {
+                if (!config.onConfirm) { closeModal(); return; }
+                confirmBtn.disabled = true;
+                try {
+                    const result = await config.onConfirm();
+                    if (result !== false) closeModal();
+                } catch (e) {
+                    console.error('[showCustom] onConfirm error:', e);
+                } finally {
+                    confirmBtn.disabled = false;
+                }
+            });
+        }
+        if (cancelBtn && config.onCancel) {
+            cancelBtn.addEventListener('click', function() { config.onCancel(); });
+        }
+        modalEl.addEventListener('hidden.bs.modal', function() { modalEl.remove(); });
+
+        bsModal.show();
+    };
+
     window.DashboardModals.showFormModal = function(config) {
         const modalId = 'dashboard-form-modal-' + Date.now();
         const title = config.title || (window.__('modal.edit'));

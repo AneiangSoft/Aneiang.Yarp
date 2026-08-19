@@ -109,7 +109,7 @@ public sealed class YarpRequestCaptureMiddleware
 
             // ── Phase 5: Process response data ──
             var responseBodyText = responseBodyStream != null && ProxyLogBodyReader.IsResponseBodyCaptureSafe(context.Response)
-                ? await ProxyLogBodyReader.ReadStreamAsync(responseBodyStream.CapturedBody, settings.MaxBodyBufferBytes)
+                ? await ProxyLogBodyReader.ReadStreamAsync(responseBodyStream.CapturedBody, settings.MaxBodyBufferBytes, context.Response.ContentType, context.Response.Headers["Content-Encoding"].ToString())
                 : string.Empty;
 
             // The current pipeline does not mutate request bodies after this middleware.

@@ -3285,6 +3285,161 @@
             background: #fff;
             border-bottom: 1px solid var(--border-color);
         }
+
+        /* ── Settings Page Styles ─────────────────────────────────────── */
+
+        /* Settings Tabs — unified with detail-tabs visual language */
+        .settings-tabs {
+            display: flex;
+            gap: 2px;
+            border-bottom: 2px solid var(--border-color);
+            margin-bottom: 20px;
+            padding: 0;
+            list-style: none;
+        }
+        .settings-tabs .nav-link {
+            font-size: 14px;
+            font-weight: 500;
+            padding: 10px 18px;
+            border: none;
+            border-bottom: 2px solid transparent;
+            border-radius: 8px 8px 0 0;
+            color: var(--text-secondary);
+            background: transparent;
+            cursor: pointer;
+            margin-bottom: -2px;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .settings-tabs .nav-link:hover {
+            color: var(--primary-color);
+            background: rgba(99, 102, 241, 0.04);
+        }
+        .settings-tabs .nav-link.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+            font-weight: 600;
+            background: rgba(99, 102, 241, 0.02);
+        }
+        .settings-tabs .nav-link i {
+            font-size: 14px;
+            margin-right: 4px;
+        }
+
+        /* Settings Tab Content */
+        .settings-tab-content {
+            padding: 4px 0;
+        }
+        .settings-tab-content .tab-pane {
+            animation: fadeIn 0.25s ease;
+        }
+        @@keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Settings sub-card — grouped form fields */
+        .settings-group-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .settings-group-title i {
+            font-size: 15px;
+        }
+
+        /* Restart-required config grid */
+        .restart-required-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
+        }
+        .restart-required-grid .config-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: #fff;
+            font-size: 13px;
+        }
+        .restart-required-grid .config-item .config-label {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .restart-required-grid .config-item .config-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .restart-required-grid .config-item .config-value.badge-on {
+            color: var(--success-color);
+        }
+        .restart-required-grid .config-item .config-value.badge-off {
+            color: var(--text-muted);
+        }
+
+        /* Form section within settings card */
+        .settings-form-section {
+            margin-bottom: 24px;
+        }
+        .settings-form-section:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Compact form controls for settings */
+        .settings-card .form-control,
+        .settings-card .form-select {
+            padding: 7px 11px;
+            font-size: 13.5px;
+        }
+        .settings-card .form-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        .settings-card .form-text {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        .settings-card .form-check-label {
+            font-size: 13.5px;
+            color: var(--text-primary);
+        }
+
+        /* Settings card hover accent */
+        .settings-card {
+            transition: box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        .settings-card:hover {
+            box-shadow: var(--shadow-sm);
+            border-color: var(--border-color);
+        }
+
+        /* Divider within card body */
+        .settings-divider {
+            border: none;
+            border-top: 1px solid var(--border-light);
+            margin: 18px 0;
+        }
+
+        /* Action buttons row */
+        .settings-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-light);
+        }
     </style>
 </head>
 <body>
