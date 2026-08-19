@@ -917,7 +917,7 @@
             const addDestination = function(name, address, extra) {
                 const dest = { "Address": address };
                 if (extra) {
-                    if (extra.health) dest.Health = extra.health;
+                    // Health is a runtime field, not a user-configurable property — exclude from editor JSON
                     if (extra.host) dest.Host = extra.host;
                     if (extra.metadata && Object.keys(extra.metadata).length > 0) dest.Metadata = extra.metadata;
                 }

@@ -22,6 +22,9 @@ internal interface IRouteConfigManager
     /// <summary>Atomically rename a route (remove old, add new).</summary>
     Task<RouteOperationResult> TryRenameRoute(string oldRouteId, string newRouteId, RegisterRouteRequest request, string source, string? createdBy);
 
+    /// <summary>Enable or disable a route. Disabled routes are retained but excluded from forwarding.</summary>
+    Task<RouteOperationResult> TrySetRouteEnabled(string routeId, bool enabled, string? createdBy);
+
     /// <summary>Get all current routes from the proxy provider.</summary>
     IReadOnlyList<RouteConfig> GetRoutes();
 

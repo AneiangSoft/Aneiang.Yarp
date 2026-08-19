@@ -74,4 +74,7 @@ public interface IDynamicYarpConfigService
     /// <summary>Atomically rename a route (repoint references + delete old).</summary>
     Task<RouteOperationResult> TryRenameRoute(string oldRouteId, string newRouteId, RegisterRouteRequest request,
         string source = "dashboard", string? createdBy = "dashboard-user");
+
+    /// <summary>Enable or disable a route. Disabled routes are retained but excluded from forwarding.</summary>
+    Task<RouteOperationResult> TrySetRouteEnabled(string routeId, bool enabled, string? createdBy = "dashboard-user");
 }

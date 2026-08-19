@@ -301,6 +301,42 @@ internal class RouteConfigManager : ConfigManagerBase, IRouteConfigManager
 
     #endregion
 
+    #region TrySetRouteEnabled
+
+    /// <summary>
+    /// Enable or disable a route. Disabled routes are retained in the working set
+    /// but excluded from the YARP snapshot so no traffic is forwarded.
+    /// </summary>
+    public async Task<RouteOperationResult> TrySetRouteEnabled(
+        string routeId, bool enabled, string? createdBy = "dashboard-user")
+    {
+        if (string.IsNullOrWhiteSpace(routeId))
+            return new RouteOperationResult(false, "Route ID cannot be empty");
+
+        return await ExecuteWithLockAsync("SetRouteEnabled", routeId, config =>
+        {
+            var dynRoute = config.Routes.FirstOrDefault(r =>
+                string.Equals(r.Config.RouteId, routeId, StringComparison.OrdinalIgnoreCase));
+            if (dynRoute == null)
+            {
+                AuditLog.RecordFailure("SetRouteEnabled", routeId, $"Route '{routeId}' not found");
+                return Task.FromResult(new RouteOperationResult(false, $"Route '{routeId}' not found"));
+            }
+
+            if (dynRoute.Enabled == enabled)
+                return Task.FromResult(new RouteOperationResult(true,
+                    $"Route '{routeId}' is already {(enabled ? "enabled" : "disabled")}"));
+
+            dynRoute.Enabled = enabled;
+
+            AuditLog.RecordSuccess("SetRouteEnabled", routeId, createdBy, null,
+                new { enabled, matchPath = dynRoute.Config.Match?.Path });
+            return Task.FromResult(new RouteOperationResult(true,
+                $"Route '{routeId}' {(enabled ? "enabled" : "disabled")}"));
+        });
+    }
+
+    #endregion
 
     #region TryRenameRoute
 

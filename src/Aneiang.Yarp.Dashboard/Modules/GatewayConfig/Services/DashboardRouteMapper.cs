@@ -101,7 +101,8 @@ internal static class DashboardRouteMapper
             Timeout = route.Timeout?.ToString(),
             Metadata = metadataDict,
             Source = source,
-            IsEditable = isEditable
+            IsEditable = isEditable,
+            Enabled = dynamicRoute?.Enabled ?? true
         };
     }
 

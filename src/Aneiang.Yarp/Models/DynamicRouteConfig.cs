@@ -33,4 +33,10 @@ public sealed class DynamicRouteConfig
 
     /// <summary>Who created this route (user name or "auto").</summary>
     public string? CreatedBy { get; set; }
+
+    /// <summary>
+    /// Whether this route is active for forwarding. When false, the route configuration
+    /// is retained but excluded from the YARP snapshot so no traffic is forwarded.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
 }
