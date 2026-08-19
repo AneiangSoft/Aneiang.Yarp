@@ -33,7 +33,7 @@
   "config.importManifestClusters": "集群清单",
   "config.importManifestContinue": "确认导入",
   "config.importManifestCountSummary": "共 {0} 个路由，{1} 个集群",
-  "config.importManifestDesc": "以下是将要导入的配置清单，请确认后继续",
+  "config.importManifestDesc": "以上是将要导入的配置清单，请确认后继续",
   "config.importManifestDestinations": "目标数",
   "config.importManifestMatchPath": "匹配路径",
   "config.importManifestNoClusters": "(无集群)",

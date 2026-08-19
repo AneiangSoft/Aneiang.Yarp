@@ -26,6 +26,11 @@
                 <i class="bi bi-info-circle"></i><span data-i18n="settings.tab.system">系统信息</span>
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-config" data-bs-toggle="tab" data-bs-target="#pane-config" type="button" role="tab" aria-controls="pane-config" aria-selected="false">
+                <i class="bi bi-file-earmark-arrow-up-down"></i><span data-i18n="settings.tab.config">配置导入导出</span>
+            </button>
+        </li>
     </ul>
 
     <div class="tab-content settings-tab-content" id="settings-tab-content">
@@ -209,6 +214,88 @@
                     <div class="loading-state">
                         <div class="loading-spinner"></div>
                         <div class="loading-text" data-i18n="pluginPage.loading">加载中...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: 配置导入导出 -->
+        <div class="tab-pane fade" id="pane-config" role="tabpanel" aria-labelledby="tab-config">
+            <!-- 导出配置 -->
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <div class="settings-panel-title">
+                        <span class="settings-panel-icon settings-panel-icon--green"><i class="bi bi-download"></i></span>
+                        <span data-i18n="config.export">导出配置</span>
+                    </div>
+                </div>
+                <div class="settings-panel-body">
+                    <div class="settings-field-desc mb-3" data-i18n="config.exportDesc">将当前网关配置导出为 JSON 文件</div>
+                    <div class="mt-3">
+                        <button class="btn btn-outline-success btn-sm" id="config-export-btn" onclick="SettingsModule.exportConfig()">
+                            <i class="bi bi-download me-1"></i><span data-i18n="config.exportBtn">导出</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 导入配置 -->
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <div class="settings-panel-title">
+                        <span class="settings-panel-icon settings-panel-icon--amber"><i class="bi bi-upload"></i></span>
+                        <span data-i18n="config.import">导入配置</span>
+                    </div>
+                </div>
+                <div class="settings-panel-body">
+                    <div class="settings-field-desc mb-3" data-i18n="config.importDesc">从 JSON 文件导入网关配置</div>
+
+                    <!-- 拖拽上传区域 -->
+                    <div id="config-import-dropzone" class="config-import-dropzone">
+                        <input type="file" id="config-import-file" accept=".json,application/json" style="display:none;">
+                        <div class="config-import-dropzone-content">
+                            <i class="bi bi-cloud-arrow-up"></i>
+                            <span data-i18n="config.dropFile">拖拽文件到这里或点击选择</span>
+                            <span class="text-muted small" data-i18n="config.selectJsonFile">请选择JSON文件</span>
+                        </div>
+                    </div>
+
+                    <!-- 导入清单预览 -->
+                    <div id="config-import-manifest" class="config-import-manifest d-none">
+                        <div class="config-import-manifest-header">
+                            <span class="config-import-manifest-title">
+                                <i class="bi bi-clipboard-check"></i>
+                                <span data-i18n="config.importManifest">导入清单</span>
+                            </span>
+                            <span id="config-import-summary" class="config-import-summary"></span>
+                        </div>
+                        <div class="config-import-manifest-body">
+                            <div id="config-manifest-routes" class="config-manifest-section">
+                                <div class="config-manifest-section-title">
+                                    <i class="bi bi-signpost-2"></i>
+                                    <span data-i18n="config.importManifestRoutes">路由清单</span>
+                                    <span id="config-manifest-routes-count" class="badge bg-primary"></span>
+                                </div>
+                                <div id="config-manifest-routes-list" class="config-manifest-list"></div>
+                            </div>
+                            <div id="config-manifest-clusters" class="config-manifest-section">
+                                <div class="config-manifest-section-title">
+                                    <i class="bi bi-diagram-3"></i>
+                                    <span data-i18n="config.importManifestClusters">集群清单</span>
+                                    <span id="config-manifest-clusters-count" class="badge bg-info"></span>
+                                </div>
+                                <div id="config-manifest-clusters-list" class="config-manifest-list"></div>
+                            </div>
+                        </div>
+                        <div class="config-import-manifest-desc" data-i18n="config.importManifestDesc">以上是将要导入的配置清单，请确认后继续</div>
+                        <div class="config-import-manifest-actions">
+                            <button class="btn btn-outline-secondary btn-sm" id="config-import-back" onclick="SettingsModule.resetImportFile()">
+                                <i class="bi bi-arrow-left me-1"></i><span data-i18n="config.importManifestBack">返回重选</span>
+                            </button>
+                            <button class="btn btn-primary btn-sm" id="config-import-confirm" onclick="SettingsModule.confirmImportConfig()">
+                                <i class="bi bi-check-lg me-1"></i><span data-i18n="config.importManifestContinue">确认导入</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

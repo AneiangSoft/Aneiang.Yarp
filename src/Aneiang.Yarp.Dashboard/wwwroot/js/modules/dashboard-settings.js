@@ -231,6 +231,12 @@
                 const container = $('settings-system-content');
                 if (container) container.innerHTML = '<div class="text-danger">' + (e.message || e) + '</div>';
             }
+
+            // Config tab — bind import dropzone on first show
+            const configTab = document.getElementById('tab-config');
+            if (configTab) {
+                configTab.addEventListener('shown.bs.tab', () => this._bindImportDropzone());
+            }
         },
 
         async save() {
@@ -271,6 +277,211 @@
             DashboardApi.endpoints.downloadDatabase().catch(function(e) {
                 DashboardModals.showError(t('settings.logging.downloadFailed', 'Failed to download database') + ': ' + (e.message || e));
             });
+        },
+
+        // ─── Config Export / Import ───
+
+        _importData: null,
+        _importDropzoneBound: false,
+
+        _bindImportDropzone() {
+            if (this._importDropzoneBound) return;
+            const dz = $('config-import-dropzone');
+            const fileInput = $('config-import-file');
+            if (!dz || !fileInput) return;
+            this._importDropzoneBound = true;
+
+            dz.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files[0]) this._handleImportFile(e.target.files[0]);
+            });
+            dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
+            dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+            dz.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dz.classList.remove('dragover');
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) this._handleImportFile(e.dataTransfer.files[0]);
+            });
+        },
+
+        _normalizeImportData(json) {
+            var data = json.data || json;
+            var routes = [], clusters = [], apiPayload = null;
+
+            // YARP native: { ReverseProxy: { Routes: {...}, Clusters: {...} } }
+            var rp = data.ReverseProxy || data.reverseProxy;
+            if (rp) {
+                var rpRoutes = rp.Routes || rp.routes;
+                var rpClusters = rp.Clusters || rp.clusters;
+                if (rpRoutes) {
+                    routes = Object.keys(rpRoutes).map(function(k) {
+                        var r = rpRoutes[k];
+                        if (!r.routeId && !r.RouteId) r.routeId = k;
+                        return r;
+                    });
+                }
+                if (rpClusters) {
+                    clusters = Object.keys(rpClusters).map(function(k) {
+                        var c = rpClusters[k];
+                        if (!c.clusterId && !c.ClusterId) c.clusterId = k;
+                        return c;
+                    });
+                }
+                apiPayload = data;
+            } else if (data.routes || data.clusters) {
+                // Our custom format: { routes: [...], clusters: [...] }
+                routes = data.routes || [];
+                clusters = data.clusters || [];
+                var routesObj = {};
+                routes.forEach(function(r) { routesObj[r.routeId] = r; });
+                var clustersObj = {};
+                clusters.forEach(function(c) { clustersObj[c.clusterId] = c; });
+                apiPayload = { ReverseProxy: { Routes: routesObj, Clusters: clustersObj } };
+            }
+
+            if (!apiPayload) return null;
+            return { routes: routes, clusters: clusters, apiPayload: apiPayload };
+        },
+
+        _handleImportFile(file) {
+            if (!file.name.endsWith('.json') && file.type !== 'application/json') {
+                DashboardModals.showError(t('config.selectJsonFile', 'Please select a JSON file'));
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const text = this._stripJsonComments(e.target.result);
+                    const json = JSON.parse(text);
+                    const normalized = this._normalizeImportData(json);
+                    if (!normalized) {
+                        DashboardModals.showError(t('config.importInvalid', 'Invalid config format'));
+                        return;
+                    }
+                    this._importData = normalized;
+                    this._renderManifest(normalized);
+                } catch (err) {
+                    DashboardModals.showError(t('config.importInvalid', 'Invalid config format') + ': ' + err.message);
+                }
+            };
+            reader.onerror = () => DashboardModals.showError(t('config.importFailed', 'Import failed') + ': FileReader error');
+            reader.readAsText(file);
+        },
+
+        _stripJsonComments(text) {
+            var i = 0, result = '', len = text.length;
+            var inString = false, stringChar = '';
+            while (i < len) {
+                var ch = text[i], next = text[i + 1];
+                if (inString) {
+                    result += ch;
+                    if (ch === '\\' && i + 1 < len) { result += next; i += 2; continue; }
+                    if (ch === stringChar) inString = false;
+                    i++; continue;
+                }
+                if (ch === '"' || ch === "'") { inString = true; stringChar = ch; result += ch; i++; continue; }
+                if (ch === '/' && next === '/') { i += 2; while (i < len && text[i] !== '\n' && text[i] !== '\r') i++; continue; }
+                if (ch === '/' && next === '*') { i += 2; while (i < len && !(text[i] === '*' && text[i + 1] === '/')) i++; i += 2; continue; }
+                result += ch; i++;
+            }
+            return result.replace(/,\s*([}\]])/g, '$1');
+        },
+
+        _renderManifest(data) {
+            const routes = data.routes || [];
+            const clusters = data.clusters || [];
+            const esc = function(v) { return window.DashboardUtils ? DashboardUtils.escapeHtml(v) : String(v); };
+
+            $('config-import-summary').textContent = t('config.importManifestCountSummary', '{0} routes, {1} clusters')
+                .replace('{0}', routes.length).replace('{1}', clusters.length);
+            $('config-manifest-routes-count').textContent = routes.length;
+            $('config-manifest-clusters-count').textContent = clusters.length;
+
+            var routeItems = routes.length === 0
+                ? '<span class="text-muted small">' + t('config.importManifestNoRoutes', '(no routes)') + '</span>'
+                : routes.slice(0, 50).map(function(r) {
+                    var path = r.match && r.match.path ? r.match.path : '-';
+                    return '<div class="config-manifest-item">' +
+                        '<code>' + esc(r.routeId) + '</code>' +
+                        '<span class="config-manifest-item-path">' + esc(path) + '</span>' +
+                        '<span class="badge bg-light text-dark">' + esc(r.clusterId || '-') + '</span>' +
+                    '</div>';
+                }).join('') + (routes.length > 50 ? '<div class="text-muted small">+' + (routes.length - 50) + '...</div>' : '');
+            $('config-manifest-routes-list').innerHTML = routeItems;
+
+            var clusterItems = clusters.length === 0
+                ? '<span class="text-muted small">' + t('config.importManifestNoClusters', '(no clusters)') + '</span>'
+                : clusters.slice(0, 50).map(function(c) {
+                    var destCount = c.destinations ? Object.keys(c.destinations).length : 0;
+                    return '<div class="config-manifest-item">' +
+                        '<code>' + esc(c.clusterId) + '</code>' +
+                        '<span class="badge bg-light text-dark">' + destCount + ' ' + t('config.importManifestDestinations', 'destinations') + '</span>' +
+                    '</div>';
+                }).join('') + (clusters.length > 50 ? '<div class="text-muted small">+' + (clusters.length - 50) + '...</div>' : '');
+            $('config-manifest-clusters-list').innerHTML = clusterItems;
+
+            $('config-import-dropzone').classList.add('d-none');
+            $('config-import-manifest').classList.remove('d-none');
+        },
+
+        resetImportFile() {
+            this._importData = null;
+            $('config-import-file').value = '';
+            $('config-import-dropzone').classList.remove('d-none');
+            $('config-import-manifest').classList.add('d-none');
+        },
+
+        async confirmImportConfig() {
+            if (!this._importData) return;
+            const btn = $('config-import-confirm');
+            const backBtn = $('config-import-back');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' + t('config.importing', 'Importing...'); }
+            if (backBtn) backBtn.disabled = true;
+
+            DashboardModals.showConfirm(
+                t('history.importWarning', 'Import will replace all current routes and clusters. Please confirm before proceeding.'),
+                async () => {
+                    try {
+                        const result = await DashboardApi.post('/api/config/import', this._importData.apiPayload);
+                        DashboardModals.showSuccess(
+                            result.message || t('config.imported', 'Config imported')
+                        );
+                        this.resetImportFile();
+                        setTimeout(() => window.location.reload(), 1500);
+                    } catch (e) {
+                        DashboardModals.showError(t('config.importFailed', 'Import failed') + ': ' + (e.message || e));
+                    } finally {
+                        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>' + t('config.importManifestContinue', 'Confirm Import'); }
+                        if (backBtn) backBtn.disabled = false;
+                    }
+                },
+                null,
+                { danger: true }
+            );
+        },
+
+        async exportConfig() {
+            const btn = $('config-export-btn');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' + t('config.exporting', 'Exporting...'); }
+            try {
+                const result = await DashboardApi.get('/api/config/export');
+                const data = result.data || result;
+                const json = JSON.stringify(data, null, 2);
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'yarp-config-' + new Date().toISOString().slice(0, 10) + '.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                DashboardModals.showSuccess(t('config.exported', 'Config exported'));
+            } catch (e) {
+                DashboardModals.showError(t('config.exportFailed', 'Export failed') + ': ' + (e.message || e));
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-download me-1"></i>' + t('config.exportBtn', 'Export'); }
+            }
         }
     };
 

@@ -221,6 +221,7 @@
   "settings.tab.logging": "日志与持久化",
   "settings.tab.security": "账号安全",
   "settings.tab.system": "系统信息",
+  "settings.tab.config": "配置导入导出",
   "settings.system": "系统信息",
   "settings.system.version": "版本",
   "settings.system.routePrefix": "路由前缀",

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Aneiang.Yarp.Dashboard.Infrastructure;
 using Aneiang.Yarp.Dashboard.Infrastructure.Storage;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Models;
@@ -61,7 +62,10 @@ public class ConfigPersistenceService : IConfigPersistenceService
         foreach (var r in yarpRoutes)
         {
             var json = Aneiang.Yarp.Serialization.YarpJsonConfig.SerializeRoute(r);
-            using var doc = JsonDocument.Parse(json);
+            var obj = JsonNode.Parse(json)?.AsObject();
+            if (obj != null) { obj.Remove("RouteId"); obj.Remove("routeId"); }
+            var cleanedJson = obj?.ToJsonString() ?? json;
+            using var doc = JsonDocument.Parse(cleanedJson);
             routesDict[r.RouteId ?? string.Empty] = doc.RootElement.Clone();
         }
 
@@ -69,7 +73,10 @@ public class ConfigPersistenceService : IConfigPersistenceService
         foreach (var c in yarpClusters)
         {
             var json = Aneiang.Yarp.Serialization.YarpJsonConfig.SerializeCluster(c);
-            using var doc = JsonDocument.Parse(json);
+            var obj = JsonNode.Parse(json)?.AsObject();
+            if (obj != null) { obj.Remove("ClusterId"); obj.Remove("clusterId"); }
+            var cleanedJson = obj?.ToJsonString() ?? json;
+            using var doc = JsonDocument.Parse(cleanedJson);
             clustersDict[c.ClusterId ?? string.Empty] = doc.RootElement.Clone();
         }
 
