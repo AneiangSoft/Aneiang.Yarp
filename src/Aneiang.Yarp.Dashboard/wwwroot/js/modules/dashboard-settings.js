@@ -237,6 +237,30 @@
             if (configTab) {
                 configTab.addEventListener('shown.bs.tab', () => this._bindImportDropzone());
             }
+
+            // Database tab — load DB info on first show
+            const dbTab = document.getElementById('tab-database');
+            if (dbTab && !dbTab._bound) {
+                dbTab._bound = true;
+                dbTab.addEventListener('shown.bs.tab', () => this._loadDatabaseInfo());
+            }
+        },
+
+        async _loadDatabaseInfo() {
+            try {
+                const sys = await DashboardApi.get('/api/settings/system');
+                if (sys) {
+                    const nameEl = $('db-info-name');
+                    const sizeEl = $('db-info-size');
+                    if (nameEl && sys.databaseFile) nameEl.textContent = sys.databaseFile;
+                    if (sizeEl && sys.databaseSizeBytes != null) {
+                        const kb = sys.databaseSizeBytes / 1024;
+                        sizeEl.textContent = kb < 1024
+                            ? kb.toFixed(1) + ' KB'
+                            : (kb / 1024).toFixed(2) + ' MB';
+                    }
+                }
+            } catch (e) { /* silent fail — info is non-critical */ }
         },
 
         async save() {
@@ -277,6 +301,19 @@
             DashboardApi.endpoints.downloadDatabase().catch(function(e) {
                 DashboardModals.showError(t('settings.logging.downloadFailed', 'Failed to download database') + ': ' + (e.message || e));
             });
+        },
+
+        async backupDatabase() {
+            const btn = $('config-backup-btn');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' + t('settings.config.backingUp', 'Backing up...'); }
+            try {
+                await DashboardApi.endpoints.backupDatabase();
+                DashboardModals.showSuccess(t('settings.config.backupDone', 'Database backup downloaded'));
+            } catch (e) {
+                DashboardModals.showError(t('settings.config.backupFailed', 'Backup failed') + ': ' + (e.message || e));
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-shield-check me-1"></i>' + t('settings.config.backupBtn', 'Backup Database'); }
+            }
         },
 
         // ─── Config Export / Import ───
