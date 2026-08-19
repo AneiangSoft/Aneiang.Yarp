@@ -1,4 +1,5 @@
 using Aneiang.Yarp.Dashboard.Infrastructure;
+using Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
 using Aneiang.Yarp.Dashboard.Infrastructure.I18n;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
@@ -22,6 +23,7 @@ public class DashboardPagesController : Controller
     private readonly IDashboardRouteQueryService _routeQuery;
     private readonly IDashboardLogQueryService _logQuery;
     private readonly StorageOptions _storageOptions;
+    private readonly DeploymentOptions _deploymentOptions;
 
     // Cached option values
     private readonly string _defaultLocale;
@@ -36,13 +38,15 @@ public class DashboardPagesController : Controller
         IDashboardRouteQueryService routeQuery,
         IDashboardLogQueryService logQuery,
         IOptions<DashboardOptions> dashboardOptions,
-        IOptions<StorageOptions> storageOptions)
+        IOptions<StorageOptions> storageOptions,
+        IOptions<DeploymentOptions> deploymentOptions)
     {
         _infoQuery = infoQuery;
         _clusterQuery = clusterQuery;
         _routeQuery = routeQuery;
         _logQuery = logQuery;
         _storageOptions = storageOptions.Value;
+        _deploymentOptions = deploymentOptions.Value;
 
         _defaultLocale = dashboardOptions.Value.Locale;
         _authMode = dashboardOptions.Value.Auth.AuthMode.ToString();
@@ -138,7 +142,31 @@ public class DashboardPagesController : Controller
                 authMode = _authMode,
                 locale = _defaultLocale,
                 databaseFile = dbPath,
-                databaseSizeBytes = dbSize
+                databaseSizeBytes = dbSize,
+                deployment = new
+                {
+                    mode = _deploymentOptions.Mode.ToString(),
+                    autoMiddleware = _deploymentOptions.AutoUseMiddleware,
+                    requireLoopbackAdmin = _deploymentOptions.RequireLoopbackForAdmin,
+                    requireLoopbackDashboard = _deploymentOptions.RequireLoopbackForDashboard,
+                    endpoints = _deploymentOptions.ResolvedEndpoints.Select(e => new
+                    {
+                        name = e.EndpointName,
+                        port = e.Port,
+                        address = e.IpAddress,
+                        role = e.Role,
+                        isPublic = e.IsPubliclyBound
+                    }).ToList(),
+                    healthCheck = new
+                    {
+                        enabled = _deploymentOptions.HealthCheck.Enabled,
+                        path = _deploymentOptions.HealthCheck.Path,
+                        readyPath = _deploymentOptions.HealthCheck.ReadyPath,
+                        livePath = _deploymentOptions.HealthCheck.LivePath,
+                        checkDatabase = _deploymentOptions.HealthCheck.CheckDatabase,
+                        checkConfigLoaded = _deploymentOptions.HealthCheck.CheckConfigLoaded
+                    }
+                }
             }
         });
     }

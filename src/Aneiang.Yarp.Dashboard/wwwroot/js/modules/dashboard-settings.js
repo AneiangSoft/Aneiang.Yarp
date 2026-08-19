@@ -34,26 +34,114 @@
     function renderSystemInfo(data) {
         const container = $('settings-system-content');
         if (!container) return;
+        const esc = function(v) {
+            return window.DashboardUtils && DashboardUtils.escapeHtml ? DashboardUtils.escapeHtml(v) : String(v);
+        };
         const authModeLabels = {
             'None': t('settings.system.authMode.none', 'None'),
             'ApiKey': 'API Key',
             'DefaultJwt': 'JWT (Admin)',
             'CustomJwt': 'JWT (Custom)'
         };
-        const rows = [
-            { label: t('settings.system.version', 'Version'), value: window.DashboardUtils && DashboardUtils.escapeHtml ? DashboardUtils.escapeHtml(data.version || '-') : (data.version || '-'), icon: 'bi-tag' },
-            { label: t('settings.system.routePrefix', 'Route Prefix'), value: data.routePrefix || '-', icon: 'bi-signpost-split' },
-            { label: t('settings.system.authMode', 'Auth Mode'), value: authModeLabels[data.authMode] || data.authMode || '-', icon: 'bi-shield-lock' },
-            { label: t('settings.system.databaseFile', 'Database File'), value: data.databaseFile || '-', icon: 'bi-hdd' },
-            { label: t('settings.system.databaseSize', 'Database Size'), value: formatBytes(data.databaseSizeBytes), icon: 'bi-database' }
-        ];
-        container.innerHTML = rows.map(function(r) {
-            return '<div class="d-flex align-items-start py-2 border-bottom">' +
-                '<i class="bi ' + r.icon + ' me-3 text-muted mt-1"></i>' +
-                '<div class="text-muted" style="width:140px;flex-shrink:0;">' + r.label + '</div>' +
-                '<div class="text-break fw-medium">' + r.value + '</div>' +
+        const modeLabels = {
+            'Auto': t('settings.system.deploy.mode.auto', '自动检测'),
+            'AllInOne': t('settings.system.deploy.mode.allInOne', '单端口共用'),
+            'Split': t('settings.system.deploy.mode.split', '多端口分离'),
+            'ProxyOnly': t('settings.system.deploy.mode.proxyOnly', '仅代理'),
+            'DashboardOnly': t('settings.system.deploy.mode.dashboardOnly', '仅仪表盘')
+        };
+        const modeIcon = {
+            'Auto': 'bi-diagram-3',
+            'AllInOne': 'bi-box',
+            'Split': 'bi-layout-split',
+            'ProxyOnly': 'bi-arrow-left-right',
+            'DashboardOnly': 'bi-speedometer2'
+        };
+        const roleColor = {
+            'Proxy': '#6366f1',
+            'Dashboard': '#10b981',
+            'Admin': '#f59e0b',
+            'Health': '#0ea5e9',
+            'All': '#1e293b'
+        };
+        var html = '';
+        var dep = data.deployment || {};
+
+        // --- 部署横幅 ---
+        var modeText = modeLabels[dep.mode] || dep.mode || '-';
+        var modeIcn = modeIcon[dep.mode] || 'bi-diagram-3';
+        html += '<div class="sys-deploy-banner">' +
+            '<div class="sys-deploy-banner-mode"><i class="bi ' + modeIcn + '"></i>' + esc(modeText) + '</div>' +
+            '<div class="sys-deploy-banner-flags">' +
+                '<span><i class="bi ' + (dep.autoMiddleware ? 'bi-check-circle-fill' : 'bi-x-circle-fill') + '"></i>' + t('settings.system.deploy.autoMiddleware', '自动挂载中间件') + '</span>' +
+                '<span><i class="bi ' + (dep.requireLoopbackAdmin ? 'bi-check-circle-fill' : 'bi-x-circle-fill') + '"></i>' + t('settings.system.deploy.requireLoopbackAdmin', 'Admin 本地绑定') + '</span>' +
+                '<span><i class="bi ' + (dep.requireLoopbackDashboard ? 'bi-check-circle-fill' : 'bi-x-circle-fill') + '"></i>' + t('settings.system.deploy.requireLoopbackDashboard', 'Dashboard 本地绑定') + '</span>' +
+            '</div>' +
+        '</div>';
+
+        // --- 端点卡片网格 ---
+        if (dep.endpoints && dep.endpoints.length > 0) {
+            html += '<div class="sys-section-title"><i class="bi bi-hdd-network text-info"></i>' + t('settings.system.deploy.endpoints', '端点列表') + '</div>';
+            html += '<div class="sys-endpoint-grid">';
+            dep.endpoints.forEach(function(ep) {
+                var rc = roleColor[ep.role] || '#64748b';
+                html += '<div class="sys-endpoint-card" style="border-left: 3px solid ' + rc + ';">' +
+                    '<div class="sys-endpoint-card-header">' +
+                        '<span class="sys-endpoint-card-name">' + esc(ep.name) + '</span>' +
+                        '<span class="sys-endpoint-card-port">' + esc(ep.port) + '</span>' +
+                    '</div>' +
+                    '<div class="sys-endpoint-card-meta">' +
+                        '<div><i class="bi ' + (ep.isPublic ? 'bi-globe text-warning' : 'bi-lock text-success') + '"></i><code>' + esc(ep.address) + '</code></div>' +
+                        '<div><span class="badge" style="background:' + rc + ';">' + esc(ep.role) + '</span></div>' +
+                    '</div>' +
                 '</div>';
-        }).join('');
+            });
+            html += '</div>';
+        }
+
+        // --- 健康检查卡片网格 ---
+        var hc = dep.healthCheck || {};
+        var hcItems = [
+            { label: t('settings.system.deploy.hc.enabled', '启用'), value: hc.enabled ? t('settings.system.deploy.yes', '是') : t('settings.system.deploy.no', '否'), yes: hc.enabled },
+            { label: t('settings.system.deploy.hc.path', '健康路径'), value: hc.path || '-' },
+            { label: t('settings.system.deploy.hc.readyPath', '就绪路径'), value: hc.readyPath || '-' },
+            { label: t('settings.system.deploy.hc.livePath', '存活路径'), value: hc.livePath || '-' },
+            { label: t('settings.system.deploy.hc.checkDb', '检查数据库'), value: hc.checkDatabase ? t('settings.system.deploy.yes', '是') : t('settings.system.deploy.no', '否'), yes: hc.checkDatabase },
+            { label: t('settings.system.deploy.hc.checkConfig', '检查配置加载'), value: hc.checkConfigLoaded ? t('settings.system.deploy.yes', '是') : t('settings.system.deploy.no', '否'), yes: hc.checkConfigLoaded }
+        ];
+        html += '<div class="sys-section-title"><i class="bi bi-heart-pulse text-danger"></i>' + t('settings.system.deploy.healthCheck', '健康检查') + '</div>';
+        html += '<div class="sys-hc-grid">';
+        hcItems.forEach(function(item) {
+            var valColor = item.yes === true ? '#10b981' : item.yes === false ? '#94a3b8' : 'inherit';
+            html += '<div class="sys-hc-card">' +
+                '<div class="sys-hc-card-label">' + item.label + '</div>' +
+                '<div class="sys-hc-card-value" style="color:' + valColor + ';">' + esc(item.value) + '</div>' +
+            '</div>';
+        });
+        html += '</div>';
+
+        // --- 基础信息卡片网格 ---
+        var basicItems = [
+            { label: t('settings.system.version', 'Version'), value: data.version || '-', icon: 'bi-tag', bg: '#eef2ff', fg: '#4f46e5' },
+            { label: t('settings.system.routePrefix', 'Route Prefix'), value: data.routePrefix || '-', icon: 'bi-signpost-split', bg: '#ecfdf5', fg: '#059669' },
+            { label: t('settings.system.authMode', 'Auth Mode'), value: authModeLabels[data.authMode] || data.authMode || '-', icon: 'bi-shield-lock', bg: '#fff7ed', fg: '#d97706' },
+            { label: t('settings.system.databaseFile', 'Database File'), value: data.databaseFile || '-', icon: 'bi-hdd', bg: '#f0f9ff', fg: '#0284c7' },
+            { label: t('settings.system.databaseSize', 'Database Size'), value: formatBytes(data.databaseSizeBytes), icon: 'bi-database', bg: '#fef2f2', fg: '#dc2626' }
+        ];
+        html += '<div class="sys-section-title"><i class="bi bi-info-circle text-primary"></i>' + t('settings.system.basic', '基础信息') + '</div>';
+        html += '<div class="sys-basic-grid">';
+        basicItems.forEach(function(r) {
+            html += '<div class="sys-basic-card">' +
+                '<div class="sys-basic-card-icon" style="background:' + r.bg + ';color:' + r.fg + ';"><i class="bi ' + r.icon + '"></i></div>' +
+                '<div class="sys-basic-card-body">' +
+                    '<div class="sys-basic-card-label">' + r.label + '</div>' +
+                    '<div class="sys-basic-card-value">' + esc(r.value) + '</div>' +
+                '</div>' +
+            '</div>';
+        });
+        html += '</div>';
+
+        container.innerHTML = html;
     }
 
     function renderRestartRequired(data) {

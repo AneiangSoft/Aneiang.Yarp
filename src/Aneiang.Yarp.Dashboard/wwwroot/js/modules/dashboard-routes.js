@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Dashboard Routes Module - Route management and configuration
  */
 (function() {
@@ -1007,7 +1007,7 @@
                 events: {
                     click: (e) => {
                         e.stopPropagation();
-                        this.toggleRouteEnabled(route.routeId, !isEnabled);
+                        this.toggleRouteEnabled(route.routeId, !isEnabled, e.currentTarget);
                     }
                 }
             });
@@ -1982,8 +1982,14 @@
             }
         },
 
-        toggleRouteEnabled: async function(routeId, enable) {
+        toggleRouteEnabled: async function(routeId, enable, btnElement) {
             const self = this;
+            let originalHTML = '';
+            if (btnElement) {
+                originalHTML = btnElement.innerHTML;
+                btnElement.disabled = true;
+                btnElement.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
+            }
             try {
                 const basePath = '/' + (window.__dashboard?.routePrefix || 'apigateway');
                 const token = localStorage.getItem('dashboard_token') || '';
@@ -2008,6 +2014,11 @@
             } catch (error) {
                 console.error('[Routes] Toggle enabled failed:', error);
                 window.DashboardModals.showError(__('route.toggleFailed') + ': ' + error.message);
+            } finally {
+                if (btnElement) {
+                    btnElement.disabled = false;
+                    btnElement.innerHTML = originalHTML;
+                }
             }
         },
 
@@ -2069,7 +2080,7 @@
                     e.stopPropagation();
                     var route = self._findRouteById(routeId);
                     var currentlyEnabled = route ? route.enabled !== false : true;
-                    self.toggleRouteEnabled(routeId, !currentlyEnabled);
+                    self.toggleRouteEnabled(routeId, !currentlyEnabled, btn);
                 } else if (action === 'edit') {
                     e.stopPropagation();
                     self.showEditModal(routeId);
