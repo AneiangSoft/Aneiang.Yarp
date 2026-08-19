@@ -85,6 +85,36 @@ public class RouteConfigController : ConfigControllerBase
     }
 
     /// <summary>
+    /// Enable or disable a route. Disabled routes are retained but excluded from forwarding.
+    /// </summary>
+    [HttpPut("routes/{routeId}/enabled")]
+    public async Task<IActionResult> SetRouteEnabled(string routeId, [FromBody] JsonElement body)
+    {
+        try
+        {
+            if (!body.TryGetProperty("enabled", out var enabledProp))
+                return BadRequest(new { code = 400, message = "enabled is required" });
+
+            var enabled = enabledProp.GetBoolean();
+            _logger.LogInformation("Set route {RouteId} enabled={Enabled}", routeId, enabled);
+
+            await SnapshotLowRiskMutationAsync($"Before route '{routeId}' {(enabled ? "enabled" : "disabled")} via dashboard");
+
+            var result = await DynamicConfig.TrySetRouteEnabled(routeId, enabled, "dashboard-user");
+
+            if (result.Success) InvalidateQueryCaches();
+            return result.Success
+                ? Ok(new { code = 200, message = result.Message, routeId = routeId, enabled = enabled })
+                : BadRequest(new { code = 400, message = result.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to set route enabled: {RouteId}", routeId);
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Toggle failed", ex) });
+        }
+    }
+
+    /// <summary>
     /// Delete a route.
     /// </summary>
     [HttpDelete("routes/{routeId}")]

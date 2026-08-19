@@ -1,7 +1,9 @@
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Models;
 using Aneiang.Yarp.Services;
+using Yarp.ReverseProxy;
 using Yarp.ReverseProxy.Configuration;
+using Yarp.ReverseProxy.Model;
 
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 
@@ -12,26 +14,58 @@ internal static class DashboardClusterMapper
 {
     /// <summary>
     /// Maps a cluster configuration to dashboard response.
+    /// If runtime state is available, uses live health data from YARP's IProxyStateLookup.
     /// </summary>
     public static DashboardClusterResponse MapToResponse(
         ClusterConfig cluster,
         DynamicYarpConfigService dynamicConfig,
-        GatewayPluginExecutionPlan executionPlan)
+        GatewayPluginExecutionPlan executionPlan,
+        ClusterState? runtimeState = null)
     {
         var activeHealthConfigured = cluster.HealthCheck?.Active?.Enabled == true;
         var passiveHealthConfigured = cluster.HealthCheck?.Passive?.Enabled == true;
 
-        var destinations = cluster.Destinations?.Select(d => new DashboardDestinationResponse
+        // Build a lookup of runtime destination health by destination key
+        var runtimeHealth = new Dictionary<string, (string? health, string? activeHealth, string? passiveHealth)>(StringComparer.OrdinalIgnoreCase);
+        if (runtimeState != null)
         {
-            Name = d.Key,
-            Address = d.Value.Address,
-            Health = d.Value.Health,
-            Host = d.Value.Host,
-            Metadata = d.Value.Metadata?.Count > 0
-                ? d.Value.Metadata.ToDictionary(kv => kv.Key, kv => kv.Value)
-                : null,
-            ActiveHealth = ResolveHealthStatus(d.Value.Health, activeHealthConfigured),
-            PassiveHealth = ResolveHealthStatus(d.Value.Health, passiveHealthConfigured)
+            foreach (var dest in runtimeState.Destinations)
+            {
+                var ds = dest.Value;
+                var hs = ds.Health;
+                runtimeHealth[dest.Key] = (
+                    hs.Active.ToString(),
+                    activeHealthConfigured ? hs.Active.ToString() : null,
+                    passiveHealthConfigured ? hs.Passive.ToString() : null
+                );
+            }
+        }
+
+        var destinations = cluster.Destinations?.Select(d =>
+        {
+            // Try to find runtime health for this destination
+            var destId = d.Key;
+            string? liveHealth = d.Value.Health;
+            string? liveActive = null;
+            string? livePassive = null;
+            if (runtimeState != null && runtimeHealth.TryGetValue(destId, out var rt))
+            {
+                liveHealth = rt.health;
+                liveActive = rt.activeHealth;
+                livePassive = rt.passiveHealth;
+            }
+            return new DashboardDestinationResponse
+            {
+                Name = d.Key,
+                Address = d.Value.Address,
+                Health = liveHealth,
+                Host = d.Value.Host,
+                Metadata = d.Value.Metadata?.Count > 0
+                    ? d.Value.Metadata.ToDictionary(kv => kv.Key, kv => kv.Value)
+                    : null,
+                ActiveHealth = ResolveHealthStatus(liveActive ?? liveHealth, activeHealthConfigured),
+                PassiveHealth = ResolveHealthStatus(livePassive ?? liveHealth, passiveHealthConfigured)
+            };
         }).ToList() ?? new List<DashboardDestinationResponse>();
 
         var healthyCount = destinations.Count(d => string.Equals(d.Health, "Healthy", StringComparison.OrdinalIgnoreCase));

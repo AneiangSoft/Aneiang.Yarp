@@ -90,6 +90,10 @@ public class DashboardRouteResponse
     /// <summary>Whether the route is editable.</summary>
     [JsonPropertyName("isEditable")]
     public bool IsEditable { get; set; }
+
+    /// <summary>Whether the route is enabled for forwarding.</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; } = true;
 }
 
 /// <summary>

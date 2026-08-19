@@ -60,6 +60,18 @@ public class ClusterConfigController : ConfigControllerBase
 
             cluster = cluster with { ClusterId = clusterId };
 
+            // Strip runtime Health field from destinations to prevent runtime state from being persisted as config
+            if (cluster.Destinations != null)
+            {
+                cluster = cluster with
+                {
+                    Destinations = cluster.Destinations.ToDictionary(
+                        kv => kv.Key,
+                        kv => kv.Value with { Health = null }
+                    )
+                };
+            }
+
             if (cluster.Destinations == null || cluster.Destinations.Count == 0)
                 return BadRequest(new { code = 400, message = "At least one destination is required" });
 

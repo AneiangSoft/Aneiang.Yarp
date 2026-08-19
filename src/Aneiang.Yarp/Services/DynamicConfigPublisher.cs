@@ -35,6 +35,9 @@ internal class DynamicConfigPublisher : IDynamicConfigPublisher
         var publishRoutes = new List<DynamicRouteConfig>(config.Routes.Count);
         foreach (var dynRoute in config.Routes)
         {
+            // Skip disabled routes: keep data in working set but don't forward traffic
+            if (!dynRoute.Enabled) continue;
+
             var publishedConfig = DynamicYarpConfigHelpers.NormalizeTransforms(dynRoute.Config);
             publishRoutes.Add(new DynamicRouteConfig
             {
@@ -44,7 +47,8 @@ internal class DynamicConfigPublisher : IDynamicConfigPublisher
                 DisplayName = dynRoute.DisplayName,
                 Source = dynRoute.Source,
                 CreatedAt = dynRoute.CreatedAt,
-                CreatedBy = dynRoute.CreatedBy
+                CreatedBy = dynRoute.CreatedBy,
+                Enabled = true
             });
         }
 

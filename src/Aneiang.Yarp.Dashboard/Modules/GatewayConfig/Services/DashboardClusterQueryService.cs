@@ -2,6 +2,7 @@ using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Modules.Dashboard.Models;
 using Aneiang.Yarp.Services;
 using Microsoft.Extensions.Caching.Memory;
+using Yarp.ReverseProxy;
 
 namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 
@@ -14,6 +15,7 @@ internal sealed class DashboardClusterQueryService : IDashboardClusterQueryServi
     private readonly DynamicYarpConfigService _dynamicConfig;
     private readonly GatewayPluginExecutionPlanProvider _executionPlans;
     private readonly IMemoryCache _memoryCache;
+    private readonly IProxyStateLookup _proxyStateLookup;
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(10);
 
     /// <summary>
@@ -22,14 +24,17 @@ internal sealed class DashboardClusterQueryService : IDashboardClusterQueryServi
     /// <param name="dynamicConfig">Dynamic YARP config service.</param>
     /// <param name="executionPlans">Current immutable plugin execution plan provider.</param>
     /// <param name="memoryCache">Unified memory cache for all query services.</param>
+    /// <param name="proxyStateLookup">YARP runtime state lookup for live health data.</param>
     public DashboardClusterQueryService(
         DynamicYarpConfigService dynamicConfig,
         GatewayPluginExecutionPlanProvider executionPlans,
-        IMemoryCache memoryCache)
+        IMemoryCache memoryCache,
+        IProxyStateLookup proxyStateLookup)
     {
         _dynamicConfig = dynamicConfig;
         _executionPlans = executionPlans;
         _memoryCache = memoryCache;
+        _proxyStateLookup = proxyStateLookup;
     }
 
     /// <inheritdoc />
@@ -45,7 +50,12 @@ internal sealed class DashboardClusterQueryService : IDashboardClusterQueryServi
         var clusters = _dynamicConfig.GetClusters();
 
         var responses = clusters?
-            .Select(cluster => DashboardClusterMapper.MapToResponse(cluster, _dynamicConfig, _executionPlans.Current))
+            .Select(cluster =>
+            {
+                // Try to get runtime state for live health data
+                _proxyStateLookup.TryGetCluster(cluster.ClusterId, out var runtimeState);
+                return DashboardClusterMapper.MapToResponse(cluster, _dynamicConfig, _executionPlans.Current, runtimeState);
+            })
             .ToList() ?? new List<DashboardClusterResponse>();
 
         _memoryCache.Set(cacheKey, responses, CacheDuration);

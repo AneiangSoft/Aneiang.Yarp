@@ -49,6 +49,10 @@ public static class AneiangYarpServiceCollectionExtensions
 
         var proxyBuilder = services.AddReverseProxy();
 
+        // Enable YARP active health checks (periodic probing of backend destinations)
+        // YARP registers IActiveHealthCheckMonitor internally; just need health check services
+        services.AddHealthChecks();
+
         // Register custom load balancing policies
         services.AddSingleton<ILoadBalancingPolicy, IpBasedLoadBalancingPolicy>();
 

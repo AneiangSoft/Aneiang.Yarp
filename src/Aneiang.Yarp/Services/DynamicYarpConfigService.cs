@@ -174,6 +174,9 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
     public Task<RouteOperationResult> TryRenameRoute(string oldRouteId, string newRouteId, RegisterRouteRequest request, string source = "dashboard", string? createdBy = "dashboard-user")
         => _routeManager.TryRenameRoute(oldRouteId, newRouteId, request, source, createdBy);
 
+    public Task<RouteOperationResult> TrySetRouteEnabled(string routeId, bool enabled, string? createdBy = "dashboard-user")
+        => _routeManager.TrySetRouteEnabled(routeId, enabled, createdBy);
+
     public Task<RouteOperationResult> TryAddClusterConfig(ClusterConfig cluster, string source = "dashboard", string? createdBy = "dashboard-user")
         => _clusterManager.TryAddClusterConfig(cluster, source, createdBy);
 
