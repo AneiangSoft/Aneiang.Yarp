@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Dashboard Clusters Module - Cluster management and monitoring
  */
 (function() {
@@ -345,9 +345,11 @@
                 html += '</div></div></div>';
 
                 // Action buttons
-                html += '<div style="display:flex;gap:4px;flex-shrink:0;" onclick="event.stopPropagation()">';
-                html += '<button class="btn-action btn-action-edit" onclick="event.stopPropagation();window.DashboardApp.modules.clusters.showEditModal(\'' + (cluster.clusterId || '').replace(/'/g, "\\'") + '\')" title="' + __('index.cluster.edit') + '"><i class="bi bi-pencil"></i></button>';
-                html += '<button class="btn-action btn-action-danger" onclick="event.stopPropagation();window.DashboardApp.modules.clusters.deleteCluster(\'' + (cluster.clusterId || '').replace(/'/g, "\\'") + '\')" title="' + __('index.cluster.delete') + '"><i class="bi bi-trash"></i></button>';
+                html += '<div class="btn-group" style="flex-shrink:0;" onclick="event.stopPropagation()">';
+                html += '<button class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();window.DashboardApp.modules.clusters.showQuickAddRouteModal(\'' + (cluster.clusterId || '').replace(/'/g, "\\'") + '\')" title="' + __('cluster.quickAddRouteTitle') + '"><i class="bi bi-plus-circle"></i></button>';
+                html += '<button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation();window.DashboardApp.modules.clusters.showEditModal(\'' + (cluster.clusterId || '').replace(/'/g, "\\'") + '\')" title="' + __('index.cluster.edit') + '"><i class="bi bi-pencil"></i></button>';
+                html += '<button class="btn btn-sm btn-outline-warning" onclick="event.stopPropagation();window.DashboardApp.modules.clusters.showRenameModal(\'' + (cluster.clusterId || '').replace(/'/g, "\\'") + '\')" title="' + __('cluster.renameTitle') + '"><i class="bi bi-input-cursor-text"></i></button>';
+                html += '<button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();window.DashboardApp.modules.clusters.deleteCluster(\'' + (cluster.clusterId || '').replace(/'/g, "\\'") + '\')" title="' + __('index.cluster.delete') + '"><i class="bi bi-trash"></i></button>';
                 html += '</div></div>';
 
                 // Destinations
@@ -525,7 +527,7 @@
 
             // Actions
             var tdActions = window.DashboardDOM.create('td', {
-                style: { width: '80px', verticalAlign: 'middle', textAlign: 'center' }
+                style: { width: '160px', verticalAlign: 'middle', textAlign: 'center' }
             });
             tdActions.appendChild(this.createActionButtons(cluster));
             headerTr.appendChild(tdActions);
@@ -579,12 +581,26 @@
 
         createActionButtons: function(cluster) {
             const container = window.DashboardDOM.create('div', {
-                className: 'btn-group btn-group-sm'
+                className: 'btn-group'
             });
+
+            // Quick add route button
+            const quickRouteBtn = window.DashboardDOM.create('button', {
+                className: 'btn btn-sm btn-outline-success',
+                attributes: { title: __('cluster.quickAddRouteTitle') },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        this.showQuickAddRouteModal(cluster.clusterId);
+                    }
+                }
+            });
+            quickRouteBtn.appendChild(window.DashboardDOM.create('i', { className: 'bi bi-plus-circle' }));
+            container.appendChild(quickRouteBtn);
 
             // Edit button
             const editBtn = window.DashboardDOM.create('button', {
-                className: 'btn btn-outline-primary',
+                className: 'btn btn-sm btn-outline-primary',
                 attributes: { title: __('index.cluster.edit') },
                 events: {
                     click: (e) => {
@@ -600,7 +616,7 @@
             container.appendChild(editBtn);
 
             const renameBtn = window.DashboardDOM.create('button', {
-                className: 'btn btn-outline-secondary',
+                className: 'btn btn-sm btn-outline-warning',
                 attributes: { title: __('cluster.renameTitle') },
                 events: {
                     click: (e) => {
@@ -614,7 +630,7 @@
 
             // Delete button
             const deleteBtn = window.DashboardDOM.create('button', {
-                className: 'btn btn-outline-danger',
+                className: 'btn btn-sm btn-outline-danger',
                 attributes: { title: __('index.cluster.delete') },
                 events: {
                     click: (e) => {
@@ -648,9 +664,9 @@
             detailHtml.push('<div class="detail-actions-bar">');
             detailHtml.push(`<div class="detail-actions-left"><span class="detail-actions-label"><i class="bi bi-gear"></i> ${__('index.cluster.title')}</span></div>`);
             detailHtml.push('<div class="detail-actions-right">');
-            detailHtml.push(`<button class="btn btn-sm btn-outline-success detail-action-btn" onclick="ClustersModule.showQuickAddRouteModal('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('cluster.quickAddRoute', { cluster: cluster.clusterId })}"><i class="bi bi-signpost-plus"></i> ${__('cluster.quickAddRouteTitle')}</button>`);
-            detailHtml.push(`<button class="btn btn-sm btn-outline-secondary detail-action-btn" onclick="ClustersModule.showEditModal('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('index.cluster.edit')}"><i class="bi bi-pencil"></i> ${__('index.cluster.edit')}</button>`);
-            detailHtml.push(`<button class="btn btn-sm btn-outline-primary detail-action-btn" onclick="ClustersModule.copyClusterJson('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('index.copyJson.title')}"><i class="bi bi-clipboard-data"></i> ${__('index.copyJson')}</button>`);
+            detailHtml.push(`<button class="btn btn-sm btn-outline-success detail-action-btn" onclick="ClustersModule.showQuickAddRouteModal('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('cluster.quickAddRoute', { cluster: cluster.clusterId })}"><i class="bi bi-plus-circle"></i> ${__('cluster.quickAddRouteTitle')}</button>`);
+            detailHtml.push(`<button class="btn btn-sm btn-outline-primary detail-action-btn" onclick="ClustersModule.showEditModal('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('index.cluster.edit')}"><i class="bi bi-pencil"></i> ${__('index.cluster.edit')}</button>`);
+            detailHtml.push(`<button class="btn btn-sm btn-outline-info detail-action-btn" onclick="ClustersModule.copyClusterJson('${window.DashboardUtils.escapeHtml(cluster.clusterId)}')" title="${__('index.copyJson.title')}"><i class="bi bi-clipboard-data"></i> ${__('index.copyJson')}</button>`);
             detailHtml.push('</div>');
             detailHtml.push('</div>');
 
@@ -1491,10 +1507,11 @@
         showQuickAddRouteModal: function(clusterId) {
             var self = this;
             var defaultPath = '/api/' + clusterId + '/{**catchAll}';
+            var defaultPrefix = '/api/' + clusterId;
 
             window.DashboardModals.showFormModal({
                 title: __('cluster.quickAddRouteTitle') + ' → ' + clusterId,
-                icon: 'bi-signpost-plus',
+                icon: 'bi-plus-circle',
                 size: 'md',
                 fields: [
                     {
@@ -1510,7 +1527,8 @@
                         type: 'text',
                         required: true,
                         placeholder: defaultPath,
-                        value: defaultPath
+                        value: defaultPath,
+                        hint: __('cluster.quickRoutePathHint') || 'ASP.NET route template, e.g. /api/users/{**remainder}'
                     },
                     {
                         name: 'order',
@@ -1519,9 +1537,23 @@
                         value: '50',
                         min: '0',
                         max: '1000'
+                    },
+                    {
+                        name: 'removePrefix',
+                        label: __('cluster.quickRouteRemovePrefix') || 'Remove Path Prefix',
+                        type: 'checkbox',
+                        value: true,
+                        hint: __('cluster.quickRouteRemovePrefixHint') || 'Strip the prefix from the forwarded path'
+                    },
+                    {
+                        name: 'prefixValue',
+                        label: 'Prefix',
+                        type: 'text',
+                        value: defaultPrefix,
+                        placeholder: defaultPrefix
                     }
                 ],
-                data: { routeId: '', matchPath: defaultPath, order: '50' },
+                data: { routeId: '', matchPath: defaultPath, order: '50', removePrefix: true, prefixValue: defaultPrefix },
                 onSave: function(formData) {
                     var routeId = (formData.routeId || '').trim();
                     if (!routeId) {
@@ -1539,6 +1571,13 @@
                         Order: parseInt(formData.order) || 50,
                         Match: { Path: matchPath }
                     };
+
+                    if (formData.removePrefix) {
+                        var prefix = (formData.prefixValue || '').trim();
+                        if (prefix) {
+                            routeConfig.Transforms = [{ PathRemovePrefix: prefix }];
+                        }
+                    }
 
                     self.saveQuickRoute(routeId, routeConfig);
                     return true;

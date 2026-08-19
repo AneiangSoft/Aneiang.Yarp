@@ -271,37 +271,7 @@
 
 .route-card-actions {
     display: flex;
-    gap: 4px;
     flex-shrink: 0;
-}
-
-.route-card-actions .btn {
-    padding: 5px 10px;
-    font-size: 12px;
-    border: 1px solid var(--border-color, #e2e8f0);
-    background: var(--card-bg, #ffffff);
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-.route-card-actions .btn:hover {
-    background: #eff6ff;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-}
-
-.route-card-actions .btn:active {
-    transform: translateY(0);
-}
-
-.route-card-actions .btn-delete {
-    color: #ef4444;
-}
-
-.route-card-actions .btn-delete:hover {
-    background: #fef2f2;
-    border-color: rgba(239,68,68,0.3);
 }
 
 .route-card-body {
