@@ -36,6 +36,11 @@
                 <i class="bi bi-database"></i><span data-i18n="settings.tab.database">数据库</span>
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-ai" data-bs-toggle="tab" data-bs-target="#pane-ai" type="button" role="tab" aria-controls="pane-ai" aria-selected="false">
+                <i class="bi bi-robot"></i><span data-i18n="settings.tab.ai">AI 助手</span>
+            </button>
+        </li>
     </ul>
 
     <div class="tab-content settings-tab-content" id="settings-tab-content">
@@ -428,6 +433,274 @@
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+
+        <!-- TAB: AI 助手 -->
+        <div class="tab-pane fade" id="pane-ai" role="tabpanel" aria-labelledby="tab-ai">
+            <!-- 状态总览 -->
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <div class="settings-panel-title">
+                        <span class="settings-panel-icon settings-panel-icon--indigo"><i class="bi bi-robot"></i></span>
+                        <span data-i18n="ai.title">AI 助手配置</span>
+                    </div>
+                    <span id="ai-status-badge" class="settings-status-badge" data-i18n="ai.statusDisabled">已禁用</span>
+                </div>
+                <div class="settings-panel-body">
+                    <div class="settings-field">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="ai-enabled">
+                            <label class="form-check-label" for="ai-enabled" data-i18n="ai.enabled">启用 AI 助手</label>
+                        </div>
+                        <div class="settings-field-desc" data-i18n="ai.enabledDesc">开启后 Dashboard 将显示 AI 聊天按钮，并启用后台分析功能</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 服务商选择 -->
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <div class="settings-panel-title">
+                        <span class="settings-panel-icon settings-panel-icon--blue"><i class="bi bi-cloud"></i></span>
+                        <span data-i18n="ai.provider">AI 服务商</span>
+                    </div>
+                </div>
+                <div class="settings-panel-body">
+                    <div class="ai-provider-grid" id="ai-provider-grid">
+                        <div class="ai-provider-card ai-provider-card--deepseek" data-provider="deepseek" data-base="https://api.deepseek.com/v1" data-model="deepseek-v4-flash">
+                            <div class="ai-provider-name">DeepSeek</div>
+                            <div class="ai-provider-model">V4-Flash</div>
+                            <div class="ai-provider-tag ai-provider-tag--green">推荐</div>
+                        </div>
+                        <div class="ai-provider-card ai-provider-card--openai" data-provider="openai" data-base="https://api.openai.com/v1" data-model="gpt-5.6-luna">
+                            <div class="ai-provider-name">OpenAI</div>
+                            <div class="ai-provider-model">GPT-5.6 Luna</div>
+                        </div>
+                        <div class="ai-provider-card ai-provider-card--anthropic" data-provider="anthropic" data-base="https://api.anthropic.com/v1" data-model="claude-opus-5">
+                            <div class="ai-provider-name">Anthropic</div>
+                            <div class="ai-provider-model">Claude Opus 5</div>
+                        </div>
+                        <div class="ai-provider-card ai-provider-card--google" data-provider="google" data-base="https://generativelanguage.googleapis.com/v1" data-model="gemini-3.1-pro">
+                            <div class="ai-provider-name">Google</div>
+                            <div class="ai-provider-model">Gemini 3.1 Pro</div>
+                        </div>
+                        <div class="ai-provider-card ai-provider-card--xai" data-provider="xai" data-base="https://api.x.ai/v1" data-model="grok-4.5">
+                            <div class="ai-provider-name">xAI</div>
+                            <div class="ai-provider-model">Grok 4.5</div>
+                            <div class="ai-provider-tag ai-provider-tag--amber">Agentic</div>
+                        </div>
+                        <div class="ai-provider-card ai-provider-card--glm" data-provider="glm" data-base="https://open.bigmodel.cn/api/paas/v4" data-model="glm-5.2">
+                            <div class="ai-provider-name">GLM 智谱</div>
+                            <div class="ai-provider-model">GLM-5.2</div>
+                        </div>
+                        <div class="ai-provider-card ai-provider-card--qwen" data-provider="qwen" data-base="https://dashscope.aliyuncs.com/compatible-mode/v1" data-model="qwen3.8-max">
+                            <div class="ai-provider-name">通义千问</div>
+                            <div class="ai-provider-model">Qwen 3.8 Max</div>
+                        </div>
+                        <div class="ai-provider-card ai-provider-card--custom" data-provider="custom" data-base="" data-model="">
+                            <div class="ai-provider-name" data-i18n="ai.custom">自定义</div>
+                            <div class="ai-provider-model">OpenAI 兼容</div>
+                        </div>
+                    </div>
+                    <input type="hidden" id="ai-provider" value="deepseek">
+                </div>
+            </div>
+
+            <!-- 连接配置 -->
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <div class="settings-panel-title">
+                        <span class="settings-panel-icon settings-panel-icon--green"><i class="bi bi-key"></i></span>
+                        <span data-i18n="ai.connection">连接配置</span>
+                    </div>
+                </div>
+                <div class="settings-panel-body">
+                    <div class="settings-field-grid">
+                        <div class="settings-field">
+                            <label class="form-label" for="ai-api-key" data-i18n="ai.apiKey">API Key</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="ai-api-key" placeholder="sk-...">
+                                <button class="btn btn-outline-secondary" type="button" id="ai-api-key-toggle" data-i18n-title="ai.showKey">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                            <div class="settings-field-hint" data-i18n="ai.apiKeyHint">密钥仅在本地使用，不会上传到第三方</div>
+                        </div>
+                        <div class="settings-field">
+                            <label class="form-label" for="ai-base-url" data-i18n="ai.baseUrl">API Base URL</label>
+                            <input type="text" class="form-control" id="ai-base-url" placeholder="https://api.deepseek.com/v1">
+                            <div class="settings-field-hint" data-i18n="ai.baseUrlHint">可修改为 API 代理/镜像地址，将通过安全验证</div>
+                        </div>
+                        <div class="settings-field">
+                            <label class="form-label" for="ai-chat-model" data-i18n="ai.chatModel">对话模型</label>
+                            <input type="text" class="form-control" id="ai-chat-model" placeholder="deepseek-v4-flash">
+                            <div class="settings-field-hint" data-i18n="ai.chatModelHint">用于聊天对话的模型名称</div>
+                        </div>
+                        <div class="settings-field">
+                            <label class="form-label" for="ai-analysis-model" data-i18n="ai.analysisModel">分析模型</label>
+                            <input type="text" class="form-control" id="ai-analysis-model" placeholder="deepseek-v4-flash">
+                            <div class="settings-field-hint" data-i18n="ai.analysisModelHint">后台分析可用更便宜的模型</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 参数设置 -->
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <div class="settings-panel-title">
+                        <span class="settings-panel-icon settings-panel-icon--amber"><i class="bi bi-sliders"></i></span>
+                        <span data-i18n="ai.parameters">参数设置</span>
+                    </div>
+                </div>
+                <div class="settings-panel-body">
+                    <div class="settings-field-grid">
+                        <div class="settings-field">
+                            <label class="form-label"><span data-i18n="ai.maxTokens">最大 Token 数</span></label>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="range" class="form-range flex-grow-1" id="ai-max-tokens" min="256" max="32768" step="256" value="4096">
+                                <span class="ai-slider-val" id="ai-max-tokens-val">4096</span>
+                            </div>
+                            <div class="settings-field-hint" data-i18n="ai.maxTokensHint">256 - 32768 tokens</div>
+                        </div>
+                        <div class="settings-field">
+                            <label class="form-label"><span data-i18n="ai.temperature">随机性 (Temperature)</span></label>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="range" class="form-range flex-grow-1" id="ai-temperature" min="0" max="2" step="0.1" value="0.7">
+                                <span class="ai-slider-val" id="ai-temperature-val">0.7</span>
+                            </div>
+                            <div class="settings-field-hint" data-i18n="ai.temperatureHint">0 = 精确, 2 = 创造性</div>
+                        </div>
+                        <div class="settings-field">
+                            <label class="form-label" data-i18n="ai.maxHistory">对话历史条数</label>
+                            <input type="number" class="form-control" id="ai-max-history" min="1" max="100" value="20">
+                            <div class="settings-field-hint" data-i18n="ai.maxHistoryHint">1 - 100 条</div>
+                        </div>
+                        <div class="settings-field">
+                            <label class="form-label" data-i18n="ai.reasoningEffort">推理深度 (Reasoning)</label>
+                            <select class="form-select" id="ai-reasoning-effort">
+                                <option value="auto" data-i18n="ai.reasoningAuto">自动</option>
+                                <option value="low" data-i18n="ai.reasoningLow">低</option>
+                                <option value="medium" data-i18n="ai.reasoningMedium">中</option>
+                                <option value="high" data-i18n="ai.reasoningHigh">高</option>
+                            </select>
+                            <div class="settings-field-hint" data-i18n="ai.reasoningEffortHint">auto = 自动, low/medium/high = 逐级增强</div>
+                        </div>
+                        <div class="settings-field">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="ai-use-cache" checked>
+                                <label class="form-check-label" for="ai-use-cache" data-i18n="ai.useCache">启用缓存</label>
+                            </div>
+                            <div class="settings-field-desc" data-i18n="ai.useCacheHint">缓存重复请求以降低成本和延迟</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 高级功能 -->
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <div class="settings-panel-title">
+                        <span class="settings-panel-icon settings-panel-icon--purple"><i class="bi bi-stars"></i></span>
+                        <span data-i18n="ai.advanced">高级功能</span>
+                    </div>
+                </div>
+                <div class="settings-panel-body">
+                    <div class="settings-field-grid">
+                        <div class="settings-field">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="ai-bg-analysis">
+                                <label class="form-check-label" for="ai-bg-analysis" data-i18n="ai.bgAnalysis">后台日志分析</label>
+                            </div>
+                            <div class="settings-field-desc" data-i18n="ai.bgAnalysisDesc">定期自动分析代理日志，检测异常模式</div>
+                        </div>
+                        <div class="settings-field">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="ai-enhance-notif">
+                                <label class="form-check-label" for="ai-enhance-notif" data-i18n="ai.enhanceNotif">AI 增强通知</label>
+                            </div>
+                            <div class="settings-field-desc" data-i18n="ai.enhanceNotifDesc">在告警通知中添加 AI 生成的上下文和建议</div>
+                        </div>
+                        <div class="settings-field">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="ai-mcp-enabled">
+                                <label class="form-check-label" for="ai-mcp-enabled" data-i18n="ai.mcpServer">MCP 服务器</label>
+                            </div>
+                            <div class="settings-field-desc" data-i18n="ai.mcpServerDesc">启用 Model Context Protocol 服务器，供外部工具调用</div>
+                        </div>
+                        <div class="settings-field" id="ai-mcp-port-field" style="display:none;">
+                            <label class="form-label" data-i18n="ai.mcpPort">端口</label>
+                            <input type="number" class="form-control" id="ai-mcp-port" min="1" max="65535" value="8090">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 备用服务商 (Fallback) -->
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <div class="settings-panel-title">
+                        <span class="settings-panel-icon settings-panel-icon--blue"><i class="bi bi-shuffle"></i></span>
+                        <span data-i18n="ai.fallback">备用服务商</span>
+                    </div>
+                    <span id="ai-fallback-status" class="settings-status-badge" data-i18n="ai.fallbackNotConfigured">未配置</span>
+                </div>
+                <div class="settings-panel-body">
+                    <div class="settings-field">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="ai-fallback-enabled">
+                            <label class="form-check-label" for="ai-fallback-enabled" data-i18n="ai.fallback">备用服务商</label>
+                        </div>
+                        <div class="settings-field-desc" data-i18n="ai.fallbackDesc">主服务商不可用时自动切换到备用服务商</div>
+                    </div>
+                    <div id="ai-fallback-config" style="display:none;">
+                        <div class="settings-field-grid mt-3">
+                            <div class="settings-field">
+                                <label class="form-label" data-i18n="ai.fallbackProvider">备用服务商</label>
+                                <select class="form-select" id="ai-fallback-provider">
+                                    <option value="deepseek">DeepSeek</option>
+                                    <option value="openai">OpenAI</option>
+                                    <option value="anthropic">Anthropic</option>
+                                    <option value="google">Google</option>
+                                    <option value="xai">xAI</option>
+                                    <option value="glm">GLM 智谱</option>
+                                    <option value="qwen">通义千问</option>
+                                    <option value="custom" data-i18n="ai.custom">自定义</option>
+                                </select>
+                            </div>
+                            <div class="settings-field">
+                                <label class="form-label" data-i18n="ai.fallbackApiKey">备用 API Key</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="ai-fallback-api-key" placeholder="sk-...">
+                                    <button class="btn btn-outline-secondary" type="button" id="ai-fallback-key-toggle" data-i18n-title="ai.showKey">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="settings-field">
+                                <label class="form-label" data-i18n="ai.fallbackBaseUrl">备用 Base URL</label>
+                                <input type="text" class="form-control" id="ai-fallback-base-url" placeholder="https://api.openai.com/v1">
+                            </div>
+                            <div class="settings-field">
+                                <label class="form-label" data-i18n="ai.fallbackModel">备用模型</label>
+                                <input type="text" class="form-control" id="ai-fallback-model" placeholder="gpt-5.6-luna">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 测试结果内联显示 -->
+            <div id="ai-test-result" class="ai-test-result" style="display:none;"></div>
+
+            <div class="settings-action-bar">
+                <button class="btn btn-sm btn-primary" id="ai-btn-save">
+                    <i class="bi bi-check-lg"></i> <span data-i18n="ai.save">保存配置</span>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" id="ai-btn-test">
+                    <i class="bi bi-lightning"></i> <span data-i18n="ai.test">测试连接</span>
+                </button>
             </div>
         </div>
     </div>

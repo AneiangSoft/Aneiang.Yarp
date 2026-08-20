@@ -244,6 +244,86 @@
                 dbTab._bound = true;
                 dbTab.addEventListener('shown.bs.tab', () => this._loadDatabaseInfo());
             }
+
+            // AI tab — load config on first show
+            const aiTab = document.getElementById('tab-ai');
+            if (aiTab && !aiTab._bound) {
+                aiTab._bound = true;
+                aiTab.addEventListener('shown.bs.tab', () => this.loadAIConfig());
+            }
+
+            // AI settings event listeners
+            const aiSave = $('ai-btn-save');
+            if (aiSave) aiSave.addEventListener('click', () => this.saveAIConfig());
+            const aiTest = $('ai-btn-test');
+            if (aiTest) aiTest.addEventListener('click', () => this.testAIConnection());
+            // Provider card selection
+            document.querySelectorAll('.ai-provider-card').forEach(card => {
+                card.addEventListener('click', () => this.selectProvider(card));
+            });
+            // Enabled toggle → update status badge
+            const aiEnabled = $('ai-enabled');
+            if (aiEnabled) aiEnabled.addEventListener('change', () => this.updateStatusBadge());
+            // API Key show/hide toggle
+            const aiKeyToggle = $('ai-api-key-toggle');
+            if (aiKeyToggle) aiKeyToggle.addEventListener('click', () => this._toggleApiKeyVisibility());
+            // API Key input → re-evaluate test button availability
+            const aiKeyInput = $('ai-api-key');
+            if (aiKeyInput) aiKeyInput.addEventListener('input', () => this._updateTestButtonState());
+            const aiMaxTokens = $('ai-max-tokens');
+            if (aiMaxTokens) aiMaxTokens.addEventListener('input', () => { $('ai-max-tokens-val').textContent = aiMaxTokens.value; });
+            const aiTemp = $('ai-temperature');
+            if (aiTemp) aiTemp.addEventListener('input', () => { $('ai-temperature-val').textContent = aiTemp.value; });
+            // MCP Server toggle → show/hide port field
+            const aiMcpEnabled = $('ai-mcp-enabled');
+            if (aiMcpEnabled) aiMcpEnabled.addEventListener('change', () => this._toggleMcpPort());
+            // Fallback toggle → show/hide config section
+            const aiFallbackEnabled = $('ai-fallback-enabled');
+            if (aiFallbackEnabled) aiFallbackEnabled.addEventListener('change', () => this._toggleFallbackConfig());
+            // Fallback API Key show/hide toggle
+            const aiFallbackKeyToggle = $('ai-fallback-key-toggle');
+            if (aiFallbackKeyToggle) aiFallbackKeyToggle.addEventListener('click', () => this._toggleFallbackKeyVisibility());
+        },
+
+        _toggleMcpPort() {
+            const portField = $('ai-mcp-port-field');
+            if (portField) portField.style.display = $('ai-mcp-enabled').checked ? '' : 'none';
+        },
+
+        _toggleFallbackConfig() {
+            const config = $('ai-fallback-config');
+            if (config) config.style.display = $('ai-fallback-enabled').checked ? '' : 'none';
+            this._updateFallbackStatus();
+        },
+
+        _toggleFallbackKeyVisibility() {
+            const input = $('ai-fallback-api-key');
+            const icon = $('ai-fallback-key-toggle').querySelector('i');
+            if (!input || !icon) return;
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'bi bi-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'bi bi-eye';
+            }
+        },
+
+        _updateFallbackStatus() {
+            const badge = $('ai-fallback-status');
+            if (!badge) return;
+            const enabled = $('ai-fallback-enabled').checked;
+            const hasKey = !!$('ai-fallback-api-key').value || this._fallbackHasKey;
+            if (!enabled) {
+                badge.textContent = t('ai.statusDisabled', 'Disabled');
+                badge.className = 'settings-status-badge badge bg-secondary';
+            } else if (hasKey) {
+                badge.textContent = t('ai.statusReady', 'Ready');
+                badge.className = 'settings-status-badge badge bg-success';
+            } else {
+                badge.textContent = t('ai.statusNoKey', 'No API Key');
+                badge.className = 'settings-status-badge badge bg-warning';
+            }
         },
 
         async _loadDatabaseInfo() {
@@ -518,6 +598,205 @@
                 DashboardModals.showError(t('config.exportFailed', 'Export failed') + ': ' + (e.message || e));
             } finally {
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-download me-1"></i>' + t('config.exportBtn', 'Export'); }
+            }
+        },
+
+        // ─── AI Assistant ───
+
+        async loadAIConfig() {
+            try {
+                const config = await DashboardApi.get('/api/ai/config');
+                if (!config) return;
+                $('ai-enabled').checked = config.enabled;
+                $('ai-provider').value = config.provider || 'deepseek';
+                // Highlight active provider card
+                document.querySelectorAll('.ai-provider-card').forEach(c => {
+                    c.classList.toggle('active', c.dataset.provider === (config.provider || 'deepseek'));
+                });
+                $('ai-api-key').value = '';
+                $('ai-api-key').placeholder = config.hasApiKey ? '••••••••（已配置，留空不修改）' : 'sk-...';
+                $('ai-base-url').value = config.baseUrl || '';
+                $('ai-chat-model').value = config.chatModel || '';
+                $('ai-analysis-model').value = config.analysisModel || '';
+                $('ai-max-tokens').value = config.maxTokens || 4096;
+                $('ai-max-tokens-val').textContent = config.maxTokens || 4096;
+                $('ai-temperature').value = config.temperature || 0.7;
+                $('ai-temperature-val').textContent = config.temperature || 0.7;
+                $('ai-max-history').value = config.maxHistory || 20;
+                $('ai-reasoning-effort').value = config.reasoningEffort || 'auto';
+                $('ai-use-cache').checked = config.useCache !== false;
+                $('ai-bg-analysis').checked = config.bgAnalysis || false;
+                $('ai-enhance-notif').checked = config.enhanceNotif || false;
+                // MCP Server
+                const mcp = config.mcpServer || {};
+                $('ai-mcp-enabled').checked = !!mcp.enabled;
+                $('ai-mcp-port').value = mcp.port || 8090;
+                this._toggleMcpPort();
+                // Fallback
+                const fb = config.fallback || {};
+                $('ai-fallback-enabled').checked = !!fb.enabled;
+                $('ai-fallback-provider').value = fb.provider || 'openai';
+                $('ai-fallback-api-key').value = '';
+                $('ai-fallback-api-key').placeholder = fb.hasApiKey ? '••••••••（已配置，留空不修改）' : 'sk-...';
+                $('ai-fallback-base-url').value = fb.baseUrl || '';
+                $('ai-fallback-model').value = fb.model || '';
+                this._fallbackHasKey = !!fb.hasApiKey;
+                this._toggleFallbackConfig();
+                this._hasApiKey = !!config.hasApiKey;
+                this.updateStatusBadge(config);
+                this._updateTestButtonState();
+            } catch (e) {
+                console.error('[AI] Failed to load config:', e);
+            }
+        },
+
+        updateStatusBadge(config) {
+            const badge = $('ai-status-badge');
+            if (!badge) return;
+            if (!config) {
+                config = {
+                    enabled: $('ai-enabled').checked,
+                    hasApiKey: this._hasApiKey || (!!$('ai-api-key').value)
+                };
+            }
+            if (!config.enabled) {
+                badge.textContent = t('ai.statusDisabled', 'Disabled');
+                badge.className = 'settings-status-badge badge bg-secondary';
+            } else if (config.hasApiKey) {
+                badge.textContent = t('ai.statusReady', 'Ready');
+                badge.className = 'settings-status-badge badge bg-success';
+            } else {
+                badge.textContent = t('ai.statusNoKey', 'No API Key');
+                badge.className = 'settings-status-badge badge bg-warning';
+            }
+        },
+
+        _updateTestButtonState() {
+            const btn = $('ai-btn-test');
+            if (!btn) return;
+            const hasKey = this._hasApiKey || (!!$('ai-api-key').value);
+            btn.disabled = !hasKey;
+            if (!hasKey) {
+                btn.title = t('ai.testNoKey', 'Please configure API Key before testing');
+            } else {
+                btn.title = '';
+            }
+        },
+
+        _toggleApiKeyVisibility() {
+            const input = $('ai-api-key');
+            const icon = $('ai-api-key-toggle').querySelector('i');
+            if (!input || !icon) return;
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'bi bi-eye-slash';
+                $('ai-api-key-toggle').setAttribute('title', t('ai.hideKey', 'Hide key'));
+            } else {
+                input.type = 'password';
+                icon.className = 'bi bi-eye';
+                $('ai-api-key-toggle').setAttribute('title', t('ai.showKey', 'Show key'));
+            }
+        },
+
+        selectProvider(card) {
+            document.querySelectorAll('.ai-provider-card').forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+            $('ai-provider').value = card.dataset.provider;
+            const base = card.dataset.base;
+            const model = card.dataset.model;
+            if (base) $('ai-base-url').value = base;
+            if (model) {
+                $('ai-chat-model').value = model;
+                $('ai-analysis-model').value = model;
+            }
+        },
+
+        async saveAIConfig() {
+            const saveBtn = $('ai-btn-save');
+            const payload = {
+                enabled: $('ai-enabled').checked,
+                provider: $('ai-provider').value,
+                apiKey: $('ai-api-key').value,
+                baseUrl: $('ai-base-url').value,
+                chatModel: $('ai-chat-model').value,
+                analysisModel: $('ai-analysis-model').value,
+                maxTokens: parseInt($('ai-max-tokens').value) || 4096,
+                temperature: parseFloat($('ai-temperature').value) || 0.7,
+                maxHistory: parseInt($('ai-max-history').value) || 20,
+                reasoningEffort: $('ai-reasoning-effort').value,
+                useCache: $('ai-use-cache').checked,
+                bgAnalysis: $('ai-bg-analysis').checked,
+                enhanceNotif: $('ai-enhance-notif').checked,
+                fallback: {
+                    enabled: $('ai-fallback-enabled').checked,
+                    provider: $('ai-fallback-provider').value,
+                    apiKey: $('ai-fallback-api-key').value,
+                    baseUrl: $('ai-fallback-base-url').value,
+                    model: $('ai-fallback-model').value
+                },
+                mcpServer: {
+                    enabled: $('ai-mcp-enabled').checked,
+                    port: parseInt($('ai-mcp-port').value) || 8090
+                }
+            };
+            if (window.DashboardLoading && saveBtn) DashboardLoading.setButton(saveBtn, true, t('ai.saving', 'Saving...'));
+            try {
+                await DashboardApi.post('/api/ai/config', payload);
+                DashboardModals.showSuccess(t('ai.saveSuccess', 'AI settings saved'));
+                // Reload config from server to get accurate hasApiKey state
+                await this.loadAIConfig();
+                if (window.DashboardAI) DashboardAI.init();
+            } catch (e) {
+                DashboardModals.showError(t('ai.saveFailed', 'Save failed') + ': ' + (e.message || e));
+            } finally {
+                if (window.DashboardLoading && saveBtn) DashboardLoading.setButton(saveBtn, false);
+            }
+        },
+
+        async testAIConnection() {
+            const btn = $('ai-btn-test');
+            const resultBox = $('ai-test-result');
+            const hasKey = this._hasApiKey || (!!$('ai-api-key').value);
+            if (!hasKey) {
+                DashboardModals.showError(t('ai.testNoKey', 'Please configure API Key before testing'));
+                return;
+            }
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> ' + t('ai.testing', 'Testing...'); }
+            const provider = $('ai-provider').value;
+            const model = $('ai-chat-model').value;
+            const start = Date.now();
+            try {
+                const result = await DashboardApi.post('/api/ai/test', {});
+                const latency = Date.now() - start;
+                if (resultBox) {
+                    if (result.ok) {
+                        resultBox.className = 'ai-test-result ai-test-result--ok';
+                        resultBox.innerHTML =
+                            '<i class="bi bi-check-circle-fill ai-test-result-icon"></i>' +
+                            '<span>' + t('ai.testSuccessInline', 'Connection OK') + '</span>' +
+                            '<span class="ai-test-result-meta">' + t('ai.testLatency', 'Latency') + ': ' + latency + 'ms</span>' +
+                            '<span class="ai-test-result-meta">' + t('ai.testProvider', 'Provider') + ': ' + provider + '</span>' +
+                            '<span class="ai-test-result-meta">' + t('ai.testModel', 'Model') + ': ' + model + '</span>';
+                    } else {
+                        resultBox.className = 'ai-test-result ai-test-result--fail';
+                        resultBox.innerHTML =
+                            '<i class="bi bi-x-circle-fill ai-test-result-icon"></i>' +
+                            '<span>' + t('ai.testFailedInline', 'Connection Failed') + '</span>' +
+                            '<span class="ai-test-result-msg">' + (result.message || '') + '</span>';
+                    }
+                    resultBox.style.display = 'flex';
+                }
+            } catch (e) {
+                if (resultBox) {
+                    resultBox.className = 'ai-test-result ai-test-result--fail';
+                    resultBox.innerHTML =
+                        '<i class="bi bi-x-circle-fill ai-test-result-icon"></i>' +
+                        '<span>' + t('ai.testFailedInline', 'Connection Failed') + '</span>' +
+                        '<span class="ai-test-result-msg">' + (e.message || e) + '</span>';
+                    resultBox.style.display = 'flex';
+                }
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-lightning"></i> ' + t('ai.test', 'Test Connection'); }
             }
         }
     };

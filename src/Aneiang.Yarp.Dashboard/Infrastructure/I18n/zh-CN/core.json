@@ -223,6 +223,7 @@
   "settings.tab.system": "系统信息",
   "settings.tab.config": "配置导入导出",
   "settings.tab.database": "数据库",
+  "settings.tab.ai": "AI 助手",
   "settings.db.info": "数据库信息",
   "settings.db.fileName": "文件名",
   "settings.db.fileSize": "文件大小",

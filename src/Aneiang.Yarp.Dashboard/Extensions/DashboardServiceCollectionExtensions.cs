@@ -63,6 +63,7 @@ public static class DashboardServiceCollectionExtensions
         services.AddDashboardNotificationAndPlugins();
         services.AddDashboardRealtimeAndPerformance();
         services.AddDashboardConfigPersistence();
+        services.AddDashboardAI();
         services.AddDashboardWarmupServices();
         return services;
     }
@@ -121,6 +122,10 @@ public static class DashboardServiceCollectionExtensions
         // (if called) will PostConfigure to normalize Mode (Auto→Split/AllInOne).
         services.AddOptions<DeploymentOptions>()
             .BindConfiguration(DeploymentOptions.SectionName);
+
+        // AI assistant options — binds from top-level "AI" section
+        services.AddOptions<AIOptions>()
+            .BindConfiguration(AIOptions.SectionName);
 
         // Alert service (no-op default; can be replaced by user's implementation)
         services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Alert.IGatewayAlertService,
@@ -397,6 +402,19 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<IConfigSnapshotScheduler>(sp => sp.GetRequiredService<ConfigSnapshotScheduler>());
         services.AddHostedService(sp => sp.GetRequiredService<ConfigSnapshotScheduler>());
         services.AddSingleton<IGatewayIdentityService, GatewayIdentityService>();
+
+        return services;
+    }
+
+    #endregion
+
+    #region AI assistant
+
+    private static IServiceCollection AddDashboardAI(this IServiceCollection services)
+    {
+        services.AddSingleton<AIConfigStore>();
+        services.AddSingleton<AIFunctionService>();
+        services.AddSingleton<AIService>();
 
         return services;
     }

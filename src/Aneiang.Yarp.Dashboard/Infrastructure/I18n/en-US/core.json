@@ -223,6 +223,7 @@
   "settings.tab.system": "System Info",
   "settings.tab.config": "Import / Export",
   "settings.tab.database": "Database",
+  "settings.tab.ai": "AI Assistant",
   "settings.db.info": "Database Info",
   "settings.db.fileName": "File Name",
   "settings.db.fileSize": "File Size",
