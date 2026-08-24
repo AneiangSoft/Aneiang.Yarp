@@ -1,0 +1,219 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Notifications" : "通知管理";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<div id="notifications-app">
+    <div class="page-help-bar" id="notifications-help-bar">
+        <i class="bi bi-info-circle"></i>
+        <span class="help-text" data-i18n="notif.page.help">通知管理支持钉钉、企业微信、飞书、Slack、Discord、Telegram、Teams 等平台推送网关事件与告警，支持按平台订阅事件、冷却去重与送达历史查询。</span>
+        <button class="help-close" onclick="document.getElementById('notifications-help-bar').classList.add('collapsed')">&times;</button>
+    </div>
+
+    <!-- KPI 统计行 -->
+    <div class="notif-kpi-row">
+        <div class="notif-kpi">
+            <span class="notif-kpi-icon" style="background:#dbeafe;color:#2563eb;"><i class="bi bi-broadcast"></i></span>
+            <div class="notif-kpi-body">
+                <div class="notif-kpi-value" id="notif-kpi-platforms">-</div>
+                <div class="notif-kpi-label" data-i18n="notif.kpi.platforms">已接入平台</div>
+                <div class="notif-kpi-trend text-muted" id="notif-kpi-platforms-sub"></div>
+            </div>
+        </div>
+        <div class="notif-kpi">
+            <span class="notif-kpi-icon" style="background:#dcfce7;color:#16a34a;"><i class="bi bi-robot"></i></span>
+            <div class="notif-kpi-body">
+                <div class="notif-kpi-value" id="notif-kpi-endpoints">-</div>
+                <div class="notif-kpi-label" data-i18n="notif.kpi.endpoints">推送端点</div>
+                <div class="notif-kpi-trend text-muted" id="notif-kpi-endpoints-sub"></div>
+            </div>
+        </div>
+        <div class="notif-kpi">
+            <span class="notif-kpi-icon" style="background:#ede9fe;color:#7c3aed;"><i class="bi bi-check2-square"></i></span>
+            <div class="notif-kpi-body">
+                <div class="notif-kpi-value" id="notif-kpi-events">-</div>
+                <div class="notif-kpi-label" data-i18n="notif.kpi.events">订阅事件</div>
+                <div class="notif-kpi-trend text-muted" id="notif-kpi-events-sub"></div>
+            </div>
+        </div>
+        <div class="notif-kpi">
+            <span class="notif-kpi-icon" style="background:#fef3c7;color:#d97706;"><i class="bi bi-graph-up-arrow"></i></span>
+            <div class="notif-kpi-body">
+                <div class="notif-kpi-value" id="notif-kpi-rate">-</div>
+                <div class="notif-kpi-label" data-i18n="notif.kpi.rate">推送成功率</div>
+                <div class="notif-kpi-trend text-muted" id="notif-kpi-rate-sub"></div>
+            </div>
+        </div>
+    </div>
+
+    <ul class="nav nav-pills settings-tabs" id="notif-tab-nav" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-notif-platforms" data-bs-toggle="tab" data-bs-target="#pane-notif-platforms" type="button" role="tab">
+                <i class="bi bi-broadcast"></i><span data-i18n="notif.tab.platforms">平台接入</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-notif-events" data-bs-toggle="tab" data-bs-target="#pane-notif-events" type="button" role="tab">
+                <i class="bi bi-check2-square"></i><span data-i18n="notif.tab.events">事件订阅</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-notif-advanced" data-bs-toggle="tab" data-bs-target="#pane-notif-advanced" type="button" role="tab">
+                <i class="bi bi-sliders"></i><span data-i18n="notif.tab.advanced">高级设置</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-notif-history" data-bs-toggle="tab" data-bs-target="#pane-notif-history" type="button" role="tab">
+                <i class="bi bi-clock-history"></i><span data-i18n="notif.tab.history">送达历史</span>
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content settings-tab-content" id="notif-tab-content">
+        <!-- TAB: 平台接入 -->
+        <div class="tab-pane fade show active" id="pane-notif-platforms" role="tabpanel" aria-labelledby="tab-notif-platforms">
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <div class="settings-panel-title">
+                        <span class="settings-panel-icon settings-panel-icon--amber"><i class="bi bi-broadcast"></i></span>
+                        <span data-i18n="notif.platforms.title">通知平台</span>
+                    </div>
+                    <span id="notif-platforms-summary" class="settings-status-badge" data-i18n="common.loading">加载中</span>
+                </div>
+                <div class="settings-panel-body">
+                    <div id="notif-platform-cards" class="notif-master-detail">
+                        <div class="loading-state">
+                            <div class="loading-spinner"></div>
+                            <div class="loading-text" data-i18n="common.loading">加载中...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: 事件订阅 -->
+        <div class="tab-pane fade" id="pane-notif-events" role="tabpanel" aria-labelledby="tab-notif-events">
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <div class="settings-panel-title">
+                        <span class="settings-panel-icon settings-panel-icon--blue"><i class="bi bi-check2-square"></i></span>
+                        <span data-i18n="notif.events.title">事件订阅矩阵</span>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center">
+                        <span id="notif-events-mode" class="settings-status-badge"></span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="notif-events-default-btn" data-i18n="notif.events.followGlobal">跟随全局</button>
+                    </div>
+                </div>
+                <div class="settings-panel-body">
+                    <div class="settings-field-desc mb-3" data-i18n="notif.events.help">勾选各平台要接收的事件。未做任何勾选的平台（“跟随全局”）仅接收全局事件列表中的配置变更事件。</div>
+                    <div class="table-responsive notif-events-scroll">
+                        <table class="table table-sm align-middle notif-events-table">
+                            <thead>
+                                <tr id="notif-events-head-row">
+                                    <th data-i18n="notif.events.eventColumn">事件</th>
+                                </tr>
+                            </thead>
+                            <tbody id="notif-events-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: 高级设置 -->
+        <div class="tab-pane fade" id="pane-notif-advanced" role="tabpanel" aria-labelledby="tab-notif-advanced">
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <div class="settings-panel-title">
+                        <span class="settings-panel-icon settings-panel-icon--green"><i class="bi bi-sliders"></i></span>
+                        <span data-i18n="notif.advanced.title">投递策略</span>
+                    </div>
+                </div>
+                <div class="settings-panel-body">
+                    <div class="settings-field-grid">
+                        <div class="settings-field">
+                            <label class="form-label" for="notif-cooldown" data-i18n="notif.advanced.cooldown">冷却时间（秒）</label>
+                            <input type="number" class="form-control" id="notif-cooldown" min="0" max="3600">
+                            <div class="settings-field-hint" data-i18n="notif.advanced.cooldown.hint">同一平台 + 事件 + 目标在该时间窗内只推送一次，防止告警风暴（0 = 不冷却）。</div>
+                        </div>
+                        <div class="settings-field">
+                            <label class="form-label" for="notif-retry" data-i18n="notif.advanced.retry">失败重试次数</label>
+                            <input type="number" class="form-control" id="notif-retry" min="0" max="5">
+                            <div class="settings-field-hint" data-i18n="notif.advanced.retry.hint">指数退避重试：1s / 4s / 16s。</div>
+                        </div>
+                        <div class="settings-field">
+                            <label class="form-label" for="notif-timeout" data-i18n="notif.advanced.timeout">请求超时（秒）</label>
+                            <input type="number" class="form-control" id="notif-timeout" min="3" max="60">
+                            <div class="settings-field-hint" data-i18n="notif.advanced.timeout.hint">单次投递的 HTTP 超时时间。</div>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2 mt-3 flex-wrap">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="notif-clear-cooldown-btn">
+                            <i class="bi bi-arrow-repeat me-1"></i><span data-i18n="notif.advanced.clearCooldown">清除冷却状态</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: 送达历史 -->
+        <div class="tab-pane fade" id="pane-notif-history" role="tabpanel" aria-labelledby="tab-notif-history">
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <div class="settings-panel-title">
+                        <span class="settings-panel-icon settings-panel-icon--blue"><i class="bi bi-clock-history"></i></span>
+                        <span data-i18n="notif.history.title">最近送达记录</span>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        <span id="notif-history-summary" class="settings-status-badge"></span>
+                        <div class="btn-group btn-group-sm" id="notif-history-filters" role="group" aria-label="filter">
+                            <button type="button" class="btn btn-outline-secondary active" data-filter="all" data-i18n="notif.history.filter.all">全部</button>
+                            <button type="button" class="btn btn-outline-secondary" data-filter="success" data-i18n="notif.history.filter.success">成功</button>
+                            <button type="button" class="btn btn-outline-secondary" data-filter="failed" data-i18n="notif.history.filter.failed">失败</button>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="notif-history-refresh-btn"><i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="common.refresh">刷新</span></button>
+                        <button type="button" class="btn btn-sm btn-outline-danger" id="notif-history-clear-btn"><i class="bi bi-trash3 me-1"></i><span data-i18n="notif.history.clear">清空</span></button>
+                    </div>
+                </div>
+                <div class="settings-panel-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th data-i18n="notif.history.time">时间</th>
+                                    <th data-i18n="notif.history.platform">平台</th>
+                                    <th data-i18n="notif.history.event">事件</th>
+                                    <th data-i18n="notif.history.target">目标</th>
+                                    <th data-i18n="notif.history.status">状态</th>
+                                    <th data-i18n="notif.history.duration">耗时</th>
+                                    <th data-i18n="notif.history.error">错误</th>
+                                </tr>
+                            </thead>
+                            <tbody id="notif-history-body">
+                                <tr><td colspan="7" class="text-center text-muted py-4" data-i18n="notif.history.empty">暂无记录</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 页面操作均已就地自动保存（平台卡片内保存 / 事件与高级设置即时保存） -->
+</div>
+
+@section Scripts {
+@await Html.PartialAsync("_DashboardPageInit")
+<script>
+    (function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+    })();
+</script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-notifications.js"></script>
+}

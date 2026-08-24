@@ -127,9 +127,13 @@ public static class DashboardServiceCollectionExtensions
         services.AddOptions<AIOptions>()
             .BindConfiguration(AIOptions.SectionName);
 
-        // Alert service (no-op default; can be replaced by user's implementation)
+        // Alert pipeline: gateway alerts flow into the notification dispatcher,
+        // which fans out to subscribed webhook platforms with cooldown + retry.
+        services.AddSingleton<Infrastructure.Notifications.NotificationDispatcher>();
+        services.AddHostedService(sp => sp.GetRequiredService<Infrastructure.Notifications.NotificationDispatcher>());
+        services.AddSingleton<Infrastructure.Notifications.WebhookAlertService>();
         services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Alert.IGatewayAlertService,
-            Aneiang.Yarp.Dashboard.Infrastructure.Alert.NullGatewayAlertService>();
+            Aneiang.Yarp.Dashboard.Infrastructure.Notifications.WebhookAlertService>();
 
         if (configureOptions != null)
             services.Configure(configureOptions);
@@ -416,13 +420,12 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<AIFunctionService>();
         services.AddSingleton<AIService>();
 
-        // AI-enhanced notifications - decorates the default alert service so each
+        // AI-enhanced notifications - decorates the webhook alert service so each
         // alert gets an LLM-generated context/suggestion when AI.EnhanceNotif is on.
-        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Alert.NullGatewayAlertService>();
         services.Replace(ServiceDescriptor.Singleton<
             Aneiang.Yarp.Dashboard.Infrastructure.Alert.IGatewayAlertService>(sp =>
             new AIEnhancedAlertService(
-                sp.GetRequiredService<Aneiang.Yarp.Dashboard.Infrastructure.Alert.NullGatewayAlertService>(),
+                sp.GetRequiredService<Infrastructure.Notifications.WebhookAlertService>(),
                 sp.GetRequiredService<AIConfigStore>(),
                 sp,
                 sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AIEnhancedAlertService>>())));

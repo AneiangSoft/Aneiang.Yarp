@@ -99,6 +99,9 @@ public class DashboardPagesController : Controller
     [HttpGet("settings")]
     public IActionResult Settings() { SetCommonViewBag("settings"); return View(); }
 
+    [HttpGet("notifications")]
+    public IActionResult Notifications() { SetCommonViewBag("notifications"); return View(); }
+
     [HttpGet("plugin-resources")]
     public IActionResult PluginResources() { SetCommonViewBag("plugin-resources"); return View(); }
 

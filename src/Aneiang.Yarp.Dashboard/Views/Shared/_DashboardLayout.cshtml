@@ -4591,6 +4591,7 @@
                     new[]
                     {
                         ("audit", isEn ? "Audit Log" : "审计日志", "menu.audit", "bi-shield-check", $"/{prefix}/audit", "", Array.Empty<object>()),
+                        ("notifications", isEn ? "Notifications" : "通知管理", "menu.notifications", "bi-bell", $"/{prefix}/notifications", "", Array.Empty<object>()),
                         ("settings", isEn ? "Settings" : "系统设置", "menu.settings", "bi-gear", $"/{prefix}/settings", "", Array.Empty<object>())
                     }
                 )
@@ -4759,6 +4760,7 @@
                 {"logs", pgIsEn ? "Real-time Logs" : "实时日志"},
                 {"history", pgIsEn ? "Configuration History" : "配置历史"},
                 {"audit", pgIsEn ? "Audit Log" : "审计日志"},
+                {"notifications", pgIsEn ? "Notifications" : "通知管理"},
                 {"traffic", pgIsEn ? "Traffic Monitor" : "流量监控"},
                 {"cluster-metrics", pgIsEn ? "Cluster Metrics" : "集群指标"},
                 {"compression", pgIsEn ? "Response Compression" : "响应压缩"},
@@ -4778,7 +4780,8 @@
                 {"cluster-metrics", "bi-diagram-3-fill"},
                 {"circuits", "bi-lightning-charge"},
                 {"history", "bi-clock-history"},
-                {"audit", "bi-shield-check"}
+                {"audit", "bi-shield-check"},
+                {"notifications", "bi-bell"}
             };
             var pageTitle = pageTitles.ContainsKey(pgName) ? pageTitles[pgName] : pgName;
             var pageIcon = pageIcons.ContainsKey(pgName) ? pageIcons[pgName] : "bi-app-indicator";

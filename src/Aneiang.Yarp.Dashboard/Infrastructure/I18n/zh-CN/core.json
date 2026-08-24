@@ -132,6 +132,7 @@
   "menu.traffic": "流量监控",
   "menu.clusterMetrics": "集群指标",
   "menu.audit": "审计日志",
+  "menu.notifications": "通知管理",
   "menu.settings": "系统设置",
   "layout.search.placeholder": "搜索...",
   "layout.live": "实时",
@@ -416,6 +417,7 @@
   "logs.config.bindingTitle": "路由绑定",
   "common.loading": "加载中...",
   "common.loadFailed": "加载失败",
+  "common.refresh": "刷新",
   "common.pluginNotConfigured": "未配置插件，数据可能为空",
   "common.goPluginConfig": "前往配置"
 }

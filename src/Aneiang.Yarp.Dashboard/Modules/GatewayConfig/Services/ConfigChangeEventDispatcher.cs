@@ -8,21 +8,21 @@ namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 /// <summary>
 /// Background service that dispatches config-change events from a queue.
 /// Fires the <see cref="ConfigChangeAuditLog.OnConfigChanged"/> event for external subscribers
-/// and pushes webhook notifications for subscribed event types.
+/// and enqueues webhook notifications for subscribed event types on the central dispatcher.
 /// </summary>
 internal sealed class ConfigChangeEventDispatcher : BackgroundService
 {
     private readonly ConfigChangeAuditLog _auditLog;
-    private readonly WebhookNotificationService _webhooks;
+    private readonly NotificationDispatcher _dispatcher;
     private readonly ILogger<ConfigChangeEventDispatcher> _logger;
 
     public ConfigChangeEventDispatcher(
         ConfigChangeAuditLog auditLog,
-        WebhookNotificationService webhooks,
+        NotificationDispatcher dispatcher,
         ILogger<ConfigChangeEventDispatcher> logger)
     {
         _auditLog = auditLog;
-        _webhooks = webhooks;
+        _dispatcher = dispatcher;
         _logger = logger;
     }
 
@@ -49,8 +49,9 @@ internal sealed class ConfigChangeEventDispatcher : BackgroundService
                         notification.EventType, notification.Target,
                         notification.Operator, notification.Details);
 
-                    // Push webhook notifications for subscribed event types (fire-and-forget)
-                    _ = NotifyWebhooksAsync(notification, stoppingToken);
+                    // Enqueue webhook notification on the central dispatcher
+                    // (event routing + cooldown handled there; fire-and-forget)
+                    _dispatcher.EnqueueConfigChange(notification.EventType, notification.Target, notification.Operator);
                 }
                 else
                 {
@@ -66,34 +67,6 @@ internal sealed class ConfigChangeEventDispatcher : BackgroundService
                 _logger.LogWarning(ex, "Error dispatching pending notification - will retry");
                 await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
             }
-        }
-    }
-
-    /// <summary>
-    /// Deliver a webhook notification for a config-change event.
-    /// Exceptions are fully contained so webhook failures never affect the dispatch loop.
-    /// </summary>
-    private async Task NotifyWebhooksAsync(Aneiang.Yarp.Services.PendingNotification notification, CancellationToken ct)
-    {
-        try
-        {
-            var report = await _webhooks.NotifyConfigChangeAsync(
-                notification.EventType, notification.Target, notification.Operator, ct);
-
-            if (report.Total > 0 && !report.Success)
-            {
-                _logger.LogWarning(
-                    "Webhook notification for {EventType} partially failed: {Succeeded}/{Total} delivered",
-                    notification.EventType, report.Succeeded, report.Total);
-            }
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            // Host shutting down - ignore.
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Webhook notification for {EventType} failed", notification.EventType);
         }
     }
 }

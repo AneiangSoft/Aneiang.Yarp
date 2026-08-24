@@ -306,10 +306,14 @@
         // Overview snapshot (HTTP fallback for the SignalR push)
         getOverviewSnapshot: () => DashboardApi.get('/api/overview/snapshot'),
 
-        // Webhook notifications (config-change events)
+        // Webhook notifications (platform endpoints + event subscriptions + delivery history)
         getWebhookSettings: () => DashboardApi.get('/api/webhook/settings'),
         saveWebhookSettings: (data) => DashboardApi.post('/api/webhook/settings', data),
+        saveWebhookPlatform: (data) => DashboardApi.post('/api/webhook/platform', data),
         testWebhook: (data) => DashboardApi.post('/api/webhook/test', data),
+        getWebhookHistory: (limit) => DashboardApi.get('/api/webhook/history', { limit: limit || 200 }),
+        clearWebhookHistory: () => DashboardApi.delete('/api/webhook/history'),
+        clearWebhookCooldown: () => DashboardApi.post('/api/webhook/cooldown/clear', {}),
 
         // Plugin Resource Monitor
         getPluginResources: () => DashboardApi.get('/api/plugin-resources'),

@@ -132,6 +132,7 @@
   "menu.traffic": "Traffic Monitor",
   "menu.clusterMetrics": "Cluster Metrics",
   "menu.audit": "Audit Log",
+  "menu.notifications": "Notifications",
   "menu.settings": "Settings",
   "layout.search.placeholder": "Search...",
   "layout.live": "Live",
@@ -416,6 +417,7 @@
   "logs.config.bindingTitle": "Route Bindings",
   "common.loading": "Loading...",
   "common.loadFailed": "Load failed",
+  "common.refresh": "Refresh",
   "common.pluginNotConfigured": "Plugin not configured, data may be empty",
   "common.goPluginConfig": "Configure"
 }
