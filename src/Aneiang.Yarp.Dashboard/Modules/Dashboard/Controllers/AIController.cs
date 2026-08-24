@@ -16,20 +16,17 @@ public class AIController : Controller
     private readonly AIService _aiService;
     private readonly AIConfigStore _configStore;
     private readonly IAIConversationRepository _conversationRepo;
-    private readonly IAIAnalysisRepository _analysisRepo;
     private readonly AIFunctionService _functionService;
 
     public AIController(
         AIService aiService,
         AIConfigStore configStore,
         IAIConversationRepository conversationRepo,
-        IAIAnalysisRepository analysisRepo,
         AIFunctionService functionService)
     {
         _aiService = aiService;
         _configStore = configStore;
         _conversationRepo = conversationRepo;
-        _analysisRepo = analysisRepo;
         _functionService = functionService;
     }
 
@@ -52,13 +49,11 @@ public class AIController : Controller
             hasApiKey = !string.IsNullOrWhiteSpace(opts.ApiKey),
             baseUrl = opts.BaseUrl,
             chatModel = opts.ChatModel,
-            analysisModel = opts.AnalysisModel,
             maxTokens = opts.MaxTokens,
             temperature = opts.Temperature,
             maxHistory = opts.MaxHistory,
             reasoningEffort = opts.ReasoningEffort,
             useCache = opts.UseCache,
-            bgAnalysis = opts.BgAnalysis,
             enhanceNotif = opts.EnhanceNotif,
             fallback = new
             {
@@ -85,13 +80,11 @@ public class AIController : Controller
             ApiKey = string.IsNullOrEmpty(request.ApiKey) ? current.ApiKey : request.ApiKey,
             BaseUrl = request.BaseUrl ?? current.BaseUrl,
             ChatModel = request.ChatModel ?? current.ChatModel,
-            AnalysisModel = request.AnalysisModel ?? current.AnalysisModel,
             MaxTokens = request.MaxTokens ?? current.MaxTokens,
             Temperature = request.Temperature ?? current.Temperature,
             MaxHistory = request.MaxHistory ?? current.MaxHistory,
             ReasoningEffort = request.ReasoningEffort ?? current.ReasoningEffort,
             UseCache = request.UseCache ?? current.UseCache,
-            BgAnalysis = request.BgAnalysis ?? current.BgAnalysis,
             EnhanceNotif = request.EnhanceNotif ?? current.EnhanceNotif,
             Fallback = new AIFallbackOptions
             {
@@ -196,14 +189,6 @@ public class AIController : Controller
         return Json(messages);
     }
 
-    /// <summary>Get recent AI analysis results.</summary>
-    [HttpGet("api/ai/analysis")]
-    public async Task<IActionResult> GetAnalysis([FromQuery] int max = 20)
-    {
-        var results = await _analysisRepo.GetRecentAsync(max);
-        return Json(results);
-    }
-
     private static readonly JsonSerializerOptions SSEJsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -240,13 +225,11 @@ public class AIConfigSaveRequest
     public string? ApiKey { get; set; } // null = keep existing, "" = clear
     public string? BaseUrl { get; set; }
     public string? ChatModel { get; set; }
-    public string? AnalysisModel { get; set; }
     public int? MaxTokens { get; set; }
     public double? Temperature { get; set; }
     public int? MaxHistory { get; set; }
     public string? ReasoningEffort { get; set; }
     public bool? UseCache { get; set; }
-    public bool? BgAnalysis { get; set; }
     public bool? EnhanceNotif { get; set; }
     public AIFallbackSaveRequest? Fallback { get; set; }
     public McpServerSaveRequest? McpServer { get; set; }

@@ -41,6 +41,9 @@ public class AIConfigStore
         }
     }
 
+    /// <summary>Path of the ai-config.json file this store reads/writes.</summary>
+    public string ConfigPath => _configPath;
+
     public bool IsConfigured => Current.IsConfigured;
 
     public void Save(AIOptions options)

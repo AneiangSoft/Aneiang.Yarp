@@ -82,6 +82,65 @@ public class AIService
     }
 
     /// <summary>
+    /// Non-streaming completion used by notification enhancement. Uses the configured
+    /// chat model by default; callers can override <paramref name="model"/>.
+    /// </summary>
+    public async Task<(bool ok, string content)> CompleteAsync(
+        string systemPrompt, string userMessage, string? model = null, CancellationToken ct = default)
+    {
+        var opts = _config.Current;
+        if (!opts.IsConfigured)
+            return (false, "AI is not configured");
+
+        var baseUrl = opts.BaseUrl.TrimEnd('/');
+        var payload = new Dictionary<string, object?>
+        {
+            ["model"] = model ?? opts.ChatModel,
+            ["messages"] = new object[]
+            {
+                new { role = "system", content = systemPrompt },
+                new { role = "user", content = userMessage }
+            },
+            ["max_tokens"] = opts.MaxTokens,
+            ["temperature"] = opts.Temperature
+        };
+        var body = JsonSerializer.Serialize(payload, JsonOpts);
+
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/chat/completions");
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", opts.ApiKey);
+            req.Content = new StringContent(body, Encoding.UTF8, "application/json");
+            using var resp = await _http.SendAsync(req, ct);
+            if (!resp.IsSuccessStatusCode)
+            {
+                var errBody = await resp.Content.ReadAsStringAsync(ct);
+                return (false, $"HTTP {(int)resp.StatusCode}: {Truncate(errBody, 300)}");
+            }
+            var json = await resp.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)
+            {
+                var message = choices[0].GetProperty("message");
+                if (message.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(c.GetString()))
+                    return (true, c.GetString()!.Trim());
+                // Some reasoning models put the answer in reasoning_content instead.
+                if (message.TryGetProperty("reasoning_content", out var r) && r.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(r.GetString()))
+                    return (true, r.GetString()!.Trim());
+            }
+            return (true, "");
+        }
+        catch (OperationCanceledException)
+        {
+            return (false, "Request was cancelled");
+        }
+        catch (Exception ex)
+        {
+            return (false, $"{ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Stream a chat completion with Function Calling support.
     /// Yields content chunks, tool call/result events, and a final done event.
     /// </summary>

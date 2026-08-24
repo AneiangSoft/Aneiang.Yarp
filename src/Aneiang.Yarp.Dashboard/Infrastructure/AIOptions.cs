@@ -12,13 +12,11 @@ public class AIOptions
     public string ApiKey { get; set; } = "";
     public string BaseUrl { get; set; } = "https://api.deepseek.com/v1";
     public string ChatModel { get; set; } = "deepseek-v4-flash";
-    public string AnalysisModel { get; set; } = "deepseek-v4-flash";
     public int MaxTokens { get; set; } = 4096;
     public double Temperature { get; set; } = 0.7;
     public int MaxHistory { get; set; } = 20;
     public string ReasoningEffort { get; set; } = "auto";
     public bool UseCache { get; set; } = true;
-    public bool BgAnalysis { get; set; } = false;
     public bool EnhanceNotif { get; set; } = false;
     public AIFallbackOptions Fallback { get; set; } = new();
     public McpServerOptions McpServer { get; set; } = new();

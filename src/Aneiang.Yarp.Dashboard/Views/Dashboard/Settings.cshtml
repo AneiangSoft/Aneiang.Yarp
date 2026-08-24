@@ -453,7 +453,7 @@
                             <input class="form-check-input" type="checkbox" id="ai-enabled">
                             <label class="form-check-label" for="ai-enabled" data-i18n="ai.enabled">启用 AI 助手</label>
                         </div>
-                        <div class="settings-field-desc" data-i18n="ai.enabledDesc">开启后 Dashboard 将显示 AI 聊天按钮，并启用后台分析功能</div>
+                        <div class="settings-field-desc" data-i18n="ai.enabledDesc">开启后 Dashboard 将显示 AI 聊天按钮</div>
                     </div>
                 </div>
             </div>
@@ -537,11 +537,6 @@
                             <input type="text" class="form-control" id="ai-chat-model" placeholder="deepseek-v4-flash">
                             <div class="settings-field-hint" data-i18n="ai.chatModelHint">用于聊天对话的模型名称</div>
                         </div>
-                        <div class="settings-field">
-                            <label class="form-label" for="ai-analysis-model" data-i18n="ai.analysisModel">分析模型</label>
-                            <input type="text" class="form-control" id="ai-analysis-model" placeholder="deepseek-v4-flash">
-                            <div class="settings-field-hint" data-i18n="ai.analysisModelHint">后台分析可用更便宜的模型</div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -607,31 +602,137 @@
                     </div>
                 </div>
                 <div class="settings-panel-body">
-                    <div class="settings-field-grid">
-                        <div class="settings-field">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="ai-bg-analysis">
-                                <label class="form-check-label" for="ai-bg-analysis" data-i18n="ai.bgAnalysis">后台日志分析</label>
-                            </div>
-                            <div class="settings-field-desc" data-i18n="ai.bgAnalysisDesc">定期自动分析代理日志，检测异常模式</div>
-                        </div>
-                        <div class="settings-field">
+                    <!-- AI 增强通知 -->
+                    <div class="ai-advanced-item">
+                        <div class="ai-advanced-header">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="ai-enhance-notif">
                                 <label class="form-check-label" for="ai-enhance-notif" data-i18n="ai.enhanceNotif">AI 增强通知</label>
                             </div>
-                            <div class="settings-field-desc" data-i18n="ai.enhanceNotifDesc">在告警通知中添加 AI 生成的上下文和建议</div>
+                            <span class="ai-advanced-badge" data-i18n="ai.enhanceNotifBadge">无需额外配置</span>
                         </div>
-                        <div class="settings-field">
+                        <div class="settings-field-desc" data-i18n="ai.enhanceNotifDesc">何时用：网关频繁触发告警，想快速知道根因和处置方向时开启。怎么用：启用后，当发生熔断、重试耗尽、WAF 拦截、代理错误或限流时，系统会自动调用 AI 在原始告警后追加一条分析通知，包含可能原因和处置建议。</div>
+                        <div class="ai-example-card">
+                            <div class="ai-example-title"><i class="bi bi-lightbulb"></i> <span data-i18n="ai.enhanceNotifExampleTitle">效果示例</span></div>
+                            <div class="ai-example-body">
+                                <div class="ai-example-alert">
+                                    <div class="ai-example-alert-original">
+                                        <span class="ai-example-label" data-i18n="ai.enhanceNotifOriginal">原始告警</span>
+                                        <div>熔断器已打开：cluster=order-api</div>
+                                    </div>
+                                    <div class="ai-example-alert-enhanced">
+                                        <span class="ai-example-label" data-i18n="ai.enhanceNotifEnhanced">AI 增强</span>
+                                        <div data-i18n="ai.enhanceNotifExampleText">可能原因：下游 order-api 连续失败达到阈值。处置建议：检查目标服务健康状态，确认是否为瞬时网络抖动；如已恢复，可手动重置熔断器。</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="ai-advanced-divider">
+
+                    <!-- MCP 服务器 -->
+                    <div class="ai-advanced-item">
+                        <div class="ai-advanced-header">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="ai-mcp-enabled">
                                 <label class="form-check-label" for="ai-mcp-enabled" data-i18n="ai.mcpServer">MCP 服务器</label>
                             </div>
-                            <div class="settings-field-desc" data-i18n="ai.mcpServerDesc">启用 Model Context Protocol 服务器，供外部工具调用</div>
+                            <span class="ai-advanced-badge" data-i18n="ai.mcpServerBadge">只读访问</span>
                         </div>
-                        <div class="settings-field" id="ai-mcp-port-field" style="display:none;">
-                            <label class="form-label" data-i18n="ai.mcpPort">端口</label>
-                            <input type="number" class="form-control" id="ai-mcp-port" min="1" max="65535" value="8090">
+                        <div class="settings-field-desc" data-i18n="ai.mcpServerDesc">何时用：希望把网关状态接入外部 AI 工具（如 Claude、Cursor、Coze 等）自动化查询时使用。怎么用：启用并设置端口后，在外部工具中填入下方 URL 即可通过 server/discover 发现工具并调用 tools/call。</div>
+
+                        <div class="row g-3 mt-1" id="ai-mcp-config" style="display:none;">
+                            <div class="col-md-4">
+                                <label class="form-label" data-i18n="ai.mcpPort">端口</label>
+                                <input type="number" class="form-control" id="ai-mcp-port" min="1" max="65535" value="8090">
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label" data-i18n="ai.mcpEndpoint">接入地址</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="ai-mcp-url" readonly value="http://localhost:8090/mcp">
+                                    <button class="btn btn-outline-secondary" type="button" id="ai-mcp-copy-url" data-i18n-title="ai.copy">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ai-example-card" id="ai-mcp-examples" style="display:none;">
+                            <div class="ai-example-title"><i class="bi bi-code-square"></i> <span data-i18n="ai.mcpExampleTitle">接入示例</span></div>
+                            <div class="ai-example-body">
+                                <ul class="nav nav-pills ai-example-tabs" id="ai-mcp-example-tabs" role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link active" id="ai-mcp-tab-curl-discover" data-bs-toggle="tab" data-bs-target="#ai-mcp-pane-curl-discover" type="button" role="tab" aria-selected="true" data-i18n="ai.mcpTabCurlDiscover">cURL 发现</button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link" id="ai-mcp-tab-curl-call" data-bs-toggle="tab" data-bs-target="#ai-mcp-pane-curl-call" type="button" role="tab" aria-selected="false" data-i18n="ai.mcpTabCurlCall">cURL 调用</button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link" id="ai-mcp-tab-python" data-bs-toggle="tab" data-bs-target="#ai-mcp-pane-python" type="button" role="tab" aria-selected="false" data-i18n="ai.mcpTabPython">Python</button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link" id="ai-mcp-tab-claude" data-bs-toggle="tab" data-bs-target="#ai-mcp-pane-claude" type="button" role="tab" aria-selected="false" data-i18n="ai.mcpTabClaude">Claude</button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link" id="ai-mcp-tab-cursor" data-bs-toggle="tab" data-bs-target="#ai-mcp-pane-cursor" type="button" role="tab" aria-selected="false" data-i18n="ai.mcpTabCursor">Cursor</button>
+                                    </li>
+                                </ul>
+                                <div class="tab-content ai-example-tab-content">
+                                    <div class="tab-pane fade show active" id="ai-mcp-pane-curl-discover" role="tabpanel" aria-labelledby="ai-mcp-tab-curl-discover">
+                                        <pre class="ai-example-code"><code>curl -X POST http://localhost:8090/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json,text/event-stream" \
+  -H "MCP-Protocol-Version: 2026-07-28" \
+  -H "Mcp-Method: server/discover" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"cli","version":"1.0.0"}}}}'</code></pre>
+                                    </div>
+                                    <div class="tab-pane fade" id="ai-mcp-pane-curl-call" role="tabpanel" aria-labelledby="ai-mcp-tab-curl-call">
+                                        <pre class="ai-example-code"><code>curl -X POST http://localhost:8090/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json,text/event-stream" \
+  -H "MCP-Protocol-Version: 2026-07-28" \
+  -H "Mcp-Method: tools/call" \
+  -H "Mcp-Name: list_routes" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_routes","arguments":{},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"cli","version":"1.0.0"}}}}'</code></pre>
+                                    </div>
+                                    <div class="tab-pane fade" id="ai-mcp-pane-python" role="tabpanel" aria-labelledby="ai-mcp-tab-python">
+                                        <pre class="ai-example-code"><code># pip install mcp
+from mcp import Client
+
+async with Client("http://localhost:8090/mcp") as client:
+    # 发现工具
+    tools = await client.discover()
+    print(tools)
+
+    # 调用工具查询路由
+    result = await client.call_tool("list_routes", {})
+    print(result)</code></pre>
+                                    </div>
+                                    <div class="tab-pane fade" id="ai-mcp-pane-claude" role="tabpanel" aria-labelledby="ai-mcp-tab-claude">
+                                        <pre class="ai-example-code"><code>// claude_desktop_config.json
+{
+  "mcpServers": {
+    "aneiang-yarp": {
+      "transport": "streamable-http",
+      "url": "http://localhost:8090/mcp"
+    }
+  }
+}</code></pre>
+                                    </div>
+                                    <div class="tab-pane fade" id="ai-mcp-pane-cursor" role="tabpanel" aria-labelledby="ai-mcp-tab-cursor">
+                                        <pre class="ai-example-code"><code>// .cursor/mcp.json
+{
+  "mcpServers": {
+    "aneiang-yarp": {
+      "transport": "streamable-http",
+      "url": "http://localhost:8090/mcp"
+    }
+  }
+}</code></pre>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

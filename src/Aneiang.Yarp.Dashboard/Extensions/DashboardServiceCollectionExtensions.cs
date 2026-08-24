@@ -416,6 +416,20 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<AIFunctionService>();
         services.AddSingleton<AIService>();
 
+        // AI-enhanced notifications - decorates the default alert service so each
+        // alert gets an LLM-generated context/suggestion when AI.EnhanceNotif is on.
+        services.AddSingleton<Aneiang.Yarp.Dashboard.Infrastructure.Alert.NullGatewayAlertService>();
+        services.Replace(ServiceDescriptor.Singleton<
+            Aneiang.Yarp.Dashboard.Infrastructure.Alert.IGatewayAlertService>(sp =>
+            new AIEnhancedAlertService(
+                sp.GetRequiredService<Aneiang.Yarp.Dashboard.Infrastructure.Alert.NullGatewayAlertService>(),
+                sp.GetRequiredService<AIConfigStore>(),
+                sp,
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AIEnhancedAlertService>>())));
+
+        // MCP server - exposes gateway read tools to external AI clients (Streamable HTTP).
+        services.AddHostedService<McpServerHost>();
+
         return services;
     }
 

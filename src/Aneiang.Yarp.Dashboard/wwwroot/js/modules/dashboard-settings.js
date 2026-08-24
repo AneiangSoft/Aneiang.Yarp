@@ -274,9 +274,15 @@
             if (aiMaxTokens) aiMaxTokens.addEventListener('input', () => { $('ai-max-tokens-val').textContent = aiMaxTokens.value; });
             const aiTemp = $('ai-temperature');
             if (aiTemp) aiTemp.addEventListener('input', () => { $('ai-temperature-val').textContent = aiTemp.value; });
-            // MCP Server toggle → show/hide port field
+            // MCP Server toggle -> show/hide port field + examples + sync URL
             const aiMcpEnabled = $('ai-mcp-enabled');
-            if (aiMcpEnabled) aiMcpEnabled.addEventListener('change', () => this._toggleMcpPort());
+            if (aiMcpEnabled) aiMcpEnabled.addEventListener('change', () => this._toggleMcpSection());
+            // Port change -> sync endpoint URL
+            const aiMcpPort = $('ai-mcp-port');
+            if (aiMcpPort) aiMcpPort.addEventListener('input', () => this._updateMcpUrl());
+            // Copy endpoint URL button
+            const aiMcpCopy = $('ai-mcp-copy-url');
+            if (aiMcpCopy) aiMcpCopy.addEventListener('click', () => this._copyMcpUrl());
             // Fallback toggle → show/hide config section
             const aiFallbackEnabled = $('ai-fallback-enabled');
             if (aiFallbackEnabled) aiFallbackEnabled.addEventListener('change', () => this._toggleFallbackConfig());
@@ -285,9 +291,46 @@
             if (aiFallbackKeyToggle) aiFallbackKeyToggle.addEventListener('click', () => this._toggleFallbackKeyVisibility());
         },
 
-        _toggleMcpPort() {
-            const portField = $('ai-mcp-port-field');
-            if (portField) portField.style.display = $('ai-mcp-enabled').checked ? '' : 'none';
+        _toggleMcpSection() {
+            const enabled = $('ai-mcp-enabled').checked;
+            const config = $('ai-mcp-config');
+            const examples = $('ai-mcp-examples');
+            if (config) config.style.display = enabled ? '' : 'none';
+            if (examples) examples.style.display = enabled ? '' : 'none';
+            this._updateMcpUrl();
+        },
+
+        _updateMcpUrl() {
+            const urlInput = $('ai-mcp-url');
+            const portInput = $('ai-mcp-port');
+            if (!urlInput || !portInput) return;
+            const port = parseInt(portInput.value) || 8090;
+            const host = window.location.hostname || 'localhost';
+            urlInput.value = 'http://' + host + ':' + port + '/mcp';
+        },
+
+        _copyMcpUrl() {
+            const urlInput = $('ai-mcp-url');
+            if (!urlInput || !urlInput.value) return;
+            const done = () => {
+                const btn = $('ai-mcp-copy-url');
+                if (!btn) return;
+                const icon = btn.querySelector('i');
+                if (!icon) return;
+                icon.className = 'bi bi-check';
+                btn.classList.add('text-success');
+                setTimeout(() => {
+                    icon.className = 'bi bi-clipboard';
+                    btn.classList.remove('text-success');
+                }, 1500);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(urlInput.value).then(done).catch(done);
+            } else {
+                urlInput.select();
+                try { document.execCommand('copy'); } catch (e) { /* noop */ }
+                done();
+            }
         },
 
         _toggleFallbackConfig() {
@@ -617,7 +660,6 @@
                 $('ai-api-key').placeholder = config.hasApiKey ? '••••••••（已配置，留空不修改）' : 'sk-...';
                 $('ai-base-url').value = config.baseUrl || '';
                 $('ai-chat-model').value = config.chatModel || '';
-                $('ai-analysis-model').value = config.analysisModel || '';
                 $('ai-max-tokens').value = config.maxTokens || 4096;
                 $('ai-max-tokens-val').textContent = config.maxTokens || 4096;
                 $('ai-temperature').value = config.temperature || 0.7;
@@ -625,13 +667,12 @@
                 $('ai-max-history').value = config.maxHistory || 20;
                 $('ai-reasoning-effort').value = config.reasoningEffort || 'auto';
                 $('ai-use-cache').checked = config.useCache !== false;
-                $('ai-bg-analysis').checked = config.bgAnalysis || false;
                 $('ai-enhance-notif').checked = config.enhanceNotif || false;
                 // MCP Server
                 const mcp = config.mcpServer || {};
                 $('ai-mcp-enabled').checked = !!mcp.enabled;
                 $('ai-mcp-port').value = mcp.port || 8090;
-                this._toggleMcpPort();
+                this._toggleMcpSection();
                 // Fallback
                 const fb = config.fallback || {};
                 $('ai-fallback-enabled').checked = !!fb.enabled;
@@ -707,7 +748,6 @@
             if (base) $('ai-base-url').value = base;
             if (model) {
                 $('ai-chat-model').value = model;
-                $('ai-analysis-model').value = model;
             }
         },
 
@@ -719,13 +759,11 @@
                 apiKey: $('ai-api-key').value,
                 baseUrl: $('ai-base-url').value,
                 chatModel: $('ai-chat-model').value,
-                analysisModel: $('ai-analysis-model').value,
                 maxTokens: parseInt($('ai-max-tokens').value) || 4096,
                 temperature: parseFloat($('ai-temperature').value) || 0.7,
                 maxHistory: parseInt($('ai-max-history').value) || 20,
                 reasoningEffort: $('ai-reasoning-effort').value,
                 useCache: $('ai-use-cache').checked,
-                bgAnalysis: $('ai-bg-analysis').checked,
                 enhanceNotif: $('ai-enhance-notif').checked,
                 fallback: {
                     enabled: $('ai-fallback-enabled').checked,
