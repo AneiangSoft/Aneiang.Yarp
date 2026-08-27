@@ -10,17 +10,29 @@
     <span class="help-text" data-i18n="page.help.clusters">服务集群是一组后端服务节点的集合，路由规则会将请求转发到指定的集群。点击行可展开查看节点详情和绑定的插件能力。</span>
     <button class="help-close" onclick="document.getElementById('clusters-help-bar').classList.add('collapsed')">&times;</button>
 </div>
+<!-- Proxy config apply-error hint bar (populated by dashboard-clusters.js) -->
+<div id="cluster-config-alert" class="config-alert-bar" style="display:none;" role="alert"></div>
 <div id="cluster-panel" class="card-panel mb-4">
     <div class="card-header">
         <span><i class="bi bi-hdd-stack me-2" style="color:#3b82f6;"></i><span data-i18n="index.cluster.title">集群 &amp; 目标节点状态</span></span>
         <div class="card-header-actions">
+            <div id="cluster-batch-bar" class="batch-bar" style="display:none;">
+                <span class="batch-count"><i class="bi bi-check2-square"></i><strong id="cluster-batch-count">0</strong><span data-i18n="batch.selected"> 项已选</span></span>
+                <span class="batch-bar-divider" aria-hidden="true"></span>
+                <div class="batch-bar-actions">
+                    <button class="btn btn-sm batch-action" onclick="ClustersModule.batchBindPlugin()"><i class="bi bi-plug"></i><span data-i18n="batch.bindPlugin">批量绑插件</span></button>
+                    <button class="btn btn-sm batch-action" onclick="ClustersModule.exportSelected()"><i class="bi bi-download"></i><span data-i18n="batch.export">导出选中</span></button>
+                    <button class="btn btn-sm batch-action batch-action-danger" onclick="ClustersModule.batchDelete()"><i class="bi bi-trash"></i><span data-i18n="batch.delete">批量删除</span></button>
+                </div>
+                <button class="btn btn-sm batch-dismiss" onclick="ClustersModule.clearBatch()" title="清除选择" aria-label="清除选择"><i class="bi bi-x-lg"></i></button>
+            </div>
         </div>
         <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
             <span class="refresh-badge" id="cluster-refresh-time"></span>
             <span class="refresh-badge"><span data-i18n="index.cluster.showing">显示 </span><strong id="cluster-display-count">0</strong><span data-i18n="index.cluster.of"> / </span><span id="cluster-total-count">0</span><span data-i18n="index.cluster.entries"> 个</span></span>
         </div>
     </div>
-    
+
     <!-- Filter toolbar container -->
     <div id="cluster-filter-container"></div>
 
@@ -30,6 +42,7 @@
             <table class="table table-hover table-striped-custom align-middle mb-0">
                 <thead>
                     <tr>
+                        <th style="width:36px;text-align:center;"><input type="checkbox" id="cluster-select-all" onclick="ClustersModule.toggleSelectAll(this.checked)"></th>
                         <th style="width:38px"></th>
                         <th><span data-i18n="index.cluster.th.name">集群名称</span></th>
                         <th style="width:90px"><span data-i18n="index.source.filter">来源</span></th>
@@ -40,7 +53,7 @@
                     </tr>
                 </thead>
                 <tbody id="cluster-tbody">
-                    <tr><td colspan="7" class="text-center py-4">
+                    <tr><td colspan="8" class="text-center py-4">
                         <div style="padding:4px 0;">
                             <div class="skeleton skeleton-line long"></div>
                             <div class="skeleton skeleton-line medium"></div>
@@ -63,6 +76,7 @@
 <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-form-builder.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-diff-panel.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-validation-panel.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-batch-plugin.js?v=@v"></script>
 <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-clusters.js?v=@v"></script>
 <!-- Page config (shared scripts now in _DashboardLayout.cshtml) -->
 @await Html.PartialAsync("_DashboardPageInit")

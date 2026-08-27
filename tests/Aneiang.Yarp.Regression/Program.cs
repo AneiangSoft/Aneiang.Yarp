@@ -116,11 +116,6 @@ await RunAsync("Plugin runtime domain resolves plugin DI and preserves the old d
     var failed = await manager.TransitionAsync([unhealthy.PluginId]);
     False(failed.Succeeded);
     True(ReferenceEquals(oldDomain, manager.Current));
-
-    var nativeTransition = await manager.TransitionAsync([healthy.PluginId, NativePluginAdapters.RouteCors]);
-    True(nativeTransition.Succeeded);
-    True(manager.Current.Plugins.ContainsKey(healthy.PluginId));
-    False(manager.Current.Plugins.ContainsKey(NativePluginAdapters.RouteCors));
 });
 
 await RunAsync("Plugin runtime domain drains in-flight requests before disposal", async () =>
@@ -306,7 +301,6 @@ Run("Plugin execution plan is reused and invalidated by snapshot publication", T
 Run("Service discovery manifest and execution plan share the canonical plugin id", TestServiceDiscoveryPluginId);
 await RunAsync("Service discovery refreshes static destinations only while its resource runs", TestServiceDiscoveryStaticRefreshAsync);
 await RunAsync("Plugin health and runtime resource contracts expose accurate state", TestPluginHealthAndResourceContractsAsync);
-Run("Native adapters apply and validate configuration", TestNativeAdapters);
 Run("Plugin schema validates nested composition", TestPluginSchemaValidation);
 Run("Legacy global policy chains stay isolated from dashboard activation", TestLegacyGlobalPolicyIsolation);
 
@@ -399,57 +393,53 @@ async Task TestSnapshotCompilerAsync()
 {
     var repository = new InMemoryPluginRepository(
     [
-        NewBinding("route-on", PluginBindingScope.Route, "route-a", NativePluginAdapters.RouteTimeout, true, "{\"Timeout\":\"00:00:05\"}"),
-        NewBinding("route-cors", PluginBindingScope.Route, "route-a", NativePluginAdapters.RouteCors, true, "{\"CorsPolicy\":\"route-cors-policy\"}"),
-        NewBinding("route-compression", PluginBindingScope.Route, "route-a", NativePluginAdapters.RouteCompression, true, "{\"Enabled\":false}"),
-        NewBinding("route-pipeline", PluginBindingScope.Route, "route-a", OrderedRouteCompiler.PluginId, true, "{\"value\":17}"),
-        NewBinding("route-disabled", PluginBindingScope.Route, "route-a", NativePluginAdapters.RouteTimeout, false, "{\"Timeout\":\"00:00:10\"}"),
-        NewBinding("route-missing", PluginBindingScope.Route, "missing-route", NativePluginAdapters.RouteTimeout, true, "{\"Timeout\":\"00:00:05\"}"),
-        NewBinding("cluster-on", PluginBindingScope.Cluster, "cluster-a", NativePluginAdapters.ClusterLoadBalancing, true, "{\"LoadBalancingPolicy\":\"RoundRobin\"}"),
-        NewBinding("cluster-pipeline", PluginBindingScope.Cluster, "cluster-a", OrderedClusterCompiler.PluginId, true, "{\"value\":23}"),
-        NewBinding("cluster-missing", PluginBindingScope.Cluster, "missing-cluster", NativePluginAdapters.ClusterLoadBalancing, true, "{\"LoadBalancingPolicy\":\"Random\"}")
+        NewBinding("route-pipeline", PluginBindingScope.Route, "route-a", OrderedRouteCompiler.DefaultPluginId, true, "{\"value\":17}"),
+        NewBinding("route-extra", PluginBindingScope.Route, "route-a", "route-extra", true, "{\"value\":42}"),
+        NewBinding("route-disabled", PluginBindingScope.Route, "route-a", OrderedRouteCompiler.DefaultPluginId, false, "{\"value\":99}"),
+        NewBinding("route-missing", PluginBindingScope.Route, "missing-route", OrderedRouteCompiler.DefaultPluginId, true, "{\"value\":5}"),
+        NewBinding("cluster-pipeline", PluginBindingScope.Cluster, "cluster-a", OrderedClusterCompiler.DefaultPluginId, true, "{\"value\":23}"),
+        NewBinding("cluster-extra", PluginBindingScope.Cluster, "cluster-a", "cluster-extra", true, "{\"value\":8}"),
+        NewBinding("cluster-missing", PluginBindingScope.Cluster, "missing-cluster", OrderedClusterCompiler.DefaultPluginId, true, "{\"value\":1}")
     ]);
     var activation = new ToggleActivationState();
-    var nativeAdapters = new NativePluginAdapters();
     var compiler = new GatewaySnapshotCompiler(
         repository,
         activation,
-        [nativeAdapters, new OrderedRouteCompiler(20, "second"), new OrderedRouteCompiler(10, "first")],
-        [nativeAdapters, new OrderedClusterCompiler(20, "second"), new OrderedClusterCompiler(10, "first")]);
+        [new OrderedRouteCompiler(20, "second"), new OrderedRouteCompiler(10, "first")],
+        [new OrderedClusterCompiler(20, "second"), new OrderedClusterCompiler(10, "first")]);
     var routes = new[] { new RouteConfig { RouteId = "route-a", ClusterId = "cluster-a", Match = new RouteMatch { Path = "/{**catch-all}" } } };
     var clusters = new[] { new ClusterConfig { ClusterId = "cluster-a", Destinations = new Dictionary<string, DestinationConfig>() } };
     var snapshot = await compiler.CompileAsync(routes, clusters, 7);
     Equal(7L, snapshot.Version);
+    // Enabled bindings aggregate into the snapshot regardless of whether a compiler handles them.
     True(snapshot.RoutePlugins["route-a"].Select(x => x.BindingId).ToHashSet(StringComparer.Ordinal).SetEquals([
-        "route-on", "route-cors", "route-compression", "route-pipeline"]));
-    True(snapshot.ClusterPlugins["cluster-a"].Select(x => x.BindingId).SequenceEqual(["cluster-on", "cluster-pipeline"]));
+        "route-pipeline", "route-extra"]));
+    True(snapshot.ClusterPlugins["cluster-a"].Select(x => x.BindingId).ToHashSet(StringComparer.Ordinal).SetEquals([
+        "cluster-pipeline", "cluster-extra"]));
+    // Disabled bindings and bindings targeting missing routes/clusters are filtered out.
     False(snapshot.RoutePlugins.ContainsKey("missing-route"));
     False(snapshot.ClusterPlugins.ContainsKey("missing-cluster"));
-    Equal(TimeSpan.FromSeconds(5), snapshot.Routes[0].Timeout);
-    Equal("route-cors-policy", snapshot.Routes[0].CorsPolicy);
-    True(snapshot.Routes[0].Transforms!.Any(transform =>
-        transform.TryGetValue("RequestHeaderRemove", out var header) && header == "Accept-Encoding"));
-    Equal("RoundRobin", snapshot.Clusters[0].LoadBalancingPolicy);
-    True(snapshot.RouteExecutionPlans["route-a"].Plugins.Where(x => x.Binding.PluginId == OrderedRouteCompiler.PluginId).Select(x => x.GetRuntimeConfig<OrderedConfig>().Name).SequenceEqual(["first", "second"]));
-    True(snapshot.ClusterExecutionPlans["cluster-a"].Plugins.Where(x => x.Binding.PluginId == OrderedClusterCompiler.PluginId).Select(x => x.GetRuntimeConfig<OrderedConfig>().Name).SequenceEqual(["first", "second"]));
-    Equal(17, snapshot.RouteExecutionPlans["route-a"].Plugins.First(x => x.Binding.PluginId == OrderedRouteCompiler.PluginId).GetRuntimeConfig<OrderedConfig>().Value);
-    Equal(23, snapshot.ClusterExecutionPlans["cluster-a"].Plugins.First(x => x.Binding.PluginId == OrderedClusterCompiler.PluginId).GetRuntimeConfig<OrderedConfig>().Value);
-    True(snapshot.RoutePlugins["route-a"].Any(x => x.PluginId == NativePluginAdapters.RouteTimeout && x.BindingId == "route-on"));
+    // Bindings without a matching compiler stay out of the execution plan, while compiled
+    // bindings run through every matching compiler ordered by compiler Order.
+    True(snapshot.RouteExecutionPlans["route-a"].Plugins.Where(x => x.Binding.PluginId == OrderedRouteCompiler.DefaultPluginId).Select(x => x.GetRuntimeConfig<OrderedConfig>().Name).SequenceEqual(["first", "second"]));
+    True(snapshot.ClusterExecutionPlans["cluster-a"].Plugins.Where(x => x.Binding.PluginId == OrderedClusterCompiler.DefaultPluginId).Select(x => x.GetRuntimeConfig<OrderedConfig>().Name).SequenceEqual(["first", "second"]));
+    Equal(17, snapshot.RouteExecutionPlans["route-a"].Plugins.First(x => x.Binding.PluginId == OrderedRouteCompiler.DefaultPluginId).GetRuntimeConfig<OrderedConfig>().Value);
+    Equal(23, snapshot.ClusterExecutionPlans["cluster-a"].Plugins.First(x => x.Binding.PluginId == OrderedClusterCompiler.DefaultPluginId).GetRuntimeConfig<OrderedConfig>().Value);
     activation.Enabled = false;
     var disabledSnapshot = await compiler.CompileAsync(routes, clusters, 8);
     False(disabledSnapshot.RoutePlugins.ContainsKey("route-a"));
     False(disabledSnapshot.ClusterPlugins.ContainsKey("cluster-a"));
     activation.Enabled = true;
     var restoredSnapshot = await compiler.CompileAsync(routes, clusters, 9);
-    True(restoredSnapshot.RoutePlugins["route-a"].Any(x => x.BindingId == "route-on"));
-    True(restoredSnapshot.ClusterPlugins["cluster-a"].Any(x => x.BindingId == "cluster-on"));
+    True(restoredSnapshot.RoutePlugins["route-a"].Any(x => x.BindingId == "route-pipeline"));
+    True(restoredSnapshot.ClusterPlugins["cluster-a"].Any(x => x.BindingId == "cluster-pipeline"));
 }
 
 async Task TestSnapshotUidRenameStabilityAsync()
 {
-    var routeBinding = NewBinding("route-uid-binding", PluginBindingScope.Route, "old-route", NativePluginAdapters.RouteTimeout, true, "{\"Timeout\":\"00:00:05\"}");
+    var routeBinding = NewBinding("route-uid-binding", PluginBindingScope.Route, "old-route", "timeout", true, "{\"Timeout\":\"00:00:05\"}");
     routeBinding.RouteUid = "route-uid-1";
-    var clusterBinding = NewBinding("cluster-uid-binding", PluginBindingScope.Cluster, "old-cluster", NativePluginAdapters.ClusterLoadBalancing, true, "{\"LoadBalancingPolicy\":\"RoundRobin\"}");
+    var clusterBinding = NewBinding("cluster-uid-binding", PluginBindingScope.Cluster, "old-cluster", "load-balancing", true, "{\"LoadBalancingPolicy\":\"RoundRobin\"}");
     clusterBinding.ClusterUid = "cluster-uid-1";
     var repository = new InMemoryPluginRepository([routeBinding, clusterBinding]);
     var routeRepository = new InMemoryRouteRepository([new RouteEntity { RouteUid = "route-uid-1", RouteId = "renamed-route", ClusterId = "renamed-cluster" }]);
@@ -572,20 +562,6 @@ void TestPluginSchemaValidation()
     True(error.Contains("$.settings.items[0].name", StringComparison.Ordinal));
     False(validator.TryValidate("{\"settings\":{\"items\":[]},\"mode\":\"other\",\"value\":2}", schema, out _, out error));
     True(error.Contains("$.mode", StringComparison.Ordinal));
-}
-
-void TestNativeAdapters()
-{
-    var route = new RouteConfig { RouteId = "r", Match = new RouteMatch { Path = "/" } };
-    var timeoutResult = NativePluginAdapters.ApplyRoute(route, [PluginSnapshot(NativePluginAdapters.RouteTimeout, PluginBindingScope.Route, "r", "{\"Timeout\":\"00:00:05\"}")]);
-    Equal(TimeSpan.FromSeconds(5), timeoutResult.Timeout);
-    True(route.Timeout is null);
-    Throws<ArgumentException>(() => NativePluginAdapters.ApplyRoute(route, [PluginSnapshot(NativePluginAdapters.RouteTimeout, PluginBindingScope.Route, "r", "{\"Timeout\":\"00:00:00\"}")]));
-    False(NativePluginAdapters.TryValidate(NativePluginAdapters.RouteTimeout, PluginBindingScope.Route, "{\"Timeout\":\"00:00:05\",\"Unknown\":true}", out _));
-    var cluster = new ClusterConfig { ClusterId = "c", Destinations = new Dictionary<string, DestinationConfig>() };
-    var lbResult = NativePluginAdapters.ApplyCluster(cluster, [PluginSnapshot(NativePluginAdapters.ClusterLoadBalancing, PluginBindingScope.Cluster, "c", "{\"LoadBalancingPolicy\":\"RoundRobin\"}")]);
-    Equal("RoundRobin", lbResult.LoadBalancingPolicy);
-    True(cluster.LoadBalancingPolicy is null);
 }
 
 void TestLegacyGlobalPolicyIsolation()
@@ -797,9 +773,10 @@ sealed class ToggleActivationState : IPluginActivationState
 
 sealed record OrderedConfig(string Name, int Value);
 
-sealed class OrderedRouteCompiler(int order, string name) : IRoutePluginCompiler
+sealed class OrderedRouteCompiler(int order, string name, string? pluginId = null) : IRoutePluginCompiler
 {
-    public const string PluginId = "ordered-route";
+    public const string DefaultPluginId = "ordered-route";
+    public string PluginId { get; } = pluginId ?? DefaultPluginId;
     public int Order => order;
     public bool CanCompile(string pluginId) => string.Equals(pluginId, PluginId, StringComparison.OrdinalIgnoreCase);
     public CompiledRoutePlugin Compile(PluginBindingSnapshot binding, RouteConfig route)
@@ -809,9 +786,10 @@ sealed class OrderedRouteCompiler(int order, string name) : IRoutePluginCompiler
     }
 }
 
-sealed class OrderedClusterCompiler(int order, string name) : IClusterPluginCompiler
+sealed class OrderedClusterCompiler(int order, string name, string? pluginId = null) : IClusterPluginCompiler
 {
-    public const string PluginId = "ordered-cluster";
+    public const string DefaultPluginId = "ordered-cluster";
+    public string PluginId { get; } = pluginId ?? DefaultPluginId;
     public int Order => order;
     public bool CanCompile(string pluginId) => string.Equals(pluginId, PluginId, StringComparison.OrdinalIgnoreCase);
     public CompiledClusterPlugin Compile(PluginBindingSnapshot binding, ClusterConfig cluster)

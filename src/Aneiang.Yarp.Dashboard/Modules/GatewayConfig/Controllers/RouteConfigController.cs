@@ -201,4 +201,97 @@ public class RouteConfigController : ConfigControllerBase
             return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Rename failed", ex) });
         }
     }
+
+    /// <summary>
+    /// Batch delete routes in one atomic operation. Optionally removes clusters
+    /// left orphaned by the deletion.
+    /// </summary>
+    [HttpPost("routes/batch-delete")]
+    public async Task<IActionResult> BatchDeleteRoutes([FromBody] BatchDeleteRoutesRequest request)
+    {
+        if (request is null || request.RouteIds is null || request.RouteIds.Count == 0)
+            return BadRequest(new { code = 400, message = "routeIds is required and must be non-empty" });
+
+        try
+        {
+            _logger.LogInformation("Batch delete {Count} route(s) requested", request.RouteIds.Count);
+            await PersistenceService.SaveSnapshotAsync($"Before batch delete {request.RouteIds.Count} route(s) via dashboard", GetClientIp());
+
+            var result = await DynamicConfig.BatchDeleteRoutesAsync(request.RouteIds, request.RemoveOrphanedClusters, "dashboard-user");
+            if (result.Succeeded > 0) InvalidateQueryCaches();
+
+            return Ok(new
+            {
+                code = 200,
+                message = result.Message,
+                data = new
+                {
+                    succeeded = result.Succeeded,
+                    failed = result.Failed,
+                    total = result.Total,
+                    items = result.Items
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to batch delete routes");
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Batch delete failed", ex) });
+        }
+    }
+
+    /// <summary>
+    /// Batch enable or disable routes in one atomic operation.
+    /// </summary>
+    [HttpPost("routes/batch-enabled")]
+    public async Task<IActionResult> BatchSetRoutesEnabled([FromBody] BatchSetRoutesEnabledRequest request)
+    {
+        if (request is null || request.RouteIds is null || request.RouteIds.Count == 0)
+            return BadRequest(new { code = 400, message = "routeIds is required and must be non-empty" });
+
+        try
+        {
+            _logger.LogInformation("Batch {Action} {Count} route(s) requested", request.Enabled ? "enable" : "disable", request.RouteIds.Count);
+            await SnapshotLowRiskMutationAsync($"Before batch {(request.Enabled ? "enable" : "disable")} {request.RouteIds.Count} route(s) via dashboard");
+
+            var result = await DynamicConfig.BatchSetRoutesEnabledAsync(request.RouteIds, request.Enabled, "dashboard-user");
+            if (result.Succeeded > 0) InvalidateQueryCaches();
+
+            return Ok(new
+            {
+                code = 200,
+                message = result.Message,
+                data = new
+                {
+                    succeeded = result.Succeeded,
+                    failed = result.Failed,
+                    total = result.Total,
+                    items = result.Items
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to batch set routes enabled");
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Batch toggle failed", ex) });
+        }
+    }
+}
+
+/// <summary>Request body for batch deleting routes.</summary>
+public sealed class BatchDeleteRoutesRequest
+{
+    /// <summary>Route ids to delete.</summary>
+    public List<string> RouteIds { get; set; } = new();
+    /// <summary>Whether to also delete clusters left orphaned by the removed routes.</summary>
+    public bool RemoveOrphanedClusters { get; set; }
+}
+
+/// <summary>Request body for batch enabling/disabling routes.</summary>
+public sealed class BatchSetRoutesEnabledRequest
+{
+    /// <summary>Route ids to update.</summary>
+    public List<string> RouteIds { get; set; } = new();
+    /// <summary>True to enable, false to disable.</summary>
+    public bool Enabled { get; set; }
 }

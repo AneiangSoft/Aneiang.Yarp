@@ -1,4 +1,5 @@
 using Aneiang.Yarp.Models;
+using Aneiang.Yarp.Services.ProxyConfigHealth;
 using Aneiang.Yarp.Storage;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -34,7 +35,9 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
         IConfigChangeAuditLog auditLog,
         ILoggerFactory loggerFactory,
         IGatewaySnapshotCompiler snapshotCompiler,
-        IGatewaySnapshotPublisher snapshotPublisher)
+        IGatewaySnapshotPublisher snapshotPublisher,
+        IConfigValidator configValidator,
+        IProxyConfigErrorStore errorStore)
     {
         _auditLog = auditLog;
         _configProvider = configProvider;
@@ -50,6 +53,8 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
             configProvider,
             snapshotCompiler,
             snapshotPublisher,
+            configValidator,
+            errorStore,
             loggerFactory.CreateLogger<DynamicConfigPublisher>());
 
         _routeManager = new RouteConfigManager(_state, _semaphore, _persister, _publisher, auditLog,
@@ -220,6 +225,316 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
         await _semaphore.WaitAsync();
         try { await _persister.SaveAsync(_state.Config, "SaveDynamicConfig"); }
         finally { _semaphore.Release(); }
+    }
+
+    #endregion
+
+    #region ImportBatchAsync
+
+    /// <summary>
+    /// Batch add-or-update clusters and routes under a single lock with one
+    /// version bump, one publish, and one persistence pass.
+    /// </summary>
+    public async Task<RouteOperationResult> ImportBatchAsync(
+        IReadOnlyList<ClusterConfig> clusters, IReadOnlyList<RouteConfig> routes,
+        string source = "import", string? createdBy = "dashboard-user")
+    {
+        if (clusters.Count == 0 && routes.Count == 0)
+            return new RouteOperationResult(true, "Nothing to import");
+
+        await _semaphore.WaitAsync();
+        try
+        {
+            _state.EnsureInitialized();
+
+            var clusterMap = _state.Config.Clusters.ToDictionary(
+                c => c.Config.ClusterId ?? string.Empty, c => c, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var cluster in clusters)
+            {
+                var id = cluster.ClusterId ?? string.Empty;
+                if (clusterMap.TryGetValue(id, out var existing))
+                {
+                    existing.Config = cluster;
+                }
+                else
+                {
+                    var dc = new DynamicClusterConfig
+                        { Config = cluster, Source = source, CreatedAt = DateTime.Now, CreatedBy = createdBy };
+                    _state.Config.Clusters.Add(dc);
+                    clusterMap[id] = dc;
+                }
+            }
+
+            var routeMap = _state.Config.Routes.ToDictionary(
+                r => r.Config.RouteId ?? string.Empty, r => r, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var route in routes)
+            {
+                var normalized = route.Order == null ? route with { Order = int.MaxValue } : route;
+                var id = normalized.RouteId ?? string.Empty;
+                if (routeMap.TryGetValue(id, out var existing))
+                {
+                    existing.Config = normalized;
+                    existing.ClusterUid = _state.ResolveClusterUid(normalized.ClusterId);
+                }
+                else
+                {
+                    var dr = new DynamicRouteConfig
+                    {
+                        Config = normalized,
+                        ClusterUid = _state.ResolveClusterUid(normalized.ClusterId),
+                        Source = source,
+                        CreatedAt = DateTime.Now,
+                        CreatedBy = createdBy
+                    };
+                    _state.Config.Routes.Add(dr);
+                    routeMap[id] = dr;
+                }
+            }
+
+            // Normalize comma-delimited transform values (same as single-route add).
+            for (var ri = 0; ri < _state.Config.Routes.Count; ri++)
+                _state.Config.Routes[ri].Config = DynamicYarpConfigHelpers.NormalizeTransforms(_state.Config.Routes[ri].Config);
+
+            _logger.LogInformation("Batch import applied: {Clusters} cluster(s), {Routes} route(s)",
+                clusters.Count, routes.Count);
+            _auditLog.RecordSuccess("ImportConfig", "full config", createdBy, null, null,
+                new { clusters = clusters.Count, routes = routes.Count });
+            _state.IncrementVersion();
+            _publisher.Publish(_state.Config, _state.Version);
+            await _persister.SaveAsync(_state.Config, "ImportBatchAsync", "full config");
+            return new RouteOperationResult(true,
+                $"Imported {clusters.Count} cluster(s), {routes.Count} route(s)");
+        }
+        finally { _semaphore.Release(); }
+    }
+
+    #endregion
+
+    #region Batch delete / enable (atomic, single lock+persist+publish)
+
+    /// <inheritdoc />
+    public async Task<BatchOperationResult> BatchDeleteClustersAsync(
+        IReadOnlyList<string> clusterIds, string? createdBy = "dashboard-user")
+    {
+        if (clusterIds == null || clusterIds.Count == 0)
+            return BatchOperationResult.From(Array.Empty<BatchItemResult>(), "No clusters to delete");
+
+        await _semaphore.WaitAsync();
+        try
+        {
+            _state.EnsureInitialized();
+
+            var items = new List<BatchItemResult>(clusterIds.Count);
+            var deletedClusters = new List<DynamicClusterConfig>();
+            // Pre-resolve route-cluster reference counts so each cluster's
+            // decision is independent: referenced → fail, else delete.
+            var referencedClusterIds = new HashSet<string>(
+                _state.Config.Routes
+                    .Where(r => !string.IsNullOrWhiteSpace(r.Config.ClusterId))
+                    .Select(r => r.Config.ClusterId!),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var rawId in clusterIds)
+            {
+                var id = rawId ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    items.Add(new BatchItemResult(id, false, "Cluster ID cannot be empty"));
+                    continue;
+                }
+
+                if (referencedClusterIds.Contains(id))
+                {
+                    _auditLog.RecordFailure("RemoveCluster", id, "Cluster is referenced by route(s)");
+                    items.Add(new BatchItemResult(id, false, "Cluster is referenced by route(s); delete routes first"));
+                    continue;
+                }
+
+                var cluster = _state.Config.Clusters.FirstOrDefault(c =>
+                    string.Equals(c.Config.ClusterId, id, StringComparison.OrdinalIgnoreCase));
+                if (cluster == null)
+                {
+                    items.Add(new BatchItemResult(id, false, "Cluster not found"));
+                    continue;
+                }
+
+                _state.Config.Clusters.Remove(cluster);
+                deletedClusters.Add(cluster);
+                _auditLog.RecordSuccess("RemoveCluster", id, createdBy, null, null,
+                    new { destinations = cluster.Config.Destinations?.Count });
+                items.Add(new BatchItemResult(id, true, $"Cluster '{id}' deleted"));
+            }
+
+            if (deletedClusters.Count > 0)
+            {
+                _logger.LogInformation("Batch deleted {Count} cluster(s)", deletedClusters.Count);
+                _state.IncrementVersion();
+                _publisher.Publish(_state.Config, _state.Version);
+                await SaveBestEffortAsync("BatchDeleteClusters");
+            }
+
+            return BatchOperationResult.From(items, "Batch delete clusters");
+        }
+        finally { _semaphore.Release(); }
+    }
+
+    /// <inheritdoc />
+    public async Task<BatchOperationResult> BatchDeleteRoutesAsync(
+        IReadOnlyList<string> routeIds, bool removeOrphanedClusters = false,
+        string? createdBy = "dashboard-user")
+    {
+        if (routeIds == null || routeIds.Count == 0)
+            return BatchOperationResult.From(Array.Empty<BatchItemResult>(), "No routes to delete");
+
+        await _semaphore.WaitAsync();
+        try
+        {
+            _state.EnsureInitialized();
+
+            var items = new List<BatchItemResult>(routeIds.Count);
+            var removedClusterIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var survivors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var rawId in routeIds)
+            {
+                var id = rawId ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    items.Add(new BatchItemResult(id, false, "Route ID cannot be empty"));
+                    continue;
+                }
+
+                var route = _state.Config.Routes.FirstOrDefault(r =>
+                    string.Equals(r.Config.RouteId, id, StringComparison.OrdinalIgnoreCase));
+                if (route == null)
+                {
+                    items.Add(new BatchItemResult(id, false, "Route not found"));
+                    continue;
+                }
+
+                var clusterId = route.Config.ClusterId ?? string.Empty;
+                _state.Config.Routes.Remove(route);
+                _auditLog.RecordSuccess("RemoveRoute", id, createdBy, null, null,
+                    new { clusterId });
+                items.Add(new BatchItemResult(id, true, $"Route '{id}' deleted"));
+
+                if (!string.IsNullOrWhiteSpace(clusterId))
+                {
+                    removedClusterIds.Add(clusterId);
+                    survivors.UnionWith(_state.Config.Routes
+                        .Where(r => !string.IsNullOrWhiteSpace(r.Config.ClusterId))
+                        .Select(r => r.Config.ClusterId!));
+                }
+            }
+
+            // Optional: clean up clusters left orphaned by the deleted routes.
+            if (removeOrphanedClusters && removedClusterIds.Count > 0)
+            {
+                var orphaned = removedClusterIds
+                    .Where(cid => !survivors.Contains(cid))
+                    .Select(cid => _state.Config.Clusters.FirstOrDefault(c =>
+                        string.Equals(c.Config.ClusterId, cid, StringComparison.OrdinalIgnoreCase)))
+                    .Where(c => c != null)
+                    .ToList();
+
+                foreach (var orphan in orphaned)
+                {
+                    var cid = orphan!.Config.ClusterId ?? string.Empty;
+                    _state.Config.Clusters.Remove(orphan);
+                    _auditLog.RecordSuccess("RemoveCluster", cid, createdBy, null, null,
+                        new { reason = "orphaned-after-batch-route-delete" });
+                }
+            }
+
+            if (items.Count > 0)
+            {
+                _logger.LogInformation("Batch deleted {Count} route(s) (orphan cleanup: {Cleanup})",
+                    items.Count(x => x.Success), removeOrphanedClusters);
+                _state.IncrementVersion();
+                _publisher.Publish(_state.Config, _state.Version);
+                await SaveBestEffortAsync("BatchDeleteRoutes");
+            }
+
+            return BatchOperationResult.From(items, "Batch delete routes");
+        }
+        finally { _semaphore.Release(); }
+    }
+
+    /// <inheritdoc />
+    public async Task<BatchOperationResult> BatchSetRoutesEnabledAsync(
+        IReadOnlyList<string> routeIds, bool enabled, string? createdBy = "dashboard-user")
+    {
+        if (routeIds == null || routeIds.Count == 0)
+            return BatchOperationResult.From(Array.Empty<BatchItemResult>(), "No routes to update");
+
+        await _semaphore.WaitAsync();
+        try
+        {
+            _state.EnsureInitialized();
+
+            var items = new List<BatchItemResult>(routeIds.Count);
+            var action = enabled ? "enabled" : "disabled";
+
+            foreach (var rawId in routeIds)
+            {
+                var id = rawId ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    items.Add(new BatchItemResult(id, false, "Route ID cannot be empty"));
+                    continue;
+                }
+
+                var route = _state.Config.Routes.FirstOrDefault(r =>
+                    string.Equals(r.Config.RouteId, id, StringComparison.OrdinalIgnoreCase));
+                if (route == null)
+                {
+                    items.Add(new BatchItemResult(id, false, "Route not found"));
+                    continue;
+                }
+
+                if (route.Enabled == enabled)
+                {
+                    items.Add(new BatchItemResult(id, true, $"Route '{id}' already {action}"));
+                    continue;
+                }
+
+                route.Enabled = enabled;
+                _auditLog.RecordSuccess("SetRouteEnabled", id, createdBy, null, null,
+                    new { enabled });
+                items.Add(new BatchItemResult(id, true, $"Route '{id}' {action}"));
+            }
+
+            var changed = items.Count(x => x.Success);
+            if (changed > 0)
+            {
+                _logger.LogInformation("Batch {Action} {Count} route(s)", action, changed);
+                _state.IncrementVersion();
+                _publisher.Publish(_state.Config, _state.Version);
+                await SaveBestEffortAsync("BatchSetRoutesEnabled");
+            }
+
+            return BatchOperationResult.From(items, $"Batch {action} routes");
+        }
+        finally { _semaphore.Release(); }
+    }
+
+    /// <summary>
+    /// Best-effort persistence; in-memory state is authoritative. Mirrors the
+    /// behavior of <see cref="ConfigManagerBase"/>: a save failure is logged,
+    /// not propagated, so the in-memory publish remains in effect.
+    /// </summary>
+    private async Task SaveBestEffortAsync(string operationName)
+    {
+        try
+        {
+            await _persister.SaveAsync(_state.Config, operationName, "full config");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Persist failed for {Operation}", operationName);
+        }
     }
 
     #endregion

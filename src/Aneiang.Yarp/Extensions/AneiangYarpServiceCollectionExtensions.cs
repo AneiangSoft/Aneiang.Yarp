@@ -1,6 +1,7 @@
 using Aneiang.Yarp.Controllers;
 using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
+using Aneiang.Yarp.Services.ProxyConfigHealth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -76,11 +77,14 @@ public static class AneiangYarpServiceCollectionExtensions
         // which are registered by Dashboard when AddAneiangYarpDashboard is called)
         services.AddSingleton<DynamicYarpConfigService>();
         services.AddSingleton<IDynamicYarpConfigService>(sp => sp.GetRequiredService<DynamicYarpConfigService>());
-        services.AddSingleton<NativePluginAdapters>();
-        services.AddSingleton<IRoutePluginCompiler>(provider => provider.GetRequiredService<NativePluginAdapters>());
-        services.AddSingleton<IClusterPluginCompiler>(provider => provider.GetRequiredService<NativePluginAdapters>());
         services.AddSingleton<IGatewaySnapshotCompiler, GatewaySnapshotCompiler>();
         services.AddSingleton<IGatewaySnapshotPublisher, GatewaySnapshotPublisher>();
+
+        // Proxy config apply-error capture: singleton store + YARP IConfigChangeListener.
+        // YARP collects all IConfigChangeListener registrations via IEnumerable<T>, so
+        // registering this singleton is enough to receive reload failure callbacks.
+        services.AddSingleton<IProxyConfigErrorStore, ProxyConfigErrorStore>();
+        services.AddSingleton<IConfigChangeListener, YarpConfigErrorListener>();
 
         // Built-in transform options
         services.AddOptions<BuiltinTransformOptions>()

@@ -1116,19 +1116,103 @@
         .breadcrumb-bar .separator { font-size: 10px; opacity: 0.5; }
         .breadcrumb-bar .current { color: var(--text-secondary); font-weight: 500; }
 
-        /* Batch Operation Bar */
+        /* 批量操作栏：轻量上下文工具组，避免彩色描边按钮造成视觉噪音。 */
         .batch-bar {
             display: none;
             align-items: center;
-            justify-content: space-between;
-            padding: 10px 16px;
-            background: #f0f9ff;
-            border-bottom: 1px solid #bae6fd;
+            gap: 4px;
+            max-width: 100%;
+            padding: 3px 4px 3px 10px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
             font-size: 13px;
+            line-height: 1.4;
         }
-        .batch-bar.active { display: flex; }
-        .batch-bar-info { color: #0369a1; font-weight: 500; }
-        .batch-bar-actions { display: flex; gap: 8px; }
+        .batch-bar.active { display: inline-flex; }
+        .batch-count {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding-right: 6px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .batch-count i {
+            color: var(--primary-color);
+            font-size: 14px !important;
+        }
+        .batch-count strong {
+            color: var(--text-primary);
+            font-size: 13px;
+            font-weight: 650;
+        }
+        .batch-bar-divider {
+            width: 1px;
+            height: 18px;
+            margin: 0 2px;
+            background: #dbe2ea;
+            flex: 0 0 auto;
+        }
+        .batch-bar-actions {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+        .card-header-actions .batch-action,
+        .card-header-actions .batch-dismiss {
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--text-secondary);
+            box-shadow: none;
+        }
+        .card-header-actions .batch-action {
+            padding: 4px 8px;
+        }
+        .card-header-actions .batch-action:hover,
+        .card-header-actions .batch-action:focus-visible {
+            color: var(--text-primary);
+            background: #fff;
+            border-color: #dbe2ea;
+        }
+        .card-header-actions .batch-action-danger {
+            color: #b42318;
+        }
+        .card-header-actions .batch-action-danger:hover,
+        .card-header-actions .batch-action-danger:focus-visible {
+            color: #b42318;
+            background: #fff7f6;
+            border-color: #f3c7c2;
+        }
+        .card-header-actions .batch-dismiss {
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            justify-content: center;
+            color: var(--text-muted);
+            border-radius: 6px;
+        }
+        .card-header-actions .batch-dismiss:hover,
+        .card-header-actions .batch-dismiss:focus-visible {
+            color: var(--text-primary);
+            background: #eef2f6;
+        }
+        @@media (max-width: 1199.98px) {
+            .card-panel .card-header { flex-wrap: wrap; }
+            .card-header-actions {
+                order: 3;
+                width: 100%;
+            }
+            .batch-bar {
+                width: 100%;
+                overflow-x: auto;
+            }
+            .batch-bar-actions { flex: 1; }
+            .batch-dismiss { margin-left: auto; flex: 0 0 auto; }
+        }
 
         /* Loading State */
         .loading-state {
@@ -4488,6 +4572,116 @@
             .ai-chat-panel { right: 0; bottom: 0; left: 0; width: 100%; height: 100%; max-height: 100%; border-radius: 0; }
             .ai-float-btn { right: 16px; bottom: 16px; }
         }
+
+        /* ===== FormBuilder: 卡片分组 · 简约风格 ===== */
+        .fb-card {
+            background: var(--card-bg, #fff);
+            border: 1px solid var(--border-color, #e2e8f0);
+            border-radius: 10px;
+            padding: 14px 16px 12px;
+            margin-bottom: 14px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+        .fb-card:last-child { margin-bottom: 0; }
+        .fb-card-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary, #475569);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding-bottom: 9px;
+            border-bottom: 1px solid var(--border-color, #e2e8f0);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+        .fb-card-title > i { color: var(--primary-light, #6366f1); font-size: 14px; }
+        .fb-card-title > span { line-height: 1; }
+        .fb-field { margin-bottom: 10px; }
+        .fb-field:last-child { margin-bottom: 0; }
+        .fb-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #475569;
+            margin-bottom: 4px;
+        }
+        .fb-label::after { content: ''; }
+        .fb-field .form-control,
+        .fb-field .form-select {
+            border-radius: 8px;
+            border-color: var(--border-color, #e2e8f0);
+            font-size: 13px;
+            padding: 6px 10px;
+        }
+        .fb-field .form-control:focus,
+        .fb-field .form-select:focus {
+            border-color: var(--primary-light, #6366f1);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+        }
+        .fb-object { width: 100%; }
+
+        /* 动态键对象 (e.g. Destinations) */
+        .fb-pattern-object { width: 100%; }
+        .fb-pattern-entry {
+            border: 1px solid var(--border-color, #e2e8f0);
+            border-radius: 8px;
+            background: #fbfcfe;
+            padding: 10px 12px 8px;
+        }
+        .fb-pattern-entry-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding-bottom: 7px;
+            border-bottom: 1px dashed var(--border-color, #e2e8f0);
+        }
+        .fb-pattern-entry-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary, #0f172a);
+            display: inline-flex;
+            align-items: center;
+        }
+        .fb-pattern-entry-name > i { color: var(--primary-light, #6366f1); }
+        .fb-pattern-entry .fb-field:last-child { margin-bottom: 0; }
+
+        /* 数组字段容器 */
+        .fb-card .array-field { width: 100%; }
+
+        /* ===== Proxy config apply-error hint bar (list pages) ===== */
+        .config-alert-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0 0 12px;
+            padding: 9px 14px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-left: 3px solid #f59e0b;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #9a3412;
+            line-height: 1.4;
+        }
+        .config-alert-bar > .bi-exclamation-triangle-fill { color: #f59e0b; font-size: 16px; flex-shrink: 0; }
+        .config-alert-bar .config-alert-text { flex: 1; }
+        .config-alert-bar .config-alert-text strong { color: #c2410c; }
+        .config-alert-bar .config-alert-refresh {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: #fff; border: 1px solid #fdba74; color: #9a3412;
+            border-radius: 6px; padding: 3px 10px; font-size: 12px; cursor: pointer;
+            transition: background .15s;
+        }
+        .config-alert-bar .config-alert-refresh:hover { background: #fff7ed; }
+        .config-alert-bar .config-alert-close {
+            background: transparent; border: none; color: #c2410c;
+            font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; opacity: .7;
+        }
+        .config-alert-bar .config-alert-close:hover { opacity: 1; }
+        .config-error-marker { color: #f59e0b; font-size: 13px; cursor: help; flex-shrink: 0; }
     </style>
 </head>
 <body>
@@ -5117,6 +5311,7 @@
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-core.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-modals.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-capabilities.js?v=@v"></script>
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-proxy-config-alert.js?v=@v"></script>
     <!-- 2. Performance Optimizations -->
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-performance.js?v=@v"></script>
     <script src="/_content/Aneiang.Yarp.Dashboard/js/core/dashboard-indexeddb.js?v=@v"></script>

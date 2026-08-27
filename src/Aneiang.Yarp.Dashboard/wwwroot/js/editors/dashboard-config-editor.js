@@ -133,11 +133,20 @@
             var area = document.getElementById(this.containerId + '-area');
             if (!area) return;
 
+            area.innerHTML = '';
+            var formHost = document.createElement('div');
+            formHost.id = this.containerId + '-form';
+            area.appendChild(formHost);
+
             // Get schema for current config type
             var schema = window.DashboardSchemaService.getSchemaForType(this.configType);
-            
-            window.DashboardFormBuilder.build(this.containerId + '-form', schema, this.draftData);
-            window.DashboardFormBuilder.bindSync(this.containerId + '-form', function(data) {
+            if (!schema) {
+                formHost.innerHTML = '<div class="alert alert-warning mb-0">Schema unavailable for this config type.</div>';
+                return;
+            }
+
+            window.DashboardFormBuilder.build(formHost.id, schema, this.draftData);
+            window.DashboardFormBuilder.bindSync(formHost.id, function(data) {
                 this.draftData = data;
             }.bind(this));
         },
@@ -200,9 +209,13 @@
          * Validate current data
          */
         validate: function() {
+            // Graceful degradation: if the validator/validation panel are unavailable, skip validation.
+            if (!window.DashboardSchemaValidator || !window.DashboardValidationPanel) {
+                return true;
+            }
             var schema = window.DashboardSchemaService.getSchemaForType(this.configType);
             var result = window.DashboardSchemaValidator.validate(this.draftData, schema);
-            
+
             window.DashboardValidationPanel.show(result);
             return result.valid;
         },
@@ -254,6 +267,7 @@
          * Show diff preview
          */
         showDiff: function() {
+            if (!window.DashboardDiffPanel) return;
             window.DashboardDiffPanel.show(this.originalData, this.draftData);
         },
 

@@ -249,7 +249,6 @@ public sealed class PluginRuntimeDomainManager : IPluginRuntimeDomainManager, IA
         CancellationToken cancellationToken = default)
     {
         var enabled = enabledPluginIds
-            .Where(pluginId => !NativePluginAdapters.IsNative(pluginId))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var plugins = new Dictionary<string, IGatewayPlugin>(StringComparer.OrdinalIgnoreCase);
         var externalLoads = new List<IAsyncDisposable>();

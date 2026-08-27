@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
+using Aneiang.Yarp.Models;
 using Aneiang.Yarp.Services;
 using Aneiang.Yarp.Storage;
 using Aneiang.Yarp.Storage.Entities;
@@ -72,7 +73,7 @@ public sealed class PluginBindingsController : ControllerBase
                 Localize($"plugin.desc.{manifest.Id}", manifest.Description),
                 manifest.Version,
                 true,
-                _pluginManager.IsPluginEnabled(manifest.Id) || NativePluginAdapters.IsNative(manifest.Id),
+                _pluginManager.IsPluginEnabled(manifest.Id),
                 manifest.Scopes.Select(scope => scope.ToString()).ToArray(),
                 manifest.Capabilities.Select(capability => capability.ToString()).ToArray(),
                 manifest.Order,
@@ -209,28 +210,18 @@ public sealed class PluginBindingsController : ControllerBase
                 return NotFound(new { code = 404, message = $"Plugin binding '{id}' was not found." });
 
             var bindings = (await _repository.GetBindingsAsync(ct)).Where(x => x.Id != id).ToArray();
-            var current = _snapshotPublisher.Current;
-            var snapshot = await _snapshotCompiler.CompileAsync(
-                _dynamicConfig.GetRoutes(), _dynamicConfig.GetClusters(), current.Version + 1, ct, bindings);
-            var enabledPluginIds = GetEnabledPluginIds(bindings);
-            await using var runtimePreparation = await _runtimeDomains.PrepareAsync(enabledPluginIds, ct);
-            var health = await runtimePreparation.CheckHealthAsync(ct);
-            if (health.Status == PluginHealthStatus.Unhealthy)
-                throw new InvalidOperationException(health.Message ?? "Candidate plugin runtime domain is unhealthy.");
-
-            if (!await _repository.DeleteBindingAsync(id, ct))
-                return NotFound(new { code = 404, message = $"Plugin binding '{id}' was not found." });
-
-            try
-            {
-                await runtimePreparation.CommitAsync(ct);
-                _snapshotPublisher.Publish(snapshot);
-            }
-            catch
-            {
-                await _repository.UpsertBindingAsync(existing, CancellationToken.None);
-                throw;
-            }
+            var (ok, error) = await CompilePrepareAndApplyAsync(
+                bindings,
+                applyAsync: async () =>
+                {
+                    if (!await _repository.DeleteBindingAsync(id, ct))
+                        return false;
+                    return true;
+                },
+                rollbackAsync: async () => await _repository.UpsertBindingAsync(existing, CancellationToken.None),
+                ct);
+            if (!ok)
+                return StatusCode(500, new { code = 500, message = error });
 
             _dynamicConfig.RefreshConfig();
             return Ok(new { code = 200, message = "Plugin binding deleted." });
@@ -239,6 +230,360 @@ public sealed class PluginBindingsController : ControllerBase
         {
             PublishGate.Release();
         }
+    }
+
+    /// <summary>
+    /// Batch-create plugin bindings for multiple routes/clusters in one atomic cycle
+    /// (one snapshot compile + one runtime domain preparation + one health check + one publish).
+    /// Existing bindings for the same (pluginId, scope, scopeId) are skipped by default;
+    /// set <c>overwriteExisting</c> to overwrite their ConfigJson/Enabled/Order.
+    /// </summary>
+    [HttpPost("batch-create")]
+    public async Task<IActionResult> BatchCreateBindings([FromBody] BatchCreateBindingsRequest request, CancellationToken ct)
+    {
+        if (request is null || request.ScopeIds is null || request.ScopeIds.Count == 0)
+            return BadRequest(new { code = 400, message = "scopeIds is required and must be non-empty" });
+
+        if (!TryParseScope(request.Scope, out var scope))
+            return BadRequest(new { code = 400, message = "Scope must be Route or Cluster." });
+
+        var pluginId = (request.PluginId ?? string.Empty).Trim();
+        var manifest = _pluginManager.GetManifest(pluginId);
+        if (string.IsNullOrWhiteSpace(pluginId) || manifest == null)
+            return BadRequest(new { code = 400, message = $"Plugin '{request.PluginId}' is not installed." });
+
+        if (request.Enabled && !_pluginManager.IsPluginEnabled(pluginId))
+            return BadRequest(new { code = 400, message = $"Plugin '{pluginId}' is disabled and cannot have an enabled binding." });
+
+        if (!GetSupportedScopes(pluginId).Contains(scope))
+            return BadRequest(new { code = 400, message = $"Plugin '{pluginId}' does not support {scope} bindings." });
+
+        if (request.SchemaVersion < 1)
+            return BadRequest(new { code = 400, message = "SchemaVersion must be greater than zero." });
+
+        // Validate schema once for the shared config payload.
+        var schema = manifest.Schemas.SingleOrDefault(s => s.Version == request.SchemaVersion);
+        if (schema == null)
+            return BadRequest(new { code = 400, message = $"Plugin '{pluginId}' does not declare configuration schema v{request.SchemaVersion}." });
+        string normalizedJson;
+        if (!_schemaValidator.TryValidate(request.ConfigJson ?? string.Empty, schema.ConfigJsonSchema, out normalizedJson, out var schemaError))
+            return BadRequest(new { code = 400, message = $"ConfigJson is invalid for '{pluginId}' schema v{request.SchemaVersion}: {schemaError}" });
+
+        await PublishGate.WaitAsync(ct);
+        try
+        {
+            var now = DateTime.UtcNow;
+            var existing = await _repository.GetBindingsAsync(ct);
+            var items = new List<BatchItemResult>(request.ScopeIds.Count);
+            var toUpsert = new List<PluginBindingEntity>();
+            var previousForRollback = new List<PluginBindingEntity?>();
+
+            foreach (var rawScopeId in request.ScopeIds)
+            {
+                var scopeId = (rawScopeId ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(scopeId))
+                {
+                    items.Add(new BatchItemResult(scopeId, false, $"{scope} target UID is required."));
+                    continue;
+                }
+
+                var target = await ResolveTargetAsync(scope, scopeId, ct);
+                if (target == null)
+                {
+                    items.Add(new BatchItemResult(scopeId, false, $"{scope} '{scopeId}' does not exist."));
+                    continue;
+                }
+
+                var match = existing.FirstOrDefault(b =>
+                    string.Equals(b.PluginId, pluginId, StringComparison.OrdinalIgnoreCase)
+                    && b.Scope == scope
+                    && string.Equals(b.ScopeId, target.Value.currentId, StringComparison.OrdinalIgnoreCase));
+
+                if (match != null && !request.OverwriteExisting)
+                {
+                    items.Add(new BatchItemResult(scopeId, true, $"Binding already exists for '{pluginId}' on {scope} '{scopeId}' — skipped."));
+                    continue;
+                }
+
+                PluginBindingEntity candidate;
+                if (match != null)
+                {
+                    previousForRollback.Add(CloneBinding(match));
+                    candidate = CloneBinding(match);
+                    candidate.PluginVersion = manifest.Version;
+                    candidate.Scope = scope;
+                    candidate.ScopeId = target.Value.currentId;
+                    candidate.RouteUid = scope == PluginBindingScope.Route ? target.Value.uid : null;
+                    candidate.ClusterUid = scope == PluginBindingScope.Cluster ? target.Value.uid : null;
+                    candidate.Enabled = request.Enabled;
+                    candidate.ConfigJson = normalizedJson;
+                    candidate.SchemaVersion = request.SchemaVersion;
+                    candidate.ConfigVersion = match.ConfigVersion + 1;
+                    candidate.Order = request.Order;
+                    candidate.UpdatedAt = now;
+                }
+                else
+                {
+                    previousForRollback.Add(null);
+                    candidate = new PluginBindingEntity
+                    {
+                        Id = Guid.NewGuid().ToString("N"),
+                        PluginId = pluginId,
+                        PluginVersion = manifest.Version,
+                        Scope = scope,
+                        ScopeId = target.Value.currentId,
+                        RouteUid = scope == PluginBindingScope.Route ? target.Value.uid : null,
+                        ClusterUid = scope == PluginBindingScope.Cluster ? target.Value.uid : null,
+                        Enabled = request.Enabled,
+                        ConfigJson = normalizedJson,
+                        SchemaVersion = request.SchemaVersion,
+                        ConfigVersion = 1,
+                        Order = request.Order,
+                        CreatedAt = now,
+                        UpdatedAt = now
+                    };
+                }
+
+                toUpsert.Add(candidate);
+                items.Add(new BatchItemResult(scopeId, true,
+                    match != null ? $"Binding updated for '{pluginId}' on {scope} '{scopeId}'." : $"Binding created for '{pluginId}' on {scope} '{scopeId}'."));
+            }
+
+            if (toUpsert.Count == 0)
+                return Ok(BuildBatchResponse(items, "No bindings to create (all skipped)."));
+
+            var mergedBindings = existing
+                .Where(b => !toUpsert.Any(c => c.Id == b.Id))
+                .Concat(toUpsert)
+                .ToArray();
+
+            var (ok, error) = await CompilePrepareAndApplyAsync(
+                mergedBindings,
+                applyAsync: async () =>
+                {
+                    foreach (var candidate in toUpsert)
+                        await _repository.UpsertBindingAsync(candidate, ct);
+                    return true;
+                },
+                rollbackAsync: async () =>
+                {
+                    for (var i = 0; i < toUpsert.Count; i++)
+                    {
+                        var prev = previousForRollback[i];
+                        if (prev == null)
+                            await _repository.DeleteBindingAsync(toUpsert[i].Id, CancellationToken.None);
+                        else
+                            await _repository.UpsertBindingAsync(prev, CancellationToken.None);
+                    }
+                },
+                ct);
+            if (!ok)
+                return StatusCode(500, new { code = 500, message = error });
+
+            _dynamicConfig.RefreshConfig();
+            return Ok(BuildBatchResponse(items, "Batch create plugin bindings."));
+        }
+        finally
+        {
+            PublishGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Batch-enable or batch-disable existing plugin bindings in one atomic cycle.
+    /// </summary>
+    [HttpPost("batch-enabled")]
+    public async Task<IActionResult> BatchSetBindingsEnabled([FromBody] BatchSetBindingsEnabledRequest request, CancellationToken ct)
+    {
+        if (request is null || request.BindingIds is null || request.BindingIds.Count == 0)
+            return BadRequest(new { code = 400, message = "bindingIds is required and must be non-empty" });
+
+        await PublishGate.WaitAsync(ct);
+        try
+        {
+            var existing = await _repository.GetBindingsAsync(ct);
+            var items = new List<BatchItemResult>(request.BindingIds.Count);
+            var toUpsert = new List<PluginBindingEntity>();
+            var previousForRollback = new List<PluginBindingEntity>();
+
+            foreach (var rawId in request.BindingIds)
+            {
+                var id = (rawId ?? string.Empty).Trim();
+                var match = existing.FirstOrDefault(b => string.Equals(b.Id, id, StringComparison.Ordinal));
+                if (match == null)
+                {
+                    items.Add(new BatchItemResult(id, false, $"Binding '{id}' not found."));
+                    continue;
+                }
+
+                if (match.Enabled == request.Enabled)
+                {
+                    items.Add(new BatchItemResult(id, true, $"Binding '{id}' already {(request.Enabled ? "enabled" : "disabled")}."));
+                    continue;
+                }
+
+                previousForRollback.Add(CloneBinding(match));
+                var candidate = CloneBinding(match);
+                candidate.Enabled = request.Enabled;
+                candidate.ConfigVersion = match.ConfigVersion + 1;
+                candidate.UpdatedAt = DateTime.UtcNow;
+                toUpsert.Add(candidate);
+                items.Add(new BatchItemResult(id, true, $"Binding '{id}' {(request.Enabled ? "enabled" : "disabled")}."));
+            }
+
+            if (toUpsert.Count == 0)
+                return Ok(BuildBatchResponse(items, "No bindings to update."));
+
+            var mergedBindings = existing
+                .Where(b => !toUpsert.Any(c => c.Id == b.Id))
+                .Concat(toUpsert)
+                .ToArray();
+
+            var (ok, error) = await CompilePrepareAndApplyAsync(
+                mergedBindings,
+                applyAsync: async () =>
+                {
+                    foreach (var candidate in toUpsert)
+                        await _repository.UpsertBindingAsync(candidate, ct);
+                    return true;
+                },
+                rollbackAsync: async () =>
+                {
+                    foreach (var prev in previousForRollback)
+                        await _repository.UpsertBindingAsync(prev, CancellationToken.None);
+                },
+                ct);
+            if (!ok)
+                return StatusCode(500, new { code = 500, message = error });
+
+            _dynamicConfig.RefreshConfig();
+            return Ok(BuildBatchResponse(items, "Batch set plugin bindings enabled."));
+        }
+        finally
+        {
+            PublishGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Batch-delete plugin bindings in one atomic cycle.
+    /// </summary>
+    [HttpPost("batch-delete")]
+    public async Task<IActionResult> BatchDeleteBindings([FromBody] BatchDeleteBindingsRequest request, CancellationToken ct)
+    {
+        if (request is null || request.BindingIds is null || request.BindingIds.Count == 0)
+            return BadRequest(new { code = 400, message = "bindingIds is required and must be non-empty" });
+
+        await PublishGate.WaitAsync(ct);
+        try
+        {
+            var existing = await _repository.GetBindingsAsync(ct);
+            var targetIds = new HashSet<string>(request.BindingIds
+                .Where(i => !string.IsNullOrWhiteSpace(i))
+                .Select(i => i!.Trim()), StringComparer.Ordinal);
+
+            var items = new List<BatchItemResult>(request.BindingIds.Count);
+            var deletedBindings = new List<PluginBindingEntity>();
+            foreach (var id in request.BindingIds.Where(i => !string.IsNullOrWhiteSpace(i)).Select(i => i!.Trim()))
+            {
+                var match = existing.FirstOrDefault(b => string.Equals(b.Id, id, StringComparison.Ordinal));
+                if (match == null)
+                {
+                    items.Add(new BatchItemResult(id, false, $"Binding '{id}' not found."));
+                    continue;
+                }
+                deletedBindings.Add(match);
+                items.Add(new BatchItemResult(id, true, $"Binding '{id}' deleted."));
+            }
+
+            if (deletedBindings.Count == 0)
+                return Ok(BuildBatchResponse(items, "No bindings to delete."));
+
+            var mergedBindings = existing.Where(b => !targetIds.Contains(b.Id)).ToArray();
+
+            var (ok, error) = await CompilePrepareAndApplyAsync(
+                mergedBindings,
+                applyAsync: async () =>
+                {
+                    foreach (var b in deletedBindings)
+                        await _repository.DeleteBindingAsync(b.Id, ct);
+                    return true;
+                },
+                rollbackAsync: async () =>
+                {
+                    foreach (var b in deletedBindings)
+                        await _repository.UpsertBindingAsync(b, CancellationToken.None);
+                },
+                ct);
+            if (!ok)
+                return StatusCode(500, new { code = 500, message = error });
+
+            _dynamicConfig.RefreshConfig();
+            return Ok(BuildBatchResponse(items, "Batch delete plugin bindings."));
+        }
+        finally
+        {
+            PublishGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Shared atomic flow: compile snapshot once, prepare runtime domain once,
+    /// health check once; on success run <paramref name="applyAsync"/> (repo mutations)
+    /// then commit runtime + publish snapshot; on failure run <paramref name="rollbackAsync"/>.
+    /// Caller must hold <see cref="PublishGate"/>.
+    /// </summary>
+    private async Task<(bool ok, string? error)> CompilePrepareAndApplyAsync(
+        IReadOnlyList<PluginBindingEntity> candidateBindings,
+        Func<Task<bool>> applyAsync,
+        Func<Task> rollbackAsync,
+        CancellationToken ct)
+    {
+        var current = _snapshotPublisher.Current;
+        var snapshot = await _snapshotCompiler.CompileAsync(
+            _dynamicConfig.GetRoutes(), _dynamicConfig.GetClusters(), current.Version + 1, ct, candidateBindings);
+        var enabledPluginIds = GetEnabledPluginIds(candidateBindings);
+        await using var runtimePreparation = await _runtimeDomains.PrepareAsync(enabledPluginIds, ct);
+        var health = await runtimePreparation.CheckHealthAsync(ct);
+        if (health.Status == PluginHealthStatus.Unhealthy)
+            return (false, health.Message ?? "Candidate plugin runtime domain is unhealthy.");
+
+        var applied = false;
+        try
+        {
+            applied = await applyAsync();
+            if (!applied)
+                return (false, "Repository mutation reported failure.");
+            await runtimePreparation.CommitAsync(ct);
+            _snapshotPublisher.Publish(snapshot);
+            return (true, null);
+        }
+        catch
+        {
+            if (applied)
+            {
+                try { await rollbackAsync(); } catch { /* best-effort rollback; original error will surface */ }
+            }
+            throw;
+        }
+    }
+
+    private static object BuildBatchResponse(List<BatchItemResult> items, string summary)
+    {
+        var succeeded = items.Count(x => x.Success);
+        var failed = items.Count - succeeded;
+        return new
+        {
+            code = 200,
+            message = $"{summary} ({succeeded} succeeded, {failed} failed)",
+            data = new
+            {
+                succeeded,
+                failed,
+                total = items.Count,
+                items
+            }
+        };
     }
 
     private IActionResult? ValidateRequest(
@@ -250,12 +595,11 @@ public sealed class PluginBindingsController : ControllerBase
         normalizedJson = string.Empty;
 
         var pluginId = request.PluginId?.Trim() ?? string.Empty;
-        var isNative = NativePluginAdapters.IsNative(pluginId);
         var manifest = _pluginManager.GetManifest(pluginId);
         if (string.IsNullOrWhiteSpace(pluginId) || manifest == null)
             return BadRequest(new { code = 400, message = $"Plugin '{request.PluginId}' is not installed." });
 
-        if (request.Enabled && !isNative && !_pluginManager.IsPluginEnabled(pluginId))
+        if (request.Enabled && !_pluginManager.IsPluginEnabled(pluginId))
             return BadRequest(new { code = 400, message = $"Plugin '{request.PluginId}' is disabled and cannot have an enabled binding." });
 
         if (!TryParseScope(request.Scope, out scope))
@@ -270,25 +614,11 @@ public sealed class PluginBindingsController : ControllerBase
         if (request.SchemaVersion < 1)
             return BadRequest(new { code = 400, message = "SchemaVersion must be greater than zero." });
 
-        if (isNative)
-        {
-            if (request.SchemaVersion != 1)
-                return BadRequest(new { code = 400, message = $"Plugin '{pluginId}' only supports configuration schema v1." });
-            if (!_schemaValidator.TryValidate(request.ConfigJson ?? string.Empty, "{\"type\":\"object\"}", out normalizedJson, out var jsonError))
-                return BadRequest(new { code = 400, message = $"ConfigJson is invalid for '{pluginId}' schema v1: {jsonError}" });
-        }
-        else
-        {
-            var schema = manifest.Schemas.SingleOrDefault(candidate => candidate.Version == request.SchemaVersion);
-            if (schema == null)
-                return BadRequest(new { code = 400, message = $"Plugin '{pluginId}' does not declare configuration schema v{request.SchemaVersion}." });
-            if (!_schemaValidator.TryValidate(request.ConfigJson ?? string.Empty, schema.ConfigJsonSchema, out normalizedJson, out var schemaError))
-                return BadRequest(new { code = 400, message = $"ConfigJson is invalid for '{pluginId}' schema v{request.SchemaVersion}: {schemaError}" });
-        }
-
-        if (isNative &&
-            !NativePluginAdapters.TryValidate(pluginId, scope, normalizedJson, out var nativeError))
-            return BadRequest(new { code = 400, message = $"ConfigJson is invalid for '{pluginId}': {nativeError}" });
+        var schema = manifest.Schemas.SingleOrDefault(candidate => candidate.Version == request.SchemaVersion);
+        if (schema == null)
+            return BadRequest(new { code = 400, message = $"Plugin '{pluginId}' does not declare configuration schema v{request.SchemaVersion}." });
+        if (!_schemaValidator.TryValidate(request.ConfigJson ?? string.Empty, schema.ConfigJsonSchema, out normalizedJson, out var schemaError))
+            return BadRequest(new { code = 400, message = $"ConfigJson is invalid for '{pluginId}' schema v{request.SchemaVersion}: {schemaError}" });
 
         return null;
     }
@@ -408,6 +738,43 @@ public sealed class SavePluginBindingRequest
     public string ConfigJson { get; set; } = "{}";
     public int SchemaVersion { get; set; } = 1;
     public int Order { get; set; }
+}
+
+/// <summary>Request body for batch-creating plugin bindings across multiple routes/clusters.</summary>
+public sealed class BatchCreateBindingsRequest
+{
+    /// <summary>Plugin id to bind (e.g. "CircuitBreaker").</summary>
+    public string PluginId { get; set; } = string.Empty;
+    /// <summary>"Route" or "Cluster".</summary>
+    public string Scope { get; set; } = string.Empty;
+    /// <summary>Route/cluster UIDs (or current ids) to bind the plugin to.</summary>
+    public List<string> ScopeIds { get; set; } = new();
+    /// <summary>Shared configuration JSON for all bindings in this batch.</summary>
+    public string ConfigJson { get; set; } = "{}";
+    /// <summary>Whether the new bindings should be enabled.</summary>
+    public bool Enabled { get; set; } = true;
+    /// <summary>Plugin configuration schema version.</summary>
+    public int SchemaVersion { get; set; } = 1;
+    /// <summary>Execution order for the bindings.</summary>
+    public int Order { get; set; }
+    /// <summary>
+    /// When true, existing bindings for the same (pluginId, scope, scopeId) are overwritten
+    /// with the new ConfigJson/Enabled/Order. Default false: existing bindings are skipped.
+    /// </summary>
+    public bool OverwriteExisting { get; set; }
+}
+
+/// <summary>Request body for batch enabling/disabling plugin bindings.</summary>
+public sealed class BatchSetBindingsEnabledRequest
+{
+    public List<string> BindingIds { get; set; } = new();
+    public bool Enabled { get; set; }
+}
+
+/// <summary>Request body for batch deleting plugin bindings.</summary>
+public sealed class BatchDeleteBindingsRequest
+{
+    public List<string> BindingIds { get; set; } = new();
 }
 
 public sealed record InstalledPluginModel(

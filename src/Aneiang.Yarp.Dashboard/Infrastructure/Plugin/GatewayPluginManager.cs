@@ -22,6 +22,7 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
     private readonly IGatewaySnapshotPublisher _snapshotPublisher;
     private readonly ExternalGatewayPluginHost _externalPluginHost;
     private readonly IGatewayPluginRepository? _pluginRepository;
+    private readonly IPluginConfigurationRepository? _bindingRepository;
     private readonly Dictionary<string, GatewayPluginEntity> _persistedPlugins = new(StringComparer.OrdinalIgnoreCase);
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -36,12 +37,14 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
         ILogger<GatewayPluginManager> logger,
         IGatewaySnapshotPublisher snapshotPublisher,
         ExternalGatewayPluginHost externalPluginHost,
-        IGatewayPluginRepository? pluginRepository = null)
+        IGatewayPluginRepository? pluginRepository = null,
+        IPluginConfigurationRepository? bindingRepository = null)
     {
         _logger = logger;
         _snapshotPublisher = snapshotPublisher;
         _externalPluginHost = externalPluginHost;
         _pluginRepository = pluginRepository;
+        _bindingRepository = bindingRepository;
 
         foreach (var plugin in plugins)
         {
@@ -54,13 +57,6 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
                 "Plugin '{PluginName}' v{Version} ({PluginId}) registered, enabled: {Enabled}",
                 plugin.DisplayName, plugin.Version, plugin.PluginId,
                 _enabledPlugins[plugin.PluginId]);
-        }
-
-        foreach (var manifest in CreateNativeManifests())
-        {
-            _manifests[manifest.Id] = manifest;
-            _enabledPlugins[manifest.Id] = true;
-            _pluginEnabledAt[manifest.Id] = DateTimeOffset.UtcNow;
         }
 
         foreach (var manifest in _externalPluginHost.Manifests)
@@ -78,6 +74,7 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
 
         // Database is authoritative. The legacy JSON file is imported only when the database has no rows.
         LoadState();
+        CleanupNativeBindings();
 
         // External manifests stay metadata-only here. Assemblies are loaded only while preparing
         // an enabled plugin runtime domain, never during manager construction or discovery.
@@ -209,17 +206,29 @@ public class GatewayPluginManager : IGatewayPluginManager, IPluginActivationStat
         return routes.Concat(clusters).OrderBy(target => target, StringComparer.Ordinal).ToArray();
     }
 
-    private static IEnumerable<PluginManifest> CreateNativeManifests() =>
-        NativePluginAdapters.Catalog.Select(adapter => new PluginManifest(
-            adapter.PluginId,
-            adapter.DisplayName,
-            "1.0",
-            [adapter.Scope == Aneiang.Yarp.Storage.Entities.PluginBindingScope.Route ? PluginScope.Route : PluginScope.Cluster],
-            [],
-            0,
-            new PluginResourceRequirements(),
-            [],
-            "Built-in adapter that compiles configuration directly to native YARP fields."));
+    private void CleanupNativeBindings()
+    {
+        if (_bindingRepository is null) return;
+        try
+        {
+            var bindings = _bindingRepository.GetBindingsAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var orphans = bindings
+                .Where(b => b.PluginId.StartsWith("native.route.", StringComparison.OrdinalIgnoreCase)
+                         || b.PluginId.StartsWith("native.cluster.", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            if (orphans.Length == 0) return;
+            foreach (var orphan in orphans)
+            {
+                try { _bindingRepository.DeleteBindingAsync(orphan.Id, CancellationToken.None).GetAwaiter().GetResult(); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete native orphan binding {BindingId}", orphan.Id); }
+            }
+            _logger.LogInformation("Cleaned up {Count} native orphan plugin binding(s) after removing native adapters", orphans.Length);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to clean up native orphan bindings");
+        }
+    }
 
     /// <inheritdoc />
     public void SaveState()

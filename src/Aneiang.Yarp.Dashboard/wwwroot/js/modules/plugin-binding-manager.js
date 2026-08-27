@@ -357,7 +357,9 @@
                     scopeId: scopeId,
                     enabled: enabledInput.checked,
                     configJson: JSON.stringify(bindingConfig),
-                    schemaVersion: Number((state.plugin && state.plugin.schemas && state.plugin.schemas[0] && state.plugin.schemas[0].version) || 1),
+                    schemaVersion: (Cap && Cap.getPluginSchemaVersion)
+                        ? Cap.getPluginSchemaVersion(state.plugin)
+                        : 1,
                     order: Number((state.plugin && state.plugin.order) || 0),
                     configVersion: isEdit ? (binding.configVersion || 0) + 1 : 1
                 };

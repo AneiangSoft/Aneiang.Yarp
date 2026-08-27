@@ -221,6 +221,59 @@
     }
     .ov-error-bar i { font-size: 16px; }
 
+    /* Proxy config apply-failure alert bar (red, prominent) */
+    .ov-proxy-alert {
+        display: flex; align-items: flex-start; gap: 10px;
+        padding: 10px 16px;
+        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+        border: 1px solid #fca5a5;
+        border-left: 4px solid #ef4444;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        font-size: 13px; color: #991b1b;
+    }
+    .ov-proxy-alert > i.alert-icon {
+        font-size: 18px; color: #ef4444; margin-top: 1px; flex-shrink: 0;
+    }
+    .ov-proxy-alert-body { flex: 1; min-width: 0; }
+    .ov-proxy-alert-title { font-weight: 600; display: block; margin-bottom: 2px; }
+    .ov-proxy-alert-desc {
+        display: block; font-size: 12.5px; color: #b91c1c;
+        word-break: break-word; line-height: 1.4;
+    }
+    .ov-proxy-alert-meta { font-size: 11px; color: #b91c1c; opacity: .8; margin-top: 3px; }
+    .ov-proxy-alert-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .ov-proxy-alert-btn {
+        background: rgba(239,68,68,0.1); border: 1px solid #fca5a5; color: #991b1b;
+        border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+        display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+    }
+    .ov-proxy-alert-btn:hover { background: rgba(239,68,68,0.2); }
+    .ov-proxy-alert-close {
+        background: none; border: none; color: #b91c1c; cursor: pointer;
+        font-size: 18px; line-height: 1; padding: 0 2px; opacity: .6;
+    }
+    .ov-proxy-alert-close:hover { opacity: 1; }
+    .ov-proxy-alert-detail {
+        background: #fff; border: 1px solid #fca5a5; border-top: none;
+        border-radius: 0 0 8px 8px; margin-top: -12px; margin-bottom: 12px;
+        padding: 8px 14px; font-size: 12.5px;
+    }
+    .ov-proxy-alert-detail .err-row {
+        display: flex; gap: 8px; padding: 6px 0;
+        border-bottom: 1px dashed #fee2e2;
+    }
+    .ov-proxy-alert-detail .err-row:last-child { border-bottom: none; }
+    .ov-proxy-alert-detail .err-tag {
+        font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 4px;
+        height: fit-content; white-space: nowrap; flex-shrink: 0;
+    }
+    .ov-proxy-alert-detail .err-tag.cluster { background: #fef3c7; color: #92400e; }
+    .ov-proxy-alert-detail .err-tag.route { background: #dbeafe; color: #1e40af; }
+    .ov-proxy-alert-detail .err-tag.global { background: #f1f5f9; color: #475569; }
+    .ov-proxy-alert-detail .err-msg { color: #334155; line-height: 1.4; word-break: break-word; }
+    .ov-proxy-alert-detail .err-source { font-size: 10.5px; color: #94a3b8; margin-left: 4px; }
+
     /* Help bar (compact) */
     .ov-help {
         display: flex; align-items: center; gap: 6px;
@@ -246,6 +299,23 @@
     <span data-i18n="page.help.overview">网关维护仪表盘总览，展示集群、路由、健康状态和实时流量。点击统计卡片可跳转到对应管理页面。</span>
     <button class="close" onclick="document.getElementById('overview-help-bar').style.display='none'">&times;</button>
 </div>
+
+<!-- Proxy config apply-failure alert bar -->
+<div class="ov-proxy-alert" id="proxy-config-alert" role="alert" style="display:none;">
+    <i class="bi bi-exclamation-triangle-fill alert-icon"></i>
+    <div class="ov-proxy-alert-body">
+        <span class="ov-proxy-alert-title" id="proxy-alert-title" data-i18n="proxyConfig.alertTitle">代理配置应用失败</span>
+        <span class="ov-proxy-alert-desc" id="proxy-alert-desc"></span>
+        <span class="ov-proxy-alert-meta" id="proxy-alert-meta"></span>
+    </div>
+    <div class="ov-proxy-alert-actions">
+        <button type="button" class="ov-proxy-alert-btn" id="proxy-alert-toggle" onclick="toggleProxyAlertDetail()">
+            <i class="bi bi-list-ul"></i><span data-i18n="proxyConfig.viewDetails">查看详情</span>
+        </button>
+        <button type="button" class="ov-proxy-alert-close" onclick="document.getElementById('proxy-config-alert').style.display='none';document.getElementById('proxy-config-alert-detail').style.display='none';">&times;</button>
+    </div>
+</div>
+<div class="ov-proxy-alert-detail" id="proxy-config-alert-detail" style="display:none;"></div>
 
 <!-- Error bar -->
 <div class="ov-error-bar" id="overview-error-bar" role="alert" style="display:none;">
@@ -675,6 +745,9 @@
     function updateOverviewFromSnapshot(s) {
         var setText = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
 
+        // Proxy config apply-failure alert (red banner at the top)
+        updateProxyConfigAlert(s.proxyConfigHealth);
+
         setText('stat-clusters', s.clusterCount);
         var healthy = s.healthyCount || 0;
         var unknown = s.unknownCount || 0;
@@ -756,6 +829,82 @@
         }
     }
 
+    /** Show/hide the proxy-config apply-failure alert bar from the snapshot health summary. */
+    function updateProxyConfigAlert(health) {
+        var bar = document.getElementById('proxy-config-alert');
+        var detail = document.getElementById('proxy-config-alert-detail');
+        if (!bar) return;
+
+        if (health && health.status === 'error') {
+            bar.style.display = '';
+            var descEl = document.getElementById('proxy-alert-desc');
+            var metaEl = document.getElementById('proxy-alert-meta');
+            var first = (health.firstError || {});
+            var where = first.clusterId || first.routeId || '';
+            var msg = first.message || (window.__ ? __('proxyConfig.unknownError') : '配置应用失败');
+            if (descEl) descEl.textContent = (where ? '[' + where + '] ' : '') + msg;
+            if (metaEl) {
+                var countLabel = window.__ ? __('proxyConfig.errorCountLabel') : '项错误';
+                var parts = [];
+                if (health.errorCount > 0) parts.push(health.errorCount + ' ' + countLabel);
+                var ts = formatProxyAlertTime(health.lastErrorAt);
+                if (ts) parts.push(ts);
+                metaEl.textContent = parts.join(' · ');
+            }
+        } else {
+            bar.style.display = 'none';
+            if (detail) detail.style.display = 'none';
+        }
+    }
+
+    /** Toggle the expandable error-list detail panel (fetches full error list on first open). */
+    async function toggleProxyAlertDetail() {
+        var detail = document.getElementById('proxy-config-alert-detail');
+        if (!detail) return;
+        if (detail.style.display !== 'none' && detail.innerHTML) {
+            detail.style.display = 'none';
+            return;
+        }
+        try {
+            var result = await DashboardApi.endpoints.getProxyConfigErrors();
+            var errors = (result && result.errors) || [];
+            var html = '';
+            if (errors.length === 0) {
+                html = '<div class="text-muted text-center py-2">' +
+                    (window.__ ? __('proxyConfig.noErrors') : '暂无错误') + '</div>';
+            } else {
+                errors.forEach(function(e) {
+                    var tag, tagCls;
+                    if (e.clusterId) { tag = e.clusterId; tagCls = 'cluster'; }
+                    else if (e.routeId) { tag = e.routeId; tagCls = 'route'; }
+                    else { tag = window.__ ? __('proxyConfig.global') : '全局'; tagCls = 'global'; }
+                    var src = e.source ? '<span class="err-source">(' + escapeHtml(e.source) + ')</span>' : '';
+                    html += '<div class="err-row">' +
+                        '<span class="err-tag ' + tagCls + '">' + escapeHtml(tag) + '</span>' +
+                        '<span class="err-msg">' + escapeHtml(e.message || '') + src + '</span>' +
+                        '</div>';
+                });
+            }
+            detail.innerHTML = html;
+            detail.style.display = '';
+        } catch (err) {
+            console.warn('[Overview] load proxy config errors failed:', err);
+            detail.innerHTML = '<div class="text-danger text-center py-2">' +
+                (window.__ ? __('proxyConfig.loadFailed') : '加载失败') + '</div>';
+            detail.style.display = '';
+        }
+    }
+
+    function formatProxyAlertTime(value) {
+        if (!value) return '';
+        try {
+            var d = (value instanceof Date) ? value : new Date(value);
+            if (isNaN(d.getTime())) return '';
+            return window.DashboardI18n && DashboardI18n.formatTime ? DashboardI18n.formatTime(d) : d.toLocaleString();
+        } catch (_) { return ''; }
+    }
+
+    window.toggleProxyAlertDetail = toggleProxyAlertDetail;
     window.__overviewApplySnapshot = updateOverviewFromSnapshot;
     window.__overviewShowError = showOverviewError;
     window.__overviewHideError = hideOverviewError;

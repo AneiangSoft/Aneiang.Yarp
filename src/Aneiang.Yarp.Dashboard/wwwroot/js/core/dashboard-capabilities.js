@@ -137,9 +137,14 @@
             });
     }
 
-    function getPluginSchema(plugin) {
+    function sortedPluginSchemas(plugin) {
         var schemas = Array.isArray(plugin && plugin.schemas) ? plugin.schemas.slice() : [];
         schemas.sort(function(left, right) { return Number(right.version || 0) - Number(left.version || 0); });
+        return schemas;
+    }
+
+    function getPluginSchema(plugin) {
+        var schemas = sortedPluginSchemas(plugin);
         if (!schemas.length) return null;
         var source = schemas[0].configJsonSchema == null ? schemas[0].ConfigJsonSchema : schemas[0].configJsonSchema;
         if (source && typeof source === 'object') return source;
@@ -150,6 +155,11 @@
             console.warn('[DashboardCapabilities] ' + __('capability.schemaParseFailed'), plugin && plugin.pluginId, error);
             return null;
         }
+    }
+
+    function getPluginSchemaVersion(plugin) {
+        var schemas = sortedPluginSchemas(plugin);
+        return Number(schemas.length && schemas[0].version) || 1;
     }
 
     function mergeSchema(base, addition) {
@@ -263,12 +273,18 @@
         return name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/^./, function(value) { return value.toUpperCase(); });
     }
 
+    function schemaType(schema) {
+        var type = schema && schema.type;
+        return Array.isArray(type) ? type.find(function(item) { return item !== 'null'; }) : type;
+    }
+
     function choiceMatches(value, schema) {
         schema = expandSchema(schema);
-        if (schema.type === 'object' && (!value || typeof value !== 'object' || Array.isArray(value))) return false;
-        if (schema.type === 'array' && !Array.isArray(value)) return false;
-        if (schema.type === 'string' && typeof value !== 'string') return false;
-        if ((schema.type === 'number' || schema.type === 'integer') && typeof value !== 'number') return false;
+        var type = schemaType(schema);
+        if (type === 'object' && (!value || typeof value !== 'object' || Array.isArray(value))) return false;
+        if (type === 'array' && !Array.isArray(value)) return false;
+        if (type === 'string' && typeof value !== 'string') return false;
+        if ((type === 'number' || type === 'integer') && typeof value !== 'number') return false;
         if (Array.isArray(schema.required) && schema.required.some(function(name) { return !Object.prototype.hasOwnProperty.call(value || {}, name); })) return false;
         if (schema.const !== undefined && JSON.stringify(value) !== JSON.stringify(schema.const)) return false;
         if (Array.isArray(schema.enum) && !schema.enum.some(function(item) { return JSON.stringify(item) === JSON.stringify(value); })) return false;
@@ -277,6 +293,7 @@
 
     function schemaField(name, rawProperty, value, required, pluginId) {
         var property = expandSchema(rawProperty);
+        var type = schemaType(property);
         var choices = property.oneOf || property.anyOf;
         if (Array.isArray(choices) && choices.length) {
             var choiceWrapper = document.createElement('fieldset');
@@ -305,7 +322,7 @@
             return choiceWrapper;
         }
 
-        if (property.type === 'object' || property.properties) {
+        if (type === 'object' || property.properties || property.additionalProperties) {
             var objectWrapper = document.createElement('fieldset');
             objectWrapper.className = 'border rounded-3 p-3 mb-3';
             var legend = document.createElement('legend');
@@ -319,21 +336,46 @@
                 children.push({ name: childName, field: child });
                 objectWrapper.appendChild(child);
             });
+            var dynamicRows = [];
+            if (property.additionalProperties && !Object.keys(property.properties || {}).length) {
+                var dynamicList = document.createElement('div');
+                var addDynamic = document.createElement('button');
+                addDynamic.type = 'button';
+                addDynamic.className = 'btn btn-sm btn-outline-primary mb-2';
+                addDynamic.textContent = __('capability.array.addItem');
+                function addDynamicRow(key, entryValue) {
+                    var row = document.createElement('div');
+                    row.className = 'input-group mb-2';
+                    var keyInput = document.createElement('input'); keyInput.className = 'form-control'; keyInput.placeholder = 'Key'; keyInput.value = key || '';
+                    var valueInput = document.createElement('input'); valueInput.className = 'form-control'; valueInput.placeholder = 'Value'; valueInput.value = entryValue == null ? '' : entryValue;
+                    var remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn btn-outline-danger'; remove.textContent = '×';
+                    var entry = { row: row, key: keyInput, value: valueInput };
+                    remove.addEventListener('click', function() { dynamicRows.splice(dynamicRows.indexOf(entry), 1); row.remove(); });
+                    row.append(keyInput, valueInput, remove); dynamicRows.push(entry); dynamicList.appendChild(row);
+                }
+                Object.keys(objectValue).forEach(function(key) { addDynamicRow(key, objectValue[key]); });
+                addDynamic.addEventListener('click', function() { addDynamicRow('', ''); });
+                objectWrapper.append(dynamicList, addDynamic);
+            }
             objectWrapper.__read = function() {
-                var result = Object.assign({}, objectValue);
+                var result = {};
                 var valid = true;
                 children.forEach(function(entry) {
                     var next = entry.field.__read();
                     if (!next.valid) valid = false;
                     else if (next.present) result[entry.name] = next.value;
-                    else delete result[entry.name];
+                });
+                dynamicRows.forEach(function(entry) {
+                    var key = entry.key.value.trim();
+                    if (!key || !entry.value.value.trim()) valid = false;
+                    else result[key] = entry.value.value.trim();
                 });
                 return { valid: valid, present: required || Object.keys(result).length > 0, value: result };
             };
             return objectWrapper;
         }
 
-        if (property.type === 'array' && property.items && (property.items.type === 'object' || property.items.properties || property.items.oneOf || property.items.anyOf || property.items.allOf)) {
+        if (type === 'array' && property.items && (schemaType(property.items) === 'object' || property.items.properties || property.items.oneOf || property.items.anyOf || property.items.allOf)) {
             var arrayWrapper = document.createElement('fieldset');
             arrayWrapper.className = 'border rounded-3 p-3 mb-3';
             var arrayLegend = document.createElement('legend');
@@ -371,7 +413,7 @@
         }
 
         var wrapper = document.createElement('div');
-        wrapper.className = property.type === 'boolean' ? 'mb-3 form-check' : 'mb-3';
+        wrapper.className = type === 'boolean' ? 'mb-3 form-check' : 'mb-3';
         var id = 'capability-' + Math.random().toString(36).slice(2);
         var input;
         if (property.type === 'boolean') {
@@ -390,13 +432,13 @@
                     var optionLabel = localizeEnum(pluginId, name, optionValue) || String(optionValue);
                     input.appendChild(new Option(optionLabel, String(optionValue), false, JSON.stringify(optionValue) === JSON.stringify(value)));
                 });
-            } else if (property.type === 'array') {
+            } else if (type === 'array') {
                 input = document.createElement('textarea'); input.className = 'form-control'; input.rows = 4;
                 input.value = Array.isArray(value) ? value.join('\n') : ''; input.placeholder = __('capability.placeholder.onePerLine');
             } else {
                 input = document.createElement('input'); input.className = 'form-control';
-                input.type = property.type === 'number' || property.type === 'integer' ? 'number' : 'text'; input.value = value == null ? '' : value;
-                if (property.type === 'integer') input.step = '1'; else if (property.type === 'number') input.step = property.multipleOf || 'any';
+                input.type = type === 'number' || type === 'integer' ? 'number' : 'text'; input.value = value == null ? '' : value;
+                if (type === 'integer') input.step = '1'; else if (type === 'number') input.step = property.multipleOf || 'any';
                 if (property.minimum !== undefined) input.min = property.minimum; if (property.maximum !== undefined) input.max = property.maximum;
                 if (property.minLength !== undefined) input.minLength = property.minLength; if (property.maxLength !== undefined) input.maxLength = property.maxLength;
                 if (property.pattern) input.pattern = property.pattern;
@@ -412,13 +454,45 @@
             var raw = input.type === 'checkbox' ? input.checked : input.value.trim();
             input.setCustomValidity('');
             if (input.dataset.duration === 'true' && raw && !/^(?:\d+\.)?\d{1,2}:\d{2}:\d{2}(?:\.\d{1,7})?$/.test(raw)) input.setCustomValidity(__('capability.validation.durationFormat'));
-            if (property.type === 'integer' && raw !== '' && !Number.isInteger(Number(raw))) input.setCustomValidity(__('capability.validation.integer'));
+            if (type === 'integer' && raw !== '' && !Number.isInteger(Number(raw))) input.setCustomValidity(__('capability.validation.integer'));
             if (!input.checkValidity()) { input.classList.add('is-invalid'); return { valid: false }; }
             input.classList.remove('is-invalid');
-            if (property.type === 'boolean') return { valid: true, present: true, value: raw };
+            if (type === 'boolean') return { valid: true, present: true, value: raw };
             if (raw === '' && !required) return { valid: true, present: false };
-            if (property.type === 'number' || property.type === 'integer') return { valid: true, present: true, value: Number(raw) };
-            if (property.type === 'array') return { valid: true, present: true, value: raw.split(/\r?\n/).map(function(item) { return item.trim(); }).filter(Boolean) };
+            if (type === 'number' || type === 'integer') return { valid: true, present: true, value: Number(raw) };
+            if (type === 'array') {
+                var itemSchema = property.items || {};
+                var invalidItem = false;
+                var values = raw.split(/\r?\n/).map(function(item) { return item.trim(); }).filter(Boolean).map(function(item) {
+                    if (Array.isArray(itemSchema.enum)) {
+                        var enumValue = itemSchema.enum.find(function(value) { return String(value) === item; });
+                        if (enumValue === undefined) invalidItem = true;
+                        return enumValue;
+                    }
+                    if (itemSchema.type === 'integer') {
+                        var integerValue = Number(item);
+                        if (!Number.isInteger(integerValue)) invalidItem = true;
+                        return integerValue;
+                    }
+                    if (itemSchema.type === 'number') {
+                        var numberValue = Number(item);
+                        if (!Number.isFinite(numberValue)) invalidItem = true;
+                        return numberValue;
+                    }
+                    if (itemSchema.type === 'boolean') {
+                        var normalized = item.toLowerCase();
+                        if (normalized !== 'true' && normalized !== 'false') invalidItem = true;
+                        return normalized === 'true';
+                    }
+                    return item;
+                });
+                if (invalidItem) {
+                    input.setCustomValidity(__('capability.validation.arrayItemType', '数组项类型不正确'));
+                    input.classList.add('is-invalid');
+                    return { valid: false };
+                }
+                return { valid: true, present: true, value: values };
+            }
             if (Array.isArray(property.enum)) return { valid: true, present: true, value: property.enum.find(function(item) { return String(item) === raw; }) };
             return { valid: true, present: true, value: raw };
         };
@@ -692,7 +766,7 @@
                 var plugin = plugins.find(function(item) { return item.pluginId === pluginSelect.value; });
                 var payload = binding ? Object.assign({}, binding) : {
                     pluginId: pluginSelect.value, scope: scope, scopeId: scopeId,
-                    schemaVersion: Number((plugin && plugin.schemas && plugin.schemas[0] && plugin.schemas[0].version) || 1), order: Number((plugin && plugin.order) || 0)
+                    schemaVersion: getPluginSchemaVersion(plugin), order: Number((plugin && plugin.order) || 0)
                 };
                 payload.enabled = plugin && plugin.enabled === false ? false : enabledInput.checked;
                 payload.configJson = JSON.stringify(config);
@@ -743,6 +817,9 @@
         schemaField: schemaField,
         applyDefaults: applyDefaults,
         readSchemaForm: readSchemaForm,
+        schemaType: schemaType,
+        getPluginSchema: getPluginSchema,
+        getPluginSchemaVersion: getPluginSchemaVersion,
         renderGroupedFields: renderGroupedFields,
         pluginMeta: pluginMeta,
         expandSchema: expandSchema,

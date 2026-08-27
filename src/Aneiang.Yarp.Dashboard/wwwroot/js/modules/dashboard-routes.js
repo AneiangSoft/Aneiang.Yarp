@@ -32,22 +32,30 @@
                         await this.ensureClustersLoaded();
                     }
                     this.renderRoutes();
+                    this._renderConfigAlert();
                     return;
                 }
 
                 window.DashboardDOM.showLoading(container, __('index.route.loading'));
                 if (window.DashboardLoading) window.DashboardLoading.tableProgress(window.DashboardDOM.safe('#route-table-view'), true);
 
-                // Load both routes and clusters in parallel (clusters needed for Add Route modal)
-                const [routes, clusters] = await Promise.all([
+                // Load routes, clusters (for Add Route modal) and proxy-config apply
+                // errors (for the hint bar + per-row markers) in parallel.
+                const [routes, clusters, errInfo] = await Promise.all([
                     window.DashboardApi.endpoints.getRoutes(),
-                    window.DashboardApi.endpoints.getClusters()
+                    window.DashboardApi.endpoints.getClusters(),
+                    window.DashboardProxyConfigAlert ? window.DashboardProxyConfigAlert.load('route') : Promise.resolve(null)
                 ]);
 
                 window.DashboardState.set('data.routes', routes || []);
                 window.DashboardState.set('data.clusters', clusters || []);
+                if (errInfo) {
+                    window.DashboardState.set('data.routeConfigErrors', errInfo.byId);
+                    window.DashboardState.set('data.routeConfigHealth', errInfo.health);
+                }
 
                 this.renderRoutes();
+                this._renderConfigAlert();
 
             } catch (error) {
                 console.error('[Routes] Load failed:', error);
@@ -62,6 +70,17 @@
             } finally {
                 if (window.DashboardLoading) window.DashboardLoading.tableProgress(window.DashboardDOM.safe('#route-table-view'), false);
             }
+        },
+
+        // Render (or hide) the proxy-config apply-error hint bar from cached health.
+        _renderConfigAlert: function() {
+            var bar = window.DashboardDOM.safe('#route-config-alert');
+            if (!bar || !window.DashboardProxyConfigAlert) return;
+            var self = this;
+            var health = window.DashboardState.get('data.routeConfigHealth');
+            window.DashboardProxyConfigAlert.renderHintBar(bar, health, {
+                onRefresh: function() { return self.loadRoutes(true); }
+            });
         },
 
         ensureClustersLoaded: async function() {
@@ -88,7 +107,7 @@
                 if (routes.length === 0) {
                     const emptyRow = document.createElement('tr');
                     emptyRow.innerHTML = `
-                        <td colspan="7" class="text-center py-5">
+                        <td colspan="8" class="text-center py-5">
                             <div class="empty-state">
                                 <i class="bi bi-signpost-split" style="font-size: 2.5rem; opacity: 0.4; color: #64748b;"></i>
                                 <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.route.empty')}</div>
@@ -736,6 +755,16 @@
             if (expandIcon) {
                 expandIcon.classList.toggle('expanded', isExpanded);
             }
+
+            // Sync proxy-config apply-error marker in the name cell. Diff rendering
+            // reuses rows across refreshes, so the marker must be added/removed
+            // here to stay in sync with the latest error map.
+            if (window.DashboardProxyConfigAlert) {
+                var nameStrong = row.querySelector('strong');
+                var nameDiv = nameStrong ? nameStrong.parentNode : null;
+                var errMap = window.DashboardState.get('data.routeConfigErrors') || {};
+                window.DashboardProxyConfigAlert.syncMarker(nameDiv, errMap[route.routeId] || null);
+            }
         },
 
         createRouteRows: function(route, isExpanded) {
@@ -765,6 +794,19 @@
                     filter: isDisabled ? 'grayscale(0.7)' : 'none'
                 }
             });
+
+            // Batch select checkbox
+            var tdSelect = window.DashboardDOM.create('td', {
+                style: { width: '36px', verticalAlign: 'middle', textAlign: 'center' }
+            });
+            var checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'form-check-input route-row-checkbox';
+            checkbox.value = route.routeId;
+            checkbox.checked = RoutesModule._selectedRoutes && RoutesModule._selectedRoutes.has(route.routeId);
+            checkbox.onclick = function(e) { e.stopPropagation(); RoutesModule.toggleSelect(route.routeId, this.checked); };
+            tdSelect.appendChild(checkbox);
+            tr.appendChild(tdSelect);
 
             // Expand icon
             var tdExpand = window.DashboardDOM.create('td', {
@@ -804,6 +846,13 @@
             nameStrong.textContent = route.routeId;
             nameStrong.title = route.routeId;
             nameDiv.appendChild(nameStrong);
+
+            // Proxy-config apply-error marker (if this route failed to apply)
+            var routeErrMap = window.DashboardState.get('data.routeConfigErrors') || {};
+            var routeErr = routeErrMap[route.routeId];
+            if (routeErr && window.DashboardProxyConfigAlert) {
+                nameDiv.appendChild(window.DashboardProxyConfigAlert.createMarker(routeErr));
+            }
 
             var sourceSpan = document.createElement('span');
             sourceSpan.innerHTML = this.createSourceBadge(route.source);
@@ -1042,7 +1091,7 @@
             });
                 
             const td = window.DashboardDOM.create('td', {
-                attributes: { colspan: '7' }
+                attributes: { colspan: '8' }
             });
                 
             const detailHtml = []; 
@@ -1656,68 +1705,7 @@
             }
         },
 
-        showAddModal: function() {
-            this.showAddFormModal();
-        },
-
-        showAddFormModal: async function() {
-            const self = this;
-
-            // Get available clusters (lazy-load if not yet fetched)
-            let clusters = window.DashboardState.get('data.clusters') || [];
-            if (clusters.length === 0) {
-                await self.ensureClustersLoaded();
-                clusters = window.DashboardState.get('data.clusters') || [];
-            }
-            const clusterIds = clusters.map(c => c.clusterId);
-
-            // If no clusters, show warning
-            if (clusterIds.length === 0) {
-                window.DashboardModals.showWarning(__('index.route.noClusters'));
-                return;
-            }
-
-            const clusterOptions = clusterIds.map(id => ({ value: id, label: id }));
-
-            window.DashboardModals.showFormModal({
-                title: __('modal.addRoute'),
-                icon: 'bi-plus-circle',
-                size: 'lg',
-                fields: [
-                    { name: 'routeId', label: 'Route ID', type: 'text', required: true, placeholder: 'my-route' },
-                    { name: 'clusterId', label: __('index.route.clusterId') || 'Cluster ID', type: 'select', required: true, options: clusterOptions, value: clusterIds[0] },
-                    { name: 'matchPath', label: __('index.route.matchPath') || 'Match Path', type: 'text', required: true, placeholder: '/api/service/{**catchAll}', value: '/api/service/{**catchAll}' },
-                    { name: 'order', label: __('index.route.order') || 'Order', type: 'number', value: '50', min: '0', max: '1000' }
-                ],
-                data: { clusterId: clusterIds[0], matchPath: '/api/service/{**catchAll}', order: '50' },
-                jsonModeCallback: function() {
-                    self._showAddJsonModal();
-                },
-                onSave: function(formData) {
-                    const routeConfig = {
-                        ClusterId: formData.clusterId,
-                        Order: parseInt(formData.order) || 50,
-                        Match: {
-                            Path: formData.matchPath || '/api/{**catchAll}'
-                        }
-                    };
-
-                    if (!routeConfig.ClusterId || !routeConfig.ClusterId.trim()) {
-                        window.DashboardModals.showError(__('index.route.invalidCluster'));
-                        return false;
-                    }
-                    if (!routeConfig.Match.Path) {
-                        window.DashboardModals.showError(__('index.route.invalidMatch'));
-                        return false;
-                    }
-
-                    self.saveRouteFromJson(routeConfig, formData.routeId);
-                    return true;
-                }
-            });
-        },
-
-        _showAddJsonModal: async function() {
+        showAddModal: async function() {
             const self = this;
 
             // Get available clusters (lazy-load if not yet fetched)
@@ -1749,8 +1737,13 @@
                 schemaType: 'route',
                 size: 'xl',
                 hint: __('modal.policyManagedHint') || undefined,
-                onSave: function(parsedData) {
-                    // Validate route config
+                editableId: {
+                    label: 'Route ID',
+                    value: '',
+                    placeholder: __('modal.routeIdPlaceholder') || 'my-route',
+                    readOnly: false
+                },
+                onSave: function(parsedData, newId) {
                     if (!parsedData.ClusterId || !parsedData.ClusterId.trim()) {
                         window.DashboardModals.showError(__('index.route.invalidCluster'));
                         return false;
@@ -1762,11 +1755,9 @@
                     // Check cluster exists
                     if (clusterIds.indexOf(parsedData.ClusterId) === -1) {
                         window.DashboardModals.showWarning(__('index.route.clusterNotFound') + parsedData.ClusterId);
-                        // Still allow save for flexibility
                     }
 
-                    // Save route
-                    self.saveRouteFromJson(parsedData);
+                    self.saveRouteFromJson(parsedData, newId);
                     return true;
                 }
             });
@@ -2217,7 +2208,137 @@
     }
 
     window.RoutesModule = RoutesModule;
-    
+
+    // Batch operations
+    RoutesModule._selectedRoutes = new Set();
+
+    RoutesModule.toggleSelectAll = function(checked) {
+        var checkboxes = document.querySelectorAll('.route-row-checkbox');
+        checkboxes.forEach(function(cb) {
+            cb.checked = checked;
+            var id = cb.value;
+            if (checked) RoutesModule._selectedRoutes.add(id);
+            else RoutesModule._selectedRoutes.delete(id);
+        });
+        RoutesModule._updateBatchBar();
+    };
+
+    RoutesModule.toggleSelect = function(id, checked) {
+        if (checked) RoutesModule._selectedRoutes.add(id);
+        else RoutesModule._selectedRoutes.delete(id);
+        RoutesModule._updateBatchBar();
+    };
+
+    RoutesModule._updateBatchBar = function() {
+        var bar = document.getElementById('route-batch-bar');
+        var countEl = document.getElementById('route-batch-count');
+        if (bar) bar.style.display = RoutesModule._selectedRoutes.size > 0 ? 'inline-flex' : 'none';
+        if (countEl) countEl.textContent = RoutesModule._selectedRoutes.size;
+    };
+
+    RoutesModule.clearBatch = function() {
+        RoutesModule._selectedRoutes.clear();
+        document.querySelectorAll('.route-row-checkbox').forEach(function(cb) { cb.checked = false; });
+        var selectAll = document.getElementById('route-select-all');
+        if (selectAll) selectAll.checked = false;
+        RoutesModule._updateBatchBar();
+    };
+
+    RoutesModule._getSelectedIds = function() { return Array.from(RoutesModule._selectedRoutes); };
+
+    RoutesModule._showBatchResult = function(resp, successKey, partialKey) {
+        var data = (resp && resp.data) || resp || {};
+        var succeeded = data.succeeded != null ? data.succeeded : (data.total || 0);
+        var failed = data.failed != null ? data.failed : 0;
+        var items = data.items || [];
+        if (failed === 0) {
+            window.DashboardModals.showSuccess(__(successKey).replace('{succeeded}', succeeded));
+        } else {
+            var failedList = items.filter(function(it) { return !it.success; })
+                .map(function(it) { return it.id + ' (' + it.message + ')'; }).join('\n');
+            window.DashboardModals.showWarning(
+                __(partialKey).replace('{succeeded}', succeeded).replace('{failed}', failed) +
+                (failedList ? '\n\n' + failedList : ''));
+        }
+    };
+
+    RoutesModule.batchDelete = function() {
+        var ids = RoutesModule._getSelectedIds();
+        if (ids.length === 0) return;
+        window.DashboardModals.showConfirm(
+            __('batch.deleteConfirmRoutes').replace('{count}', ids.length),
+            async function() {
+                try {
+                    var resp = await window.DashboardApi.endpoints.batchDeleteRoutes(ids, false);
+                    RoutesModule._showBatchResult(resp, 'batch.deleteSuccess', 'batch.deletePartial');
+                } catch (e) {
+                    window.DashboardModals.showError(e.message || __('api.requestFailed'));
+                } finally {
+                    RoutesModule.clearBatch();
+                    await RoutesModule.loadRoutes(true);
+                }
+            }, null, { danger: true }
+        );
+    };
+
+    RoutesModule.batchSetEnabled = function(enabled) {
+        var ids = RoutesModule._getSelectedIds();
+        if (ids.length === 0) return;
+        (async function() {
+            try {
+                var resp = await window.DashboardApi.endpoints.batchSetRoutesEnabled(ids, enabled);
+                RoutesModule._showBatchResult(resp,
+                    enabled ? 'batch.enableSuccess' : 'batch.disableSuccess',
+                    enabled ? 'batch.enablePartial' : 'batch.disablePartial');
+            } catch (e) {
+                window.DashboardModals.showError(e.message || __('api.requestFailed'));
+            } finally {
+                RoutesModule.clearBatch();
+                await RoutesModule.loadRoutes(true);
+            }
+        })();
+    };
+
+    RoutesModule.exportSelected = function() {
+        var ids = RoutesModule._getSelectedIds();
+        if (ids.length === 0) return;
+        var routes = (window.DashboardState.get('data.routes') || []).filter(function(r) {
+            return ids.indexOf(r.routeId) !== -1;
+        });
+        if (routes.length === 0) { window.DashboardModals.showWarning(__('index.noDataExport')); return; }
+        var headers = ['Route ID', 'Order', 'Path', 'Cluster', 'Methods', 'Enabled'];
+        var rows = routes.map(function(r) {
+            return [
+                r.routeId || '',
+                r.order != null ? r.order : '',
+                (r.match && r.match.path) || '-',
+                r.clusterId || '-',
+                (r.match && r.match.methods || []).join(',') || 'ANY',
+                r.enabled === false ? 'false' : 'true'
+            ];
+        });
+        window.DashboardUtils.exportCsv('routes-selected-' + Date.now() + '.csv', headers, rows);
+        window.DashboardModals.showSuccess(__('batch.exportSuccess'));
+    };
+
+    /**
+     * Batch-bind a plugin to all selected routes via the atomic batch-create endpoint.
+     */
+    RoutesModule.batchBindPlugin = function() {
+        var ids = RoutesModule._getSelectedIds();
+        if (ids.length === 0) return;
+        if (window.DashboardBatchPlugin && window.DashboardBatchPlugin.openDialog) {
+            window.DashboardBatchPlugin.openDialog({
+                scope: 'Route',
+                scopeIds: ids,
+                scopeLabel: __('batch.scope.route'),
+                onDone: function() { RoutesModule.clearBatch(); RoutesModule.loadRoutes(true); }
+            });
+        } else {
+            window.DashboardModals.showWarning(__('batch.dialogNotAvailable'));
+        }
+    };
+
     // Global function for external route creation triggers.
     window.showAddRouteModal = function() {
         if (RoutesModule && typeof RoutesModule.showAddModal === 'function') {

@@ -68,6 +68,14 @@ public interface IDynamicYarpConfigService
     Task ReplaceAllConfig(IReadOnlyList<RouteConfig> newRoutes, IReadOnlyList<ClusterConfig> newClusters,
         string source = "rollback", string? createdBy = "dashboard-user");
 
+    /// <summary>
+    /// Batch add-or-update clusters and routes in a single lock/persist/publish cycle.
+    /// Used by config import so N items cost one full save + one publish instead of N.
+    /// </summary>
+    Task<RouteOperationResult> ImportBatchAsync(
+        IReadOnlyList<ClusterConfig> clusters, IReadOnlyList<RouteConfig> routes,
+        string source = "import", string? createdBy = "dashboard-user");
+
     /// <summary>Update heartbeat timestamp for a registered service.</summary>
     bool UpdateHeartbeat(string routeName, string? clientIp = null);
 
@@ -77,4 +85,25 @@ public interface IDynamicYarpConfigService
 
     /// <summary>Enable or disable a route. Disabled routes are retained but excluded from forwarding.</summary>
     Task<RouteOperationResult> TrySetRouteEnabled(string routeId, bool enabled, string? createdBy = "dashboard-user");
+
+    /// <summary>
+    /// Atomically delete multiple clusters under a single lock/persist/publish cycle.
+    /// Clusters referenced by any route are refused (per-item failure) and left intact.
+    /// </summary>
+    Task<BatchOperationResult> BatchDeleteClustersAsync(
+        IReadOnlyList<string> clusterIds, string? createdBy = "dashboard-user");
+
+    /// <summary>
+    /// Atomically delete multiple routes under a single lock/persist/publish cycle.
+    /// Optionally removes clusters left orphaned by the deletion.
+    /// </summary>
+    Task<BatchOperationResult> BatchDeleteRoutesAsync(
+        IReadOnlyList<string> routeIds, bool removeOrphanedClusters = false,
+        string? createdBy = "dashboard-user");
+
+    /// <summary>
+    /// Atomically enable or disable multiple routes under a single lock/persist/publish cycle.
+    /// </summary>
+    Task<BatchOperationResult> BatchSetRoutesEnabledAsync(
+        IReadOnlyList<string> routeIds, bool enabled, string? createdBy = "dashboard-user");
 }

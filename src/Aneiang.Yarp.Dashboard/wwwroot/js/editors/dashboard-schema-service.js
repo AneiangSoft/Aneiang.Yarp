@@ -101,6 +101,22 @@
         },
 
         /**
+         * Get the schema for a whole config type ('route' | 'cluster' | 'full').
+         * Routes/Clusters are stored as patternProperties; return the single-entry schema.
+         */
+        getSchemaForType: function(type) {
+            if (!this.schema) return null;
+            if (type === 'full') return this.schema;
+            var nodePath = type === 'cluster' ? 'ReverseProxy.Clusters' : 'ReverseProxy.Routes';
+            var node = this.getSchemaAt(nodePath);
+            if (!node || !node.patternProperties) return node || null;
+            for (var pattern in node.patternProperties) {
+                return node.patternProperties[pattern];
+            }
+            return null;
+        },
+
+        /**
          * Get property hints at a specific path
          * @param {string} path - Dot-separated path
          * @returns {array} Array of hint objects

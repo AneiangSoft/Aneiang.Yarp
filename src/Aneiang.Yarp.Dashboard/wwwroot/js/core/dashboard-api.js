@@ -260,9 +260,18 @@
         renameCluster: (oldClusterId, config) => DashboardApi.put(`/api/config/clusters/${oldClusterId}/rename`, config),
         saveRoute: (routeId, config) => DashboardApi.put(`/api/config/routes/${routeId}`, config),
         deleteRouteConfig: (routeId) => DashboardApi.delete(`/api/config/routes/${routeId}`),
+        setRouteEnabled: (routeId, enabled) => DashboardApi.put(`/api/config/routes/${routeId}/enabled`, { enabled }),
         getConfigHistory: () => DashboardApi.get('/api/config/history'),
         rollbackConfig: (versionId) => DashboardApi.post(`/api/config/rollback/${versionId}`),
         validateConfig: (config) => DashboardApi.post('/api/config/validate', config),
+
+        // Proxy config apply-error capture (read-only; feeds the overview banner + list page markers)
+        getProxyConfigErrors: (params, options) => DashboardApi.get('/api/config/apply-errors', params, options),
+
+        // Batch operations (atomic: one lock + one persist + one publish per call)
+        batchDeleteClusters: (clusterIds) => DashboardApi.post('/api/config/clusters/batch-delete', { clusterIds }),
+        batchDeleteRoutes: (routeIds, removeOrphanedClusters) => DashboardApi.post('/api/config/routes/batch-delete', { routeIds, removeOrphanedClusters: !!removeOrphanedClusters }),
+        batchSetRoutesEnabled: (routeIds, enabled) => DashboardApi.post('/api/config/routes/batch-enabled', { routeIds, enabled: !!enabled }),
 
         // Audit Logs
         getAuditLogs: (page, pageSize, action) => DashboardApi.get('/api/audit-logs', { page: page || 1, pageSize: pageSize || 100, action: action || '' }),
@@ -284,6 +293,11 @@
         createBinding: (data) => DashboardApi.post('/api/plugin-bindings', data),
         updateBinding: (id, data) => DashboardApi.put('/api/plugin-bindings/' + id, data),
         deleteBinding: (id) => DashboardApi.delete('/api/plugin-bindings/' + id),
+        // Batch plugin binding operations (atomic: one snapshot compile + one runtime domain prep + one publish)
+        batchCreateBindings: (data) => DashboardApi.post('/api/plugin-bindings/batch-create', data),
+        batchSetBindingsEnabled: (bindingIds, enabled) => DashboardApi.post('/api/plugin-bindings/batch-enabled', { bindingIds, enabled: !!enabled }),
+        batchDeleteBindings: (bindingIds) => DashboardApi.post('/api/plugin-bindings/batch-delete', { bindingIds }),
+        getInstalledPlugins: () => DashboardApi.get('/api/plugin-bindings/plugins'),
 
         // Strategy Presets
         getPresets: (pluginId) => DashboardApi.get('/api/presets', { pluginId }),

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Dashboard Modals - Unified modal and notification system
  * Provides: showToast, showConfirm, showFormModal, showJsonModal
  */
@@ -521,6 +521,9 @@
         const data = config.data || {};
         const schemaType = config.schemaType || null;
         const editableId = config.editableId || null;
+        const supportsForm = !!(schemaType && window.DashboardFormBuilder && window.DashboardSchemaService);
+        const mode = (supportsForm && config.mode === 'form') ? 'form' : 'json';
+        const editorHeight = editableId ? (config.hint ? '430' : '460') : (config.hint ? '470' : '500');
 
         let jsonContent = '';
         try {
@@ -563,7 +566,9 @@
                         <div class="modal-body" style="padding:0;">
                             ${idInputHtml}
                             ${config.hint ? `<div style="margin:10px 24px 0 24px;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;font-size:12px;color:#0369a1;display:flex;align-items:flex-start;gap:8px;"><i class="bi bi-info-circle" style="font-size:14px;margin-top:1px;flex-shrink:0;"></i><span>${config.hint}</span></div>` : ''}
-                            <div id="${modalId}-editor" style="height:${editableId ? (config.hint ? '430' : '460') : (config.hint ? '470' : '500')}px;border:none;"></div>
+                            ${supportsForm ? `<div style="padding:8px 24px;border-bottom:1px solid #e2e8f0;display:flex;gap:6px;"><button type="button" class="btn btn-sm ${mode==='form'?'btn-primary':'btn-outline-primary'}" onclick="DashboardModals.switchJsonModalMode('${modalId}','form')"><i class="bi bi-ui-checks-grid me-1"></i>${window.__('modal.formMode')||'Form'}</button><button type="button" class="btn btn-sm ${mode==='json'?'btn-primary':'btn-outline-primary'}" onclick="DashboardModals.switchJsonModalMode('${modalId}','json')"><i class="bi bi-braces me-1"></i>${window.__('modal.jsonMode')||'JSON'}</button></div>` : ''}
+                            <div id="${modalId}-form-area" data-schema-type="${schemaType||''}" style="display:${mode==='form'?'block':'none'};padding:14px 20px;overflow:auto;height:${editorHeight}px;background:#f8fafc;"></div>
+                            <div id="${modalId}-editor" style="display:${mode==='json'?'block':'none'};height:${editorHeight}px;border:none;"></div>
                         </div>
                         <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
                             <div style="flex:1;display:flex;align-items:center;gap:8px;">
@@ -614,6 +619,21 @@
         Promise.all([monacoReadyPromise, schemaPromise]).then(function(results) {
             const monacoReady = typeof monaco !== 'undefined' && monaco.editor;
             const schema = results[1];
+
+            // Initialize form mode if requested and schema is available
+            if (mode === 'form' && schemaType && window.DashboardSchemaService) {
+                window.DashboardSchemaService.load().then(function() {
+                    var formSchema = window.DashboardSchemaService.getSchemaForType(schemaType);
+                    var formArea = document.getElementById(modalId + '-form-area');
+                    if (formSchema && formArea) {
+                        formArea.innerHTML = '';
+                        var formHost = document.createElement('div');
+                        formHost.id = modalId + '-form';
+                        formArea.appendChild(formHost);
+                        window.DashboardFormBuilder.build(formHost.id, formSchema, data);
+                    }
+                });
+            }
 
             if (monacoReady && window.DashboardMonacoEditor) {
                 // Register the specific schema before creating editor
@@ -667,7 +687,11 @@
             const saveBtn = document.getElementById(modalId + '-save');
             saveBtn.addEventListener('click', async function() {
                 let newValue;
-                if (editor && window.DashboardMonacoEditor) {
+                var formAreaEl = document.getElementById(modalId + '-form-area');
+                var isFormMode = formAreaEl && formAreaEl.style.display !== 'none' && document.getElementById(modalId + '-form');
+                if (isFormMode && window.DashboardFormBuilder) {
+                    newValue = JSON.stringify(window.DashboardFormBuilder.collectData(modalId + '-form'));
+                } else if (editor && window.DashboardMonacoEditor) {
                     newValue = window.DashboardMonacoEditor.getValue(modalId + '-editor');
                 } else {
                     newValue = document.getElementById(modalId + '-textarea')?.value || '';
@@ -720,6 +744,59 @@
 
         bsModal.show();
         return bsModal;
+    };
+
+    window.DashboardModals.switchJsonModalMode = function(modalId, newMode) {
+        var formArea = document.getElementById(modalId + '-form-area');
+        var editorEl = document.getElementById(modalId + '-editor');
+        if (!formArea || !editorEl) return;
+        var currentMode = formArea.style.display === 'none' ? 'json' : 'form';
+        if (newMode === currentMode) return;
+
+        function updateToggleButtons() {
+            var btns = document.querySelectorAll('[onclick*="switchJsonModalMode(\'' + modalId + '\'"]');
+            for (var i = 0; i < btns.length; i++) {
+                var m = btns[i].getAttribute('onclick').indexOf("'form'") >= 0 ? 'form' : 'json';
+                btns[i].className = 'btn btn-sm ' + (m === newMode ? 'btn-primary' : 'btn-outline-primary');
+            }
+        }
+
+        if (newMode === 'json') {
+            var formData = (window.DashboardFormBuilder && document.getElementById(modalId + '-form'))
+                ? window.DashboardFormBuilder.collectData(modalId + '-form') : {};
+            var jsonStr = JSON.stringify(formData, null, 2);
+            if (window.DashboardMonacoEditor && window.DashboardMonacoEditor.instances.has(modalId + '-editor')) {
+                window.DashboardMonacoEditor.setValue(modalId + '-editor', jsonStr);
+            } else {
+                var ta = document.getElementById(modalId + '-textarea');
+                if (ta) ta.value = jsonStr;
+            }
+            formArea.style.display = 'none';
+            editorEl.style.display = 'block';
+            updateToggleButtons();
+        } else {
+            var val;
+            if (window.DashboardMonacoEditor && window.DashboardMonacoEditor.instances.has(modalId + '-editor')) {
+                val = window.DashboardMonacoEditor.getValue(modalId + '-editor');
+            } else {
+                var ta2 = document.getElementById(modalId + '-textarea');
+                val = ta2 ? ta2.value : '{}';
+            }
+            var parsed;
+            try { parsed = window.DashboardUtils.parseJsonLenient(val); } catch (e) { parsed = {}; }
+            var st = formArea.getAttribute('data-schema-type');
+            window.DashboardSchemaService.load().then(function() {
+                var formSchema = window.DashboardSchemaService.getSchemaForType(st);
+                formArea.innerHTML = '';
+                var formHost = document.createElement('div');
+                formHost.id = modalId + '-form';
+                formArea.appendChild(formHost);
+                if (formSchema) window.DashboardFormBuilder.build(formHost.id, formSchema, parsed);
+                formArea.style.display = 'block';
+                editorEl.style.display = 'none';
+                updateToggleButtons();
+            });
+        }
     };
 
     window.DashboardModals.copyJsonFromEditor = function(modalId) {

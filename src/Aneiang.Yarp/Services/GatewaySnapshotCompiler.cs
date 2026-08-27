@@ -140,8 +140,6 @@ public sealed class GatewaySnapshotCompiler : IGatewaySnapshotCompiler
         where TCompiler : class
     {
         var registered = compilers?.ToArray() ?? [];
-        if (registered.All(compiler => compiler is not NativePluginAdapters))
-            registered = [.. registered, (TCompiler)(object)new NativePluginAdapters()];
 
         return registered
             .Select((compiler, registrationIndex) => (compiler, registrationIndex))

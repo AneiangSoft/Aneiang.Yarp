@@ -1,3 +1,4 @@
+using Aneiang.Yarp.Services.ProxyConfigHealth;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Hosting;
@@ -99,6 +100,14 @@ public class OverviewSnapshot
 
     [JsonPropertyName("topSlowClusters")]
     public List<OverviewSlowCluster> TopSlowClusters { get; set; } = new();
+
+    /// <summary>
+    /// Health of the most recent proxy configuration apply attempt. Non-null once the
+    /// error store has been consulted; <see cref="ProxyConfigHealthSnapshot.Status"/>
+    /// is <c>"error"</c> when the running proxy may be serving a stale/broken config.
+    /// </summary>
+    [JsonPropertyName("proxyConfigHealth")]
+    public ProxyConfigHealthSnapshot? ProxyConfigHealth { get; set; }
 
     [JsonPropertyName("timestamp")]
     public long Timestamp { get; set; }

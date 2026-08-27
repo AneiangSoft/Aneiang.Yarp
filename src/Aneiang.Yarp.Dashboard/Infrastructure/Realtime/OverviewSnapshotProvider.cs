@@ -2,6 +2,7 @@ using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
 using Aneiang.Yarp.Plugin.ProxyLog.Models;
 using Aneiang.Yarp.Plugin.ProxyLog.Services;
+using Aneiang.Yarp.Services.ProxyConfigHealth;
 using Microsoft.Extensions.Logging;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Realtime;
@@ -24,6 +25,7 @@ public sealed class OverviewSnapshotProvider : IOverviewSnapshotProvider
     private readonly IDashboardRouteQueryService _routeQuery;
     private readonly IDashboardInfoQueryService _infoQuery;
     private readonly IProxyLogStore _logStore;
+    private readonly IProxyConfigErrorStore _errorStore;
     private readonly ILogger<OverviewSnapshotProvider> _logger;
 
     public OverviewSnapshotProvider(
@@ -31,12 +33,14 @@ public sealed class OverviewSnapshotProvider : IOverviewSnapshotProvider
         IDashboardRouteQueryService routeQuery,
         IDashboardInfoQueryService infoQuery,
         IProxyLogStore logStore,
+        IProxyConfigErrorStore errorStore,
         ILogger<OverviewSnapshotProvider> logger)
     {
         _clusterQuery = clusterQuery;
         _routeQuery = routeQuery;
         _infoQuery = infoQuery;
         _logStore = logStore;
+        _errorStore = errorStore;
         _logger = logger;
     }
 
@@ -161,6 +165,17 @@ public sealed class OverviewSnapshotProvider : IOverviewSnapshotProvider
             _logger.LogDebug(ex, "Failed to compute traffic metrics for overview snapshot");
         }
 
+        // --- Proxy config apply health (from IProxyConfigErrorStore) ---
+        ProxyConfigHealthSnapshot? proxyConfigHealth = null;
+        try
+        {
+            proxyConfigHealth = _errorStore.GetHealth();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to read proxy config health for overview snapshot");
+        }
+
         return new OverviewSnapshot
         {
             ClusterCount = clusterCount,
@@ -175,6 +190,7 @@ public sealed class OverviewSnapshotProvider : IOverviewSnapshotProvider
             ThreadCount = threadCount,
             TopErrorRoutes = topErrorRoutes,
             TopSlowClusters = topSlowClusters,
+            ProxyConfigHealth = proxyConfigHealth,
             Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
         };
     }

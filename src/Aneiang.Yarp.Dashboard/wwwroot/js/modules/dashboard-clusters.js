@@ -29,17 +29,28 @@
                 if (!forceReload && Array.isArray(cached) && cached.length > 0) {
                     window.DashboardState.set('data.clusters', cached);
                     this.renderClusters();
+                    this._renderConfigAlert();
                     return;
                 }
 
                 window.DashboardDOM.showLoading(container, __('index.cluster.loading'));
                 if (window.DashboardLoading) window.DashboardLoading.tableProgress(window.DashboardDOM.safe('#cluster-table-view'), true);
 
-                const clusters = await window.DashboardApi.endpoints.getClusters();
+                // Load cluster data and proxy-config apply errors in parallel; the
+                // errors feed the slim hint bar above the table and per-row markers.
+                const [clusters, errInfo] = await Promise.all([
+                    window.DashboardApi.endpoints.getClusters(),
+                    window.DashboardProxyConfigAlert ? window.DashboardProxyConfigAlert.load('cluster') : Promise.resolve(null)
+                ]);
 
                 window.DashboardState.set('data.clusters', clusters || []);
+                if (errInfo) {
+                    window.DashboardState.set('data.clusterConfigErrors', errInfo.byId);
+                    window.DashboardState.set('data.clusterConfigHealth', errInfo.health);
+                }
 
                 this.renderClusters();
+                this._renderConfigAlert();
 
             } catch (error) {
                 console.error('[Clusters] Load failed:', error);
@@ -54,6 +65,17 @@
             } finally {
                 if (window.DashboardLoading) window.DashboardLoading.tableProgress(window.DashboardDOM.safe('#cluster-table-view'), false);
             }
+        },
+
+        // Render (or hide) the proxy-config apply-error hint bar from cached health.
+        _renderConfigAlert: function() {
+            var bar = window.DashboardDOM.safe('#cluster-config-alert');
+            if (!bar || !window.DashboardProxyConfigAlert) return;
+            var self = this;
+            var health = window.DashboardState.get('data.clusterConfigHealth');
+            window.DashboardProxyConfigAlert.renderHintBar(bar, health, {
+                onRefresh: function() { return self.loadClusters(true); }
+            });
         },
 
         renderClusters: function() {
@@ -72,7 +94,7 @@
                 if (clusters.length === 0) {
                     const emptyRow = document.createElement('tr');
                     emptyRow.innerHTML = `
-                        <td colspan="7" class="text-center py-5">
+                        <td colspan="8" class="text-center py-5">
                             <div class="empty-state">
                                 <i class="bi bi-hdd-rack" style="font-size: 2.5rem; opacity: 0.4; color: #64748b;"></i>
                                 <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.cluster.empty')}</div>
@@ -453,6 +475,19 @@
                 style: { cursor: 'pointer' }
             });
 
+            // Batch select checkbox
+            var tdSelect = window.DashboardDOM.create('td', {
+                style: { width: '36px', verticalAlign: 'middle', textAlign: 'center' }
+            });
+            var checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'form-check-input cluster-row-checkbox';
+            checkbox.value = cluster.clusterId;
+            checkbox.checked = ClustersModule._selectedClusters.has(cluster.clusterId);
+            checkbox.onclick = function(e) { e.stopPropagation(); ClustersModule.toggleSelect(cluster.clusterId, this.checked); };
+            tdSelect.appendChild(checkbox);
+            headerTr.appendChild(tdSelect);
+
             // Expand icon
             var tdExpand = window.DashboardDOM.create('td', {
                 style: { width: '38px', verticalAlign: 'middle', textAlign: 'center' }
@@ -474,6 +509,12 @@
             nameStrong.textContent = cluster.clusterId;
             nameStrong.title = cluster.clusterId;
             nameDiv.appendChild(nameStrong);
+            // Proxy-config apply-error marker (if this cluster failed to apply)
+            var errMap = window.DashboardState.get('data.clusterConfigErrors') || {};
+            var clusterErr = errMap[cluster.clusterId];
+            if (clusterErr && window.DashboardProxyConfigAlert) {
+                nameDiv.appendChild(window.DashboardProxyConfigAlert.createMarker(clusterErr));
+            }
             var nameCopyBtn = this.createCopyButton(cluster.clusterId);
             nameDiv.appendChild(nameCopyBtn);
             tdName.appendChild(nameDiv);
@@ -654,7 +695,7 @@
             });
 
             const td = window.DashboardDOM.create('td', {
-                attributes: { colspan: '7' }
+                attributes: { colspan: '8' }
             });
 
             const detailHtml = [];
@@ -1115,59 +1156,12 @@
         },
 
         showAddModal: function() {
-            this.showAddFormModal();
-        },
-
-        showAddFormModal: function() {
-            const self = this;
-
-            window.DashboardModals.showFormModal({
-                title: __('modal.addCluster'),
-                icon: 'bi-plus-circle',
-                size: 'lg',
-                fields: [
-                    { name: 'clusterId', label: 'Cluster ID', type: 'text', required: true, placeholder: 'my-cluster' },
-                    { name: 'destAddress', label: __('index.cluster.destAddress') || 'Destination Address', type: 'text', required: true, placeholder: 'http://localhost:5000', value: 'http://localhost:5000' },
-                    { name: 'loadBalancingPolicy', label: __('index.cluster.lbPolicy') || 'Load Balancing', type: 'select', options: [
-                        { value: 'RoundRobin', label: 'RoundRobin' },
-                        { value: 'LeastRequests', label: 'LeastRequests' },
-                        { value: 'Random', label: 'Random' },
-                        { value: 'PowerOfTwoChoices', label: 'PowerOfTwoChoices' },
-                        { value: 'FirstAlphabetical', label: 'FirstAlphabetical' }
-                    ], value: 'RoundRobin' }
-                ],
-                data: { destAddress: 'http://localhost:5000', loadBalancingPolicy: 'RoundRobin' },
-                jsonModeCallback: function() {
-                    self._showAddJsonModal();
-                },
-                onSave: function(formData) {
-                    const clusterConfig = {
-                        Destinations: {
-                            "destination1": { "Address": formData.destAddress }
-                        },
-                        LoadBalancingPolicy: formData.loadBalancingPolicy || 'RoundRobin'
-                    };
-
-                    if (!formData.destAddress || !(formData.destAddress.startsWith('http://') || formData.destAddress.startsWith('https://'))) {
-                        window.DashboardModals.showError(__('index.cluster.invalidAddress'));
-                        return false;
-                    }
-
-                    self.saveClusterFromJson(clusterConfig, formData.clusterId);
-                    return true;
-                }
-            });
-        },
-
-        _showAddJsonModal: function() {
             const self = this;
 
             // Default cluster template for new cluster
             const defaultCluster = {
                 "Destinations": {
-                    "destination1": {
-                        "Address": "http://localhost:5000"
-                    }
+                    "destination1": { "Address": "http://localhost:5000" }
                 },
                 "LoadBalancingPolicy": "RoundRobin"
             };
@@ -1178,14 +1172,18 @@
                 schemaType: 'cluster',
                 size: 'xl',
                 hint: __('modal.policyManagedHint') || undefined,
-                onSave: function(parsedData) {
-                    // Validate cluster config
+                editableId: {
+                    label: 'Cluster ID',
+                    value: '',
+                    placeholder: __('modal.clusterIdPlaceholder') || 'my-cluster',
+                    readOnly: false
+                },
+                onSave: function(parsedData, newId) {
                     if (!parsedData.Destinations || typeof parsedData.Destinations !== 'object') {
                         window.DashboardModals.showError(__('index.cluster.invalidDestinations'));
                         return false;
                     }
 
-                    // Check for valid addresses
                     let hasValidAddress = false;
                     for (const destName in parsedData.Destinations) {
                         const dest = parsedData.Destinations[destName];
@@ -1199,8 +1197,7 @@
                         return false;
                     }
 
-                    // Save cluster
-                    self.saveClusterFromJson(parsedData);
+                    self.saveClusterFromJson(parsedData, newId);
                     return true;
                 }
             });
@@ -1648,7 +1645,7 @@
     ClustersModule._updateBatchBar = function() {
         var bar = document.getElementById('cluster-batch-bar');
         var countEl = document.getElementById('cluster-batch-count');
-        if (bar) bar.classList.toggle('active', ClustersModule._selectedClusters.size > 0);
+        if (bar) bar.style.display = ClustersModule._selectedClusters.size > 0 ? 'inline-flex' : 'none';
         if (countEl) countEl.textContent = ClustersModule._selectedClusters.size;
     };
 
@@ -1660,27 +1657,82 @@
         ClustersModule._updateBatchBar();
     };
 
+    ClustersModule._getSelectedIds = function() { return Array.from(ClustersModule._selectedClusters); };
+
+    ClustersModule._showBatchResult = function(resp, successKey, partialKey) {
+        var data = (resp && resp.data) || resp || {};
+        var succeeded = data.succeeded != null ? data.succeeded : (data.total || 0);
+        var failed = data.failed != null ? data.failed : 0;
+        var items = data.items || [];
+        if (failed === 0) {
+            window.DashboardModals.showSuccess(__(successKey).replace('{succeeded}', succeeded));
+        } else {
+            var failedList = items.filter(function(it) { return !it.success; })
+                .map(function(it) { return it.id + ' (' + it.message + ')'; }).join('\n');
+            window.DashboardModals.showWarning(
+                __(partialKey).replace('{succeeded}', succeeded).replace('{failed}', failed) +
+                (failedList ? '\n\n' + failedList : ''));
+        }
+    };
+
     ClustersModule.batchDelete = function() {
-        var ids = Array.from(ClustersModule._selectedClusters);
+        var ids = ClustersModule._getSelectedIds();
         if (ids.length === 0) return;
         window.DashboardModals.showConfirm(
-            __('index.batchDeleteConfirm').replace('{count}', ids.length),
+            __('batch.deleteConfirmClusters').replace('{count}', ids.length),
             async function() {
-                var errors = [];
-                for (var i = 0; i < ids.length; i++) {
-                    try {
-                        await window.DashboardApi.endpoints.deleteClusterConfig(ids[i]);
-                    } catch (e) { errors.push(ids[i]); }
+                try {
+                    var resp = await window.DashboardApi.endpoints.batchDeleteClusters(ids);
+                    ClustersModule._showBatchResult(resp, 'batch.deleteSuccess', 'batch.deletePartial');
+                } catch (e) {
+                    window.DashboardModals.showError(e.message || __('api.requestFailed'));
+                } finally {
+                    ClustersModule.clearBatch();
+                    await ClustersModule.loadClusters(true);
                 }
-                ClustersModule.clearBatch();
-                if (errors.length > 0) {
-                    window.DashboardModals.showError(__('index.batchDeletePartial').replace('{failed}', errors.length).replace('{total}', ids.length));
-                } else {
-                    window.DashboardModals.showSuccess(__('index.batchDeleteSuccess'));
-                }
-                await ClustersModule.loadClusters(true);
             }, null, { danger: true }
         );
+    };
+
+    ClustersModule.exportSelected = function() {
+        var ids = ClustersModule._getSelectedIds();
+        if (ids.length === 0) return;
+        var clusters = (window.DashboardState.get('data.clusters') || []).filter(function(c) {
+            return ids.indexOf(c.clusterId) !== -1;
+        });
+        if (clusters.length === 0) { window.DashboardModals.showWarning(__('index.noDataExport')); return; }
+        var headers = ['Cluster ID', 'Display Name', 'Load Balancing', 'Destinations', 'Healthy', 'Source'];
+        var rows = clusters.map(function(c) {
+            return [
+                c.clusterId || '',
+                c.displayName || c.clusterId || '',
+                c.loadBalancingPolicy || 'RoundRobin',
+                (c.destinations || []).length,
+                c.healthyCount || 0,
+                c.source || 'dynamic'
+            ];
+        });
+        window.DashboardUtils.exportCsv('clusters-selected-' + Date.now() + '.csv', headers, rows);
+        window.DashboardModals.showSuccess(__('batch.exportSuccess'));
+    };
+
+    /**
+     * Batch-bind a plugin to all selected clusters via the atomic batch-create endpoint.
+     * Uses the generic schema-driven plugin picker modal.
+     */
+    ClustersModule.batchBindPlugin = function() {
+        var ids = ClustersModule._getSelectedIds();
+        if (ids.length === 0) return;
+        if (window.DashboardBatchPlugin && window.DashboardBatchPlugin.openDialog) {
+            window.DashboardBatchPlugin.openDialog({
+                scope: 'Cluster',
+                scopeIds: ids,
+                scopeLabel: __('batch.scope.cluster'),
+                onDone: function() { ClustersModule.clearBatch(); ClustersModule.loadClusters(true); }
+            });
+        } else {
+            window.DashboardModals.showWarning(__('batch.dialogNotAvailable'));
+        }
     };
 
     ClustersModule.exportCsv = function() {

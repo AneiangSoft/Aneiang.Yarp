@@ -179,4 +179,49 @@ public class ClusterConfigController : ConfigControllerBase
             return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Rename failed", ex) });
         }
     }
+
+    /// <summary>
+    /// Batch delete clusters in one atomic operation. Clusters referenced by any
+    /// route are refused (per-item failure) and left intact.
+    /// </summary>
+    [HttpPost("clusters/batch-delete")]
+    public async Task<IActionResult> BatchDeleteClusters([FromBody] BatchDeleteClustersRequest request)
+    {
+        if (request is null || request.ClusterIds is null || request.ClusterIds.Count == 0)
+            return BadRequest(new { code = 400, message = "clusterIds is required and must be non-empty" });
+
+        try
+        {
+            _logger.LogInformation("Batch delete {Count} cluster(s) requested", request.ClusterIds.Count);
+            await PersistenceService.SaveSnapshotAsync($"Before batch delete {request.ClusterIds.Count} cluster(s) via dashboard", GetClientIp());
+
+            var result = await DynamicConfig.BatchDeleteClustersAsync(request.ClusterIds, "dashboard-user");
+            if (result.Succeeded > 0) InvalidateQueryCaches();
+
+            return Ok(new
+            {
+                code = 200,
+                message = result.Message,
+                data = new
+                {
+                    succeeded = result.Succeeded,
+                    failed = result.Failed,
+                    total = result.Total,
+                    items = result.Items
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to batch delete clusters");
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Batch delete failed", ex) });
+        }
+    }
+}
+
+/// <summary>Request body for batch deleting clusters.</summary>
+public sealed class BatchDeleteClustersRequest
+{
+    /// <summary>Cluster ids to delete.</summary>
+    public List<string> ClusterIds { get; set; } = new();
 }
