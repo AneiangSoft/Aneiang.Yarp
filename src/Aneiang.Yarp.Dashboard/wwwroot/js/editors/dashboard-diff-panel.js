@@ -6,6 +6,18 @@
 
     window.DashboardDiffPanel = {
         /**
+         * i18n helper with fallback (returns fallback when key is missing,
+         * since __() returns the key itself for missing translations).
+         */
+        _t: function(key, fallback, params) {
+            if (window.__ && typeof window.__ === 'function') {
+                var v = window.__(key, params);
+                return (v && v !== key) ? v : fallback;
+            }
+            return fallback;
+        },
+
+        /**
          * Show diff between old and new data
          * @param {Object} oldData - old/snapshot data
          * @param {Object} newData - new/current data (optional, defaults to empty)
@@ -16,13 +28,13 @@
             newData = newData || {};
 
             // Render summary header if provided
-            var title = options.title || __('diff.title') || 'Configuration Diff';
+            var title = options.title || this._t('diff.title', 'Configuration Diff');
             var summaryHtml = '';
             if (options.summary) {
                 summaryHtml = '<div class="alert alert-info small mb-3">' +
                     '<strong>' + (options.summary.description || '') + '</strong><br>' +
-                    '<span class="text-muted">' + (options.summary.routesChanged || 0) + ' route(s), ' +
-                    (options.summary.clustersChanged || 0) + ' cluster(s) changed</span>' +
+                    '<span class="text-muted">' + this._t('diff.routesChanged', '{count} route(s)', { count: (options.summary.routesChanged || 0) }) + ', ' +
+                    this._t('diff.clustersChanged', '{count} cluster(s)', { count: (options.summary.clustersChanged || 0) }) + ' ' + this._t('diff.changed', 'changed') + '</span>' +
                     '</div>';
             }
 
@@ -35,13 +47,13 @@
          */
         showStructured: function(diffData, options) {
             options = options || {};
-            var title = options.title || __('diff.title') || 'Configuration Diff';
+            var title = options.title || this._t('diff.title', 'Configuration Diff');
             var summaryHtml = '';
             if (options.summary) {
                 summaryHtml = '<div class="alert alert-info small mb-3">' +
                     '<strong>' + window.DashboardUtils.escapeHtml(options.summary.description || '') + '</strong><br>' +
-                    '<span class="text-muted">' + (options.summary.routesChanged || 0) + ' route(s), ' +
-                    (options.summary.clustersChanged || 0) + ' cluster(s) changed</span>' +
+                    '<span class="text-muted">' + this._t('diff.routesChanged', '{count} route(s)', { count: (options.summary.routesChanged || 0) }) + ', ' +
+                    this._t('diff.clustersChanged', '{count} cluster(s)', { count: (options.summary.clustersChanged || 0) }) + ' ' + this._t('diff.changed', 'changed') + '</span>' +
                     '</div>';
             }
 
@@ -116,8 +128,8 @@
          */
         render: function(diffs, title, summaryHtml) {
             var modalId = 'diffModal';
-            title = title || __('diff.title') || 'Configuration Diff';
-            
+            title = title || this._t('diff.title', 'Configuration Diff');
+
             // Create modal if not exists
             var modal = document.getElementById(modalId);
             if (!modal) {
@@ -129,13 +141,13 @@
             if (titleEl) titleEl.textContent = title;
 
             var closeBtn = modal.querySelector('.modal-footer .btn-secondary');
-            if (closeBtn) closeBtn.textContent = __('diff.close') || 'Close';
+            if (closeBtn) closeBtn.textContent = this._t('diff.close', 'Close');
 
             var body = modal.querySelector('.modal-body');
-            
+
             var contentHtml = (summaryHtml || '');
             if (diffs.length === 0) {
-                contentHtml += '<div class="alert alert-success">' + (__('diff.noChanges') || 'No changes detected') + '</div>';
+                contentHtml += '<div class="alert alert-success">' + this._t('diff.noChanges', 'No changes detected') + '</div>';
             } else {
                 contentHtml += '<div class="diff-list">';
                 diffs.forEach(function(diff) {
@@ -154,7 +166,7 @@
          */
         _renderStructured: function(diffs, title, summaryHtml) {
             var modalId = 'diffModal';
-            title = title || __('diff.title') || 'Configuration Diff';
+            title = title || this._t('diff.title', 'Configuration Diff');
 
             var modal = document.getElementById(modalId);
             if (!modal) {
@@ -166,13 +178,13 @@
             if (titleEl) titleEl.textContent = title;
 
             var closeBtn = modal.querySelector('.modal-footer .btn-secondary');
-            if (closeBtn) closeBtn.textContent = __('diff.close') || 'Close';
+            if (closeBtn) closeBtn.textContent = this._t('diff.close', 'Close');
 
             var body = modal.querySelector('.modal-body');
             var contentHtml = (summaryHtml || '');
 
             if (diffs.length === 0) {
-                contentHtml += '<div class="alert alert-success">' + (__('diff.noChanges') || 'No changes detected') + '</div>';
+                contentHtml += '<div class="alert alert-success">' + this._t('diff.noChanges', 'No changes detected') + '</div>';
             } else {
                 contentHtml += '<div class="diff-list" style="max-height:60vh;overflow-y:auto;">';
                 diffs.forEach(function(diff) {
@@ -194,13 +206,13 @@
             var className = 'diff-' + diff.type;
             var icon = diff.type === 'added' ? '+' : diff.type === 'removed' ? '-' : '~';
             var labelMap = {
-                'added': __('diff.added') || 'Added',
-                'removed': __('diff.removed') || 'Removed',
-                'modified': __('diff.modified') || 'Modified'
+                'added': this._t('diff.added', 'Added'),
+                'removed': this._t('diff.removed', 'Removed'),
+                'modified': this._t('diff.modified', 'Modified')
             };
             var label = labelMap[diff.type] || diff.type;
-            var oldLabel = __('diff.old') || 'Old';
-            var newLabel = __('diff.new') || 'New';
+            var oldLabel = this._t('diff.old', 'Old');
+            var newLabel = this._t('diff.new', 'New');
 
             var oldValStr = (diff.oldValue != null) ? window.DashboardUtils.escapeHtml(JSON.stringify(diff.oldValue, null, 2)) : '<span class="text-muted">—</span>';
             var newValStr = (diff.newValue != null) ? window.DashboardUtils.escapeHtml(JSON.stringify(diff.newValue, null, 2)) : '<span class="text-muted">—</span>';
@@ -227,8 +239,8 @@
          * Create diff modal HTML
          */
         _createModal: function(modalId) {
-            var title = __('diff.title') || 'Configuration Diff';
-            var closeText = __('diff.close') || 'Close';
+            var title = this._t('diff.title', 'Configuration Diff');
+            var closeText = this._t('diff.close', 'Close');
             
             var modal = document.createElement('div');
             modal.className = 'modal fade';

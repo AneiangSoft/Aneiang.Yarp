@@ -349,13 +349,24 @@ public class GatewayAutoRegistrationClient
     {
         if (string.IsNullOrWhiteSpace(address)) return (address, null);
 
+        // Wildcard host bindings (* and +) are valid Kestrel/ASP.NET Core ways to listen
+        // on all interfaces (both IPv4 and IPv6), but Uri/UriBuilder reject them because
+        // they are not legal DNS names. Normalize to localhost purely for scheme/port
+        // extraction — the original binding semantics are tracked via the wildcard flag
+        // so the "listening on all interfaces" check still runs correctly.
+        var parsedAddress = address;
+        var isWildcardHost = TryNormalizeWildcardHost(ref parsedAddress);
+
         try
         {
-            var uri = new Uri(address);
+            var uri = new Uri(parsedAddress);
             var host = uri.Host;
+            var isLocalOrAny = isWildcardHost ||
+                host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                host.Equals("127.0.0.1") || host.Equals("0.0.0.0") ||
+                host.Equals("::1") || host.Equals("[::1]");
 
-            if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-                host.Equals("127.0.0.1") || host.Equals("0.0.0.0"))
+            if (isLocalOrAny)
             {
                 bool isListeningOnAny = IsListeningOnAnyAddress(uri.Port);
                 var ip = GetLocalIpv4();
@@ -366,9 +377,10 @@ public class GatewayAutoRegistrationClient
                     if (!isListeningOnAny)
                     {
                         var warning = $"Service is listening on localhost only (port {uri.Port}), but registered with LAN IP {ip}. " +
-                            $"Cross-machine access will fail until you configure Kestrel to listen on 0.0.0.0:\n" +
-                            $"  - launchSettings.json: \"applicationUrl\": \"http://0.0.0.0:{uri.Port}\"\n" +
-                            $"  - Or Program.cs: .UseUrls(\"http://0.0.0.0:{uri.Port}\")";
+                            $"Cross-machine access will fail until you configure Kestrel to listen on all interfaces. " +
+                            $"Use a wildcard binding (covers both IPv4 and IPv6) or 0.0.0.0 (IPv4 only):\n" +
+                            $"  - launchSettings.json: \"applicationUrl\": \"http://*:{uri.Port}\" (or http://+:{uri.Port})\n" +
+                            $"  - Or Program.cs: .UseUrls(\"http://*:{uri.Port}\")";
 
                         return (resolved, warning);
                     }
@@ -383,6 +395,41 @@ public class GatewayAutoRegistrationClient
         }
 
         return (address, null);
+    }
+
+    /// <summary>
+    /// Detect Kestrel/ASP.NET Core wildcard host bindings (<c>*</c> and <c>+</c>) in an
+    /// <c>applicationUrl</c>-style value and rewrite the host to <c>localhost</c> so it can be
+    /// parsed by <see cref="Uri"/>. Returns <c>true</c> when a wildcard host was found and
+    /// replaced (the caller then treats the address as "listening on all interfaces").
+    /// Non-wildcard values are returned unchanged with <c>false</c>.
+    /// </summary>
+    /// <param name="address">The URL to normalize; modified in place when a wildcard host is found.</param>
+    /// <returns><c>true</c> if a wildcard host (<c>*</c>/<c>+</c>) was replaced; otherwise <c>false</c>.</returns>
+    private static bool TryNormalizeWildcardHost(ref string address)
+    {
+        // Match "http(s)://*:port..." or "http(s)://+:port..." — the wildcard appears as the host
+        // segment right after the scheme authority prefix. Keep it tight so a literal "*" in a
+        // path/query is never touched.
+        var colonSlash = address.IndexOf("://", StringComparison.OrdinalIgnoreCase);
+        if (colonSlash < 0) return false;
+        var hostStart = colonSlash + 3;
+        if (hostStart >= address.Length) return false;
+
+        var wc = address[hostStart];
+        if (wc != '*' && wc != '+') return false;
+
+        // Ensure the wildcard is the host (followed by ':' or '/' or end), not part of a name.
+        var afterHost = hostStart + 1;
+        if (afterHost < address.Length && address[afterHost] != ':' && address[afterHost] != '/')
+        {
+            return false;
+        }
+
+        var scheme = address.Substring(0, hostStart);
+        var rest = address.Substring(afterHost);
+        address = scheme + "localhost" + rest;
+        return true;
     }
 
     /// <summary>Check if the service is listening on 0.0.0.0 (all interfaces) for the given port.</summary>

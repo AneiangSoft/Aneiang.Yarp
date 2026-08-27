@@ -6,6 +6,17 @@
 
     window.DashboardValidationPanel = {
         /**
+         * i18n helper with fallback (returns fallback when key is missing).
+         */
+        _t: function(key, fallback, params) {
+            if (window.__ && typeof window.__ === 'function') {
+                var v = window.__(key, params);
+                return (v && v !== key) ? v : fallback;
+            }
+            return fallback;
+        },
+
+        /**
          * Show validation results
          */
         show: function(validationResult) {
@@ -42,10 +53,10 @@
          */
         _renderSuccess: function(panel) {
             panel.className = 'validation-panel alert alert-success';
-            panel.innerHTML = 
+            panel.innerHTML =
                 '<div class="d-flex align-items-center">' +
                 '  <i class="bi bi-check-circle me-2"></i>' +
-                '  <strong>Validation passed</strong>' +
+                '  <strong>' + this._t('editor.validationPassed', 'Validation passed') + '</strong>' +
                 '</div>';
         },
 
@@ -54,11 +65,13 @@
          */
         _renderErrors: function(panel, errors) {
             panel.className = 'validation-panel alert alert-danger';
-            
-            var html = 
+
+            var failedText = this._t('editor.validationFailed', 'Validation failed ({count} errors)', { count: errors.length });
+
+            var html =
                 '<div class="d-flex align-items-center mb-2">' +
                 '  <i class="bi bi-exclamation-triangle me-2"></i>' +
-                '  <strong>Validation failed (' + errors.length + ' errors)</strong>' +
+                '  <strong>' + this.escapeHtml(failedText) + '</strong>' +
                 '</div>' +
                 '<div class="validation-errors" style="max-height: 200px; overflow-y: auto;">';
             

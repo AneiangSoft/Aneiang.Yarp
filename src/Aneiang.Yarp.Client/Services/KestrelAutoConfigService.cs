@@ -31,25 +31,27 @@ public class KestrelAutoConfigService
         // Check current listening status
         if (IsListeningOnAnyAddress(port))
         {
-            _logger.LogDebug("Service already listening on 0.0.0.0:{Port}", port);
+            _logger.LogDebug("Service already listening on all interfaces (port {Port})", port);
             return true;
         }
 
 
-        // Not listening on 0.0.0.0, log warning with suggestions
+        // Not listening on all interfaces, log warning with suggestions.
+        // Prefer wildcard bindings (* / +) which cover both IPv4 and IPv6; 0.0.0.0 is IPv4-only.
         _logger.LogWarning(
             "Service is listening on localhost only (port {Port}), other machines cannot access! " +
-            "To enable cross-machine access, configure Kestrel to listen on 0.0.0.0:\n" +
+            "To enable cross-machine access, configure Kestrel to listen on all interfaces. " +
+            "Prefer a wildcard binding (* or +) which covers both IPv4 and IPv6; 0.0.0.0 is IPv4-only:\n" +
             "  Option 1 (Recommended): Add in Program.cs before Build():\n" +
             "    builder.UseYarpKestrelAutoConfig();\n" +
             "  Option 2 - appsettings.json:\n" +
-            "    \"Urls\": \"http://0.0.0.0:{Port1}\"\n" +
+            "    \"Urls\": \"http://*:{Port1}\"  (or http://+:{Port1})\n" +
             "  Option 3 - launchSettings.json:\n" +
-            "    \"applicationUrl\": \"http://0.0.0.0:{Port2}\"\n" +
+            "    \"applicationUrl\": \"http://*:{Port2}\"  (or http://+:{Port2})\n" +
             "  Option 4 - Program.cs:\n" +
-            "    builder.WebHost.UseUrls(\"http://0.0.0.0:{Port3}\")\n" +
+            "    builder.WebHost.UseUrls(\"http://*:{Port3}\")\n" +
             "  Option 5 - Environment variable:\n" +
-            "    ASPNETCORE_URLS=http://0.0.0.0:{Port4}",
+            "    ASPNETCORE_URLS=http://*:{Port4}",
             port, port, port, port, port);
 
         return false;

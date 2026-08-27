@@ -76,13 +76,13 @@
             var formBtn = document.createElement('button');
             formBtn.type = 'button';
             formBtn.className = 'btn btn-sm ' + (this.currentMode === 'form' ? 'btn-primary' : 'btn-outline-primary');
-            formBtn.textContent = 'Form Mode';
+            formBtn.textContent = this._t('modal.formMode', 'Form Mode');
             formBtn.onclick = function() { this.switchMode('form'); }.bind(this);
 
             var jsonBtn = document.createElement('button');
             jsonBtn.type = 'button';
             jsonBtn.className = 'btn btn-sm ' + (this.currentMode === 'json' ? 'btn-primary' : 'btn-outline-primary');
-            jsonBtn.textContent = 'JSON Mode';
+            jsonBtn.textContent = this._t('modal.jsonMode', 'JSON Mode');
             jsonBtn.onclick = function() { this.switchMode('json'); }.bind(this);
 
             toolbar.appendChild(formBtn);
@@ -100,22 +100,22 @@
 
             var validateBtn = document.createElement('button');
             validateBtn.className = 'btn btn-warning';
-            validateBtn.textContent = 'Validate';
+            validateBtn.textContent = this._t('modal.validate', 'Validate');
             validateBtn.onclick = function() { this.validate(); }.bind(this);
 
             var diffBtn = document.createElement('button');
             diffBtn.className = 'btn btn-info';
-            diffBtn.textContent = 'Preview Changes';
+            diffBtn.textContent = this._t('editor.previewChanges', 'Preview Changes');
             diffBtn.onclick = function() { this.showDiff(); }.bind(this);
 
             var saveBtn = document.createElement('button');
             saveBtn.className = 'btn btn-success';
-            saveBtn.textContent = 'Save';
+            saveBtn.textContent = this._t('modal.save', 'Save');
             saveBtn.onclick = function() { this.save(); }.bind(this);
 
             var cancelBtn = document.createElement('button');
             cancelBtn.className = 'btn btn-secondary';
-            cancelBtn.textContent = 'Cancel';
+            cancelBtn.textContent = this._t('modal.cancel', 'Cancel');
             cancelBtn.onclick = function() { this.cancel(); }.bind(this);
 
             actions.appendChild(validateBtn);
@@ -124,6 +124,18 @@
             actions.appendChild(cancelBtn);
 
             return actions;
+        },
+
+        /**
+         * i18n helper with fallback (returns fallback when key is missing,
+         * since __() returns the key itself for missing translations).
+         */
+        _t: function(key, fallback) {
+            if (window.__ && typeof window.__ === 'function') {
+                var v = window.__(key);
+                return (v && v !== key) ? v : fallback;
+            }
+            return fallback;
         },
 
         /**
