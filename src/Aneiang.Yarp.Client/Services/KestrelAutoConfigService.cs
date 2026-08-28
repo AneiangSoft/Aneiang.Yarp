@@ -45,9 +45,9 @@ public class KestrelAutoConfigService
             "  Option 1 (Recommended): Add in Program.cs before Build():\n" +
             "    builder.UseYarpKestrelAutoConfig();\n" +
             "  Option 2 - appsettings.json:\n" +
-            "    \"Urls\": \"http://*:{Port1}\"  (or http://+:{Port1})\n" +
+            "    \"Urls\": \"http://*:{Port1}\"  (or http://+)\n" +
             "  Option 3 - launchSettings.json:\n" +
-            "    \"applicationUrl\": \"http://*:{Port2}\"  (or http://+:{Port2})\n" +
+            "    \"applicationUrl\": \"http://*:{Port2}\"  (or http://+)\n" +
             "  Option 4 - Program.cs:\n" +
             "    builder.WebHost.UseUrls(\"http://*:{Port3}\")\n" +
             "  Option 5 - Environment variable:\n" +

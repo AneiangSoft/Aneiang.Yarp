@@ -261,7 +261,8 @@ public class AIFunctionService
     {
         try
         {
-            var pluginManager = _services.GetService(Type.GetType("Aneiang.Yarp.Plugin.GatewayPluginManager, Aneiang.Yarp.Plugin"));
+            var pluginManagerType = Type.GetType("Aneiang.Yarp.Plugin.GatewayPluginManager, Aneiang.Yarp.Plugin");
+            var pluginManager = pluginManagerType is not null ? _services.GetService(pluginManagerType) : null;
             if (pluginManager != null)
             {
                 var prop = pluginManager.GetType().GetProperty("Manifests") ?? pluginManager.GetType().GetProperty("Plugins");

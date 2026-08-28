@@ -81,7 +81,7 @@ public sealed class CircuitBreakerMiddleware : GatewayMiddlewareBase
         }
 
         var destinationId = proxyFeature?.ProxiedDestination?.DestinationId;
-        var circuitKey = CircuitKeyHelper.BuildCircuitKey(clusterUid, clusterId, destinationId);
+        var circuitKey = CircuitKeyHelper.BuildCircuitKey(clusterId, clusterUid, destinationId);
 
         if (_circuitStore.Count >= MaxCircuitCount && !_circuitStore.ContainsKey(circuitKey))
         {

@@ -6,7 +6,7 @@ namespace Aneiang.Yarp.Plugin.Waf.Helpers;
 
 /// <summary>
 /// Zero-allocation IP matching utilities (exact, CIDR, wildcard).
-/// Extracted from <see cref="Middleware.WafMiddleware"/> for reuse.
+/// Extracted from <see cref="WafMiddleware"/> for reuse.
 /// 
 /// Memory optimization (v2.4): WildcardRegexCache Clear() method added
 /// to allow rebuilding the cache when WAF IP rules change, preventing
