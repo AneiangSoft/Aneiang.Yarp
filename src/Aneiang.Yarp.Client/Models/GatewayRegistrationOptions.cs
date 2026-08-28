@@ -27,6 +27,29 @@ public class GatewayRegistrationOptions
     public string? MatchPath { get; set; }
 
     /// <summary>
+    /// Multiple match paths. When set, one YARP route is created per path (all sharing the same cluster).
+    /// Takes precedence over <see cref="MatchPath"/>. gRPC registration mode only.
+    /// </summary>
+    public List<string>? MatchPaths { get; set; }
+
+    /// <summary>
+    /// Cluster load balancing policy: PowerOfTwoChoices (default) / Random / RoundRobin / LeastRequests.
+    /// gRPC registration mode only.
+    /// </summary>
+    public string? LoadBalancingPolicy { get; set; }
+
+    /// <summary>
+    /// Additional destination addresses (besides the auto-detected local address) added to the same cluster
+    /// for load balancing. gRPC registration mode only.
+    /// </summary>
+    public List<string>? ExtraDestinationAddresses { get; set; }
+
+    /// <summary>
+    /// Custom metadata attached to the registration. gRPC registration mode only.
+    /// </summary>
+    public Dictionary<string, string>? Metadata { get; set; }
+
+    /// <summary>
     /// Destination address, e.g. http://localhost:5001.
     /// Default: auto-detected from Kestrel binding; localhost is auto-resolved to LAN IP.
     /// </summary>

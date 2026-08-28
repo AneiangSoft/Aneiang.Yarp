@@ -16,6 +16,11 @@
             <span class="pr-header-title" data-i18n="pluginResources.title">插件资源</span>
         </div>
         <div class="pr-header-right">
+            <div class="pr-trend-chips" id="pr-trend-chips" data-i18n-title="resources.trendSpan" title="近 5 分钟">
+                <button type="button" class="pr-chip" data-metric="throughput" data-i18n="resources.trendThroughput">吞吐</button>
+                <button type="button" class="pr-chip" data-metric="latency" data-i18n="resources.trendLatency">延迟</button>
+                <button type="button" class="pr-chip" data-metric="errors" data-i18n="resources.trendErrors">错误</button>
+            </div>
             <span id="pr-refresh-time" class="pr-refresh-badge"></span>
             <button class="pr-refresh-btn" onclick="PluginResourcesModule.load()" data-i18n-title="index.btn.refresh" title="刷新" aria-label="刷新">
                 <i class="bi bi-arrow-clockwise"></i>

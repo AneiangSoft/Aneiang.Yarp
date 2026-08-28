@@ -4,7 +4,7 @@
 
 > ⚠️ **预览版本** - 此版本为预发布版本,用于收集反馈和验证稳定性。生产环境请使用正式版 2.3.0.25。
 
-> 插件化架构方案完全落地：插件驱动导航 + Compression 插件 + Redis 分布式限流 + Native Adapter 模块化
+> 插件化架构方案完全落地：插件驱动导航 + Compression 插件 + Redis 分布式限流 + 原生 YARP 配置直编（移除 Native Adapter）
 
 ### 📋 预览版说明
 
@@ -12,11 +12,8 @@
 - 插件化架构完全落地(11个第一方插件)
 - 新增响应压缩插件
 - 新增 Redis 分布式限流插件
-- Native Adapter 模块化重构
-
-**已知问题**:
-- 编译存在 8 个警告(非阻塞性)
-- 需要更多实际场景测试验证
+- 移除 Native Adapter,集群/路由直接编辑原生 YARP JSON 配置(表单/JSON 双模编辑器)
+- 配置应用失败感知与可视化告警
 
 **反馈渠道**:
 - GitHub Issues: https://github.com/aneiangsoft/Aneiang.Yarp/issues
@@ -28,16 +25,36 @@
 - **响应压缩插件**（`Aneiang.Yarp.Plugin.Compression`）：Route 作用域代理管道插件，按 MIME 白名单 + 最小响应尺寸自动启用 Gzip/Brotli 压缩；可配置压缩级别（Optimal/Fastest/NoCompression）；正确设置 Content-Encoding/Vary 头并移除 Content-Length；配套管理页面（`/compression`）与绑定管理
 - **分布式限流插件**（`Aneiang.Yarp.Plugin.RateLimit.Redis`）：基于 Redis Lua 原子脚本实现 FixedWindow/SlidingWindow/TokenBucket 三种算法；多实例网关全局精确限流；429 响应携带 Retry-After 和 X-RateLimit-* 头；通过反射可选加载 StackExchange.Redis（宿主未引用 Redis 时自动降级直通）；配套管理页面（`/rate-limit-redis`）与绑定管理
 - **多 Provider 服务发现确认**：`ServiceDiscoveryRefreshService` 已完整支持 Consul（健康实例过滤）、Nacos（healthyOnly + hosts 解析）、Eureka（JSON + port.$ 格式 + UP 状态过滤）、Kubernetes（ServiceAccount Bearer token + endpoints 解析）、HttpJson、Static 六种模式
+- **表单/JSON 双模配置编辑器**：集群/路由的新增与编辑统一为同一双模弹窗；表单模式由 JSON Schema 驱动，卡片分组渲染（基本信息 + 对象/数组独立卡片），支持 `patternProperties` 动态键对象（如 Destinations）与数组项编辑；JSON 模式带格式化/压缩/校验
+- **配置应用失败感知**：实现 YARP `IConfigChangeListener` 捕获配置重载失败 + 发布前 `IConfigValidator` 预校验，错误经 `IProxyConfigErrorStore` 存储（reload/prevalidate 来源去重，reload 优先）；概览页告警条 + 集群/路由列表页提示条与行内错误标记，可通过 `GET /api/config/apply-errors` 查询
 
 ### 🔧 架构改进
 
-- **Native Adapter 模块化**：`NativePluginAdapters.cs` 从单文件拆分为 `Services/NativeAdapters/` 目录下 11 个独立适配器文件（Timeout/Authorization/Transforms/Cors/Compression/LoadBalancing/HealthCheck/SessionAffinity/HttpClient/HttpRequest + 共享 Helper/Descriptor），原类保留为纯聚合器（Catalog + 验证/编译 API），所有外部引用不受影响
+- **移除 Native Adapter（Plan A 落地）**：删除全部原生插件适配器，集群/路由配置回归 YARP 原生 JSON Schema（`ClusterSchema.json`/`RouteSchema.json`/`ConfigurationSchema.json`）；用户通过双模编辑器直接编辑原生配置，消除适配层的字段覆盖与行为不一致（此前 `allclusterprops` 测试集群暴露的无效 HealthCheck Policy/Affinity 配置即由此显现）
+- **表单模式国际化**：表单/JSON 模式切换、校验面板、配置对比弹窗共 19 个 i18n key（zh-CN + en-US）补齐；修复 `__('key') || 'fallback'` 在键缺失时 fallback 永不生效的问题（`__` 对缺失键返回键名本身）
 - **方案文档执行状态标注**：`docs/plans/route-cluster-plugin-architecture.md` 头部添加全部里程碑执行状态表
 
-### 📝 补充说明
+### 🐛 缺陷修复
+
+- **通配符主机绑定解析**：`launchSettings.json` 的 `applicationUrl` 支持 `http://*:port` / `http://+:port`（Kestrel 双栈通配符绑定）；此前 `new Uri()` 直接抛 `UriFormatException` 导致未解析地址原样注册到网关；通配符现与 `0.0.0.0`/`::1` 同等参与"监听所有网卡"判定与 LAN IP 解析
+- **列表详情行宽度**：集群/路由列表展开详情行与空状态行 `colspan` 与表头列数对齐，修复展开区域宽度不铺满
+
+### � gRPC 注册通道完善（Aneiang.Yarp.Grpc / Aneiang.Yarp.Client）
+
+- **客户端补齐 Phase 2 注册能力**：`GatewayRegistrationOptions` 新增 `MatchPaths`（多路径 → 多路由共享集群）、`LoadBalancingPolicy`（PowerOfTwoChoices/Random/RoundRobin/LeastRequests）、`ExtraDestinationAddresses`（额外目标全部加入集群负载均衡）、`Metadata`（自定义元数据）；gRPC 注册请求完整传递上述字段（此前仅发送单路径/单目标，LB 策略与 metadata 被丢弃）
+- **客户端 SDK 公开查询/更新 API**：新增 `GetServicesAsync`（查询网关已注册服务）与 `UpdateDestinationsAsync`（整体替换集群目标集）公开方法（gRPC 模式专用）
+- **心跳失败自动恢复**：客户端心跳连续失败 3 次后自动触发重新注册（覆盖网关重启丢失动态注册状态场景），成功后心跳继续；gRPC 心跳异常补齐日志
+- **gRPC 注销多路径残留修复**：多路径注册生成的 `{serviceId}-path{N}` 路由此前注销时全部残留；现按服务 ID 精确匹配（含 path 后缀校验）逐一移除
+- **gRPC 心跳兼容多路径**：心跳按 `{serviceId}` 解析不到路由时回退解析 `{serviceId}-path{N}`，多路径注册的心跳不再失效
+- **UpdateDestinations 保留 LB 策略**：gRPC 更新目标集时保留集群已有 LoadBalancingPolicy（此前 `TryAddCluster` 整体覆盖会静默重置为 null）
+
+
+### �📝 补充说明
 
 - **平滑重载设计决策**：进程级蓝绿切换（新进程健康检查后切流量）不适用于库形态（NuGet 嵌入宿主进程），采用进程内热重载（`PluginRuntimeDomainManager` DI 重注册 + 中间件原子重建）；零停机由宿主部署策略（K8s 滚动更新等）承担
 - 新增 i18n key：compression/rateLimitRedis 相关（zh-CN + en-US，core.json + plugins.json）
+- Release 全量编译实测 0 警告 0 错误（此前记录的 8 个警告已消除）；i18n 11 个文件 2334 个键 zh-CN/en-US 完全对齐
+
 
 ## [2.3.0.25] - 2026-07-14
 

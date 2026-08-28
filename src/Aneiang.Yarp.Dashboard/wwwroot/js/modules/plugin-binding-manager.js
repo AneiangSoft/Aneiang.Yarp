@@ -89,63 +89,60 @@
 
                 var html = '';
 
-                // Summary cards
-                html += '<div class="row mb-3">';
-                html += '<div class="col-md-3"><div class="stat-mini-card"><div class="stat-mini-value ' + (enabled ? 'text-success' : 'text-muted') + '"><i class="bi ' + (enabled ? 'bi-check-circle-fill' : 'bi-x-circle') + ' me-1"></i>' + (enabled ? t('common.enabled', 'Enabled') : t('common.disabled', 'Disabled')) + '</div><div class="stat-mini-label">' + t('common.status', 'Status') + '</div></div></div>';
-                html += '<div class="col-md-3"><div class="stat-mini-card"><div class="stat-mini-value">' + esc(plugin ? (plugin.version || '1.0') : '-') + '</div><div class="stat-mini-label">' + t('common.version', 'Version') + '</div></div></div>';
-                html += '<div class="col-md-3"><div class="stat-mini-card"><div class="stat-mini-value">' + bindingCount + '</div><div class="stat-mini-label">' + t('pluginPage.bindingCount', 'Bindings') + '</div></div></div>';
-                html += '<div class="col-md-3"><div class="stat-mini-card"><div class="stat-mini-value">' + (plugin && plugin.isBuiltIn ? t('common.builtIn', 'Built-in') : t('common.external', 'External')) + '</div><div class="stat-mini-label">' + t('common.type', 'Type') + '</div></div></div>';
+                // Compact meta line: status · version · bindings · type, refresh actions at right end
+                html += '<div class="pc-meta-line">';
+                html += '<span class="pc-meta-item' + (enabled ? ' pc-meta-item--ok' : '') + '"><i class="bi bi-' + (enabled ? 'check-circle' : 'x-circle') + '"></i><span class="pc-meta-num">' + (enabled ? t('common.enabled', 'Enabled') : t('common.disabled', 'Disabled')) + '</span></span>';
+                html += '<span class="pc-meta-item"><i class="bi bi-tag"></i><span class="pc-meta-num">v' + esc(plugin ? (plugin.version || '1.0') : '-') + '</span></span>';
+                html += '<span class="pc-meta-item"><i class="bi bi-link-45deg"></i><span class="pc-meta-num">' + bindingCount + '</span><span class="pc-meta-label">' + t('pluginPage.bindingCount', 'Bindings') + '</span></span>';
+                html += '<span class="pc-meta-item"><i class="bi bi-box"></i><span class="pc-meta-label">' + (plugin && plugin.isBuiltIn ? t('common.builtIn', 'Built-in') : t('common.external', 'External')) + '</span></span>';
+                html += '<div class="pc-meta-actions">';
+                html += '<span class="plg-plugin-id" style="font-size:11.5px;">' + scopeLabel + '</span>';
+                html += '<span id="' + refreshTimeId + '" class="refresh-badge"></span>';
+                html += '<button class="pr-refresh-btn" onclick="' + moduleName + '.load()" title="' + t('index.btn.refresh', '刷新') + '"><i class="bi bi-arrow-clockwise"></i></button>';
+                html += '<button class="btn btn-sm btn-success" onclick="' + moduleName + '.openAddModal()"><i class="bi bi-plus-lg me-1"></i>' + t('pluginPage.addBinding', 'Add Binding') + '</button>';
+                html += '</div>';
                 html += '</div>';
 
-                // Description + help text
+                // Help text (single subtle line; description collapses into it)
                 var descText = config.descKey ? t(config.descKey, '') : (config.descText || '');
                 var helpText = config.helpKey ? t(config.helpKey, '') : (config.helpText || '');
-                var titleText = (plugin && plugin.displayName) || (config.titleKey ? t(config.titleKey, '') : '') || (config.titleText || pluginId);
                 if (descText || helpText) {
-                    html += '<div class="alert alert-light border mb-3">';
-                    if (descText) {
-                        html += '<div class="d-flex align-items-start gap-2"><i class="bi ' + icon + ' ' + color + ' fs-5 mt-1"></i><div><div class="fw-semibold">' + esc(titleText) + '</div><div class="small text-muted">' + esc(descText) + '</div></div></div>';
-                    }
-                    if (helpText) {
-                        html += '<hr class="my-2"><div class="d-flex align-items-start gap-2"><i class="bi bi-info-circle text-info fs-6 mt-1"></i><div class="small">' + esc(helpText) + '</div></div>';
-                    }
-                    html += '</div>';
+                    html += '<div class="pc-help-line"><i class="bi bi-info-circle"></i><span>' + esc(helpText || descText) + '</span></div>';
                 }
 
-                // Add button + table header
-                html += '<div class="d-flex justify-content-between align-items-center mb-2">';
-                html += '<h6 class="mb-0"><i class="bi bi-list-ul me-1"></i>' + t('pluginPage.bindings', 'Bindings') + ' (' + scopeLabel + ')</h6>';
-                html += '<button class="btn btn-primary btn-sm" onclick="' + moduleName + '.openAddModal()"><i class="bi bi-plus-lg me-1"></i>' + t('pluginPage.addBinding', 'Add Binding') + '</button>';
-                html += '</div>';
-
-                // Bindings table
-                html += '<div class="table-responsive"><table class="table table-hover align-middle">';
-                html += '<thead><tr><th style="width:200px;">' + scopeLabel + ' ID</th><th>' + t('pluginPage.configSummary', 'Config Summary') + '</th><th style="width:90px;">' + t('common.status', 'Status') + '</th><th style="width:180px;">' + t('common.actions', 'Actions') + '</th></tr></thead><tbody>';
+                // Bindings table (shared plg-table style)
+                html += '<div class="plg-table-wrap"><table class="plg-table"><thead><tr>';
+                html += '<th style="width:220px;">' + scopeLabel + ' ID</th>';
+                html += '<th>' + t('pluginPage.configSummary', 'Config Summary') + '</th>';
+                html += '<th style="width:110px;">' + t('common.status', 'Status') + '</th>';
+                html += '<th class="plg-th-actions">' + t('common.actions', 'Actions') + '</th>';
+                html += '</tr></thead><tbody>';
 
                 if (bindingCount > 0) {
                     bindings.forEach(function(b) {
                         var bindingConfig = parseConfigSafe(b);
                         var summary = summarizeConfigSafe(bindingConfig, pluginId);
                         var isOn = b.enabled;
-                        html += '<tr>';
-                        html += '<td><code class="text-primary">' + esc(b.scopeId || '-') + '</code></td>';
-                        html += '<td><div class="small">' + esc(summary) + '</div></td>';
-                        html += '<td><span class="badge ' + (isOn ? 'bg-success' : 'bg-secondary') + '">' + (isOn ? t('common.enabled', 'Enabled') : t('common.disabled', 'Disabled')) + '</span></td>';
-                        html += '<td>';
-                        html += '<div class="btn-group btn-group-sm">';
-                        html += '<button class="btn btn-outline-primary" title="' + t('pluginPage.editBinding', 'Edit') + '" onclick="' + moduleName + '.openEditModal(' + JSON.stringify(b.id) + ')"><i class="bi bi-pencil"></i></button>';
-                        html += '<button class="btn btn-outline-' + (isOn ? 'warning' : 'success') + '" title="' + (isOn ? t('pluginPage.disable', 'Disable') : t('pluginPage.enable', 'Enable')) + '" onclick="' + moduleName + '.toggleBinding(' + JSON.stringify(b.id) + ')"><i class="bi ' + (isOn ? 'bi-toggle-on' : 'bi-toggle-off') + '"></i></button>';
-                        html += '<button class="btn btn-outline-danger" title="' + t('common.delete', 'Delete') + '" onclick="' + moduleName + '.deleteBinding(' + JSON.stringify(b.id) + ')"><i class="bi bi-trash"></i></button>';
-                        html += '</div>';
+                        var healthColor = isOn ? '#10b981' : '#94a3b8';
+                        html += '<tr' + (isOn ? '' : ' class="plg-row--off"') + '>';
+                        html += '<td><span class="plg-plugin-id" style="font-size:12px;">' + esc(b.scopeId || '-') + '</span></td>';
+                        html += '<td><span class="plg-plugin-id" style="font-size:12px;">' + esc(summary) + '</span></td>';
+                        html += '<td><span class="plg-health" style="color:' + healthColor + ';"><span class="plg-dot" style="background:' + healthColor + ';"></span>' + (isOn ? t('common.enabled', 'Enabled') : t('common.disabled', 'Disabled')) + '</span></td>';
+                        html += '<td class="plg-actions">';
+                        html += '<button class="btn btn-sm btn-outline-primary" title="' + t('pluginPage.editBinding', 'Edit') + '" onclick="' + moduleName + '.openEditModal(' + JSON.stringify(b.id) + ')"><i class="bi bi-pencil"></i></button>';
+                        html += '<button class="btn btn-sm btn-outline-' + (isOn ? 'warning' : 'success') + '" title="' + (isOn ? t('pluginPage.disable', 'Disable') : t('pluginPage.enable', 'Enable')) + '" onclick="' + moduleName + '.toggleBinding(' + JSON.stringify(b.id) + ')"><i class="bi bi-' + (isOn ? 'toggle-on' : 'toggle-off') + '"></i></button>';
+                        html += '<button class="btn btn-sm btn-outline-danger" title="' + t('common.delete', 'Delete') + '" onclick="' + moduleName + '.deleteBinding(' + JSON.stringify(b.id) + ')"><i class="bi bi-trash"></i></button>';
                         html += '</td>';
                         html += '</tr>';
                     });
                 } else {
-                    html += '<tr><td colspan="4" class="text-center text-muted py-5">';
-                    html += '<i class="bi bi-inbox display-4 d-block mb-2 opacity-50"></i>';
+                    html += '<tr><td colspan="4" style="white-space:normal;">';
+                    html += '<div class="pr-empty">';
+                    html += '<i class="bi bi-inbox"></i>';
                     html += '<p class="mb-1">' + t('pluginPage.noBindings', 'No bindings yet') + '</p>';
                     html += '<p class="small mb-2">' + t('pluginPage.noBindingsHint', 'Click "Add Binding" above to bind this plugin to') + ' ' + scopeLabel + '</p>';
                     html += '<button class="btn btn-outline-primary btn-sm" onclick="' + moduleName + '.openAddModal()"><i class="bi bi-plus-lg me-1"></i>' + t('pluginPage.addBinding', 'Add Binding') + '</button>';
+                    html += '</div>';
                     html += '</td></tr>';
                 }
 

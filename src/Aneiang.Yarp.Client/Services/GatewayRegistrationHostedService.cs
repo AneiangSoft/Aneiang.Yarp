@@ -12,6 +12,7 @@ namespace Aneiang.Yarp.Services;
 internal sealed class GatewayRegistrationHostedService : IHostedService
 {
     private readonly GatewayAutoRegistrationClient _client;
+    private readonly Grpc.Net.Client.GrpcChannel _grpcChannel;
     private readonly ILogger<GatewayRegistrationHostedService> _logger;
     private readonly GatewayRegistrationOptions _options;
     private Timer? _heartbeatTimer;
@@ -20,6 +21,14 @@ internal sealed class GatewayRegistrationHostedService : IHostedService
     private const int MinHeartbeatIntervalSeconds = 5;
     private const int MaxHeartbeatIntervalSeconds = 3600;
     private const int DefaultHeartbeatIntervalSeconds = 30;
+
+    /// <summary>
+    /// Consecutive heartbeat failures tolerated before attempting to re-register.
+    /// Covers gateway restarts / lost registrations (e.g. gateway state reset).
+    /// </summary>
+    private const int MaxConsecutiveHeartbeatFailures = 3;
+    private int _consecutiveHeartbeatFailures;
+    private readonly object _heartbeatGate = new();
 
     private static readonly TimeSpan[] RetryDelays =
     {
@@ -32,10 +41,12 @@ internal sealed class GatewayRegistrationHostedService : IHostedService
 
     public GatewayRegistrationHostedService(
         GatewayAutoRegistrationClient client,
+        Grpc.Net.Client.GrpcChannel grpcChannel,
         ILogger<GatewayRegistrationHostedService> logger,
         IOptions<GatewayRegistrationOptions> options)
     {
         _client = client;
+        _grpcChannel = grpcChannel;
         _logger = logger;
         _options = options.Value;
     }
@@ -46,6 +57,12 @@ internal sealed class GatewayRegistrationHostedService : IHostedService
         {
             _logger.LogDebug("Auto-registration disabled (no GatewayUrl configured), skipping");
             return;
+        }
+
+        if (_options.UseGrpcRegistration == true)
+        {
+            _logger.LogInformation("gRPC registration mode: dialing gateway gRPC endpoint {GrpcTarget}",
+                _grpcChannel.Target);
         }
 
         _logger.LogDebug("Auto-registration starting...");
@@ -160,7 +177,34 @@ internal sealed class GatewayRegistrationHostedService : IHostedService
         {
             try
             {
-                await _client.HeartbeatAsync(ct).ConfigureAwait(false);
+                var healthy = await _client.HeartbeatAsync(ct).ConfigureAwait(false);
+                if (healthy)
+                {
+                    Interlocked.Exchange(ref _consecutiveHeartbeatFailures, 0);
+                    return;
+                }
+
+                // Heartbeat failed (gateway unreachable or registration lost).
+                // After too many consecutive failures, re-register to recover
+                // (e.g. the gateway restarted and lost dynamic state).
+                int failures;
+                lock (_heartbeatGate)
+                {
+                    failures = ++_consecutiveHeartbeatFailures;
+                }
+
+                if (failures >= MaxConsecutiveHeartbeatFailures)
+                {
+                    _logger.LogWarning(
+                        "Heartbeat failed {Failures} consecutive times, attempting re-registration...",
+                        failures);
+                    var reRegistered = await _client.RegisterAsync(ct).ConfigureAwait(false);
+                    if (reRegistered)
+                    {
+                        Interlocked.Exchange(ref _consecutiveHeartbeatFailures, 0);
+                        _logger.LogInformation("Re-registration succeeded, heartbeat continues");
+                    }
+                }
             }
             catch (OperationCanceledException)
             {

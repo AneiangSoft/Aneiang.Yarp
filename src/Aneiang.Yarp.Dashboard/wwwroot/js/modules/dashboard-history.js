@@ -149,8 +149,7 @@
             if (!entry) {
                 detail.innerHTML = `
                     <div class="history-detail-header">
-                        <div class="small opacity-75">${__('history.detail.title')}</div>
-                        <h5 class="mb-0">${__('history.detail.select')}</h5>
+                        <i class="bi bi-info-circle me-1 text-muted"></i><span>${__('history.detail.select')}</span>
                     </div>
                     <div class="history-detail-body text-muted">${__('history.detail.empty')}</div>`;
                 return;
@@ -158,11 +157,8 @@
 
             detail.innerHTML = `
                 <div class="history-detail-header">
-                    <div class="d-flex justify-content-between gap-2 align-items-start">
-                        <div>
-                            <div class="small opacity-75">${this.escape(this.typeLabel(entry.changeType))}</div>
-                            <h5 class="mb-0">${this.escape(entry.description || __('history.unnamedSnapshot'))}</h5>
-                        </div>
+                    <div class="d-flex justify-content-between gap-2 align-items-center">
+                        <span class="text-truncate">${this.escape(entry.description || __('history.unnamedSnapshot'))}</span>
                         ${entry.isLatest ? '<span class="badge bg-success">' + __('history.latest') + '</span>' : ''}
                     </div>
                 </div>
@@ -172,18 +168,18 @@
                         <code class="d-block p-2 rounded" style="background:#f8fafc;word-break:break-all;">${this.escape(entry.versionId)}</code>
                     </div>
                     <div class="row g-2 mb-3">
-                        <div class="col-6"><div class="border rounded p-2"><div class="text-muted small">${__('history.routes')}</div><div class="fw-bold fs-5">${entry.routeCount}</div></div></div>
-                        <div class="col-6"><div class="border rounded p-2"><div class="text-muted small">${__('history.clusters')}</div><div class="fw-bold fs-5">${entry.clusterCount}</div></div></div>
+                        <div class="col-6"><div class="border rounded p-2"><div class="text-muted small">${__('history.routes')}</div><div class="fw-bold">${entry.routeCount}</div></div></div>
+                        <div class="col-6"><div class="border rounded p-2"><div class="text-muted small">${__('history.clusters')}</div><div class="fw-bold">${entry.clusterCount}</div></div></div>
                     </div>
                     <div class="small mb-3">
                         <div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted">${__('history.createdTime')}</span><span>${this.formatDate(entry.timestamp)}</span></div>
                         <div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted">${__('history.sourceIp')}</span><span>${this.escape(entry.clientIp || '-')}</span></div>
                         <div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted">${__('history.configSize')}</span><span>${this.formatBytes(entry.configSize)}</span></div>
                     </div>
-                    <div class="d-grid gap-2">
-                        <button class="btn btn-outline-secondary" data-action="copy" data-version="${this.escape(entry.versionId)}"><i class="bi bi-copy me-1"></i>${__('history.copyVersionId')}</button>
-                        <button class="btn btn-outline-info" data-action="diff" data-version="${this.escape(entry.versionId)}"><i class="bi bi-file-diff me-1"></i>${__('history.viewDiff')}</button>
-                        ${entry.isLatest ? '' : '<button class="btn btn-warning" data-action="rollback" data-version="' + this.escape(entry.versionId) + '"><i class="bi bi-arrow-counterclockwise me-1"></i>' + __('history.rollbackToVersion') + '</button>'}
+                    <div class="history-action-bar">
+                        <button class="btn btn-sm btn-outline-secondary" data-action="copy" data-version="${this.escape(entry.versionId)}"><i class="bi bi-copy me-1"></i>${__('history.copyVersionId')}</button>
+                        <button class="btn btn-sm btn-outline-info" data-action="diff" data-version="${this.escape(entry.versionId)}"><i class="bi bi-file-diff me-1"></i>${__('history.viewDiff')}</button>
+                        ${entry.isLatest ? '' : '<button class="btn btn-sm btn-warning" data-action="rollback" data-version="' + this.escape(entry.versionId) + '"><i class="bi bi-arrow-counterclockwise me-1"></i>' + __('history.rollbackToVersion') + '</button>'}
                     </div>
                 </div>`;
         },

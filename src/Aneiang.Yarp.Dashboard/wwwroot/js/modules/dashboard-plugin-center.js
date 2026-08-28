@@ -106,17 +106,10 @@
         var c = entry.config;
         var panel = document.querySelector('.pc-tab-panel[data-plugin="' + entry.id + '"]');
         if (!panel) return;
-        var html = '';
-        html += '<div class="card-panel mb-0">';
-        html += '  <div class="card-header">';
-        html += '    <span><i class="bi ' + c.icon + ' me-2 ' + c.color + '"></i><span>' + (c.titleKey ? t(c.titleKey, entry.label) : entry.label) + '</span></span>';
-        html += '    <div class="card-header-actions">';
-        html += '      <span id="' + c.refreshTimeId + '" class="refresh-badge"></span>';
-        html += '      <button class="btn btn-sm btn-outline-primary btn-icon-only" onclick="PluginCenter.reload(\'' + entry.id + '\')" title="' + t('index.btn.refresh', '刷新') + '" aria-label="' + t('index.btn.refresh', '刷新') + '"><i class="bi bi-arrow-clockwise"></i></button>';
-        html += '    </div>';
-        html += '  </div>';
-        html += '  <div id="' + c.containerId + '" class="card-body"><div class="loading-state"><div class="loading-spinner"></div><div class="loading-text">' + t('common.loading', '加载中...') + '</div></div></div>';
-        html += '</div>';
+        /* No in-panel title or standalone action row: the tab identifies the plugin,
+           and refresh actions live at the right end of the meta line (rendered by
+           PluginBindingManager). */
+        var html = '<div id="' + c.containerId + '"><div class="loading-state"><div class="loading-spinner"></div><div class="loading-text">' + t('common.loading', '加载中...') + '</div></div></div>';
         panel.innerHTML = html;
     }
 

@@ -78,7 +78,8 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
     #region TryAddCluster (basic overload)
 
     public async Task<RouteOperationResult> TryAddCluster(string clusterId, Dictionary<string, string> destinations,
-        string? loadBalancingPolicy, Models.HealthCheckConfig? healthCheck, string source, string? createdBy)
+        string? loadBalancingPolicy, Models.HealthCheckConfig? healthCheck, string source, string? createdBy,
+        Dictionary<string, string>? metadata = null)
     {
         if (string.IsNullOrWhiteSpace(clusterId))
             return new RouteOperationResult(false, "Cluster ID cannot be empty");
@@ -88,16 +89,21 @@ internal class ClusterConfigManager : ConfigManagerBase, IClusterConfigManager
         return await ExecuteWithLockAsync(
             "AddCluster", clusterId, async config =>
         {
+            var dc = config.Clusters.FirstOrDefault(c =>
+                string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+
+            // Update path: keep existing metadata when the caller passes none,
+            // so other registration channels don't wipe gRPC-set metadata.
+            var effectiveMetadata = metadata ?? dc?.Config.Metadata;
+
             var cc = new ClusterConfig
             {
                 ClusterId = clusterId,
                 Destinations = destinations.ToDictionary(d => d.Key, d => new DestinationConfig { Address = d.Value }),
                 LoadBalancingPolicy = loadBalancingPolicy,
-                HealthCheck = DynamicYarpConfigHelpers.BuildClusterHealthCheck(healthCheck)
+                HealthCheck = DynamicYarpConfigHelpers.BuildClusterHealthCheck(healthCheck),
+                Metadata = effectiveMetadata
             };
-
-            var dc = config.Clusters.FirstOrDefault(c =>
-                string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
 
             bool isNew;
             if (dc == null)

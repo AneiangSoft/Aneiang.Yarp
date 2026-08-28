@@ -147,6 +147,24 @@ public static class KestrelExtensions
         // We must NOT call options.ListenAnyIP() here — that would create duplicate bindings.
         // Just return true to signal "configured" so that ConfigureFromAllSources doesn't
         // fall through to Urls/ASPNETCORE_URLS/default ports.
+
+        // However, Kestrel's default protocol for a config-declared cleartext endpoint is
+        // HTTP/1.1 only, and config-bound endpoints do not pick up ConfigureEndpointDefaults
+        // in practice — gRPC calls fail with HTTP_1_1_REQUIRED. To serve gRPC in this mode,
+        // declare a dedicated cleartext endpoint with "Protocols": "Http2", e.g.:
+        //   "Kestrel": { "Endpoints": {
+        //     "Grpc": { "Url": "http://0.0.0.0:5201", "Protocols": "Http2" } } }
+        // Clients then reach it via the default GatewayUrl.Port + 1 offset (or GrpcPort).
+        // The endpoint-defaults upgrade below is kept as a best-effort fallback for hosts
+        // where it does apply; HTTPS endpoints negotiate HTTP/2 via ALPN regardless.
+        options.ConfigureEndpointDefaults(o =>
+        {
+            if (o.Protocols == HttpProtocols.Http1)
+            {
+                o.Protocols = HttpProtocols.Http1AndHttp2;
+            }
+        });
+
         return true;
     }
 

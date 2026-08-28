@@ -39,6 +39,35 @@ internal static class RegistrationOptionsResolver
         return path;
     }
 
+    /// <summary>
+    /// Gets the resolved match paths (gRPC multi-path registration).
+    /// Priority: MatchPaths (non-empty) > single MatchPath. Each path is normalized to start with '/'.
+    /// </summary>
+    public static List<string> GetMatchPaths(GatewayRegistrationOptions options)
+    {
+        var paths = (options.MatchPaths ?? new List<string>())
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p.Trim())
+            .Select(p => p.StartsWith("/") ? p : "/" + p)
+            .ToList();
+
+        if (paths.Count > 0) return paths;
+        return new List<string> { GetMatchPath(options) };
+    }
+
+    /// <summary>Gets the configured extra destination addresses (normalized, may be empty).</summary>
+    public static List<string> GetExtraDestinationAddresses(GatewayRegistrationOptions options)
+    {
+        return (options.ExtraDestinationAddresses ?? new List<string>())
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .Select(a => a.Trim())
+            .ToList();
+    }
+
+    /// <summary>Gets the configured registration metadata (never null).</summary>
+    public static Dictionary<string, string> GetMetadata(GatewayRegistrationOptions options)
+        => options.Metadata ?? new Dictionary<string, string>();
+
     /// <summary>Gets the resolved route order. Default: 50.</summary>
     public static int GetOrder(GatewayRegistrationOptions options) => options.Order ?? int.MaxValue;
 

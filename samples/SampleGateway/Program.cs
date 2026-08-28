@@ -60,6 +60,8 @@ try
 
     // Log startup summary
     var depOptions = app.Services.GetRequiredService<IOptions<DeploymentOptions>>().Value;
+    var grpcEndpoint = depOptions.ResolvedEndpoints.FirstOrDefault(e =>
+        e.EndpointName.Contains("grpc", StringComparison.OrdinalIgnoreCase));
     Console.WriteLine("======================================================");
     Console.WriteLine("  Internal gateway is running");
     Console.WriteLine($"  Mode:               {depOptions.Mode}");
@@ -70,7 +72,9 @@ try
     Console.WriteLine("  Credentials:        admin / demo123");
     Console.WriteLine("  Health:             /health, /ready, /live");
     Console.WriteLine("  Logger:             Serilog");
-    Console.WriteLine("  gRPC:               HTTP/2 enabled");
+    Console.WriteLine(grpcEndpoint != null
+        ? $"  gRPC:               HTTP/2 listening on {grpcEndpoint.IpAddress}:{grpcEndpoint.Port}"
+        : "  gRPC:               HTTP/2 enabled");
     Console.WriteLine("======================================================");
 
     // Auto-launch browser in Development (only when not already opened by IDE).

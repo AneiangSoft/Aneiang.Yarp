@@ -186,8 +186,9 @@ public class DynamicYarpConfigService : IDynamicYarpConfigService, IHostedServic
         => _clusterManager.TryAddClusterConfig(cluster, source, createdBy);
 
     public Task<RouteOperationResult> TryAddCluster(string clusterId, Dictionary<string, string> destinations,
-        string? loadBalancingPolicy = null, Models.HealthCheckConfig? healthCheck = null, string source = "dynamic", string? createdBy = null)
-        => _clusterManager.TryAddCluster(clusterId, destinations, loadBalancingPolicy, healthCheck, source, createdBy);
+        string? loadBalancingPolicy = null, Models.HealthCheckConfig? healthCheck = null, string source = "dynamic", string? createdBy = null,
+        Dictionary<string, string>? metadata = null)
+        => _clusterManager.TryAddCluster(clusterId, destinations, loadBalancingPolicy, healthCheck, source, createdBy, metadata);
 
     public Task<RouteOperationResult> TryAddCluster(CreateClusterRequest request, string source = "dynamic", string? createdBy = null)
         => _clusterManager.TryAddCluster(request, source, createdBy);

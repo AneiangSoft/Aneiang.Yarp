@@ -30,7 +30,8 @@ public interface IDynamicYarpConfigService
     /// <summary>Add or update a cluster with destinations.</summary>
     Task<RouteOperationResult> TryAddCluster(string clusterId, Dictionary<string, string> destinations,
         string? loadBalancingPolicy = null, Models.HealthCheckConfig? healthCheck = null,
-        string source = "dynamic", string? createdBy = null);
+        string source = "dynamic", string? createdBy = null,
+        Dictionary<string, string>? metadata = null);
 
     /// <summary>Add a new cluster from a creation request.</summary>
     Task<RouteOperationResult> TryAddCluster(CreateClusterRequest request, string source = "dynamic", string? createdBy = null);

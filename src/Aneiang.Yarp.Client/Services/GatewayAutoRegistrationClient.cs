@@ -115,7 +115,7 @@ public class GatewayAutoRegistrationClient
         {
             if (useGrpcRegistration)
             {
-                return await RegisterWithGrpcAsync(routeName, clusterName, matchPath, destinationAddress, ct).ConfigureAwait(false);
+                return await RegisterWithGrpcAsync(routeName, clusterName, destinationAddress, ct).ConfigureAwait(false);
             }
 
             using var http = _httpClientFactory.CreateClient();
@@ -256,28 +256,45 @@ public class GatewayAutoRegistrationClient
     private async Task<bool> RegisterWithGrpcAsync(
         string routeName,
         string clusterName,
-        string matchPath,
         string destinationAddress,
         CancellationToken ct)
     {
         try
         {
-            var callOptions = BuildGrpcCallOptions(ct);
-            var response = await _grpcClient.RegisterServiceAsync(new RegisterServiceRequest
+            // Phase 2 contract: multi-path (one route per path, shared cluster),
+            // multi-destination (all join the cluster for load balancing),
+            // load balancing policy and metadata.
+            var paths = RegistrationOptionsResolver.GetMatchPaths(_options);
+            var extraDestinations = RegistrationOptionsResolver.GetExtraDestinationAddresses(_options);
+            var metadata = RegistrationOptionsResolver.GetMetadata(_options);
+
+            var request = new RegisterServiceRequest
             {
                 ServiceId = routeName,
                 ServiceName = clusterName,
-                Paths = { matchPath },
-                Destinations =
+                LoadBalancing = MapLoadBalancingPolicy(_options.LoadBalancingPolicy)
+            };
+            request.Paths.AddRange(paths);
+            request.Metadata.Add(metadata);
+
+            request.Destinations.Add(new Destination
+            {
+                DestinationId = "d1",
+                Address = destinationAddress,
+                Enabled = true
+            });
+            for (int i = 0; i < extraDestinations.Count; i++)
+            {
+                request.Destinations.Add(new Destination
                 {
-                    new Destination
-                    {
-                        DestinationId = "d1",
-                        Address = destinationAddress,
-                        Enabled = true
-                    }
-                }
-            }, callOptions).ConfigureAwait(false);
+                    DestinationId = $"d{i + 2}",
+                    Address = extraDestinations[i],
+                    Enabled = true
+                });
+            }
+
+            var callOptions = BuildGrpcCallOptions(ct);
+            var response = await _grpcClient.RegisterServiceAsync(request, callOptions).ConfigureAwait(false);
 
             if (response.Success)
             {
@@ -293,6 +310,22 @@ public class GatewayAutoRegistrationClient
             _logger.LogWarning(ex, "gRPC registration RPC error: {Status}", ex.Status);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Map a load balancing policy name (case-insensitive) to the proto enum.
+    /// Unknown/null values fall back to PowerOfTwoChoices (proto default).
+    /// </summary>
+    private static GatewayRegistry.LoadBalancingPolicy MapLoadBalancingPolicy(string? policy)
+    {
+        return policy?.Trim().ToLowerInvariant() switch
+        {
+            "random" => GatewayRegistry.LoadBalancingPolicy.Random,
+            "roundrobin" or "round_robin" => GatewayRegistry.LoadBalancingPolicy.RoundRobin,
+            "leastrequests" or "least_requests" => GatewayRegistry.LoadBalancingPolicy.LeastRequests,
+            "poweroftwochoices" or "power_of_two_choices" => GatewayRegistry.LoadBalancingPolicy.PowerOfTwoChoices,
+            _ => GatewayRegistry.LoadBalancingPolicy.PowerOfTwoChoices
+        };
     }
 
     private void ApplyAuthHeaders(HttpClient http)
@@ -499,8 +532,9 @@ public class GatewayAutoRegistrationClient
 
                     return grpcResponse.Success;
                 }
-                catch (RpcException)
+                catch (RpcException ex)
                 {
+                    _logger.LogWarning(ex, "gRPC heartbeat RPC error: {Status}", ex.Status);
                     return false;
                 }
             }
@@ -520,6 +554,82 @@ public class GatewayAutoRegistrationClient
         }
         catch
         {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Query services registered on the gateway via gRPC (requires <c>UseGrpcRegistration</c>).
+    /// Returns null when gRPC registration mode is disabled or the call fails.
+    /// </summary>
+    public async Task<IReadOnlyList<ServiceInfo>?> GetServicesAsync(bool activeOnly = false, CancellationToken ct = default)
+    {
+        if (_options.UseGrpcRegistration != true)
+        {
+            _logger.LogDebug("GetServicesAsync is only available in gRPC registration mode");
+            return null;
+        }
+
+        try
+        {
+            var callOptions = BuildGrpcCallOptions(ct);
+            var response = await _grpcClient.GetServicesAsync(new GetServicesRequest
+            {
+                ActiveOnly = activeOnly
+            }, callOptions).ConfigureAwait(false);
+
+            return response.Services.ToList();
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogWarning(ex, "gRPC GetServices RPC error: {Status}", ex.Status);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Update the destinations of this service's cluster on the gateway via gRPC
+    /// (requires <c>UseGrpcRegistration</c>). Pass the full destination set — it replaces the existing one.
+    /// </summary>
+    public async Task<bool> UpdateDestinationsAsync(IReadOnlyList<string> addresses, CancellationToken ct = default)
+    {
+        if (_options.UseGrpcRegistration != true)
+        {
+            _logger.LogWarning("UpdateDestinationsAsync is only available in gRPC registration mode");
+            return false;
+        }
+
+        if (addresses == null || addresses.Count == 0)
+        {
+            _logger.LogWarning("UpdateDestinationsAsync requires at least one address");
+            return false;
+        }
+
+        try
+        {
+            var clusterName = RegistrationOptionsResolver.GetClusterName(_options);
+            var request = new UpdateDestinationsRequest { ServiceId = clusterName };
+            for (int i = 0; i < addresses.Count; i++)
+            {
+                if (string.IsNullOrWhiteSpace(addresses[i])) continue;
+                request.Destinations.Add(new Destination
+                {
+                    DestinationId = $"d{i + 1}",
+                    Address = addresses[i].Trim(),
+                    Enabled = true
+                });
+            }
+
+            var callOptions = BuildGrpcCallOptions(ct);
+            var response = await _grpcClient.UpdateDestinationsAsync(request, callOptions).ConfigureAwait(false);
+
+            if (!response.Success)
+                _logger.LogWarning("gRPC UpdateDestinations failed: {Message}", response.Message);
+            return response.Success;
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogWarning(ex, "gRPC UpdateDestinations RPC error: {Status}", ex.Status);
             return false;
         }
     }

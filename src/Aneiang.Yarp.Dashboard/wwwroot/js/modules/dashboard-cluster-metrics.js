@@ -26,12 +26,14 @@
 
         render: function(plugin, clusters, container) {
             var enabled = plugin && plugin.enabled;
+            var clusterCount = Array.isArray(clusters) ? clusters.length : 0;
             var html = '';
-            html += '<div class="row mb-3">';
-            html += '<div class="col-md-3"><div class="stat-mini-card"><div class="stat-mini-value ' + (enabled ? 'text-success' : 'text-muted') + '">' + (enabled ? __('common.enabled') : __('common.disabled')) + '</div><div class="stat-mini-label">' + __('common.status') + '</div></div></div>';
-            html += '<div class="col-md-3"><div class="stat-mini-card"><div class="stat-mini-value">' + (plugin ? plugin.version || '1.0' : '-') + '</div><div class="stat-mini-label">' + __('common.version') + '</div></div></div>';
-            html += '<div class="col-md-3"><div class="stat-mini-card"><div class="stat-mini-value">' + (Array.isArray(clusters) ? clusters.length : 0) + '</div><div class="stat-mini-label">' + __('clusterMetrics.totalClusters') + '</div></div></div>';
-            html += '<div class="col-md-3"><div class="stat-mini-card"><div class="stat-mini-value">' + (plugin && plugin.isBuiltIn ? __('common.builtIn') : __('common.external')) + '</div><div class="stat-mini-label">' + __('common.type') + '</div></div></div>';
+            // Compact meta line: status · version · clusters · type
+            html += '<div class="pc-meta-line">';
+            html += '<span class="pc-meta-item' + (enabled ? ' pc-meta-item--ok' : '') + '"><i class="bi bi-' + (enabled ? 'check-circle' : 'x-circle') + '"></i><span class="pc-meta-num">' + (enabled ? __('common.enabled') : __('common.disabled')) + '</span></span>';
+            html += '<span class="pc-meta-item"><i class="bi bi-tag"></i><span class="pc-meta-num">v' + (plugin ? plugin.version || '1.0' : '-') + '</span></span>';
+            html += '<span class="pc-meta-item"><i class="bi bi-diagram-3"></i><span class="pc-meta-num">' + clusterCount + '</span><span class="pc-meta-label">' + __('clusterMetrics.totalClusters') + '</span></span>';
+            html += '<span class="pc-meta-item"><i class="bi bi-box"></i><span class="pc-meta-label">' + (plugin && plugin.isBuiltIn ? __('common.builtIn') : __('common.external')) + '</span></span>';
             html += '</div>';
             html += '<div class="table-responsive"><table class="table table-hover"><thead><tr><th>' + __('clusterMetrics.clusterId') + '</th><th>' + __('clusterMetrics.destCount') + '</th><th>' + __('clusterMetrics.healthStatus') + '</th><th>' + __('clusterMetrics.loadBalancing') + '</th></tr></thead><tbody>';
             if (Array.isArray(clusters) && clusters.length > 0) {

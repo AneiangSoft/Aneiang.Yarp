@@ -76,12 +76,17 @@ public class GatewayRegistryGrpcService : GatewayGrpc.GatewayRegistryBase
         // Register the cluster with all destinations
         if (routeIds.Count > 0)
         {
+            var metadata = request.Metadata.Count > 0
+                ? request.Metadata.ToDictionary(kv => kv.Key, kv => kv.Value)
+                : null;
+
             var clusterResult = await _dynamicConfigService.TryAddCluster(
                 clusterName,
                 destinations,
                 loadBalancingPolicy,
                 source: "grpc",
-                createdBy: "grpc-client");
+                createdBy: "grpc-client",
+                metadata: metadata);
 
             if (!clusterResult.Success)
             {
@@ -110,13 +115,37 @@ public class GatewayRegistryGrpcService : GatewayGrpc.GatewayRegistryBase
     {
         try
         {
-            var routeName = string.IsNullOrWhiteSpace(request.ServiceId) ? "grpc-service" : request.ServiceId;
-            var result = await _dynamicConfigService.TryRemoveRoute(routeName);
+            var serviceId = string.IsNullOrWhiteSpace(request.ServiceId) ? "grpc-service" : request.ServiceId;
 
+            // Multi-path registration creates routes named "{serviceId}" (single path)
+            // or "{serviceId}-path{N}" (one per path). Remove them all; TryRemoveRoute
+            // already cleans up the cluster when the last referencing route is removed.
+            var routeNames = FindServiceRouteNames(serviceId);
+            if (routeNames.Count == 0)
+            {
+                return new UnregisterServiceResponse
+                {
+                    Success = false,
+                    Message = $"Route '{serviceId}' not found"
+                };
+            }
+
+            var removed = new List<string>();
+            var failed = new List<string>();
+            foreach (var name in routeNames)
+            {
+                var result = await _dynamicConfigService.TryRemoveRoute(name);
+                if (result.Success) removed.Add(name);
+                else failed.Add($"[{name}] {result.Message}");
+            }
+
+            var success = failed.Count == 0;
             return new UnregisterServiceResponse
             {
-                Success = result.Success,
-                Message = result.Message
+                Success = success,
+                Message = success
+                    ? $"Removed {removed.Count} route(s): {string.Join(", ", removed)}"
+                    : string.Join("; ", failed)
             };
         }
         catch (Exception ex)
@@ -130,13 +159,17 @@ public class GatewayRegistryGrpcService : GatewayGrpc.GatewayRegistryBase
     {
         try
         {
-            var routeName = string.IsNullOrWhiteSpace(request.ServiceId) ? "grpc-service" : request.ServiceId;
-            var updated = _dynamicConfigService.UpdateHeartbeat(routeName);
+            var serviceId = string.IsNullOrWhiteSpace(request.ServiceId) ? "grpc-service" : request.ServiceId;
+
+            // Resolve the route name: "{serviceId}" when present, otherwise any
+            // "{serviceId}-path{N}" route created by multi-path registration.
+            var routeName = ResolveHeartbeatRouteName(serviceId);
+            var updated = routeName != null && _dynamicConfigService.UpdateHeartbeat(routeName);
 
             return Task.FromResult(new HeartbeatResponse
             {
                 Success = updated,
-                Message = updated ? "heartbeat" : $"Route '{routeName}' not found",
+                Message = updated ? "heartbeat" : $"Route '{serviceId}' not found",
                 NextHeartbeat = DateTimeOffset.UtcNow.AddSeconds(30).ToUnixTimeSeconds()
             });
         }
@@ -145,6 +178,67 @@ public class GatewayRegistryGrpcService : GatewayGrpc.GatewayRegistryBase
             _logger.LogError(ex, "gRPC Heartbeat exception for ServiceId={ServiceId}", request.ServiceId);
             return Task.FromResult(new HeartbeatResponse { Success = false, Message = $"Error: {ex.Message}" });
         }
+    }
+
+    /// <summary>
+    /// Find all route names belonging to a service: the exact "{serviceId}" route and any
+    /// "{serviceId}-path{N}" routes created by multi-path registration.
+    /// </summary>
+    private List<string> FindServiceRouteNames(string serviceId)
+    {
+        var names = new List<string>();
+        var config = _dynamicConfigService.GetDynamicConfig();
+        if (config == null) return names;
+
+        foreach (var route in config.Routes)
+        {
+            var routeId = route.Config.RouteId;
+            if (string.IsNullOrWhiteSpace(routeId)) continue;
+
+            if (routeId.Equals(serviceId, StringComparison.OrdinalIgnoreCase) ||
+                IsMultiPathRouteName(routeId, serviceId))
+            {
+                names.Add(routeId);
+            }
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// Resolve a route name usable for heartbeat: the exact "{serviceId}" route, or the first
+    /// "{serviceId}-path{N}" route when multi-path registration was used. Returns null when none exist.
+    /// </summary>
+    private string? ResolveHeartbeatRouteName(string serviceId)
+    {
+        var config = _dynamicConfigService.GetDynamicConfig();
+        if (config == null) return null;
+
+        foreach (var route in config.Routes)
+        {
+            var routeId = route.Config.RouteId;
+            if (string.IsNullOrWhiteSpace(routeId)) continue;
+            if (routeId.Equals(serviceId, StringComparison.OrdinalIgnoreCase))
+                return routeId;
+        }
+
+        foreach (var route in config.Routes)
+        {
+            var routeId = route.Config.RouteId;
+            if (string.IsNullOrWhiteSpace(routeId)) continue;
+            if (IsMultiPathRouteName(routeId, serviceId))
+                return routeId;
+        }
+
+        return null;
+    }
+
+    /// <summary>Checks whether "{routeId}" is a multi-path child route of "{serviceId}" (i.e. "{serviceId}-path{N}").</summary>
+    private static bool IsMultiPathRouteName(string routeId, string serviceId)
+    {
+        return routeId.Length > serviceId.Length + 5 &&
+            routeId.StartsWith(serviceId + "-path", StringComparison.OrdinalIgnoreCase) &&
+            int.TryParse(routeId[(serviceId.Length + 5)..], out _);
     }
 
     public override Task<GetServicesResponse> GetServices(GetServicesRequest request, ServerCallContext context)
@@ -193,6 +287,12 @@ public class GatewayRegistryGrpcService : GatewayGrpc.GatewayRegistryBase
                         }
                     }
 
+                    if (cluster?.Config.Metadata != null)
+                    {
+                        foreach (var kv in cluster.Config.Metadata)
+                            serviceInfo.Metadata[kv.Key] = kv.Value;
+                    }
+
                     services.Add(serviceInfo);
                 }
             }
@@ -228,9 +328,17 @@ public class GatewayRegistryGrpcService : GatewayGrpc.GatewayRegistryBase
                     d => string.IsNullOrWhiteSpace(d.DestinationId) ? $"dest-{Guid.NewGuid():N}" : d.DestinationId,
                     d => d.Address);
 
+            // Preserve the cluster's existing load balancing policy — TryAddCluster
+            // overwrites the whole cluster config, so passing null would silently reset it.
+            var existingCluster = _dynamicConfigService.GetDynamicConfig()
+                ?.Clusters.FirstOrDefault(c => string.Equals(c.Config.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase));
+            var loadBalancingPolicy = existingCluster?.Config.LoadBalancingPolicy;
+
             var result = await _dynamicConfigService.TryAddCluster(
                 clusterId,
                 destinations,
+                loadBalancingPolicy,
+                healthCheck: null,
                 source: "grpc",
                 createdBy: "grpc-client");
 

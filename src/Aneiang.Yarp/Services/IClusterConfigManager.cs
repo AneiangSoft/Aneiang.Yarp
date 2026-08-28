@@ -15,7 +15,8 @@ internal interface IClusterConfigManager
 
     /// <summary>Add or update a cluster with destinations dictionary.</summary>
     Task<RouteOperationResult> TryAddCluster(string clusterId, Dictionary<string, string> destinations,
-        string? loadBalancingPolicy, Models.HealthCheckConfig? healthCheck, string source, string? createdBy);
+        string? loadBalancingPolicy, Models.HealthCheckConfig? healthCheck, string source, string? createdBy,
+        Dictionary<string, string>? metadata = null);
 
     /// <summary>Add a new cluster from a creation request.</summary>
     Task<RouteOperationResult> TryAddCluster(CreateClusterRequest request, string source, string? createdBy);

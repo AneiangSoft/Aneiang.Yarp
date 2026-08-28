@@ -4,28 +4,23 @@
 }
 
 <style>
-    /* ── Plugin Center Tab Bar ── */
+    /* ── Plugin Center Tab Bar (flat pills) ── */
     .pc-tabs-bar {
         display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
-        padding: 8px 12px; margin-bottom: 16px;
-        background: var(--card-bg, #fff);
-        border: 1px solid var(--border-color, #e2e8f0);
-        border-radius: 10px;
-        box-shadow: 0 1px 3px rgba(0,0,0,.04);
+        padding: 10px 0;
+        margin-bottom: 4px;
+        border-top: 1px solid var(--border-color, #e2e8f0);
+        border-bottom: 1px solid var(--border-color, #e2e8f0);
     }
     .pc-tab-group-label {
         font-size: 11px; font-weight: 600; color: #94a3b8;
-        text-transform: uppercase; letter-spacing: .05em;
-        padding: 4px 8px; white-space: nowrap;
-    }
-    .pc-tab-divider {
-        width: 1px; height: 24px; background: var(--border-color, #e2e8f0);
-        margin: 0 4px;
+        letter-spacing: .05em;
+        padding: 4px 10px 4px 0; white-space: nowrap;
     }
     .pc-tab-btn {
-        display: inline-flex; align-items: center; gap: 4px;
-        padding: 6px 12px; font-size: 13px; font-weight: 500;
-        border: 1px solid transparent; border-radius: 8px;
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 5px 12px; font-size: 12.5px; font-weight: 500;
+        border: 1px solid transparent; border-radius: 6px;
         background: transparent; color: var(--text-secondary, #64748b);
         cursor: pointer; transition: all .15s; white-space: nowrap;
     }
@@ -38,9 +33,16 @@
         color: var(--primary-color, #4f46e5);
         border-color: var(--primary-border, #c7d2fe);
     }
-    .pc-tab-btn i { font-size: 14px; }
+    .pc-tab-btn i { font-size: 13px; }
     .pc-tab-panel { min-height: 200px; }
     .pc-feature-config { margin-top: 16px; }
+    /* Meta line right-end actions (refresh + add), no standalone row */
+    .pc-meta-actions {
+        display: flex; align-items: center; gap: 8px;
+        margin-left: auto;
+    }
+    .pc-meta-actions .refresh-badge { font-size: 11px; color: #a8b3c5; }
+    /* pc-meta-line / pc-help-line / pc-panel-head: shared, defined in _DashboardLayout */
     @@media (max-width: 768px) {
         .pc-tabs-bar { overflow-x: auto; flex-wrap: nowrap; }
         .pc-tab-group-label { display: none; }

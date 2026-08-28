@@ -96,7 +96,10 @@ public class EndpointRouterMiddleware
     }
 
     private bool IsDashboardPath(string path) =>
-        path.StartsWith(_dashPrefix, StringComparison.OrdinalIgnoreCase) ||
+        // Segment-boundary match: "/aneiang" or "/aneiang/...", so unrelated paths like
+        // the gRPC service path "/aneiang.yarp.v1.GatewayRegistry/..." are not captured.
+        string.Equals(path, _dashPrefix, StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith(_dashPrefix + "/", StringComparison.OrdinalIgnoreCase) ||
         path.StartsWith(ContentRoot, StringComparison.OrdinalIgnoreCase) ||
         path.StartsWith(SignalRPrefix, StringComparison.OrdinalIgnoreCase);
 

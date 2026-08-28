@@ -76,72 +76,19 @@
             return '#64748b';
         },
 
-        healthBadge: function(health) {
-            var value = health || 'Unknown';
-            var badge = value === 'Healthy' ? 'bg-success'
-                : value === 'Disabled' || value === 'Stopped' ? 'bg-secondary'
-                : value === 'Degraded' || value === 'Starting' || value === 'Stopping' ? 'bg-warning text-dark'
-                : 'bg-danger';
-            return '<span class="badge ' + badge + '">' + window.DashboardUtils.escapeHtml(value) + '</span>';
-        },
-
-        renderDeclaredResources: function(resources) {
-            if (!resources || resources.length === 0) return '<span class="text-muted">' + __('plugin.resourcesNone') + '</span>';
-            return resources.map(function(resource) {
-                var capacity = resource.capacity ? ' (' + window.DashboardUtils.escapeHtml(resource.capacity) + ')' : '';
-                return '<span class="badge bg-light text-dark border me-1 mb-1">' + window.DashboardUtils.escapeHtml(resource.type) + capacity + '</span>';
-            }).join('');
-        },
-
-        renderRuntimeResources: function(resources) {
-            var self = this;
-            if (!resources || resources.length === 0) return '<span class="text-muted">' + __('plugin.resourcesNone') + '</span>';
-            return resources.map(function(resource) {
-                var status = resource.health || (resource.running ? 'Healthy' : 'Stopped');
-                var statistics = Object.entries(resource.statistics || {}).map(function(entry) {
-                    return window.DashboardUtils.escapeHtml(entry[0]) + '=' + window.DashboardUtils.escapeHtml(entry[1]);
-                }).join(', ');
-                return '<div class="border rounded p-2 mb-1">' +
-                    '<div class="d-flex justify-content-between align-items-center gap-2"><code>' + window.DashboardUtils.escapeHtml(resource.resourceId) + '</code>' + self.healthBadge(status) + '</div>' +
-                    '<div class="small text-muted">' + window.DashboardUtils.escapeHtml(resource.resourceType) +
-                    (resource.message ? ' · ' + window.DashboardUtils.escapeHtml(resource.message) : '') +
-                    (statistics ? ' · ' + statistics : '') + '</div></div>';
-            }).join('');
-        },
-
         render: function(data, container) {
             window.DashboardDOM.clear(container);
 
+            var self = this;
             var plugins = Array.isArray(data) ? data : (data && data.plugins) || [];
             this.plugins = plugins;
             var enabledCount = plugins.filter(function(p) { return p.enabled; }).length;
-            var externalCount = plugins.filter(function(p) { return p.registrationStatus; }).length;
-
-            var installBtn = '';
 
             var summaryHtml =
-                '<div class="d-flex justify-content-between align-items-center mb-3">' +
-                    '<div class="row g-3 flex-grow-1">' +
-                        '<div class="col-md-4">' +
-                            '<div class="stat-mini-card">' +
-                                '<div class="stat-mini-value">' + plugins.length + '</div>' +
-                                '<div class="stat-mini-label">' + this._t('plugin.totalShort', 'Total') + '</div>' +
-                            '</div>' +
-                        '</div>' +
-                        '<div class="col-md-4">' +
-                            '<div class="stat-mini-card">' +
-                                '<div class="stat-mini-value text-success">' + enabledCount + '</div>' +
-                                '<div class="stat-mini-label">' + __('plugin.enabled') + '</div>' +
-                            '</div>' +
-                        '</div>' +
-                        '<div class="col-md-4">' +
-                            '<div class="stat-mini-card">' +
-                                '<div class="stat-mini-value text-secondary">' + (plugins.length - enabledCount) + '</div>' +
-                                '<div class="stat-mini-label">' + __('plugin.disabled') + '</div>' +
-                            '</div>' +
-                        '</div>' +
-                    '</div>' +
-                    '<div class="ms-3">' + installBtn + '</div>' +
+                '<div class="pc-meta-line">' +
+                    '<span class="pc-meta-item"><i class="bi bi-grid-fill"></i><span class="pc-meta-num">' + plugins.length + '</span><span class="pc-meta-label">' + this._t('plugin.totalShort', 'Total') + '</span></span>' +
+                    '<span class="pc-meta-item pc-meta-item--ok"><i class="bi bi-check-circle"></i><span class="pc-meta-num">' + enabledCount + '</span><span class="pc-meta-label">' + __('plugin.enabled') + '</span></span>' +
+                    '<span class="pc-meta-item' + ((plugins.length - enabledCount) > 0 ? ' pc-meta-item--warn' : '') + '"><i class="bi bi-x-circle"></i><span class="pc-meta-num">' + (plugins.length - enabledCount) + '</span><span class="pc-meta-label">' + __('plugin.disabled') + '</span></span>' +
                 '</div>';
 
             if (plugins.length === 0) {
@@ -154,108 +101,91 @@
                 return;
             }
 
-            var cards = plugins.map(function(plugin) {
-                var icon = this.getPluginIcon(plugin.pluginId);
-                var color = this.getPluginColor(plugin.pluginId);
+            var rows = plugins.map(function(plugin) {
+                var icon = self.getPluginIcon(plugin.pluginId);
+                var color = self.getPluginColor(plugin.pluginId);
                 var localizedName = plugin.displayName || plugin.pluginId;
-                var localizedDesc = plugin.description || '-';
-                var enabledBadge = plugin.enabled
-                    ? '<span class="badge bg-success">' + __('plugin.enabled') + '</span>'
-                    : '<span class="badge bg-secondary">' + __('plugin.disabled') + '</span>';
                 var health = plugin.healthProbe?.status || plugin.health;
                 var healthMessage = plugin.healthProbe?.message;
 
-                // Registration status badge for external plugins
-                var regBadge = '';
-                if (plugin.registrationStatus) {
-                    var regStatus = plugin.registrationStatus;
-                    var regBadgeClass = regStatus === 'Active' || regStatus === 'Discovered' ? 'bg-info text-dark'
-                        : regStatus === 'InvalidManifest' || regStatus === 'LoadFailed' ? 'bg-danger'
-                        : 'bg-warning text-dark';
-                    regBadge = '<span class="badge ' + regBadgeClass + '" title="' + window.DashboardUtils.escapeHtml(plugin.registrationError || '') + '">' +
-                        '<i class="bi bi-box-seam me-1"></i>' + window.DashboardUtils.escapeHtml(regStatus) + '</span>';
+                // Row tooltip: description + health message + registration error + declared/runtime resources
+                var tips = [plugin.description || localizedName];
+                if (healthMessage) tips.push(healthMessage);
+                if (plugin.registrationError) tips.push(plugin.registrationError);
+                var declared = (plugin.declaredResources || []).map(function(r) {
+                    return r.type + (r.capacity ? '(' + r.capacity + ')' : '');
+                });
+                if (declared.length) tips.push(self._t('plugin.declaredResources', 'Declared resources') + ': ' + declared.join(', '));
+                (plugin.runtimeResources || []).forEach(function(resource) {
+                    var status = resource.health || (resource.running ? 'Healthy' : 'Stopped');
+                    var stats = Object.entries(resource.statistics || {}).map(function(e) { return e[0] + '=' + e[1]; }).join(', ');
+                    tips.push(resource.resourceId + ' [' + status + ']' + (stats ? ' ' + stats : ''));
+                });
+                if (plugin.bindingTargets && plugin.bindingTargets.length) {
+                    tips.push(self._t('plugin.boundTo', 'Bound to') + ': ' + plugin.bindingTargets.join(', '));
                 }
-
-                // Binding targets
-                var bindingHtml = '';
-                if (plugin.bindingTargets && plugin.bindingTargets.length > 0) {
-                    bindingHtml = '<div class="small mt-1">' +
-                        '<i class="bi bi-diagram-3 me-1 text-muted"></i>' +
-                        '<span class="text-muted">' + this._t('plugin.boundTo', 'Bound to') + ': </span>' +
-                        plugin.bindingTargets.map(function(target) {
-                            return '<span class="badge bg-light text-dark border me-1">' + window.DashboardUtils.escapeHtml(target) + '</span>';
-                        }).join('') +
-                        '</div>';
+                if (plugin.dependencies && plugin.dependencies.length) {
+                    tips.push(self._t('plugin.dependencies', 'Dependencies') + ': ' + plugin.dependencies.join(', '));
                 }
+                var rowTitle = window.DashboardUtils.escapeHtml(tips.join(' · '));
 
-                // Dependencies
-                var depsHtml = '';
-                if (plugin.dependencies && plugin.dependencies.length > 0) {
-                    depsHtml = '<div class="small mt-1">' +
-                        '<i class="bi bi-link-45deg me-1 text-muted"></i>' +
-                        '<span class="text-muted">' + this._t('plugin.dependencies', 'Dependencies') + ': </span>' +
-                        plugin.dependencies.map(function(dep) {
-                            return '<span class="badge bg-light text-dark border me-1">' + window.DashboardUtils.escapeHtml(dep) + '</span>';
-                        }).join('') +
-                        '</div>';
-                }
-
-                var resourceHtml = '<div class="row g-3 mt-2 pt-2 border-top">' +
-                    '<div class="col-lg-6"><div class="small fw-semibold mb-1">' + __('plugin.declaredResources') + '</div>' + this.renderDeclaredResources(plugin.declaredResources) + '</div>' +
-                    '<div class="col-lg-6"><div class="small fw-semibold mb-1">' + __('plugin.runtimeResources') + '</div>' + this.renderRuntimeResources(plugin.runtimeResources) + '</div>' +
-                    '</div>';
+                // Action buttons: toggle + external lifecycle (upgrade/uninstall)
                 var toggleClass = plugin.enabled ? 'btn-outline-danger' : 'btn-outline-success';
-                var toggleIcon = plugin.enabled ? 'bi-toggle-on text-success' : 'bi-toggle-off text-secondary';
+                var toggleIcon = plugin.enabled ? 'bi-toggle-on' : 'bi-toggle-off';
                 var toggleLabel = plugin.enabled ? __('plugin.toggleOff') : __('plugin.toggleOn');
-
-                // External plugin lifecycle buttons
-                var lifecycleBtns = '';
+                var actions = '<button class="btn btn-sm ' + toggleClass + '" ' +
+                    'onclick="PluginModule.togglePlugin(\'' + window.DashboardUtils.escapeHtml(plugin.pluginId) + '\', ' + !plugin.enabled + ')" title="' + toggleLabel + '">' +
+                    '<i class="bi ' + toggleIcon + '"></i></button>';
                 if (plugin.registrationStatus) {
-                    lifecycleBtns =
-                        '<button class="btn btn-sm btn-outline-warning d-flex align-items-center gap-1" ' +
-                        'onclick="PluginModule.showUpgradeDialog(\'' + window.DashboardUtils.escapeHtml(plugin.pluginId) + '\')" title="' + this._t('plugin.upgrade', 'Upgrade') + '" ' + (plugin.enabled ? 'disabled' : '') + '>' +
+                    actions +=
+                        '<button class="btn btn-sm btn-outline-warning" ' +
+                        'onclick="PluginModule.showUpgradeDialog(\'' + window.DashboardUtils.escapeHtml(plugin.pluginId) + '\')" title="' + self._t('plugin.upgrade', 'Upgrade') + '" ' + (plugin.enabled ? 'disabled' : '') + '>' +
                         '<i class="bi bi-arrow-up-circle"></i></button>' +
-                        '<button class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1" ' +
-                        'onclick="PluginModule.uninstallPlugin(\'' + window.DashboardUtils.escapeHtml(plugin.pluginId) + '\')" title="' + this._t('plugin.uninstall', 'Uninstall') + '" ' + (plugin.enabled ? 'disabled' : '') + '>' +
+                        '<button class="btn btn-sm btn-outline-danger" ' +
+                        'onclick="PluginModule.uninstallPlugin(\'' + window.DashboardUtils.escapeHtml(plugin.pluginId) + '\')" title="' + self._t('plugin.uninstall', 'Uninstall') + '" ' + (plugin.enabled ? 'disabled' : '') + '>' +
                         '<i class="bi bi-trash"></i></button>';
                 }
 
-                return '<div class="card-panel mb-3" style="border-left: 4px solid ' + color + ';">' +
-                    '<div class="card-body">' +
-                        '<div class="d-flex align-items-start gap-3">' +
-                            '<div class="flex-shrink-0" style="width:48px;height:48px;background:' + color + '15;border-radius:12px;display:flex;align-items:center;justify-content:center;">' +
-                                '<i class="bi ' + icon + '" style="font-size:24px;color:' + color + ';"></i>' +
-                            '</div>' +
-                            '<div class="flex-grow-1">' +
-                                '<div class="d-flex align-items-center gap-2 mb-1 flex-wrap">' +
-                                    '<strong>' + window.DashboardUtils.escapeHtml(localizedName) + '</strong>' +
-                                    enabledBadge + this.healthBadge(health) + regBadge +
-                                '</div>' +
-                                '<div class="text-muted small mb-1"><code>' + window.DashboardUtils.escapeHtml(plugin.pluginId) + '</code>' +
-                                    (plugin.bindingCount > 0 ? ' · <i class="bi bi-link me-1"></i>' + plugin.bindingCount : '') +
-                                '</div>' +
-                                '<div class="text-muted small">' + window.DashboardUtils.escapeHtml(localizedDesc) + '</div>' +
-                                (healthMessage ? '<div class="small text-danger mt-1">' + window.DashboardUtils.escapeHtml(healthMessage) + '</div>' : '') +
-                                (plugin.registrationError ? '<div class="small text-danger mt-1"><i class="bi bi-exclamation-triangle me-1"></i>' + window.DashboardUtils.escapeHtml(plugin.registrationError) + '</div>' : '') +
-                                bindingHtml + depsHtml +
-                            '</div>' +
-                            '<div class="flex-shrink-0 d-flex flex-column align-items-end gap-2">' +
-                                '<span class="badge bg-light text-dark border">' +
-                                    '<i class="bi bi-tag me-1"></i>v' + window.DashboardUtils.escapeHtml(plugin.version || '1.0') + '</span>' +
-                                '<div class="d-flex gap-1">' +
-                                    '<button class="btn btn-sm ' + toggleClass + ' d-flex align-items-center gap-1" onclick="PluginModule.togglePlugin(\'' + window.DashboardUtils.escapeHtml(plugin.pluginId) + '\', ' + !plugin.enabled + ')" title="' + toggleLabel + '">' +
-                                        '<i class="bi ' + toggleIcon + '"></i>' +
-                                    '</button>' +
-                                    lifecycleBtns +
-                                '</div>' +
+                // Registration badge for external plugins
+                var regBadge = '';
+                if (plugin.registrationStatus) {
+                    var regStatus = plugin.registrationStatus;
+                    var regBadgeClass = regStatus === 'Active' || regStatus === 'Discovered' ? 'plg-reg--ok'
+                        : regStatus === 'InvalidManifest' || regStatus === 'LoadFailed' ? 'plg-reg--err'
+                        : 'plg-reg--warn';
+                    regBadge = '<span class="plg-reg ' + regBadgeClass + '" title="' + window.DashboardUtils.escapeHtml(plugin.registrationError || '') + '">' +
+                        window.DashboardUtils.escapeHtml(regStatus) + '</span>';
+                }
+
+                var healthColor = health === 'Healthy' ? '#10b981'
+                    : health === 'Disabled' || health === 'Stopped' ? '#94a3b8'
+                    : health === 'Degraded' || health === 'Starting' || health === 'Stopping' ? '#f59e0b'
+                    : health === 'Faulted' ? '#ef4444' : '#94a3b8';
+
+                return '<tr' + (plugin.enabled ? '' : ' class="plg-row--off"') + ' title="' + rowTitle + '">' +
+                    '<td><div class="plg-cell-plugin">' +
+                        '<span class="plg-icon" style="background:' + color + '15;color:' + color + ';"><i class="bi ' + icon + '"></i></span>' +
+                        '<div>' +
+                            '<div class="plg-name">' + window.DashboardUtils.escapeHtml(localizedName) + ' ' + regBadge + '</div>' +
+                            '<div class="plg-plugin-id">' + window.DashboardUtils.escapeHtml(plugin.pluginId) +
+                                ' · v' + window.DashboardUtils.escapeHtml(plugin.version || '1.0') +
+                                (plugin.bindingCount > 0 ? ' · <i class="bi bi-link"></i> ' + plugin.bindingCount : '') +
                             '</div>' +
                         '</div>' +
-                        resourceHtml +
-                    '</div>' +
-                '</div>';
-            }.bind(this)).join('');
+                    '</div></td>' +
+                    '<td><span class="plg-health" style="color:' + healthColor + ';">' +
+                        '<span class="plg-dot" style="background:' + healthColor + ';"></span>' +
+                        window.DashboardUtils.escapeHtml(health || '-') + '</span></td>' +
+                    '<td class="plg-actions">' + actions + '</td>' +
+                '</tr>';
+            }).join('');
 
-            container.innerHTML = summaryHtml + cards;
+            container.innerHTML = summaryHtml +
+                '<div class="plg-table-wrap"><table class="plg-table"><thead><tr>' +
+                    '<th><i class="bi bi-puzzle me-1"></i>' + __('plugin.title') + '</th>' +
+                    '<th><i class="bi bi-activity me-1"></i>' + __('plugin.colHealth', '健康状态') + '</th>' +
+                    '<th class="plg-th-actions"></th>' +
+                '</tr></thead><tbody>' + rows + '</tbody></table></div>';
         },
 
         togglePlugin: function(pluginId, enable) {

@@ -65,26 +65,12 @@
                 else if (state === 'HalfOpen') halfOpenCount++;
             });
 
+            // Compact meta line: closed · open · half-open
             var summaryHtml =
-                '<div class="row mb-3">' +
-                    '<div class="col-md-4">' +
-                        '<div class="stat-mini-card">' +
-                            '<div class="stat-mini-value text-success">' + closedCount + '</div>' +
-                            '<div class="stat-mini-label">' + __('circuit.healthy') + '</div>' +
-                        '</div>' +
-                    '</div>' +
-                    '<div class="col-md-4">' +
-                        '<div class="stat-mini-card">' +
-                            '<div class="stat-mini-value text-danger">' + openCount + '</div>' +
-                            '<div class="stat-mini-label">' + __('circuit.tripped') + '</div>' +
-                        '</div>' +
-                    '</div>' +
-                    '<div class="col-md-4">' +
-                        '<div class="stat-mini-card">' +
-                            '<div class="stat-mini-value text-warning">' + halfOpenCount + '</div>' +
-                            '<div class="stat-mini-label">' + __('circuit.recovering') + '</div>' +
-                        '</div>' +
-                    '</div>' +
+                '<div class="pc-meta-line">' +
+                    '<span class="pc-meta-item pc-meta-item--ok"><i class="bi bi-check-circle"></i><span class="pc-meta-num">' + closedCount + '</span><span class="pc-meta-label">' + __('circuit.healthy') + '</span></span>' +
+                    '<span class="pc-meta-item' + (openCount > 0 ? ' pc-meta-item--danger' : '') + '"><i class="bi bi-x-circle"></i><span class="pc-meta-num">' + openCount + '</span><span class="pc-meta-label">' + __('circuit.tripped') + '</span></span>' +
+                    '<span class="pc-meta-item' + (halfOpenCount > 0 ? ' pc-meta-item--warn' : '') + '"><i class="bi bi-arrow-repeat"></i><span class="pc-meta-num">' + halfOpenCount + '</span><span class="pc-meta-label">' + __('circuit.recovering') + '</span></span>' +
                 '</div>';
 
             if (entries.length === 0) {
