@@ -4,7 +4,7 @@
     <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <IsPackable>false</IsPackable>
+    <Description>Rate limiting plugin for Aneiang.Yarp gateway: per-route and per-client request throttling.</Description>
   </PropertyGroup>
 
   <ItemGroup>

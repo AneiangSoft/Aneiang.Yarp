@@ -4,7 +4,7 @@
     <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <IsPackable>false</IsPackable>
+    <Description>Service discovery plugin for Aneiang.Yarp gateway: destination resolution from registry.</Description>
   </PropertyGroup>
 
   <ItemGroup>

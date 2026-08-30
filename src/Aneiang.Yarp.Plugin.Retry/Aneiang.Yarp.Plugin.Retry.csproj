@@ -4,7 +4,7 @@
     <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <IsPackable>false</IsPackable>
+    <Description>Retry plugin for Aneiang.Yarp gateway: per-route retry policies with backoff.</Description>
   </PropertyGroup>
 
   <ItemGroup>

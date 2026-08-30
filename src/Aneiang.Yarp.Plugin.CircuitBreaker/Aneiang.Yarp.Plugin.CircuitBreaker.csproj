@@ -4,7 +4,7 @@
     <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <IsPackable>false</IsPackable>
+    <Description>Circuit breaker plugin for Aneiang.Yarp gateway: failure isolation and recovery.</Description>
   </PropertyGroup>
 
   <ItemGroup>
