@@ -1,9 +1,13 @@
 <div align="center">
-<img src="Logo.png" alt="LOGO" width="240" style="border-radius: 15px;"/>
+<img src="cover-en.png" alt="Aneiang.Yarp — The reverse proxy & API gateway for .NET" width="100%"/>
+
+<br/>
+
+<img src="logo.png" alt="Aneiang.Yarp" width="240" style="border-radius: 15px;"/>
 
 **Aneiang.Yarp — Full-featured API Gateway powered by YARP**
 
-Dashboard · Dynamic Routing · WAF · AI Assistant · 2FA · Notifications · IP Isolation · Auto-Registration
+Plugin Architecture · Dashboard · Dynamic Routing · WAF · Service Discovery · AI Assistant · 2FA · IP Isolation
 
 [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp)
 [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard)
@@ -18,553 +22,243 @@ Dashboard · Dynamic Routing · WAF · AI Assistant · 2FA · Notifications · I
 
 ---
 
-**Aneiang.Yarp** is an enhanced, production-ready API gateway built on [Microsoft YARP](https://microsoft.github.io/reverse-proxy/) 2.3.0. It adds everything YARP leaves for you to build: a visual management dashboard, WAF firewall, AI assistant, notification alerts, health monitoring, circuit breaker views, client auto-registration, IP-based load balancing — all through three NuGet packages.
+**Aneiang.Yarp** is a production-ready API gateway built on [Microsoft YARP](https://microsoft.github.io/reverse-proxy/) 2.3.0. It ships with everything you'd otherwise build yourself: a **plugin architecture** (11 built-in plugins), a visual **management dashboard**, WAF, AI assistant, multi-provider **service discovery**, notifications, health & circuit-breaker monitoring, and **one-line client auto-registration**.
 
-> **Docs**：https://yarp.aneiang.com
-
-> **Live Demo**: https://yarp-test.aneiang.com/aneiang &nbsp;·&nbsp; `admin` / `demo123`
-
-> **Online proxy address (site and proxy port are isolated)**: https://yarp-proxy.aneiang.com
+[📖 Documentation](https://yarp.aneiang.com/docs/index.html#overview) · [🚀 Live Demo](https://yarp-test.aneiang.com/aneiang) `admin` / `demo123` · [🌐 Online Proxy](https://yarp-proxy.aneiang.com)
 
 ---
 
-## Packages
+## Aneiang.Yarp vs. Bare YARP
 
-| Package | Purpose | Depends on YARP |
-|:--------|:--------|:---:|
-| **Aneiang.Yarp** | Gateway core: dynamic routing, config persistence, API auth, IP-based LB | ✅ |
-| **Aneiang.Yarp.Dashboard** | Web admin UI: full CRUD, WAF, AI assistant (Function Calling), 2FA, notifications, health check, circuit breakers, audit log | via core |
-| **Aneiang.Yarp.Client** | Client SDK: one-liner auto-register / unregister on startup and shutdown | ❌ |
-| **Aneiang.Yarp.Storage.Abstractions** | Storage interfaces & entities (8 repository interfaces) | ❌ |
-| **Aneiang.Yarp.Storage.Sqlite** | SQLite implementation with SQLCipher AES-256 encryption | via abstractions |
-| **Aneiang.Yarp.Grpc** | gRPC registration protocol (GatewayRegistry.proto) | ❌ |
+| Need | Bare YARP | Aneiang.Yarp |
+|:-----|:----------|:-------------|
+| Management UI | Build your own | ✅ Included |
+| Edit config at runtime | Reload file only | ✅ CRUD + form/JSON editor + rollback + audit |
+| Security (WAF) | None | ✅ WAF plugin (IP allow/deny, SQLi, XSS, path traversal) |
+| Microservice registration | None | ✅ One-line REST/gRPC + heartbeat recovery |
+| Observability | Logging only | ✅ Metrics, request logs, health, circuit-breaker panel |
+| Service discovery | Manual clusters | ✅ Consul / Nacos / Eureka / K8s / HTTP-JSON / Static |
+| AI assistant | None | ✅ Chat-based management (40 tools, read/write split) |
+| Extensibility | Custom middleware | ✅ Drop-in `IGatewayPlugin` framework |
+
+---
+
+## Architecture
 
 ```
-Aneiang.Yarp.Dashboard
-  └── Aneiang.Yarp
-        ├── Aneiang.Yarp.Client
-        ├── Aneiang.Yarp.Grpc
-        └── Aneiang.Yarp.Storage.Abstractions
-              └── Aneiang.Yarp.Storage.Sqlite
-
-Client microservice → reference Aneiang.Yarp.Client only (zero YARP SDK)
-Gateway project     → reference Aneiang.Yarp + Aneiang.Yarp.Dashboard
+                   +-----------------------------------------------------------+
+                   |                 Aneiang.Yarp Gateway (YARP 2.3.0)          |
+ +-------------+   |   +------------------+  +-------------------------------+  |
+ |  5+ clients  |   |   |  Web Dashboard   |  |  Management API + gRPC host   |  |
+ |  (browsers/   |   |   |  Routes/Plugins  |  |  Client auto-registration     |  |
+ |   apps)       |-->|   |  WAF / AI / 2FA  |  |                               |  |
+ +-------------+   |   +--------+----------+  +--------------+----------------+  |
+                   |            +------------------------------------------------+ |
+                   |            |                                                  |
+                   |   +--------v---------+                                    | |
+                   |   |  Plugin Pipeline（11 built-in plugins）                     | |
+                   |   |  WAF → RateLimit → Retry → CircuitBreaker →            | |
+                   |   |  Compression → Cache → Metrics → ProxyLog              | |
+                   |   +--------+---------+                                    | |
+                   |            +------------------------------------------------+ |
+                   |            |                                                  |
+                   |   +--------v---------+   +-------------------------------+  |
+                   |   |  YARP Reverse Proxy | → | Target services / clusters |  |
+                   |   |  (dynamic routes)  |   |  (via Service Discovery)    |  |
+                   |   +--------+---------+   +-------------------------------+  |
+                   |            |
+                   |   +--------v--------+
+                   |   |  Storage: SQLite (SQLCipher AES-256) |
+                   +-----------------------------------------------------------+
 ```
 
 ---
 
-## Dashboard
+## Highlights
 
-A full-featured web admin panel — **two lines of code** to enable:
+- **Plugin architecture** — everything is a plugin; 11 first-party plugins provide WAF, rate limiting, retry, circuit breaking, compression, caching, metrics and more. Bring your own `IGatewayPlugin` in minutes.
+- **Visual dashboard** — clusters, routes, plugins, WAF, health, circuit breakers, logs, notifications, audit trail and config history in one place.
+- **Runtime dynamic routing** — create / edit clusters & routes without restarting; auto-persists and auto-recovers on restart.
+- **Native YARP config editing** — dual-mode **form + JSON** editor that works directly on the standard YARP schema.
+- **Multi-provider service discovery** — Consul, Nacos, Eureka, Kubernetes, HTTP-JSON, Static.
+- **One-line client registration** — microservices register on startup and unregister on shutdown over REST or gRPC, with heartbeat self-healing.
+- **AI assistant** — manage the gateway by chat; 40 Function-Calling tools with a strict read/write permission split.
+- **Flexible deployment** — `Auto` / `AllInOne` / `Split` / `ProxyOnly` / `DashboardOnly` with role-based endpoints.
+
+---
+
+## Quick Start
+
+### Minimal
+
+```bash
+dotnet add package Aneiang.Yarp
+dotnet add package Aneiang.Yarp.Dashboard
+dotnet add package Aneiang.Yarp.Storage.Sqlite
+```
 
 ```csharp
+// Program.cs — Gateway
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddAneiangYarp();
+builder.Services.AddAneiangStorage();
 builder.Services.AddAneiangYarpDashboard();
-// ...
-app.UseAneiangYarpDashboard();
+
+var app = builder.Build();
+app.UseAneiangYarpDashboard();   // includes MapReverseProxy
+app.Run();
 ```
 
-<p align="center">
-  <img src="docs/overview.png" alt="Dashboard Overview" width="800"/>
-</p>
+Dashboard: `http://localhost:5000/apigateway`
 
-### All 15 Dashboard Pages
+**Microservice** — auto-registers on startup, no extra code:
 
-| Group | Page | Description |
-|:------|:-----|:------------|
-| **Overview** | Overview | Active routes & clusters count, traffic QPS summary, cluster health quick preview, recent change timeline |
-| **Gateway** | Clusters | Create, edit, delete clusters with destinations, configure active/passive health checks, `HttpRequest` & `HttpClient` settings |
-| | Routes | Manage routes with transforms, metadata (`Waf:Enabled` per-route), drag-and-drop priority ordering, `CorsPolicy` config |
-| **Monitoring** | Statistics | Request volume trends, P50/P90/P99 latency percentiles, HTTP status distribution pie chart, top routes ranking |
-| | Logs | Real-time log stream (WebSocket) + history (TraceID-paired request/response merged view), filter by route/status/TraceID, sensitive data sanitization, sampling & errors-only mode |
-| | Circuits | Per-cluster/destination circuit breaker status: Closed (green) / Open (red) / HalfOpen (yellow), consecutive failures vs threshold, recovery countdown, one-click reset |
-| | Notifications | Manage webhook channels (DingTalk bot / generic HTTP), configure event rules (per-type toggle + cooldown), view notification history |
-| | Health Check | Cluster-level health overview table, drill-down per destination showing real-time health status, last check time & result |
-| **Security** | WAF Firewall | IP whitelist/blacklist (exact IP / CIDR / wildcard), SQL injection, XSS, path traversal detection, request size limits, security response headers |
-| | Policies | Traffic policies: create, edit, enable, disable, reorder — supports retry, timeout, rate limit, request transform |
-| | Plugins | View all registered `IGatewayPlugin` plugins, plugin metadata & load order |
-| **System** | Config History | Auto-snapshot before every change, view full content of any snapshot, one-click rollback to any version |
-| | Audit Log | Full audit trail: operation type, target, operator, before/after JSON diff, precise timestamp |
-| | Deployment | Current deployment mode (AllInOne/Split/ProxyOnly/DashboardOnly), listening endpoints (name/address/port/role/public status), health check endpoints & security warnings |
-| | Settings | Auth mode switching, JWT key config, AI config, log settings (sampling rate/sanitize list/body length limit), one-click database download, language switch |
-
----
-
-## Core Features
-
-### Dynamic Routing
-
-YARP requires `appsettings.json` + restart for route changes. Aneiang.Yarp adds full runtime management:
-
-- **Dual-source config**: static (`appsettings.json`) + dynamic (API / Dashboard), merged in YARP's `InMemoryConfigProvider`
-- **Auto-persistence**: dynamic changes auto-save to `gateway-dynamic.json`, survive restarts
-- **Source tracking**: every route & cluster records `CreatedAt`, `CreatedBy`, `Source` metadata
-- **Thread-safe**: all operations protected by `SemaphoreSlim(1,1)` — async-friendly concurrency
-
-### WAF Firewall
-
-Production-grade web application firewall built into the gateway — no external service needed.
-
-| Protection | Details |
-|:-----------|:--------|
-| **IP Blacklist / Whitelist** | Exact IP, CIDR (`192.168.1.0/24`), wildcard. Whitelist takes priority. Regex-cached for performance. |
-| **SQL Injection** | Two precompiled regex patterns (keywords + injection values) with 5ms ReDoS timeout |
-| **XSS** | Detects `<script>`, `javascript:`, event handler injection |
-| **Path Traversal** | `../` variants, URL-encoded attacks, double-encoding |
-| **Request Limits** | Max body size (default 10MB), max header count, max header size, URI length (4096) |
-| **Security Headers** | Auto-inject `X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `Referrer-Policy`, CSP |
-| **Per-Route Control** | Enable/disable WAF per route via YARP metadata `Waf:Enabled` |
-
-All WAF blocks are recorded in proxy logs, viewable in the Logs page with route and time filtering.
-
-### Notification & Alerting
-
-Multi-channel alerting for production incidents:
-
-- **Webhook channels**: configure endpoints, timeout, retry counts
-- **Event-based rules**: per-type toggle — circuit breaker open, retry exhausted, WAF block, proxy error, rate limit exceeded, config changes
-- **Alert cooldown**: prevent duplicate alerts within cooldown window
-- **Queue-based dispatch**: `ConfigChangeEventDispatcher` (BackgroundService) drains `ConcurrentQueue<PendingNotification>` at 200ms intervals
-- **Notification history**: persisted to database, filterable by event type
-
-### Health Check Monitoring
-
-- Active & passive health check configuration per cluster
-- Real-time health score and unhealthy destination drill-down
-- `DefaultHealthCheckService`: auto-applys passive health checks at startup
-
-### Circuit Breaker Panel
-
-- Live status per cluster/destination: **Closed · Open · HalfOpen**
-- Shows consecutive failures, threshold, recovery timeout countdown, opened-at time
-- One-click reset all circuit breakers
-
-### Client Auto-Registration
-
-Microservices auto-register on startup, auto-unregister on shutdown — **truly one line**:
+```bash
+dotnet add package Aneiang.Yarp.Client
+```
 
 ```csharp
 builder.Services.AddAneiangYarpClient();
 ```
 
 ```json
-{
-  "Gateway": {
-    "Registration": {
-      "GatewayUrl": "http://192.168.1.100:5000"
-    }
-  }
-}
+{ "Gateway": { "Registration": { "GatewayUrl": "http://localhost:5000" } } }
 ```
 
-**Smart defaults** — only `GatewayUrl` is required:
-
-| Option | Default | Description |
-|:-------|:--------|:------------|
-| `RouteName` | Entry assembly name | e.g. `MyAuthService` |
-| `ClusterName` | Same as RouteName | |
-| `MatchPath` | `/{**catch-all}` | Match all paths |
-| `DestinationAddress` | Kestrel bind address | Auto-detected, `localhost` → LAN IP |
-| `Order` | `50` | Route priority |
-
-**Protocols**: HTTP REST API + gRPC (auto port = HTTP port + 1, Kestrel HTTP/2 h2c)
-
-**Auth**: Bearer token, Basic auth, API key
-
-**Retry**: exponential backoff on startup registration failure (2s → 4s → 8s → 16s → 30s, up to 5 attempts)
-
-> `Aneiang.Yarp.Client` has **zero YARP dependency** — only `Microsoft.AspNetCore.App`. Clean dependency footprint for microservices.
-
-### IP Isolation Load Balancing
-
-Unique feature for **multi-developer debugging**. Each developer runs the same service locally — the gateway routes by client IP. The frontend is completely unaware.
-
-```
-Dev A (192.168.1.10) → POST /api/user → Gateway → 192.168.1.10:5001
-Dev B (192.168.1.20) → POST /api/user → Gateway → 192.168.1.20:5001
-Other users          → POST /api/user → Gateway → First available
-```
-
-```json
-{
-  "Gateway": {
-    "Registration": {
-      "GatewayUrl": "http://localhost:5000",
-      "RouteName": "my-service",
-      "MatchPath": "/api/my-service/{**catch-all}",
-      "UseIpIsolation": true
-    }
-  }
-}
-```
-
-Implementation: custom `IpBasedLoadBalancingPolicy` matches request source IP (via `X-Forwarded-For` or `RemoteIpAddress`) against destination metadata.
-
-### Configuration Management
-
-- **Import / Export**: one-click export full YARP config. Import with automatic validation, snapshot, and persistence
-- **Snapshot & Rollback**: auto-snapshot before every config change, rollback to any point in one click
-- **Audit Log**: full trail — operation type, target, operator, before/after JSON diff, timestamp
-- **SQLCipher Encryption**: database files encrypted at rest with AES-256 (`Data Source=gateway-store.db;Password=xxx`)
-- **Database Download**: one-click download SQLite file for local inspection with DB tools
-
-### Request Logging
-
-`YarpRequestCaptureMiddleware` captures request data before forwarding and response data on return:
-
-- **Full capture**: HTTP method, full URL, request/response headers, request/response body, elapsed time, TraceId
-- **Real-time push**: WebSocket endpoint pushes logs to Dashboard in real time — no manual refresh needed
-- **History with TraceID pairing**: `ProxyRequest` and `ProxyResponse` are auto-paired by TraceID and displayed as a merged row, showing the complete request → forward → response data flow
-- **Sanitization**: `LogHeaderBlacklist` masks sensitive headers (`Authorization`, `Cookie`, etc.), `LogJsonFieldSanitizeList` recursively masks JSON fields (`password`, `token`, etc.)
-- **Sampling & filtering**: `LogSamplingRate` (0.0–1.0) for rate-based sampling; `LogErrorsOnly` for 4xx/5xx only; combined filtering by route name, status code, TraceID
-- **Structured storage**: `YarpEventFormatter` → `StructuredLogService` → SQLite with batch write optimization
-
-### AI Assistant
-
-Dashboard-embedded AI chat assistant, powered by OpenAI-compatible LLMs, enabling natural language gateway management:
-
-**Multi-provider support**: Works with OpenAI, DeepSeek, Qwen, and any OpenAI-compatible API — switch via `Provider` + `BaseUrl` + `ApiKey`
-
-**40 Function Calling tools**:
-- **Read tools (21)**: auto-executed — query routes, clusters, circuit breaker status, proxy logs, traffic stats, WAF config, policies, audit log, etc.
-- **Write tools (19)**: require user confirmation — create/delete routes, create/update clusters, reset circuit breakers, update WAF settings, rollback config, etc.
-
-**Read/write separation security model**:
-- Read operations execute automatically and return results — no manual intervention needed
-- Write operations are proposed by AI, rendered as confirmation cards in the frontend, and only executed after the user clicks "Confirm"
-- All write operations must be explicitly authorized by the user, ensuring operational safety
-
-**Streaming & multi-turn conversation**:
-- Direct streaming output (typewriter effect) when no tool call is needed; two-phase output (tool execution → streaming summary) when tools are involved
-- Conversation history persisted to storage, supporting continuous context-aware dialogue
-- AI response language auto-follows Dashboard UI language (Chinese / English)
-
-**Floating chat on all pages**: a floating button at the bottom-right corner of every Dashboard page — one click to open the chat panel without leaving the current page
-
-### Authentication
-
-| Mode | Description |
-|:-----|:------------|
-| `None` | No auth (default) |
-| `DefaultJwt` | Built-in JWT login (`admin` + password), secret auto-generated |
-| `CustomJwt` | Custom username / password / secret |
-| `ApiKey` | Via `X-Api-Key` header |
-| Custom delegate | `AuthorizeRequest` — plug into your own auth system |
-
-Dashboard API auth for client auto-registration: auto-infers credentials from Dashboard JWT config. No duplicate setup.
-
-### Two-Factor Authentication (2FA)
-
-TOTP-based 2FA for enhanced login security:
-
-- **TOTP helper**: `TotpHelper` generates Base32 secrets + `otpauth://` URIs compatible with Google Authenticator, Microsoft Authenticator, etc.
-- **Setup flow**: Settings page → generate secret → scan QR code → enter 6-digit code to verify binding
-- **Login flow**: when 2FA enabled, login returns `202` → login page shows verification code input → submit code to complete login
-- **Runtime persistence**: 2FA state saved to `twofactor-state.json`, survives restarts
-- **Per-user control**: enable/disable 2FA anytime from Settings page
-
-### Enterprise UI
-
-- **Login page**: glassmorphism card, brand gradient panel, animated bubble background, version + license footer
-- **Sidebar**: collapsible grouped menu (5 groups), auto-expand active group, brand header with gradient icon, user card with online indicator
-- **Responsive**: mobile-friendly sidebar overlay, adaptive layouts
-- **i18n**: Chinese / English runtime switch, 180+ i18n keys
-- **Performance**: WOFF2 fonts, Brotli compression, per-page module loading, lazy Monaco editor, stripped unused language packs
-
----
-
-## Quick Start
-
-### 1. Create the Gateway
-
-```bash
-dotnet new web -n MyGateway
-cd MyGateway
-dotnet add package Aneiang.Yarp
-dotnet add package Aneiang.Yarp.Dashboard
-```
+### Recommended (multi-port + gRPC + hot reload)
 
 ```csharp
-// Program.cs
-using Aneiang.Yarp.Extensions;
-using Aneiang.Yarp.Dashboard.Extensions;
-
 var builder = WebApplication.CreateBuilder(args);
-
+builder.UseYarpKestrelAutoConfig();           // multi-port / gRPC support
 builder.Services.AddAneiangYarp();
+builder.Services.AddAneiangStorage();
 builder.Services.AddAneiangYarpDashboard();
+builder.Services.AddAneiangYarpDeployment();  // deployment modes + health endpoints
 
 var app = builder.Build();
-
-app.UseRouting();
-app.UseAneiangYarpDashboard();  // includes MapReverseProxy
-app.MapControllers();
+app.UseAneiangYarpDashboard();
 app.Run();
 ```
 
-Dashboard available at `/apigateway`.
-
-### 2. Create a Microservice
-
-```bash
-dotnet new web -n MyService
-cd MyService
-dotnet add package Aneiang.Yarp.Client
-```
-
-```csharp
-// Program.cs
-using Aneiang.Yarp.Extensions;
-
-var builder = WebApplication.CreateBuilder(args);
-
-builder.Services.AddAneiangYarpClient();   // ← auto-registers on startup
-builder.Services.AddControllers();
-
-var app = builder.Build();
-app.UseRouting();
-app.MapControllers();
-app.Run();
-```
-
-```json
-// appsettings.json
-{
-  "Gateway": {
-    "Registration": {
-      "GatewayUrl": "http://localhost:5000"
-    }
-  }
-}
-```
-
-The microservice registers itself on startup and unregisters on shutdown. No extra code.
+> Full step-by-step guide: [Quick Start](https://yarp.aneiang.com/docs/index.html#quickstart)
 
 ---
 
-## Configuration Reference
+## Package Structure
 
-All settings under `Gateway:*` — **everything has a default**, zero-config startup works.
+| Package | Purpose | YARP |
+|:--------|:--------|:---:|
+| **Aneiang.Yarp** | Gateway core: dynamic routing, IP isolation, API auth, plugin execution | ✅ |
+| **Aneiang.Yarp.Dashboard** | Web admin panel + AI assistant | via core |
+| **Aneiang.Yarp.Client** | One-line auto-registration (no YARP dependency) | ❌ |
+| **Aneiang.Yarp.Storage.Sqlite** | SQLite storage with SQLCipher AES-256 | via storage |
+| **Aneiang.Yarp.Storage.Abstractions** | Storage interfaces & entities | ❌ |
+| **Aneiang.Yarp.Grpc** | gRPC registration protocol | ❌ |
+| **Aneiang.Yarp.Plugin.Abstractions** | Plugin contract (`IGatewayPlugin`) | ❌ |
+| **Aneiang.Yarp.Plugin.\*** | 11 first-party plugins, pulled in individually | via core |
 
-```json
-{
-  "Gateway": {
-    "Dashboard": {
-      "RoutePrefix": "apigateway",
-      "Locale": "en-US",
-      "EnableProxyLogging": true,
-
-      "AuthMode": "DefaultJwt",
-      "JwtPassword": "your-strong-password",
-      "JwtSecret": "...",
-
-      "EnableLogSampling": false,
-      "LogSamplingRate": 1.0,
-      "LogErrorsOnly": false,
-      "LogMaxBodyLength": 8192,
-      "LogHeaderBlacklist": ["Authorization", "Cookie", "Set-Cookie"],
-      "LogJsonFieldSanitizeList": ["password", "token", "secret", "apikey", "api-key"],
-
-      "AI": {
-        "Enabled": true,
-        "Provider": "openai",
-        "ApiKey": "sk-...",
-        "BaseUrl": "https://api.openai.com/v1",
-        "ChatModel": "gpt-4o-mini"
-      }
-    },
-    "Storage": {
-      "Sqlite": {
-        "ConnectionString": "Data Source=gateway-store.db;Password=your-password"
-      }
-    }
-  }
-}
-```
-
-### Dashboard Options
-
-| Option | Default | Description |
-|:-------|:--------|:------------|
-| `RoutePrefix` | `"apigateway"` | URL prefix for dashboard pages |
-| `EnableProxyLogging` | `true` | Master switch for request logging |
-| `Locale` | `"en-US"` | Default language (`en-US` / `zh-CN`), switchable at runtime |
-| `AuthMode` | `None` | `None` / `ApiKey` / `CustomJwt` / `DefaultJwt` |
-| `JwtPassword` | — | JWT login password |
-| `JwtUsername` | — | Username (CustomJwt only; DefaultJwt fixed `admin`) |
-| `JwtSecret` | auto-gen | JWT signing key; regenerate on restart if not configured |
-| `ApiKey` | — | API Key value for `ApiKey` auth mode |
-| `EnableLogSampling` | `false` | Enable rate-based log sampling |
-| `LogSamplingRate` | `1.0` | Sampling rate 0.0–1.0 |
-| `LogErrorsOnly` | `false` | Log only 4xx/5xx responses |
-| `LogMaxBodyLength` | `8192` | Max captured body length in bytes |
-| `LogHeaderBlacklist` | — | Headers to sanitize in logs |
-| `LogJsonFieldSanitizeList` | — | JSON fields to sanitize in logs |
-
-### Storage Options
-
-| Option | Default | Description |
-|:-------|:--------|:------------|
-| `ConnectionString` | `Data Source=gateway-store.db` | SQLite connection string. Add `Password=xxx` for SQLCipher AES-256 encryption. |
-
-### WAF Options
-
-| Option | Default | Description |
-|:-------|:--------|:------------|
-| `Enabled` | `false` | WAF master switch |
-| `IpWhitelist` | — | IP whitelist (per-line: IP or CIDR) |
-| `IpBlacklist` | — | IP blacklist (per-line: IP or CIDR) |
-| `MaxRequestBodySize` | `10485760` | Max request body size in bytes |
-| `MaxHeaderCount` | `100` | Max number of request headers |
-| `MaxHeaderSize` | `8192` | Max single header size in bytes |
-| `EnableSqlInjectionDetection` | `true` | Detect SQL injection patterns |
-| `EnableXssDetection` | `true` | Detect XSS patterns |
-| `EnablePathTraversalDetection` | `true` | Detect path traversal attempts |
-| `EnableIpCheck` | `true` | Enable IP whitelist/blacklist enforcement |
-| `EnableRequestSizeValidation` | `true` | Enforce request body size limit |
-
-### AI Options
-
-Configuration under `Gateway:Dashboard:AI`:
-
-| Option | Default | Description |
-|:-------|:--------|:------------|
-| `Enabled` | `false` | AI module master switch |
-| `Provider` | `"openai"` | Provider: `openai` / `deepseek` / `qwen` / `custom` |
-| `ApiKey` | — | LLM provider API key |
-| `BaseUrl` | `"https://api.openai.com/v1"` | OpenAI-compatible API endpoint |
-| `ChatModel` | `"gpt-4o-mini"` | Model used for interactive chat |
-| `AnalysisModel` | `"gpt-4o-mini"` | Model used for background analysis (can use a cheaper model) |
-| `MaxTokens` | `4096` | Max tokens per response |
-| `Temperature` | `0.3` | Sampling temperature (0.0 = deterministic, 1.0 = creative) |
-| `MaxConversationHistory` | `20` | Recent conversation turns to retain |
-| `EnableBackgroundAnalysis` | `false` | Enable periodic background log analysis |
-| `AnalysisInterval` | `01:00:00` | Background analysis interval |
+**.NET 8.0 / 9.0**.
 
 ---
 
-## Advanced
+## Feature Overview
 
-<details>
-<summary><b>Custom Authorization — Plug Into Your Own Auth System</b></summary>
-
-```csharp
-builder.Services.AddAneiangYarpDashboard(options =>
-{
-    options.AuthorizeRequest = async (context) =>
-    {
-        return context.User.Identity?.IsAuthenticated == true
-            && context.User.IsInRole("GatewayAdmin");
-    };
-});
-```
-
-Priority: `AuthorizeRequest` > `ApiKey` > `JWT` > `None`
-
-</details>
-
-<details>
-<summary><b>Gateway API Auth — Smart Credential Inference</b></summary>
-
-When the gateway has Dashboard JWT auth configured, gateway management API auth auto-reads it:
-
-```csharp
-// Gateway
-builder.Services.AddAneiangYarp();
-builder.Services.AddAneiangYarpDashboard();
-builder.Services.AddGatewayApiAuth();  // Auto-reads Dashboard JWT password
-```
-
-No extra config needed on the client side.
-
-</details>
-
-<details>
-<summary><b>Middleware Order</b></summary>
-
-```csharp
-var app = builder.Build();
-
-app.UseAuthentication();
-app.UseAuthorization();
-app.UseRateLimiter();
-
-app.UseRouting();
-app.UseAneiangYarpDashboard();  // ← after UseRouting (includes MapReverseProxy)
-app.MapControllers();
-```
-
-The middleware captures YARP proxy request/response data and auto-skips dashboard requests.
-
-</details>
-
-<details>
-<summary><b>Production Recommended Config</b></summary>
-
-```json
-{
-  "Gateway": {
-    "Dashboard": {
-      "AuthMode": "DefaultJwt",
-      "JwtPassword": "very-strong-password-here",
-      "JwtSecret": "your-persisted-secret-key",
-      "EnableLogSampling": true,
-      "LogSamplingRate": 0.1,
-      "LogErrorsOnly": true,
-      "LogMaxBodyLength": 4096,
-      "LogHeaderBlacklist": ["Authorization", "Cookie", "Set-Cookie", "X-Api-Key"],
-      "LogJsonFieldSanitizeList": ["password", "token", "secret", "apikey", "creditCard", "ssn"],
-
-      "AI": {
-        "Enabled": true,
-        "Provider": "deepseek",
-        "ApiKey": "sk-...",
-        "BaseUrl": "https://api.deepseek.com/v1",
-        "ChatModel": "deepseek-chat",
-        "AnalysisModel": "deepseek-chat"
-      }
-    },
-    "Storage": {
-      "Sqlite": {
-        "ConnectionString": "Data Source=gateway-store.db;Password=your-production-password"
-      }
-    }
-  }
-}
-```
-
-</details>
+| Area | What you get | Detail |
+|:-----|:-------------|:-------|
+| **Routing** | Dynamic clusters & routes, drag-sort priority, dual form/JSON editor, import/export, snapshot & rollback, audit log | [:link:](https://yarp.aneiang.com/docs/index.html#dynamic-routing) |
+| **Authentication** | `None` / `DefaultJwt` / `CustomJwt` / `ApiKey` / custom delegate; TOTP **2FA** | [:link:](https://yarp.aneiang.com/docs/index.html#authentication) |
+| **Security** | WAF: IP allow/deny, SQLi / XSS / path-traversal detection, request limits, security headers | [:link:](https://yarp.aneiang.com/docs/index.html#waf-firewall) |
+| **Observability** | Request logs (TraceID pairing, sanitization, sampling), real-time WebSocket stream | [:link:](https://yarp.aneiang.com/docs/index.html#request-logs) |
+| **Monitoring** | Request / latency / status metrics (P50/P90/P99), health checks, circuit-breaker panel | [:link:](https://yarp.aneiang.com/docs/index.html#health-check) |
+| **Notification** | Webhook channels (DingTalk / HTTP), event rules with cooldown, delivery history | [:link:](https://yarp.aneiang.com/docs/index.html#notifications) |
+| **AI Assistant** | Chat-based management, 40 tools, read/write permission split, streaming, multi-provider | [:link:](https://yarp.aneiang.com/docs/index.html#ai-assistant) |
+| **IP Isolation** | Route requests to a specific developer's instance by client IP for collaborative debugging | [:link:](https://yarp.aneiang.com/docs/index.html#ip-isolation) |
+| **Client SDK** | Auto-register / unregister, heartbeat recovery, `GetServicesAsync` / `UpdateDestinationsAsync` | [:link:](https://yarp.aneiang.com/docs/index.html#client-registration) |
+| **Extensibility** | `IGatewayPlugin` contract, plugin-center management, hot-reconfigured bindings | [:link:](https://yarp.aneiang.com/docs/index.html#plugin-system) |
+| **Config safety** | Auto-snapshot, rollback, `GET /api/config/apply-errors`, SQLCipher-encrypted store | [:link:](https://yarp.aneiang.com/docs/index.html#config-history) |
 
 ---
 
-## Sample Projects
+## Service Discovery
 
-```bash
-# Start gateway (with Dashboard)
-dotnet run --project samples/SampleGateway
+`ServiceDiscoveryRefreshService` periodically resolves a cluster's destinations from a registry and publishes a new YARP snapshot — no restart. Bound per cluster (`service-discovery` plugin binding).
 
-# Start client (auto-registers to gateway)
-dotnet run --project samples/SampleLocalService
+| Mode | Notes |
+|:-----|:------|
+| `Static` | Fixed endpoint list |
+| `HttpJson` | Generic HTTP endpoint returning JSON endpoints |
+| `Consul` | Healthy-instance filtering |
+| `Nacos` | `healthyOnly` filter + `hosts` resolution |
+| `Eureka` | JSON + `port.$` parsing + `UP` filtering |
+| `Kubernetes` | ServiceAccount token + endpoints subsets |
 
-# Test
-curl http://localhost:5000/api/your-endpoint
-```
+Config: `Mode` (default `Static`), `Endpoint`, `ServiceName`, `Namespace` (`default`), `Scheme` (`http`), `RefreshSeconds` (`30`), `RequestTimeoutSeconds` (`5`).
 
-Dashboard: `/apigateway` · Login: `admin` / `demo123`
+---
+
+## Built-in Plugins
+
+| ID | Scope | What it does |
+|:---|:------|:-------------|
+| `waf` | Route | IP allow/deny, SQLi / XSS / path-traversal detection, request limits, security headers |
+| `rate-limit` | Route | FixedWindow / SlidingWindow / TokenBucket / Concurrency |
+| `rate-limit-redis` | Route | Distributed limiting via Redis Lua; 429 with `Retry-After` / `X-RateLimit-*` |
+| `request-retry` | Route | Retry with exponential backoff + jitter, status/exception policy |
+| `circuit-breaker` | Cluster | Failure threshold, recovery timeout, half-open probing |
+| `compression` | Route | Gzip / Brotli by MIME allowlist + min size |
+| `response-cache` | Route | Bounded in-memory cache with TTL & vary key |
+| `traffic-metrics` | Route | Per-route requests / errors / latency / bytes |
+| `cluster-metrics` | Cluster | Per-cluster requests / errors / latency / destinations |
+| `proxy-log` | Route | Full proxy capture (headers / optional body), sampling |
+| `service-discovery` | Cluster | Periodic registry-backed endpoint refresh |
+
+---
+
+## Documentation
+
+Full documentation lives at **[yarp.aneiang.com](https://yarp.aneiang.com)**.
+
+- **Getting Started** — [Overview](https://yarp.aneiang.com/docs/index.html#overview) · [Quick Start](https://yarp.aneiang.com/docs/index.html#quickstart)
+- **Gateway Core** — [Authentication](https://yarp.aneiang.com/docs/index.html#authentication) · [Dynamic Routing](https://yarp.aneiang.com/docs/index.html#dynamic-routing) · [IP Isolation](https://yarp.aneiang.com/docs/index.html#ip-isolation) · [Configuration Reference](https://yarp.aneiang.com/docs/index.html#configuration)
+- **Dashboard** — [Dashboard Overview](https://yarp.aneiang.com/docs/index.html#dashboard-overview) · [Config History](https://yarp.aneiang.com/docs/index.html#config-history)
+- **Security** — [WAF Firewall](https://yarp.aneiang.com/docs/index.html#waf-firewall) · [Policy Management](https://yarp.aneiang.com/docs/index.html#policy-management)
+- **Monitoring** — [Health Check](https://yarp.aneiang.com/docs/index.html#health-check) · [Circuit Breaker](https://yarp.aneiang.com/docs/index.html#circuit-breaker) · [Rate Limiting](https://yarp.aneiang.com/docs/index.html#rate-limiting) · [Request Logs](https://yarp.aneiang.com/docs/index.html#request-logs) · [Request Retry](https://yarp.aneiang.com/docs/index.html#request-retry) · [Notifications](https://yarp.aneiang.com/docs/index.html#notifications)
+- **Plugins & Pipeline** — [Plugin System](https://yarp.aneiang.com/docs/index.html#plugin-system) · [Middleware Pipeline](https://yarp.aneiang.com/docs/index.html#middleware-pipeline)
+- **Client SDK** — [Client Registration](https://yarp.aneiang.com/docs/index.html#client-registration)
+- **AI Assistant** — [AI Assistant](https://yarp.aneiang.com/docs/index.html#ai-assistant)
+- **Advanced** — [Deployment Modes](https://yarp.aneiang.com/docs/index.html#deployment-modes) · [Custom Auth](https://yarp.aneiang.com/docs/index.html#custom-auth) · [Production Config](https://yarp.aneiang.com/docs/index.html#production-config)
+- **Storage** — [SQLite Storage](https://yarp.aneiang.com/docs/index.html#storage-sqlite)
+
+---
+
+## Contributing
+
+We welcome contributions!
+
+1. Fork the repo and create a feature branch (`git checkout -b feature/your-feature`).
+2. Commit with a clear message describing the change and its purpose.
+3. Keep the **API surface stable** — new features should ideally be added as plugins.
+4. For new plugins, follow the `IGatewayPlugin` manifest conventions (id, display name, version, scope, capabilities) and provide a JSON Schema.
+5. When changing Dashboard strings, update both `zh-CN` and `en-US` language packs.
+6. Build the solution with **0 warnings / 0 errors** before submitting a Pull Request.
+
+Report bugs and feature requests via GitHub Issues. All first-party packages are MIT-licensed.
 
 ---
 
 ## NuGet
 
-| Package | Description | NuGet |
-|:--------|:------------|:-----:|
-| **Aneiang.Yarp** | Gateway core: dynamic routing, IP isolation, API auth | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp) |
-| **Aneiang.Yarp.Client** | Client auto-registration (lightweight, no YARP dep) | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Client.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Client) |
-| **Aneiang.Yarp.Dashboard** | Web admin UI with full management capabilities | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard) |
-| **Aneiang.Yarp.Storage.Abstractions** | Storage interfaces & entities | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Storage.Abstractions.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Storage.Abstractions) |
-| **Aneiang.Yarp.Storage.Sqlite** | SQLite storage with SQLCipher encryption | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Storage.Sqlite.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Storage.Sqlite) |
-| **Aneiang.Yarp.Grpc** | gRPC registration protocol | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Grpc.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Grpc) |
+| Package | NuGet |
+|:--------|:-----:|
+| **Aneiang.Yarp** | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.svg)](https://www.nuget.org/packages/Aneiang.Yarp) |
+| **Aneiang.Yarp.Dashboard** | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Dashboard.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Dashboard) |
+| **Aneiang.Yarp.Client** | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Client.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Client) |
+| **Aneiang.Yarp.Storage.Abstractions** | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Storage.Abstractions.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Storage.Abstractions) |
+| **Aneiang.Yarp.Storage.Sqlite** | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Storage.Sqlite.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Storage.Sqlite) |
+| **Aneiang.Yarp.Grpc** | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Grpc.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Grpc) |
+| **Aneiang.Yarp.Plugin.Abstractions** | [![NuGet](https://img.shields.io/nuget/v/Aneiang.Yarp.Plugin.Abstractions.svg)](https://www.nuget.org/packages/Aneiang.Yarp.Plugin.Abstractions) |
 
-**.NET 8.0 / 9.0** &nbsp;·&nbsp; **YARP 2.3.0**
+**.NET 8.0 / 9.0** · **YARP 2.3.0**
 
 ---
 
@@ -573,10 +267,11 @@ Dashboard: `/apigateway` · Login: `admin` / `demo123`
 [MIT](LICENSE)
 
 ---
-<div align="center" style="display: flex; justify-content: center; align-items: center; gap: 20px; 
-            background: #f6f8fa; padding: 20px 30px; border-radius: 12px; 
+
+<div align="center" style="display: flex; justify-content: center; align-items: center; gap: 20px;
+            background: #f6f8fa; padding: 20px 30px; border-radius: 12px;
             border: 1px solid #e1e4e8; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-  <img src="docs/wechat_qrcode.jpg" alt="Official Account QR Code" 
+  <img src="docs/wechat_qrcode.jpg" alt="Official Account QR Code"
        style="width: 140px; height: 140px; border-radius: 8px; border: 2px solid #d0d7de;" />
   <div style="text-align: left;">
     <h3 style="margin: 0 0 4px 0; font-size: 22px; font-weight: 600; color: #24292e;">
@@ -585,12 +280,9 @@ Dashboard: `/apigateway` · Login: `admin` / `demo123`
     <p style="margin: 0; font-size: 16px; color: #586069; max-width: 280px;">
       Scan to follow and get more great content
     </p>
-    <!-- Optional: add a WeChat badge -->
-    <p style="margin-top: 8px;">
-      <img src="https://img.shields.io/badge/WeChat-递归不爆炸-brightgreen?style=flat-square&logo=wechat" alt="WeChat" />
-    </p>
   </div>
 </div>
+
 <div align="center">
 
 If this project helps you, [⭐ Star it](https://github.com/aneiang/Aneiang.Yarp) to support development
