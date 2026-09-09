@@ -9,6 +9,11 @@
         return window.DashboardUtils ? window.DashboardUtils.escapeHtml(value == null ? '' : String(value)) : String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
+    /* Escape a value for use inside a double-quoted HTML attribute. */
+    function attr(value) {
+        return esc(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
     function t(key, fallback) {
         var text = window.__ ? window.__(key) : null;
         return (!text || text === key) ? (fallback || key) : text;
@@ -98,8 +103,8 @@
                 html += '<div class="pc-meta-actions">';
                 html += '<span class="plg-plugin-id" style="font-size:11.5px;">' + scopeLabel + '</span>';
                 html += '<span id="' + refreshTimeId + '" class="refresh-badge"></span>';
-                html += '<button class="pr-refresh-btn" onclick="' + moduleName + '.load()" title="' + t('index.btn.refresh', '刷新') + '"><i class="bi bi-arrow-clockwise"></i></button>';
-                html += '<button class="btn btn-sm btn-success" onclick="' + moduleName + '.openAddModal()"><i class="bi bi-plus-lg me-1"></i>' + t('pluginPage.addBinding', 'Add Binding') + '</button>';
+                html += '<button class="pr-refresh-btn" data-action="refresh" title="' + t('index.btn.refresh', '刷新') + '"><i class="bi bi-arrow-clockwise"></i></button>';
+                html += '<button class="btn btn-sm btn-success" data-action="add"><i class="bi bi-plus-lg me-1"></i>' + t('pluginPage.addBinding', 'Add Binding') + '</button>';
                 html += '</div>';
                 html += '</div>';
 
@@ -129,9 +134,9 @@
                         html += '<td><span class="plg-plugin-id" style="font-size:12px;">' + esc(summary) + '</span></td>';
                         html += '<td><span class="plg-health" style="color:' + healthColor + ';"><span class="plg-dot" style="background:' + healthColor + ';"></span>' + (isOn ? t('common.enabled', 'Enabled') : t('common.disabled', 'Disabled')) + '</span></td>';
                         html += '<td class="plg-actions">';
-                        html += '<button class="btn btn-sm btn-outline-primary" title="' + t('pluginPage.editBinding', 'Edit') + '" onclick="' + moduleName + '.openEditModal(' + JSON.stringify(b.id) + ')"><i class="bi bi-pencil"></i></button>';
-                        html += '<button class="btn btn-sm btn-outline-' + (isOn ? 'warning' : 'success') + '" title="' + (isOn ? t('pluginPage.disable', 'Disable') : t('pluginPage.enable', 'Enable')) + '" onclick="' + moduleName + '.toggleBinding(' + JSON.stringify(b.id) + ')"><i class="bi bi-' + (isOn ? 'toggle-on' : 'toggle-off') + '"></i></button>';
-                        html += '<button class="btn btn-sm btn-outline-danger" title="' + t('common.delete', 'Delete') + '" onclick="' + moduleName + '.deleteBinding(' + JSON.stringify(b.id) + ')"><i class="bi bi-trash"></i></button>';
+                        html += '<button class="btn btn-sm btn-outline-primary" title="' + t('pluginPage.editBinding', 'Edit') + '" data-action="edit" data-id="' + attr(b.id) + '"><i class="bi bi-pencil"></i></button>';
+                        html += '<button class="btn btn-sm btn-outline-' + (isOn ? 'warning' : 'success') + '" title="' + (isOn ? t('pluginPage.disable', 'Disable') : t('pluginPage.enable', 'Enable')) + '" data-action="toggle" data-id="' + attr(b.id) + '"><i class="bi bi-' + (isOn ? 'toggle-on' : 'toggle-off') + '"></i></button>';
+                        html += '<button class="btn btn-sm btn-outline-danger" title="' + t('common.delete', 'Delete') + '" data-action="delete" data-id="' + attr(b.id) + '"><i class="bi bi-trash"></i></button>';
                         html += '</td>';
                         html += '</tr>';
                     });
@@ -141,13 +146,31 @@
                     html += '<i class="bi bi-inbox"></i>';
                     html += '<p class="mb-1">' + t('pluginPage.noBindings', 'No bindings yet') + '</p>';
                     html += '<p class="small mb-2">' + t('pluginPage.noBindingsHint', 'Click "Add Binding" above to bind this plugin to') + ' ' + scopeLabel + '</p>';
-                    html += '<button class="btn btn-outline-primary btn-sm" onclick="' + moduleName + '.openAddModal()"><i class="bi bi-plus-lg me-1"></i>' + t('pluginPage.addBinding', 'Add Binding') + '</button>';
+                    html += '<button class="btn btn-outline-primary btn-sm" data-action="add"><i class="bi bi-plus-lg me-1"></i>' + t('pluginPage.addBinding', 'Add Binding') + '</button>';
                     html += '</div>';
                     html += '</td></tr>';
                 }
 
                 html += '</tbody></table></div>';
                 container.innerHTML = html;
+
+                /* Row actions are delegated instead of inlined: binding ids are
+                   strings, and embedding them in onclick attributes broke out of
+                   the HTML attribute and produced truncated JS (SyntaxError). */
+                if (!container.__pcActionBound) {
+                    container.__pcActionBound = true;
+                    container.addEventListener('click', function(event) {
+                        var trigger = event.target && event.target.closest ? event.target.closest('[data-action]') : null;
+                        if (!trigger || !container.contains(trigger)) return;
+                        var action = trigger.getAttribute('data-action');
+                        var id = trigger.getAttribute('data-id');
+                        if (action === 'refresh') module.load();
+                        else if (action === 'add') module.openAddModal();
+                        else if (action === 'edit') module.openEditModal(id);
+                        else if (action === 'toggle') module.toggleBinding(id);
+                        else if (action === 'delete') module.deleteBinding(id);
+                    });
+                }
             },
 
             openAddModal: function() {
@@ -155,7 +178,7 @@
             },
 
             openEditModal: function(bindingId) {
-                var binding = state.bindings.find(function(b) { return b.id === bindingId; });
+                var binding = findBinding(bindingId);
                 if (!binding) {
                     window.DashboardModals.showError(t('pluginPage.bindingNotFound', 'Binding not found'));
                     return;
@@ -164,7 +187,7 @@
             },
 
             toggleBinding: async function(bindingId) {
-                var binding = state.bindings.find(function(b) { return b.id === bindingId; });
+                var binding = findBinding(bindingId);
                 if (!binding) return;
                 try {
                     var payload = Object.assign({}, binding, {
@@ -180,7 +203,7 @@
             },
 
             deleteBinding: function(bindingId) {
-                var binding = state.bindings.find(function(b) { return b.id === bindingId; });
+                var binding = findBinding(bindingId);
                 if (!binding) return;
                 var self = this;
                 window.DashboardModals.showConfirm(
@@ -211,6 +234,11 @@
             } catch (_) {
                 return {};
             }
+        }
+
+        /* Ids come from data-* attributes as strings, so compare loosely. */
+        function findBinding(bindingId) {
+            return state.bindings.find(function(b) { return String(b.id) === String(bindingId); });
         }
 
         function summarizeConfigSafe(config, pluginId) {
