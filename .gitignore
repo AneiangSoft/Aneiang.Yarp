@@ -365,3 +365,6 @@ FodyWeavers.xsd
 website/
 /docs/blog
 /docs/test.json
+
+# VS Code C# Dev Tools - Auto-generated runners
+.vscodecsdt/Runners/
