@@ -84,6 +84,20 @@
         box-shadow: 0 2px 12px rgba(0,0,0,0.06);
         border-color: var(--primary-light, #c7d2fe);
     }
+    /* Whole card is the link (not just the icon) */
+    a.ov-kpi {
+        text-decoration: none;
+        color: inherit;
+        cursor: pointer;
+    }
+    a.ov-kpi:hover {
+        text-decoration: none;
+        color: inherit;
+    }
+    a.ov-kpi:focus-visible {
+        outline: 2px solid var(--primary-color, #4f46e5);
+        outline-offset: 2px;
+    }
     .ov-kpi-icon {
         width: 44px; height: 44px;
         border-radius: 10px;
@@ -346,17 +360,17 @@
 
 <!-- ② Four KPI cards -->
 <div class="ov-kpi-row">
-    <!-- Clusters -->
-    <div class="ov-kpi">
-        <a href="/@prefix/clusters" class="ov-kpi-icon text-decoration-none" style="background:#dbeafe;color:#2563eb;">
+    <!-- Clusters (whole card is the link) -->
+    <a class="ov-kpi" href="/@prefix/clusters">
+        <span class="ov-kpi-icon" style="background:#dbeafe;color:#2563eb;">
             <i class="bi bi-diagram-3"></i>
-        </a>
+        </span>
         <div class="ov-kpi-body">
             <div class="ov-kpi-value" id="stat-clusters">-</div>
             <div class="ov-kpi-label" data-i18n="index.stat.clusters">服务集群</div>
             <div class="ov-kpi-trend"><span id="trend-clusters"><i class="bi bi-dash"></i> --</span></div>
         </div>
-    </div>
+    </a>
     <!-- Health (with ring) -->
     <div class="ov-kpi">
         <div class="ov-health-ring" id="health-ring" style="background:conic-gradient(#22c55e 0deg, #f59e0b 0deg, #ef4444 0deg, #e2e8f0 0deg);">
@@ -371,17 +385,17 @@
             </div>
         </div>
     </div>
-    <!-- Routes -->
-    <div class="ov-kpi">
-        <a href="/@prefix/routes" class="ov-kpi-icon text-decoration-none" style="background:#fef3c7;color:#d97706;">
+    <!-- Routes (whole card is the link) -->
+    <a class="ov-kpi" href="/@prefix/routes">
+        <span class="ov-kpi-icon" style="background:#fef3c7;color:#d97706;">
             <i class="bi bi-signpost-split"></i>
-        </a>
+        </span>
         <div class="ov-kpi-body">
             <div class="ov-kpi-value" id="stat-routes">-</div>
             <div class="ov-kpi-label" data-i18n="index.stat.routes">路由规则</div>
             <div class="ov-kpi-trend"><span id="trend-routes"><i class="bi bi-dash"></i> --</span></div>
         </div>
-    </div>
+    </a>
     <!-- QPS -->
     <div class="ov-kpi">
         <div class="ov-kpi-icon" style="background:#ede9fe;color:#7c3aed;">
