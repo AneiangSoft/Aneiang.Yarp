@@ -25,7 +25,7 @@
         }
         return null;
     }
-
+ 
     function create(config) {
         var pluginId = config.pluginId;
         var scope = config.scope; // 'Route' or 'Cluster'

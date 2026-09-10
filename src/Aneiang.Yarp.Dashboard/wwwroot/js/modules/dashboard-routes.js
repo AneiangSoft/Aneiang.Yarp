@@ -875,7 +875,7 @@
 
             // Path
             var tdPath = window.DashboardDOM.create('td', {
-                style: { overflow: 'hidden' }
+                style: { overflow: 'hidden', minWidth: '200px' }
             });
             var pathText = route.match && route.match.path || '-';
             var pathDiv = document.createElement('div');
@@ -891,13 +891,13 @@
 
             // Cluster
             var tdCluster = window.DashboardDOM.create('td', {
-                style: { width: '140px', verticalAlign: 'middle', overflow: 'hidden' }
+                style: { width: '110px', verticalAlign: 'middle', overflow: 'hidden' }
             });
             if (route.clusterId) {
                 var clusterDiv = document.createElement('div');
                 clusterDiv.style.cssText = 'display:flex;align-items:center;gap:4px;';
                 var clusterBadge = document.createElement('span');
-                clusterBadge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:5px;font-size:12px;font-weight:600;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;';
+                clusterBadge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:5px;font-size:12px;font-weight:600;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;white-space:nowrap;max-width:92px;overflow:hidden;text-overflow:ellipsis;';
                 clusterBadge.innerHTML = '<i class="bi bi-diagram-3" style="font-size:11px;flex-shrink:0;"></i><span style="overflow:hidden;text-overflow:ellipsis;">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.clusterId) : route.clusterId) + '</span>';
                 clusterBadge.title = route.clusterId;
                 clusterDiv.appendChild(clusterBadge);
@@ -909,7 +909,7 @@
 
             // Methods
             var tdMethods = window.DashboardDOM.create('td', {
-                style: { width: '120px', verticalAlign: 'middle' }
+                style: { width: '90px', verticalAlign: 'middle' }
             });
             var methods = route.match && route.match.methods || [];
             var methDiv = document.createElement('div');
@@ -937,7 +937,7 @@
 
             // Actions
             var tdActions = window.DashboardDOM.create('td', {
-                style: { width: '160px', verticalAlign: 'middle', textAlign: 'center' }
+                style: { width: '132px', verticalAlign: 'middle', textAlign: 'center' }
             });
             tdActions.appendChild(this.createActionButtons(route));
             tr.appendChild(tdActions);
