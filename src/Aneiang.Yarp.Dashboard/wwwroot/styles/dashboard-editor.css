@@ -779,3 +779,42 @@
     border-color: var(--bs-border-color);
 }
 
+/* ═══ Routes page (路由配置) — small-screen optimization ═══ */
+
+/* Column width rebalance: give 匹配路径 room instead of crushing it to
+   one character per line; other columns carry fixed-width hints. */
+#route-table-view thead th:nth-child(4) { width: 18% !important; }   /* 路由名称 */
+#route-table-view thead th:nth-child(6) { width: 110px !important; } /* 集群 */
+#route-table-view thead th:nth-child(7) { width: 90px !important; }  /* 方法 */
+#route-table-view thead th:nth-child(8) { width: 132px !important; } /* 操作 */
+#route-table-view td:nth-child(5) { min-width: 200px; }              /* 匹配路径 */
+
+/* Never crush columns on narrow viewports — .table-responsive scrolls
+   horizontally instead, keeping every column readable. */
+#route-table-view table { min-width: 860px; }
+
+@media (max-width: 991.98px) {
+    #route-table-view table { min-width: 780px; }
+    #route-table-view td:nth-child(5) { min-width: 160px; }
+}
+
+@media (max-width: 767.98px) {
+    /* 方法 is the least critical column (values remain visible in the
+       expanded detail row) — hide it to free width on phones. */
+    #route-table-view thead th:nth-child(7),
+    #route-table-view td:nth-child(7) { display: none; }
+    #route-table-view table { min-width: 640px; }
+    #route-table-view th,
+    #route-table-view td { padding-left: 10px; padding-right: 10px; }
+}
+
+@media (max-width: 575.98px) {
+    /* Stack the filter toolbar (search + cluster/method/source selects) */
+    #route-filter-container .col,
+    #route-filter-container .col-auto {
+        flex: 0 0 100% !important;
+        max-width: 100%;
+    }
+    #route-filter-container .form-select { width: 100% !important; }
+}
+

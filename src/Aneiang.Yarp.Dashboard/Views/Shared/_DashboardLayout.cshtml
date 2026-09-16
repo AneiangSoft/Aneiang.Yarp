@@ -4335,11 +4335,12 @@
         .plg-th-actions, .plg-actions {
             text-align: right;
             width: 1%;
+            white-space: nowrap;
         }
-        .plg-actions {
-            display: flex;
-            gap: 4px;
-            justify-content: flex-end;
+        /* .plg-actions is applied to <td>; never make it flex — that breaks
+           the table-cell layout and makes the status/actions columns overlap. */
+        .plg-actions .btn + .btn {
+            margin-left: 4px;
         }
 
         /* ─── Shared: flat meta line (replaces stat-mini-card rows) ─── */
