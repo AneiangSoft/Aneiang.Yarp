@@ -24,7 +24,7 @@ Plugin Architecture · Dashboard · Dynamic Routing · WAF · Service Discovery 
 
 **Aneiang.Yarp** is a production-ready API gateway built on [Microsoft YARP](https://microsoft.github.io/reverse-proxy/) 2.3.0. It ships with everything you'd otherwise build yourself: a **plugin architecture** (11 built-in plugins), a visual **management dashboard**, WAF, AI assistant, multi-provider **service discovery**, notifications, health & circuit-breaker monitoring, and **one-line client auto-registration**.
 
-[📖 Documentation](https://yarp.aneiang.com/docs/index.html#overview) · [🚀 Live Demo](https://yarp-test.aneiang.com/aneiang) `admin` / `demo123` · [🌐 Online Proxy](https://yarp-proxy.aneiang.com)
+[📖 Documentation](https://yarp.aneiang.com/docs/index.html#overview) · [🚀 Live Demo](https://yarp-test.aneiang.com/aneiang) `admin` / `demo123` 
 
 ---
 

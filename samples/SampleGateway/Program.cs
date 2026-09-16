@@ -32,7 +32,7 @@ try
     builder.UseYarpKestrelAutoConfig();
 
     // Gateway: one-liner — auto-loads ReverseProxy routes/clusters + dynamic config
-    builder.Services.AddAneiangYarp();
+    builder.Services.AddAneiangYarp(enableRegistration:false);
 
     // Storage backend: host app is responsible for choosing the storage implementation
     builder.Services.AddAneiangStorage();
