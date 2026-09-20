@@ -11,6 +11,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@(isEn ? "Login - Gateway Dashboard" : "登录 - 网关仪表盘")</title>
+    <link rel="icon" type="image/png" href="/_content/Aneiang.Yarp.Dashboard/images/logo.png" />
     <link href="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
     <link href="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet" />
     <link href="/_content/Aneiang.Yarp.Dashboard/styles/inter-font.css" rel="stylesheet">
@@ -94,12 +95,10 @@
         }
         .brand-logo-icon {
             width: 44px; height: 44px; border-radius: 11px;
-            background: rgba(255,255,255,0.12);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
-            display: flex; align-items: center; justify-content: center;
-            color: #fff; font-size: 21px;
+            overflow: hidden; flex-shrink: 0;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.25);
         }
+        .brand-logo-icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .brand-logo-text { color: #fff; font-size: 19px; font-weight: 700; letter-spacing: -0.3px; }
         .brand-tagline { color: rgba(255,255,255,0.7); font-size: 12.5px; line-height: 1.5; margin-top: 8px; position: relative; z-index: 1; }
 
@@ -200,7 +199,7 @@
         <div class="brand-panel">
             <div>
                 <div class="brand-logo">
-                    <span class="brand-logo-icon"><i class="bi bi-hdd-rack-fill"></i></span>
+                    <span class="brand-logo-icon"><img src="/_content/Aneiang.Yarp.Dashboard/images/logo.png" alt="logo" /></span>
                     <span class="brand-logo-text" data-i18n="login.brand">网关仪表盘</span>
                 </div>
                 <div class="brand-tagline" data-i18n="login.tagline">企业级 API 网关运维管理平台</div>

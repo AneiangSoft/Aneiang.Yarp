@@ -1,11 +1,12 @@
 <Project>
 
   <PropertyGroup>
-    <Version>2.3.0.30-preview.1</Version>
+    <Version>2.3.0.30</Version>
     <Authors>AneiangSoft Team</Authors>
     <Company>AneiangSoft</Company>
     <Copyright>Copyright © AneiangSoft $([System.DateTime]::Now.Year)</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>logo.png</PackageIcon>
     <PackageProjectUrl>https://github.com/aneiangsoft/Aneiang.Yarp</PackageProjectUrl>
     <RepositoryUrl>https://github.com/aneiangsoft/Aneiang.Yarp</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -23,6 +24,7 @@
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)..\README.md" Pack="true" PackagePath="\" />
     <None Include="$(MSBuildThisFileDirectory)..\README.zh-CN.md" Pack="true" PackagePath="\" />
+    <None Include="$(MSBuildThisFileDirectory)..\logo.png" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
 
 </Project>
